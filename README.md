@@ -85,7 +85,7 @@ ALLOWED_ORIGIN: Your frontend URL (e.g., https://my-signing-room.com).
 
 LNBITS_URL: (Optional) Your LNBits URL for payments.
 
-LNBITS_KEY: (Optional) Your LNBits Invoice Key.
+LNBITS_KEY: (Optional) Your LNBits Invoice Key. 
 
 🤝 Contributing
 Pull Requests are welcome. If you are adding a feature, please ensure it adheres to our core principle: The server must remain blind.
