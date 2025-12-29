@@ -110,4 +110,4 @@ If you discover a vulnerability, please do NOT open a public issue. Email the ma
 
 PGP Fingerprint: C642EB5E3EB8519498CF653597A4B80F7970DD56 Email: security@signingroom.io
 
-<div align="center"> <sub>Built with 🧡 and ⚡ by <a href="https://twitter.com/SeanCarlin">Sean Carlin</a>.</sub> </div>
+Built with 🧡 and ⚡ by [Sean Carlin](https://x.com/seancarlin90).
