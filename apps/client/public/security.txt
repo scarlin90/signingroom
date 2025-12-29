@@ -1,0 +1,41 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+SigningRoom.io Warrant Canary
+Date: 2025-12-27
+
+I, the administrator of SigningRoom.io, represent that:
+
+1. I have NOT received any National Security Letters.
+2. I have NOT received any FISA court orders.
+3. I have NOT received any gag orders preventing me from stating that I have received legal process.
+4. I have NOT been forced to modify the system code to introduce backdoors.
+
+To prove this message was generated recently, here is the latest Bitcoin block hash:
+Block Hash: 000000000000000000005313c95f69259a5f191f7a95ae49bcedd18f8e8ffc1d
+
+This statement is valid until: 2026-01-26
+
+If this file is not updated by the expiry date, or if the PGP signature is invalid, please assume the service has been compromised or seized.
+
+-----BEGIN PGP MESSAGE-----
+
+hF4D20rMCycOA6QSAQdAMA6wTXEXH9h6BZG4L8YrawC1Ls1IkrG/QS2YT4AIGHYw
+UHxiX/DW8PG0A6nJ9QDEOCt//+gd4nR8BMX52CPuijAzLn9vIkcXyVFTJllgNq91
+1OkBCQIQkxAOFfJfgk8Qytv5CvIMILRkdbxi1mn4zkHCQEtIIIW8asmbIAfhZrQX
+IjLtldl32S+VSAxEmld1TxsC/1K4dwf2tvSOCjVlFAgqIoeUX/KyxgzG/pui+/SQ
+vYIGQf5GY7yL07JB464NvZ2Eoivd7xbtSRLNmUZ8qmHPI3iGldmVyeSiJTXQE09N
+PL0Ba72cjyR9e3qSiUO1FxyYHvsAmIbMH4oDnzy7mOnXhVI9rq9Swhl71cGpoH41
++10YTUqpRB20gyl0USXOGO+tE9c4Y6SWdX+6PK0tyRxGSor9FZ1kx/5DwAAEVNWp
+9fgpwAXTC10P+F4ehEkSCk0b77otdZwM3/NrPBu6C92lqktiMVSN7m2IrTZupgs2
+tj647WKcdpW30ay7uizmrda1b/qM00uEicq8DTXq+3ueHSFc4ospLmIt2ikrZKzj
+4EV4tFNUwkwdPbWULUZ+P1DWeVdgVVHk4jiq5M1+DaHP+IB2r3lrvBST3s60TQTd
+ixVkapg6tTZsNObc32XYCd0N0GBKhozl3IEO9nsjZwNB4yUkmb50VoHkHOhUSBQ5
+WWATJpsS/zNZQBUF86fyd+k5+aayA65QbYlVoWHM1vBEuLsdrCubd/gxVRFT4HhS
+icyA2te8qhL497N75BJ4nKTHZDYhhmT22cf9OWH8wEtnbKU07usk2ea8Nk1J1tzI
+qjtPqvWfoGxpfg45p/UKOlXd5HPGGM2XM+Hw/Ic0aewLgZ1TCN+ir8xw7+ao8mxS
+CgP7J1Gj5Znn/GJzkvxPysXCBByyLFdSe5cXx3PsYkra1Yia04zb7GmFaW6vQO4o
+YG6GsOPjSE0BqGchtylHxGGKg0QytNF1crcyzf/YIIV2Sut6t+9K83rGVa7w8jVn
+NNLaDQLklaY=
+=kmWS
+-----END PGP MESSAGE-----

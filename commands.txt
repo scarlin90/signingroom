@@ -1,0 +1,7 @@
+C:\Users\seanc\Projects\signing-room
+
+npx nx run client:serve --configuration=development
+
+
+C:\Users\seanc\Projects\signing-room\apps\worker
+npx wrangler dev

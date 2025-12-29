@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+ @theme {
+
+    --font-sans: 'Inter', sans-serif;
+
+
+    --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
+
+    @keyframes fade-in-up {
+        0% {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}
+
+body {
+    @apply bg-slate-950 text-slate-200 font-sans selection:bg-emerald-500/30;
+}
+
+html, body {
+    height: 100%;
+    /* Prevents the "rubber band" effect on iOS which triggers refresh */
+    overscroll-behavior-y: none; 
+    background-color: #020617; /* Match slate-950 to hide browser chrome gaps */
+}

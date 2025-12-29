@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <title>SigningRoom.io | Real-Time Bitcoin Multisig Coordinator</title>
+
+    <meta name="description" content="The stateless, zero-knowledge Bitcoin multisig coordinator. Stop emailing PSBT files. Merge transactions in real-time without accounts, databases, or key person risk.">
+    
+    <meta name="keywords" content="Bitcoin Multisig, PSBT Coordinator, Stateless Coordinator, Multisig Wallet, Sparrow Wallet, Coldcard, Real-time Signing, Zero Knowledge, BIP-174, AES-GCM, Client-side Encryption">
+    
+    <meta name="author" content="Sean Carlin">
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://signingroom.io/">
+    <meta property="og:title" content="SigningRoom.io | Real-Time Bitcoin Multisig">
+    <meta property="og:description" content="Stop emailing PSBT files. Coordinate multisig teams instantly. No accounts. No database. End-to-End Encrypted.">
+    <meta property="og:image" content="https://signingroom.io/assets/preview-card.jpg">
+
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://signingroom.io/">
+    <meta property="twitter:title" content="SigningRoom.io | Real-Time Bitcoin Multisig">
+    <meta property="twitter:description" content="Stop emailing PSBT files. Coordinate multisig teams instantly. No accounts. No database. End-to-End Encrypted.">
+    <meta property="twitter:image" content="https://signingroom.io/assets/preview-card.jpg">
+    
+    <meta name="theme-color" content="#020617">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "SigningRoom.io",
+      "operatingSystem": "Any",
+      "applicationCategory": "FinanceApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "name": "Standard Room (Free)"
+      },
+      "description": "A zero-knowledge, stateless coordinator for Bitcoin multisignature transactions. Replaces manual file sharing with an encrypted, real-time signing room.",
+      "featureList": [
+        "Real-time PSBT Merging",
+        "Zero-Knowledge Encryption",
+        "Stateless Architecture",
+        "Cryptographic Audit Logs",
+        "Hardware Wallet Compatibility"
+      ],
+      "softwareHelp": {
+        "@type": "CreativeWork",
+        "url": "https://signingroom.io/"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Sean Carlin"
+      }
+    }
+    </script>
+
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192x192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-startup-image" href="assets/icons/apple-launch-1242x2688.png">
+    
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&amp;display=swap" rel="stylesheet">
+
+    <style type="text/tailwindcss">
+        @theme {
+            --font-sans: 'Inter', sans-serif;
+            --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
+            @keyframes fade-in-up {
+                0% { opacity: 0; transform: translateY(10px); }
+                100% { opacity: 1; transform: translateY(0); }
+            }
+        }
+        body {
+            @apply bg-slate-950 text-slate-200 font-sans selection:bg-emerald-500/30;
+        }
+    </style>
+    <base href="/">
+</head>
+<body class="bg-slate-950 m-0 p-0">
+    <app-root></app-root>
+    <noscript>Please enable JavaScript to continue using SigningRoom.io.</noscript>
+</body>
+</html>
