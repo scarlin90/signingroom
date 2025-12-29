@@ -45,7 +45,7 @@ The server **never** sees the transaction details, addresses, or amounts.
 
 ---
 
-## 🚀 Quick Start (Development)
+## 🚀 Quick Start (Development) 
 
 Prerequisites: `Node.js v20+`, `pnpm` (optional).
 
