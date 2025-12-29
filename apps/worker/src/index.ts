@@ -118,7 +118,7 @@ function checkRateLimit(ip: string): boolean {
 
   const current = ipLimits.get(ip)!;
   current.count++;
-  return current.count <= 20;
+  return current.count <= 100;
 }
 
 // =============================================================================
