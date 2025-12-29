@@ -1233,7 +1233,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     async initiateUnlockInvoice() {
-        if (this.paymentRequest()) return; 
+        if (this.paymentRequest() || this.invoiceLoading()) return; 
+        
         this.invoiceLoading.set(true);
         try {
             const res: any = await this.socket.createInvoice(21000, "Unlock Enterprise Room"); 
