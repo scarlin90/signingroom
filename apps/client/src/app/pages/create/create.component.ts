@@ -460,7 +460,7 @@ interface PsbtAnalysis {
                 {{ selectedPlan() === 'genesis' ? 'Genesis License' : 'Annual License' }}
             </h3>
             <p class="text-slate-400 text-xs mb-6">
-                Pay {{ selectedPlan() === 'genesis' ? '21,100,000' : '300,000' }} sats via Lightning.
+                Pay {{ selectedPlan() === 'genesis' ? '2,100,000' : '300,000' }} sats via Lightning.
             </p>
 
             @if (invoiceLoading()) {
