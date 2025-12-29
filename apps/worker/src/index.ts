@@ -171,6 +171,14 @@ app.use('/*', async (c, next) => {
   await next();
 });
 
+app.get('/api/health', (c) => {
+  return c.json({ 
+    status: 'healthy', 
+    version: '1.0.0',
+    timestamp: Date.now() 
+  });
+});
+
 // =============================================================================
 // 4. API ROUTES: ROOM MANAGEMENT
 // =============================================================================
