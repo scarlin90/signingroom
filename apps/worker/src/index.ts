@@ -280,12 +280,9 @@ app.get('/api/room/:id/websocket', async (c) => {
 });
 
 app.post('/api/webhook/lnbits', async (c) => {
-  const roomId = c.req.query('roomId');
-  if (roomId) {
-    const id = c.env.SIGNING_ROOM.idFromName(roomId);
-    const room = c.env.SIGNING_ROOM.get(id);
-    await room.fetch(new Request('http://internal/extend', { method: 'POST' }));
-  }
+  // We rely on the client polling /extend to trigger the time update.
+  // Keeping the webhook endpoint active just to satisfy LNBits requirements (return 200 OK),
+  // but we remove the logic so it doesn't double-count the payment.
   return c.text('OK');
 });
 
