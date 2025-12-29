@@ -1,0 +1,50 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "signing-room-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-04-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "ALLOWED_ORIGIN": "https://signingroom.io",
+    "API_PUBLIC_URL": "https://api.signingroom.io", 
+    "LNBITS_URL": "https://legend.lnbits.com"
+  },
+  "routes": [
+    {
+      "pattern": "api.signingroom.io", 
+      "custom_domain": true
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SIGNING_ROOM",
+        "class_name": "SigningRoom"
+      },
+      {
+        "name": "SALES_COUNTER",
+        "class_name": "SalesCounter"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": [
+        "SigningRoom",
+        "SalesCounter"
+      ]
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "LICENSES",
+      "id": "1cb25cf04eac4bff82b4a9c9f5c1aad4"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
