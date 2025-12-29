@@ -8,8 +8,7 @@
   ],
   "vars": {
     "ALLOWED_ORIGIN": "https://signingroom.io",
-    "API_PUBLIC_URL": "https://api.signingroom.io", 
-    "LNBITS_URL": "https://legend.lnbits.com"
+    "API_PUBLIC_URL": "https://api.signingroom.io"
   },
   "routes": [
     {
