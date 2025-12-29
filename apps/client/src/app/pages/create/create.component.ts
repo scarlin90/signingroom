@@ -693,16 +693,39 @@ export class CreateComponent implements OnInit {
         this.paymentRequest.set(null);
 
         try {
+            // 1. Generate Invoice
             const res = await firstValueFrom(this.socket.buyLicense(type));
             this.paymentRequest.set(res.payment_request);
             this.invoiceLoading.set(false);
 
-            const key = await this.socket.waitForLicenseKey(res.payment_hash);
-            if (key) {
-                this.purchasedKey.set(key);
-                this.downloadLicenseFile(key);
-                this.triggerConfetti();
+            const currentInvoice = res.payment_request; // Capture specific invoice ID
+
+            // 2. Poll Manually (Stops if modal closes OR new invoice generated)
+            while (this.showPaymentModal() && this.paymentRequest() === currentInvoice && !this.purchasedKey()) {
+                
+                // Wait 2 seconds
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Double check state after wait
+                if (!this.showPaymentModal() || this.paymentRequest() !== currentInvoice) break;
+
+                try {
+                    // Check status using the existing private HTTP client
+                    const check: any = await firstValueFrom(
+                        this.socket['http'].get(`${environment.apiUrl}/api/license/claim/${res.payment_hash}`)
+                    );
+
+                    if (check.ready && check.apiKey) {
+                        this.purchasedKey.set(check.apiKey);
+                        this.downloadLicenseFile(check.apiKey);
+                        this.triggerConfetti();
+                        break; 
+                    }
+                } catch (e) {
+                    // Ignore 429s or network blips during poll
+                }
             }
+
         } catch (e) {
             console.error(e);
             this.openAlert("Error", "Failed to generate invoice.");
