@@ -1,5 +1,7 @@
 # SigningRoom.io
 
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-signingroom.io-blue?style=for-the-badge)](https://signingroom.io)
+
 > **Stateless. Zero-Knowledge. Real-Time.**
 > The Bitcoin Multisig Coordinator for teams who value sovereignty.
 
