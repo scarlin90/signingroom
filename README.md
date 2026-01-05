@@ -1,5 +1,7 @@
 # SigningRoom.io
 
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-signingroom.io-blue?style=for-the-badge)](https://signingroom.io)
+
 > **Stateless. Zero-Knowledge. Real-Time.**
 > A stateless coordination layer for Bitcoin multisig transactions.
 
