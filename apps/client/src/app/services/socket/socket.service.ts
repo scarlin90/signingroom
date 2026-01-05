@@ -1,20 +1,10 @@
 /*
  * Copyright (C) 2025 Sean Carlin
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
+ * Licensed under the GNU Affero General Public License v3.0
  */
 
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http'; 
-import { firstValueFrom } from 'rxjs';
 import { Transaction } from '@scure/btc-signer';
 import { base64, hex } from '@scure/base';
 import { environment } from '../../../environments/environment';
@@ -34,9 +24,7 @@ export interface AuditEntry {
 export interface RoomState {
   roomId: string;
   roomName: string;
-  tier: 'free' | 'enterprise';
-  isPaid: boolean;
-  isGenesis?: boolean;
+  // REMOVED: tier, isPaid, isGenesis (No longer relevant)
   network: 'bitcoin' | 'testnet' | 'signet';
   
   // Transaction Data
@@ -47,7 +35,6 @@ export interface RoomState {
   connectedCount: number;
   createdAt: number;
   expiresAt: number;
-  isExtended: boolean;
   isLocked: boolean;
   
   // Governance
@@ -132,17 +119,10 @@ export class SocketService {
   // Connection Management
   // -------------------------------------------------------------------------
 
-  /**
-   * Connects to the WebSocket room.
-   * @param roomId The UUID of the room.
-   * @param key The decryption key from the URL hash.
-   */
   connect(roomId: string, key: string | null) { 
-    const licenseKey = localStorage.getItem('signing_room_license');
     this.reset();
     this.encryptionKey = key; 
     
-    // Initialize default empty state to prevent UI flicker
     this.roomState.set(this.getInitialState(roomId));
 
     if (this.ws) this.disconnect(false);
@@ -157,9 +137,6 @@ export class SocketService {
     this.ws.onopen = () => {
       console.log('WS Connected');
       this.status.set('connected');
-
-      // Verify License on connect if saved locally
-      if (licenseKey) this.send('VERIFY_LICENSE', { key: licenseKey });
 
       // Auto-Claim admin if token exists in session
       const token = sessionStorage.getItem(`admin_token_${roomId}`);
@@ -205,7 +182,6 @@ export class SocketService {
   // Public Actions
   // -------------------------------------------------------------------------
 
-  /** Uploads a signed PSBT chunk (encrypted) to the room. */
   async uploadSignature(partialPsbtBase64: string) {
       if (!this.encryptionKey) return;
 
@@ -260,7 +236,6 @@ export class SocketService {
   // PSBT & Crypto Logic
   // -------------------------------------------------------------------------
 
-  /** Finalizes the transaction and returns the hex string ready for broadcast. */
   getFinalTxHex(): string | null {
     if (this.role() !== 'admin') return null;
     const state = this.roomState();
@@ -304,64 +279,12 @@ export class SocketService {
         const script = input.witnessScript || input.redeemScript;
         if (!script || script.length === 0) return 0;
 
-        // OP_M (0x51..0x60) check
         const firstOp = script[0];
         if (firstOp >= 0x51 && firstOp <= 0x60) {
             return firstOp - 0x50; 
         }
         return 0;
     } catch (e) { return 0; }
-  }
-
-  // -------------------------------------------------------------------------
-  // Licensing & Payments
-  // -------------------------------------------------------------------------
-
-  createInvoice(amount: number, memo: string) {
-      const roomId = this.roomState()?.roomId;
-      if (!roomId) return Promise.reject('No room ID');
-      return firstValueFrom(this.http.post<{ payment_request: string, payment_hash: string }>(
-          `${environment.apiUrl}/api/room/${roomId}/invoice`, { amount, memo }
-      ));
-  }
-
-  createTimeExtensionInvoice(amount: number = 5000) {
-      return this.createInvoice(amount, "Extend Room (+24h)");
-  }
-
-  buyLicense(type: 'annual' | 'genesis') {
-      return this.http.post<{ payment_request: string, payment_hash: string }>(
-          `${environment.apiUrl}/api/license/buy`, { type }
-      );
-  }
-
-  async waitForPayment(roomId: string, paymentHash: string): Promise<boolean> {
-      return this.pollPayment(roomId, paymentHash, 'extend');
-  }
-
-  async waitForUnlock(roomId: string, paymentHash: string): Promise<boolean> {
-      return this.pollPayment(roomId, paymentHash, 'unlock');
-  }
-
-  async waitForLicenseKey(paymentHash: string): Promise<string | null> {
-      for (let i = 0; i < 60; i++) { 
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          try {
-              const res = await firstValueFrom(this.http.get<{ ready: boolean, apiKey?: string }>(
-                  `${environment.apiUrl}/api/license/claim/${paymentHash}`
-              ));
-              if (res.ready && res.apiKey) return res.apiKey;
-          } catch(e) {}
-      }
-      return null;
-  }
-
-  getGenesisStock() {
-      return this.http.get<{ sold: number, remaining: number }>(`${environment.apiUrl}/api/license/stock`);
-  }
-
-  rotateLicense(oldKey: string) {
-      return this.http.post<{ newKey: string }>(`${environment.apiUrl}/api/license/rotate`, { oldKey });
   }
 
   // -------------------------------------------------------------------------
@@ -420,7 +343,8 @@ export class SocketService {
   private getInitialState(roomId: string): RoomState {
       return {
         roomId, psbt: '', signatures: [], connectedCount: 0, createdAt: Date.now(),
-        expiresAt: Date.now() + 1200000, isExtended: false, tier: 'free', isPaid: true,
+        expiresAt: Date.now() + 1200000, 
+        // REMOVED: isExtended, isPaid, tier
         auditLog: [], signerLabels: {}, roomName: 'Signing Room', whitelist: [],
         isLocked: false, network: 'bitcoin'
       };
@@ -460,12 +384,7 @@ export class SocketService {
                 this.isClosed.set(true);
                 this.disconnect(false);
                 break;
-            case 'TIME_EXTENDED':
-                this.roomState.update(s => s ? { ...s, expiresAt: msg.expiresAt } : null);
-                break;
-            case 'ROOM_UNLOCKED':
-                this.roomState.update(s => s ? { ...s, isPaid: true } : null);
-                break;
+            // REMOVED: TIME_EXTENDED, ROOM_UNLOCKED cases
             case 'WHITELIST_UPDATED':
                 this.roomState.update(s => s ? { ...s, whitelist: msg.whitelist } : null);
                 break;
@@ -681,18 +600,5 @@ export class SocketService {
         const getX = (k: Uint8Array) => k.length === 33 ? k.slice(1) : k.length === 65 ? k.slice(1, 33) : k;
         return hex.encode(getX(k1)) === hex.encode(getX(k2));
     } catch (e) { return false; }
-  }
-
-  private async pollPayment(roomId: string, paymentHash: string, endpoint: 'extend' | 'unlock'): Promise<boolean> {
-      for (let i = 0; i < 40; i++) {
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          try {
-              const res = await firstValueFrom(this.http.post<{ success: boolean }>(
-                  `${environment.apiUrl}/api/room/${roomId}/${endpoint}`, { paymentHash }
-              ));
-              if (res.success) return true;
-          } catch(e) {}
-      }
-      return false;
   }
 }

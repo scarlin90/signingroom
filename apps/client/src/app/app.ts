@@ -68,14 +68,19 @@ import { filter } from 'rxjs/operators';
         <router-outlet></router-outlet>
     </div>
 
-    <footer class="border-t border-slate-800 bg-slate-950 py-12">
+    <footer class="border-t border-slate-800 bg-slate-950 py-12 mt-auto relative z-20">
       <div class="max-w-5xl mx-auto px-6">
         
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-8">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-10">
             <div class="text-center md:text-left">
-              <div class="font-bold text-white text-lg mb-1">SigningRoom.io</div>
+              <div class="font-bold text-white text-lg mb-1 flex items-center gap-2">
+                SigningRoom.io
+                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-widest font-mono">
+                  Beta
+                </span>
+              </div>
               <p class="text-xs text-slate-500">
-                Open Source &bull; Zero Knowledge &bull; Bitcoin Only
+                100% Free &bull; Zero Knowledge &bull; Bitcoin Only
               </p>
             </div>
 
@@ -99,27 +104,36 @@ import { filter } from 'rxjs/operators';
         </div>
 
         <div class="border-t border-slate-900 pt-8">
-            <p class="text-[10px] text-slate-600 leading-relaxed text-justify">
-                <strong>DISCLAIMER:</strong> This software is provided "as is", without warranty of any kind, express or implied. 
-                SigningRoom.io does not hold custody of funds, private keys, or unencrypted transaction data at any time. 
-                You are solely responsible for verifying the details of your transaction before broadcasting. 
-                Use at your own risk. Always verify PSBT details on your hardware device screen.
-            </p>
+            <div class="bg-slate-900/30 p-4 rounded-xl border border-slate-800/50 mb-6">
+                <p class="text-[10px] text-slate-500 leading-relaxed text-justify font-mono">
+                    <strong>DISCLAIMER OF WARRANTY:</strong> This is free, open-source software released under the <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" class="underline hover:text-white">AGPLv3 License</a>. 
+                    It is provided "as is", without warranty of any kind. 
+                    <br><br>
+                    <strong>NON-CUSTODIAL:</strong> SigningRoom.io is a stateless coordination tool, not a wallet or financial institution. 
+                    We do not have access to your private keys, funds, or unencrypted transaction data. 
+                    We do not maintain user accounts or historical logs.
+                    <br><br>
+                    <strong>USER RESPONSIBILITY:</strong> You are solely responsible for verifying transaction details (addresses, amounts, fees) on your hardware device screen before signing. 
+                    The developers assume no liability for lost funds or software errors.
+                </p>
+            </div>
             
-            <div class="flex flex-col items-center justify-center gap-3 mt-6">
-              <div class="flex items-center gap-1 text-xs text-slate-700">
-                <p>&copy; {{ currentYear }} Sean Carlin. Released under AGPL v3.</p>
-                <span class="mx-1">&bull;</span>
-                <p>Built for Bitcoiners.</p>
+            <div class="flex flex-col items-center justify-center gap-4">
+              <div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-2 text-xs text-slate-600">
+                <p>&copy; {{ currentYear }} Sean Carlin</p>
+                <span class="hidden sm:inline">&bull;</span>
+                <p>Made for Bitcoiners</p>
+                <span class="hidden sm:inline">&bull;</span>
+                <p>No Tracking / No Cookies</p>
               </div>
 
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-4 opacity-70 hover:opacity-100 transition">
                   <a href="/security.txt" target="_blank" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600 hover:text-emerald-400 transition group">
                     <lucide-icon [img]="Shield" class="w-3 h-3 group-hover:text-emerald-400 transition"></lucide-icon>
                     Warrant Canary
                   </a>
                   
-                  <span class="text-slate-700 text-[10px]">&bull;</span>
+                  <span class="text-slate-800 text-[10px]">&bull;</span>
 
                   <a href="/pgp-key.asc" target="_blank" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600 hover:text-cyan-400 transition group">
                     <lucide-icon [img]="Key" class="w-3 h-3 group-hover:text-cyan-400 transition"></lucide-icon>

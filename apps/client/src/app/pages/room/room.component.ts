@@ -1,36 +1,26 @@
 /*
  * Copyright (C) 2025 Sean Carlin
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
+ * Licensed under the GNU Affero General Public License v3.0
  */
 
 import { Component, OnInit, signal, OnDestroy, effect, Inject, PLATFORM_ID, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router'; 
-import { FormsModule } from '@angular/forms'; 
-import { combineLatest } from 'rxjs'; 
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { combineLatest } from 'rxjs';
 import { 
     LucideAngularModule, Shield, Users, CheckCircle, Loader2, 
     Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud,
-    Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Lock, Key, RefreshCw, AlertOctagon, FileKey, FileCheck,
-    Edit2,
-    Tag, Unlock, Bell, Infinity, ArrowDown, Book
+    Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Lock, Unlock, Key, RefreshCw, AlertOctagon, FileKey, FileCheck,
+    Edit2, Tag, Bell, Infinity, ArrowDown, Book
 } from 'lucide-angular';
-import { SocketService } from '../../services/socket/socket.service'; 
+import { SocketService } from '../../services/socket/socket.service';
 import { jsPDF } from 'jspdf';
 
 @Component({
   selector: 'app-room',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, FormsModule, RouterModule], 
+  imports: [CommonModule, LucideAngularModule, FormsModule, RouterModule],
   template: `
 
   @if (socket.status() !== 'connected' && !socket.isClosed() && !isExpired()) {
@@ -110,7 +100,6 @@ import { jsPDF } from 'jspdf';
             </div>
         </div>
       }
-    
     @else if (socket.isLockedOut()) {
     <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
         <div class="bg-slate-900 border border-rose-900/50 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
@@ -144,52 +133,6 @@ import { jsPDF } from 'jspdf';
             <button (click)="submitKey()" [disabled]="!manualKey" class="w-full py-3 bg-rose-500 hover:bg-rose-400 disabled:opacity-50 text-white font-bold rounded-xl transition flex items-center justify-center gap-2">
                 <lucide-icon [img]="RefreshCw" class="w-4 h-4"></lucide-icon> Decrypt Room
             </button>
-        </div>
-    </div>
-    }
-    @else if (showUnlockModal()) {
-    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-xl animate-fade-in">
-        <div class="bg-slate-900 border border-emerald-500/30 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
-            
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500"></div>
-
-            <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-emerald-500/50">
-                <lucide-icon [img]="Shield" class="w-8 h-8 text-emerald-400"></lucide-icon>
-            </div>
-
-            <h2 class="text-2xl font-bold text-white mb-2">Enterprise Room</h2>
-            <p class="text-slate-400 mb-6 text-sm">
-                This transaction requires <strong>{{ socket.signers().length }} signers</strong>.
-                <br>
-                Unlock the Enterprise Room to coordinate up to 20 signers with Audit Logs.
-            </p>
-
-            @if (invoiceLoading()) {
-                <div class="py-8 flex justify-center">
-                    <lucide-icon [img]="Loader2" class="w-8 h-8 animate-spin text-emerald-500"></lucide-icon>
-                </div>
-            } @else {
-                <div class="bg-white p-2 rounded-lg mx-auto w-fit mb-4">
-                    <img [src]="'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + paymentRequest()" class="w-48 h-48">
-                </div>
-
-                <div class="bg-slate-950 border border-slate-800 rounded p-2 mb-4 flex items-center justify-between gap-2 max-w-xs mx-auto">
-                    <div class="font-mono text-[10px] text-slate-500 truncate w-full text-left select-all">
-                        {{ paymentRequest() }}
-                    </div>
-                    <button (click)="copyInvoice()" class="text-emerald-400 hover:text-emerald-300 p-1 hover:bg-emerald-900/20 rounded transition">
-                        <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
-                    </button>
-                </div>
-
-                <div class="font-mono text-xs text-emerald-400 mb-2 px-4">
-                    Pay 21,000 sats to unlock
-                </div>
-                <div class="flex items-center justify-center gap-2 text-[10px] text-slate-500 animate-pulse">
-                    <lucide-icon [img]="Loader2" class="w-3 h-3 animate-spin"></lucide-icon>
-                    Listening for payment...
-                </div>
-            }
         </div>
     </div>
     }
@@ -244,14 +187,10 @@ import { jsPDF } from 'jspdf';
             }
             
             <h1 class="text-2xl font-bold text-white truncate">
-                @if (socket.roomState()?.tier === 'enterprise') {
-                    {{ socket.roomState()?.roomName || 'Untitled Boardroom' }}
-                } @else {
-                    Standard Room
-                }
+                {{ socket.roomState()?.roomName || 'Signing Room' }}
             </h1>
 
-            @if (socket.isCoordinator() && socket.roomState()?.tier === 'enterprise') {
+            @if (socket.isCoordinator()) {
                 <button (click)="renameRoom()" class="p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition flex items-center justify-center cursor-pointer shrink-0" title="Rename Room">
                     <lucide-icon [img]="Edit2" class="w-3.5 h-3.5"></lucide-icon>
                 </button>
@@ -278,12 +217,6 @@ import { jsPDF } from 'jspdf';
                     <lucide-icon [img]="Crown" class="w-3 h-3"></lucide-icon> Coordinator
                 </span>
             }
-
-            @if (socket.roomState()?.isGenesis) {
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-200 to-yellow-400 text-slate-900 text-[10px] font-bold shadow-[0_0_15px_rgba(251,191,36,0.4)] ml-2">
-                    <lucide-icon [img]="Infinity" class="w-3 h-3 fill-slate-900"></lucide-icon> Founder
-                </span>
-            }
         </div>
 
         <div class="flex items-center gap-4 text-sm text-slate-500 bg-slate-900/50 w-fit px-4 py-2 rounded-xl border border-slate-800/50 backdrop-blur-sm">
@@ -292,10 +225,6 @@ import { jsPDF } from 'jspdf';
                 <div class="flex items-center gap-2">
                     <lucide-icon [img]="Hash" class="w-4 h-4 text-slate-600"></lucide-icon>
                     <span class="font-mono text-slate-300 select-all hover:text-white transition cursor-text font-bold">{{ roomId() }}</span>
-                </div>
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                    Unique Room ID
-                    <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
                 </div>
             </div>
 
@@ -311,10 +240,6 @@ import { jsPDF } from 'jspdf';
                         {{ socket.roomState()?.connectedCount || 1 }} 
                     </span>
                 </div>
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                    Active Peers
-                    <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
-                </div>
             </div>
 
             <div class="w-px h-4 bg-slate-800"></div>
@@ -328,52 +253,29 @@ import { jsPDF } from 'jspdf';
                         <span class="font-mono font-bold">{{ timeRemaining() }}</span>
                     }
                 </div>
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                    Time until data wipe
-                    <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
-                </div>
             </div>
         </div>
         
         <div class="flex flex-col items-start gap-1">
             <div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold ml-1">Room Actions</div>
             <div class="flex flex-wrap items-center p-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-xl gap-2 shadow-xl">
+                
                 @if (!isExpired() && !socket.isClosed()) {
-                    <div class="relative group">
-                        <button (click)="openExtendModal()" class="px-3 py-2 text-amber-400 hover:bg-amber-950/30 hover:text-amber-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-amber-500/20">
-                            <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon>
-                            Extend
-                        </button>
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                            Add 24h (5000 sats)
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
-                        </div>
-                    </div>
-                    <div class="w-px h-6 bg-slate-800 mx-1"></div> 
-                }
-                @if (socket.roomState()?.tier === 'enterprise') {
                     <div class="relative group">
                         <button (click)="generateAuditLog()" class="px-3 py-2 text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-emerald-500/20">
                             <lucide-icon [img]="FileCheck" class="w-4 h-4"></lucide-icon>
                             Audit Log
                         </button>
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                            Download PDF proof
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
-                        </div>
                     </div>
                     <div class="w-px h-6 bg-slate-800 mx-1"></div> 
                 }
+
                 @if (socket.isCoordinator()) {
                     <div class="relative group">
                         <button (click)="copyKey()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20">
                             <lucide-icon [img]="keyCopied() ? Check : Key" class="w-4 h-4"></lucide-icon>
                             {{ keyCopied() ? 'Link Key' : 'Link Key' }}
                         </button>
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                            Copy decryption key manually
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
-                        </div>
                     </div>
 
                     <div class="relative group">
@@ -381,25 +283,19 @@ import { jsPDF } from 'jspdf';
                             <lucide-icon [img]="adminCopied() ? Check : FileKey" class="w-4 h-4"></lucide-icon>
                             {{ adminCopied() ? 'Copied' : 'Backup Admin' }}
                         </button>
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                            Save credential to claim role later
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
-                        </div>
                     </div>
                     
                     <div class="w-px h-6 bg-slate-800 mx-1"></div>
                 }
+
                 <div class="relative group">
                     <button (click)="copyInvite()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700">
                         <lucide-icon [img]="inviteCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
                         {{ inviteCopied() ? 'Copied' : 'Share Link' }}
                     </button>
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                        Copy secure invite URL
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
-                    </div>
                 </div>
-                @if (socket.isCoordinator() && socket.roomState()?.tier === 'enterprise') {
+
+                @if (socket.isCoordinator()) {
                     <div class="w-px h-6 bg-slate-800 mx-1"></div>
                     <div class="relative group">
                         <button (click)="toggleLock()" 
@@ -411,12 +307,9 @@ import { jsPDF } from 'jspdf';
                             <lucide-icon [img]="socket.roomState()?.isLocked ? Lock : Unlock" class="w-4 h-4"></lucide-icon>
                             {{ socket.roomState()?.isLocked ? 'Locked' : 'Lock Room' }}
                         </button>
-                        
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2 py-1 bg-slate-800 text-slate-200 text-[10px] rounded shadow-lg border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                            {{ socket.roomState()?.isLocked ? 'Room is secure. No new joins.' : 'Prevent new connections' }}
-                        </div>
                     </div>
                 }
+
                 @if (socket.isCoordinator() && !isExpired() && !socket.isClosed()) {
                     <div class="w-px h-6 bg-slate-800 mx-1"></div> 
                     <div class="relative group">
@@ -424,10 +317,6 @@ import { jsPDF } from 'jspdf';
                             <lucide-icon [img]="Power" class="w-4 h-4"></lucide-icon>
                             Close
                         </button>
-                        <div class="absolute bottom-full right-0 mb-3 px-2 py-1 bg-rose-950 text-rose-200 text-[10px] rounded shadow-lg border border-rose-800 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                            Destroy room & data immediately
-                            <div class="absolute top-full right-4 border-4 border-transparent border-t-rose-800"></div>
-                        </div>
                     </div>
                 }
             </div>
@@ -461,26 +350,6 @@ import { jsPDF } from 'jspdf';
                     <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> 
                     Start New Signing
                 </a>
-            </div>
-        </div>
-      }
-
-      @if (showPaymentModal()) {
-        <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm rounded-3xl border border-slate-800 animate-fade-in-up">
-            <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center relative">
-                <button (click)="showPaymentModal.set(false)" class="absolute top-4 right-4 text-slate-500 hover:text-white"><lucide-icon [img]="X" class="w-5 h-5"></lucide-icon></button>
-                <h3 class="text-xl font-bold text-white mb-1">Extend Session</h3>
-                <p class="text-slate-400 text-xs mb-6">Pay 5000 sats via Lightning to add 24 hours.</p>
-                @if (invoiceLoading()) {
-                    <div class="py-12 flex justify-center"><lucide-icon [img]="Loader2" class="w-8 h-8 text-emerald-500 animate-spin"></lucide-icon></div>
-                } @else if (paymentRequest()) {
-                    <div class="bg-white p-2 rounded-lg mb-4 mx-auto w-fit"><img [src]="'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + paymentRequest()" class="w-48 h-48"></div>
-                    <div class="bg-slate-950 border border-slate-800 rounded p-2 mb-4 flex items-center justify-between gap-2">
-                        <div class="font-mono text-[10px] text-slate-500 truncate w-full text-left select-all">{{ paymentRequest() }}</div>
-                        <button (click)="copyInvoice()" class="text-emerald-400 hover:text-emerald-300"><lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon></button>
-                    </div>
-                    <div class="flex items-center justify-center gap-2 text-xs text-emerald-400 animate-pulse"><lucide-icon [img]="Loader2" class="w-3 h-3 animate-spin"></lucide-icon>Waiting for payment...</div>
-                }
             </div>
         </div>
       }
@@ -552,8 +421,8 @@ import { jsPDF } from 'jspdf';
                 </div>
 
                 <div class="space-y-3 flex-grow overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                   
-                   @if (viewMode() === 'inputs') {
+                    
+                    @if (viewMode() === 'inputs') {
                         @for (input of socket.txDetails()?.inputsList; track $index) {
                             <div class="p-3 bg-slate-950 rounded border transition-all"
                                  [class.border-emerald-500]="isWhitelisted(input.address)"
@@ -575,7 +444,7 @@ import { jsPDF } from 'jspdf';
                                             {{ input.address }}
                                         </div>
                                         
-                                        @if (socket.isCoordinator() && socket.roomState()?.tier === 'enterprise') {
+                                        @if (socket.isCoordinator()) {
                                             <div class="mt-2 flex items-center gap-2">
                                                 @if (isWhitelisted(input.address)) {
                                                     <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
@@ -638,7 +507,7 @@ import { jsPDF } from 'jspdf';
                                         {{ out.address }}
                                     </div>
 
-                                    @if (socket.isCoordinator() && socket.roomState()?.tier === 'enterprise') {
+                                    @if (socket.isCoordinator()) {
                                         <div class="mt-2 flex items-center gap-2">
                                             @if (isWhitelisted(out.address)) {
                                                 <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
@@ -688,7 +557,7 @@ import { jsPDF } from 'jspdf';
                                     <lucide-icon [img]="signer.signed ? CheckCircle : Users" class="w-5 h-5"></lucide-icon>
                                 </div>
                                 <div>
-                                    @if (socket.roomState()?.tier === 'enterprise' && socket.isCoordinator()) {
+                                    @if (socket.isCoordinator()) {
                                         <button (click)="openLabelModal(signer.fingerprint)" 
                                                 class="text-sm font-mono flex items-center gap-2 hover:bg-slate-800/50 -ml-1 px-1 py-0.5 rounded transition group/label text-left">
                                             
@@ -715,14 +584,14 @@ import { jsPDF } from 'jspdf';
                                                     {{ signer.signed ? 'Signed' : 'Waiting...' }}
                                                 </div>
 
-                                                @if (socket.isCoordinator() && socket.roomState()?.tier === 'enterprise' && !signer.signed) {
+                                                @if (socket.isCoordinator() && !signer.signed) {
                                                     <button (click)="nudgeSigner(signer.fingerprint)" 
                                                             class="p-1 text-slate-600 hover:text-amber-400 transition cursor-pointer" 
                                                             title="Copy Nudge Message">
                                                         <lucide-icon [img]="Bell" class="w-3 h-3"></lucide-icon>
                                                     </button>
                                                 }
-                                        </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -848,8 +717,6 @@ export class RoomComponent implements OnInit, OnDestroy {
     // Modals State
     // -------------------------------------------------------------------------
     public showLabelModal = signal(false);
-    public showPaymentModal = signal(false);
-    public showUnlockModal = signal(false);
     public showClaimInput = signal(false);
     
     // Unified Modal (Alerts & Confirms)
@@ -859,7 +726,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         message: '',
         action: () => {},
         isDestructive: false,
-        type: 'confirm' as 'confirm' | 'alert' // New Type
+        type: 'confirm' as 'confirm' | 'alert'
     });
 
     // -------------------------------------------------------------------------
@@ -878,9 +745,6 @@ export class RoomComponent implements OnInit, OnDestroy {
     public editingLabel = signal('');
     public saveToBook = signal(true);
 
-    public invoiceLoading = signal(false);
-    public paymentRequest = signal<string | null>(null);
-
     readonly icons = { Shield, Users, CheckCircle, Loader2, Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud, Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Key, RefreshCw, AlertOctagon, FileKey, FileCheck, Edit2, Tag, Lock, Unlock, Bell, Infinity, ArrowDown, Book };
 
     constructor(
@@ -894,22 +758,14 @@ export class RoomComponent implements OnInit, OnDestroy {
             const state = this.socket.roomState();
 
             if (this.socket.isLockedOut() || this.socket.roomNotFound() || this.socket.decryptionError() || this.socket.isRoomFull()) { 
-                this.showUnlockModal.set(false); 
                 return; 
             }
             
             if (state) {
-                if (state.tier === 'enterprise' && !state.isPaid) {
-                    this.showUnlockModal.set(true);
-                    this.initiateUnlockInvoice();
-                } else {
-                    this.showUnlockModal.set(false);
-                }
-                
                 if (state.createdAt) this.startTimer(state.expiresAt);
             }
 
-            if (this.socket.isClosed() && state?.tier === 'enterprise') {
+            if (this.socket.isClosed()) {
                 this.generateAuditLog(); 
             }
         });
@@ -1154,7 +1010,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             }
         };
 
-        if (state?.tier === 'enterprise' && state.whitelist?.length > 0) {
+        if (state?.whitelist && state.whitelist.length > 0) {
              const outputs = this.socket.txDetails()?.outputs || [];
              const unverified = outputs.filter(out => !state.whitelist.includes(out.address));
              if (unverified.length > 0) {
@@ -1207,47 +1063,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     // -------------------------------------------------------------------------
-    // Actions: Payments & Keys
+    // Actions: Decryption & Keys
     // -------------------------------------------------------------------------
-
-    async openExtendModal() {
-        this.showPaymentModal.set(true);
-        this.invoiceLoading.set(true);
-        try {
-            const res: any = await this.socket.createTimeExtensionInvoice(5000); 
-            this.paymentRequest.set(res.payment_request);
-            this.invoiceLoading.set(false);
-            const paid = await this.socket.waitForPayment(this.roomId()!, res.payment_hash);
-            if (paid) {
-                this.showPaymentModal.set(false);
-                this.paymentRequest.set(null);
-                this.triggerConfetti();
-            }
-        } catch (e) {
-            console.error("Failed to get invoice", e);
-            this.showPaymentModal.set(false);
-            this.openAlert("Error", "Could not generate invoice. Is the backend running?");
-        } finally {
-            this.invoiceLoading.set(false);
-        }
-    }
-
-    async initiateUnlockInvoice() {
-        if (this.paymentRequest() || this.invoiceLoading()) return; 
-        
-        this.invoiceLoading.set(true);
-        try {
-            const res: any = await this.socket.createInvoice(21000, "Unlock Enterprise Room"); 
-            this.paymentRequest.set(res.payment_request);
-            this.invoiceLoading.set(false); 
-            
-            const paid = await this.socket.waitForUnlock(this.roomId()!, res.payment_hash);
-            if (paid) this.triggerConfetti();
-        } catch (e) { 
-            console.error(e); 
-            this.invoiceLoading.set(false); 
-        } 
-    }
 
     submitKey() {
         if (!this.manualKey) return;
@@ -1312,7 +1129,9 @@ export class RoomComponent implements OnInit, OnDestroy {
         // NEW: Network Field
         doc.text(`Network: ${state.network.toUpperCase()}`, 20, y); y += 6;
         doc.text(`Created: ${new Date(state.createdAt).toLocaleString()}`, 20, y); y += 6;
-        doc.text(`Room Type: ${state.tier === 'enterprise' ? 'Boardroom' : 'Standard'}`, 20, y); y += 15;
+        // REMOVED TIER FROM PDF
+        
+        y += 15;
 
         doc.setFontSize(14);
         doc.setTextColor(0);
@@ -1586,7 +1405,6 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     copyKey() { this.doCopy(this.route.snapshot.fragment || '', this.keyCopied); }
     copyInvite() { this.doCopy(window.location.href, this.inviteCopied); }
-    copyInvoice() { this.doCopy(this.paymentRequest() || '', null); }
     copyHex() { this.doCopy(this.finalHex() || '', this.copied); }
     copyAdminToken() { 
         const t = sessionStorage.getItem(`admin_token_${this.roomId()}`);

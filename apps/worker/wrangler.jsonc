@@ -38,10 +38,7 @@
     }
   ],
   "kv_namespaces": [
-    {
-      "binding": "LICENSES",
-      "id": "1cb25cf04eac4bff82b4a9c9f5c1aad4"
-    }
+   
   ],
   "observability": {
     "enabled": true

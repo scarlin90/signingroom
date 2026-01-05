@@ -1,0 +1,1 @@
+SigningRoom.io does not collect personal information, store cookies, or maintain user accounts. Server logs are not retained. Connection metadata (IP addresses) may be visible to our hosting provider (Cloudflare) during the request, but we do not log or store this data.
