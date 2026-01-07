@@ -3,44 +3,32 @@
   "name": "signingroom",
   "main": "src/index.ts",
   "compatibility_date": "2024-04-01",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": [ "nodejs_compat" ],
   "vars": {
     "ALLOWED_ORIGIN": "https://signingroom.io",
     "API_PUBLIC_URL": "https://api.signingroom.io"
   },
   "routes": [
     {
-      "pattern": "api.signingroom.io", 
+      "pattern": "api.signingroom.io",
       "custom_domain": true
     }
   ],
   "durable_objects": {
     "bindings": [
-      {
-        "name": "SIGNING_ROOM",
-        "class_name": "SigningRoom"
-      },
-      {
-        "name": "SALES_COUNTER",
-        "class_name": "SalesCounter"
-      }
+      { "name": "SIGNING_ROOM", "class_name": "SigningRoom" },
+      { "name": "SALES_COUNTER", "class_name": "SalesCounter" }
     ]
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": [
+      "new_classes": [
         "SigningRoom",
         "SalesCounter"
       ]
     }
   ],
-  "kv_namespaces": [
-   
-  ],
-  "observability": {
-    "enabled": true
-  }
+  "kv_namespaces": [],
+  "observability": { "enabled": true }
 }
