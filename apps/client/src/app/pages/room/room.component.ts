@@ -779,22 +779,42 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     ngOnInit() {
-        if (isPlatformBrowser(this.platformId)) {
-            combineLatest([this.route.paramMap, this.route.fragment]).subscribe(([params, fragment]) => {
-                const id = params.get('id');
-                if (id && (this.roomId() !== id || this.socket.status() === 'disconnected')) {
-                    this.roomId.set(id);
-                    this.socket.disconnect(false); 
-                    this.socket.connect(id, fragment);
-                    
-                    if (!fragment) this.socket.decryptionError.set("Decryption Key Missing");
-                    
-                    this.finalHex.set(null);
-                    this.isExpired.set(false); 
+    if (isPlatformBrowser(this.platformId)) {
+        // Use paramMap to get the ID
+        this.route.paramMap.subscribe(params => {
+            const id = params.get('id');
+            // Get key from fragment (only exists on first load)
+            const fragmentKey = this.route.snapshot.fragment;
+
+            if (id) {
+                this.roomId.set(id);
+
+                // 1. Move encryption key to memory immediately
+                if (fragmentKey) {
+                    this.socket.setRoomKey(fragmentKey);
                 }
-            });
-        }
+
+                // 2. IMPORTANT: Connect to the socket
+                // We use the key from memory now
+                if (this.socket.status() !== 'connected' || this.roomId() !== id) {
+                    this.socket.connect(id, this.socket.getRoomKey());
+                }
+
+                // 3. SCRUB URL: Only do this AFTER the connect call 
+                // and use { replaceUrl: true } to keep the session alive
+                if (fragmentKey) {
+                    setTimeout(() => {
+                        this.router.navigate([], {
+                            relativeTo: this.route,
+                            fragment: undefined,
+                            replaceUrl: true 
+                        });
+                    }, 500); // Small delay to ensure state stability
+                }
+            }
+        });
     }
+}
 
     ngOnDestroy() {
         if (isPlatformBrowser(this.platformId)) {
@@ -1403,9 +1423,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         import('canvas-confetti').then(c => c.default());
     }
 
-    copyKey() { this.doCopy(this.route.snapshot.fragment || '', this.keyCopied); }
-    copyInvite() { this.doCopy(window.location.href, this.inviteCopied); }
     copyHex() { this.doCopy(this.finalHex() || '', this.copied); }
+
     copyAdminToken() { 
         const t = sessionStorage.getItem(`admin_token_${this.roomId()}`);
         if(t) this.doCopy(t, this.adminCopied);
@@ -1419,9 +1438,24 @@ export class RoomComponent implements OnInit, OnDestroy {
         }
     }
 
+    private getFullShareLink(): string {
+        const key = this.socket.getRoomKey();
+        const baseUrl = window.location.href.split('#')[0];
+        return `${baseUrl}${key ? '#' + key : ''}`;
+    }
+
+    copyKey() { 
+        this.doCopy(this.socket.getRoomKey() || '', this.keyCopied); 
+    }
+
+    copyInvite() { 
+        this.doCopy(this.getFullShareLink(), this.inviteCopied); 
+    }
+
     nudgeSigner(fingerprint: string) {
         const label = this.getSignerLabel(fingerprint); 
-        const msg = `Signature needed from: ${label}\n${window.location.href}`;
+        const msg = `Signature needed from: ${label}\n${this.getFullShareLink()}`;
+        
         navigator.clipboard.writeText(msg).then(() => {
             this.openAlert('Nudge Message Copied', `Nudge message for ${label} copied! Paste it in your chat app.`);
         });

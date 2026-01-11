@@ -24,7 +24,6 @@ export interface AuditEntry {
 export interface RoomState {
   roomId: string;
   roomName: string;
-  // REMOVED: tier, isPaid, isGenesis (No longer relevant)
   network: 'bitcoin' | 'testnet' | 'signet';
   
   // Transaction Data
@@ -116,6 +115,18 @@ export class SocketService {
   ) {}
 
   // -------------------------------------------------------------------------
+  // Security Handoff
+  // -------------------------------------------------------------------------
+
+  setRoomKey(key: string) {
+    this.encryptionKey = key;
+  }
+
+  getRoomKey(): string | null {
+    return this.encryptionKey;
+  }
+
+  // -------------------------------------------------------------------------
   // Connection Management
   // -------------------------------------------------------------------------
 
@@ -134,14 +145,15 @@ export class SocketService {
 
     this.ws = new WebSocket(url);
 
-    this.ws.onopen = () => {
-      console.log('WS Connected');
-      this.status.set('connected');
+this.ws.onopen = () => {
+  console.log('WS Connected');
+  this.status.set('connected');
 
-      // Auto-Claim admin if token exists in session
-      const token = sessionStorage.getItem(`admin_token_${roomId}`);
-      if (token) this.send('AUTH', { token });
-    };
+  const token = sessionStorage.getItem(`admin_token_${roomId}`);
+  if (token) {
+    this.send('AUTH', { token });
+  }
+};
 
     this.ws.onmessage = (event) => this.handleMessage(JSON.parse(event.data));
     
@@ -154,7 +166,6 @@ export class SocketService {
           return; 
       }
 
-      // Auto-reconnect if not intentionally closed
       if (!this.isClosed()) {
           setTimeout(() => {
             if (this.status() === 'disconnected') this.connect(roomId, this.encryptionKey);
@@ -189,7 +200,6 @@ export class SocketService {
       let payloadToSend = partialPsbtBase64;
       const detectedFingerprint = this.getFingerprintFromPsbt(partialPsbtBase64);
 
-      // Merge client-side first if possible
       if (currentRoom?.psbt) {
           try {
               payloadToSend = this.mergePsbts(currentRoom.psbt, partialPsbtBase64);
@@ -333,7 +343,7 @@ export class SocketService {
     this.roomState.set(null);
     this.role.set('guest');
     this.isClosed.set(false); 
-    this.encryptionKey = null; 
+    
     this.decryptionError.set(null);
     this.isLockedOut.set(false);
     this.isRoomFull.set(false);
@@ -344,7 +354,6 @@ export class SocketService {
       return {
         roomId, psbt: '', signatures: [], connectedCount: 0, createdAt: Date.now(),
         expiresAt: Date.now() + 1200000, 
-        // REMOVED: isExtended, isPaid, tier
         auditLog: [], signerLabels: {}, roomName: 'Signing Room', whitelist: [],
         isLocked: false, network: 'bitcoin'
       };
@@ -377,14 +386,13 @@ export class SocketService {
                 this.roomState.update(s => s ? { ...s, connectedCount: msg.count } : null);
                 break;
             case 'ROLE_UPDATE':
-                if (msg.role === 'admin') this.role.set('admin');
+                this.role.set(msg.role); 
                 break;
             case 'ROOM_CLOSED':
                 if (msg.finalLog) this.roomState.update(s => s ? { ...s, auditLog: msg.finalLog } : null);
                 this.isClosed.set(true);
                 this.disconnect(false);
                 break;
-            // REMOVED: TIME_EXTENDED, ROOM_UNLOCKED cases
             case 'WHITELIST_UPDATED':
                 this.roomState.update(s => s ? { ...s, whitelist: msg.whitelist } : null);
                 break;

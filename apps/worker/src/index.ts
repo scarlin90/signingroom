@@ -152,6 +152,8 @@ export class SigningRoom implements DurableObject {
   sessions = new Map<WebSocket, { role: string; id: string }>();
   roomState: any = null;
   env: Env;
+  private authFailures = 0;
+  private isLockedOut = false;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -243,11 +245,25 @@ export class SigningRoom implements DurableObject {
         const session = this.sessions.get(webSocket);
         const userLabel = session?.role === 'admin' ? 'Coordinator' : `Guest (${session?.id})`;
 
-        // Coordinator Claim
-        if (msg.type === 'AUTH' && this.roomState && msg.token === this.roomState.adminToken) {
-          this.sessions.set(webSocket, { ...session!, role: 'admin' });
-          webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
-          this.log('Role Claimed', 'User became Coordinator', userLabel);
+          if (msg.type === 'AUTH') {
+            if (this.isLockedOut) {
+              return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Room locked due to multiple failed attempts' }));
+            }
+
+            if (msg.token === this.roomState.adminToken) {
+              this.authFailures = 0; 
+              this.sessions.set(webSocket, { ...session!, role: 'admin' });
+              
+              webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
+
+            } else {
+              this.authFailures++;
+              if (this.authFailures >= 5) {
+                  this.isLockedOut = true;
+                  await this.state.storage.setAlarm(Date.now() + 30 * 60 * 1000);
+              }
+              return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Admin Token' }));
+            }
         }
 
         // Label Updates (Admin Only)
@@ -333,11 +349,27 @@ export class SigningRoom implements DurableObject {
     }
   }
 
-  // Auto-Delete data when alarm fires
   async alarm() {
+    const now = Date.now();
+
+    if (this.isLockedOut) {
+        this.isLockedOut = false;
+        this.authFailures = 0;
+        
+        if (this.roomState && now < this.roomState.expiresAt) {
+            
+            await this.state.storage.setAlarm(this.roomState.expiresAt);
+            return; 
+        }
+    }
+
+    this.isLockedOut = false;
+    this.authFailures = 0;
     await this.state.storage.deleteAll();
     this.roomState = null;
-    for (const socket of this.sessions.keys()) socket.close(1000, "Expired");
+    for (const socket of this.sessions.keys()) {
+        socket.close(1000, "Expired");
+    }
   }
 }
 
