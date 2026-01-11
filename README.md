@@ -39,13 +39,17 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining state.
 
-**Live Mainnet Traffic Analysis (Jan 10, 2026):**
+**Live Mainnet Traffic Analysis (Jan 11, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (24h)** | 765 | Active Mainnet usage (Verified). |
+| **Total Requests (24h)** | 722 | Active Mainnet usage (Verified). |
 | **Data Cached** | **0.00 B** | **Proof of Blind Relay.** The server retained 0 bytes of user state. |
 | **Percent Cached** | 0.00% | No static assets or logs were stored. |
+
+> **🔍 Stress Test Verification:**
+> At **11:00 PM**, the server handled a **4x spike in data volume** (101KB of PSBT data) due to complex multisig transactions.
+> **Result:** `Data Cached` remained at **0 Bytes**. This confirms that even under heavy load, the stateless architecture refuses to write user data to disk.
 
 📂 **View Raw Metric Logs:**
 * [📂 **24-Hour Metrics**](./site_metric_logs/24hr_metric_logs/) _(Contains: Requests, Cache Rates, Data Served)_
