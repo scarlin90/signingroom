@@ -372,15 +372,3 @@ export class SigningRoom implements DurableObject {
     }
   }
 }
-
-export class SalesCounter implements DurableObject {
-  state: DurableObjectState;
-  
-  constructor(state: DurableObjectState) { 
-    this.state = state; 
-  }
-
-  async fetch(request: Request) {
-    return new Response("OK");
-  }
-}
