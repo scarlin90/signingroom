@@ -17,7 +17,6 @@
   "durable_objects": {
     "bindings": [
       { "name": "SIGNING_ROOM", "class_name": "SigningRoom" },
-      { "name": "SALES_COUNTER", "class_name": "SalesCounter" }
     ]
   },
   "migrations": [
