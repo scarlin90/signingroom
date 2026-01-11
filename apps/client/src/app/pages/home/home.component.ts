@@ -3,13 +3,15 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { 
-  LucideAngularModule, Zap, Users, Shield, ChevronRight, Lock, Github, Code2,
-  Eye, Trash2, UploadCloud, Share2, FileCheck, HelpCircle, Maximize,
-  Server, Network, Key, Cpu, Fingerprint, Globe, AlertTriangle
+  LucideAngularModule, Zap, Users, Shield, Terminal, ChevronRight, Lock,
+  Github, Code2, Eye, Trash2, UploadCloud, Share2, FileCheck, HelpCircle,
+  Twitter, Heart, Briefcase, Landmark, Globe, XCircle, CheckCircle2,  
+  Clock, AlertTriangle, Network, ArrowRight, FileKey, Cpu, Fingerprint,
+  Crown, Infinity, Check, Maximize, Scale, EyeOff, ShieldCheck
 } from 'lucide-angular';
 
 @Component({
@@ -28,16 +30,16 @@ import {
       </a>
 
       <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-6 leading-tight relative z-10">
-        The Blind <br />
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Bitcoin Relay</span>
+        The Real-Time <br />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Bitcoin Multisig Coordinator</span>
       </h1>
 
       <p class="text-lg md:text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed relative z-10">
-        A stateless coordination layer for Bitcoin multisig.
+        Stop emailing PSBT files. Coordinate Bitcoin multisig teams instantly.
         <br class="hidden md:block" />
-        <span class="text-slate-200 font-semibold">Client-Side Encryption.</span> 
-        <span class="text-slate-200 font-semibold">Ephemeral RAM.</span> 
-        <span class="text-slate-200 font-semibold">Zero Logs.</span>
+        <span class="text-slate-200 font-semibold">No accounts.</span> 
+        <span class="text-slate-200 font-semibold">No database.</span> 
+        <span class="text-slate-200 font-semibold">End-to-End Encrypted.</span>
       </p>
 
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
@@ -55,109 +57,246 @@ import {
 
     <div class="max-w-5xl mx-auto mt-16 px-6 relative z-10 animate-fade-in-up">
         <div #demoContainer class="rounded-2xl overflow-hidden border border-slate-800 shadow-2xl shadow-emerald-500/10 bg-slate-900/50 backdrop-blur-sm relative group">
+            
             <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none z-10"></div>
+            
             <img src="assets/multisig-demo.gif" alt="Real-time Multisig Signing Demo" class="w-full h-auto object-cover opacity-90 group-hover:opacity-100 transition duration-700">
+            
             <button (click)="toggleFullscreen(demoContainer)" class="absolute top-4 right-4 z-30 p-2 rounded-lg bg-slate-900/50 hover:bg-emerald-500 hover:text-slate-950 border border-slate-700 hover:border-emerald-400 text-slate-300 transition-all opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-300">
                 <lucide-icon [img]="Maximize" class="w-5 h-5"></lucide-icon>
             </button>
+
+            <div class="absolute bottom-6 left-6 z-20 flex items-center gap-3">
+                <div class="px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-slate-700 text-xs text-white font-mono flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    Live Preview
+                </div>
+                <div class="px-3 py-1.5 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 text-xs text-emerald-400 font-mono font-bold">
+                    3-of-5 Multisig
+                </div>
+            </div>
         </div>
     </div>
+
+    <div class="max-w-4xl mx-auto mt-24 px-6 relative z-10">
+        <div class="text-center mb-10">
+            <h2 class="text-3xl font-bold text-white mb-2">Why change your workflow?</h2>
+            <p class="text-slate-400">Manual file merging is error-prone and slow. There is a better way.</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-8">
+            <div class="p-8 rounded-2xl bg-slate-900/30 border border-red-900/20 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/0 via-red-500/50 to-red-500/0"></div>
+                <h3 class="text-lg font-bold text-slate-300 mb-6 flex items-center gap-2">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-red-400"></lucide-icon>
+                    The Old Way (Email/Slack)
+                </h3>
+                <ul class="space-y-4">
+                    <li class="flex items-start gap-3 text-sm text-slate-400">
+                        <lucide-icon [img]="XCircle" class="w-5 h-5 text-red-500 shrink-0"></lucide-icon>
+                        <span>Manually merging 5 different email attachments.</span>
+                    </li>
+                    <li class="flex items-start gap-3 text-sm text-slate-400">
+                        <lucide-icon [img]="XCircle" class="w-5 h-5 text-red-500 shrink-0"></lucide-icon>
+                        <span>Files stored permanently on Slack/Google servers.</span>
+                    </li>
+                    <li class="flex items-start gap-3 text-sm text-slate-400">
+                        <lucide-icon [img]="XCircle" class="w-5 h-5 text-red-500 shrink-0"></lucide-icon>
+                        <span>Slow, asynchronous delays between signers.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="p-8 rounded-2xl bg-emerald-900/10 border border-emerald-500/20 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
+                <h3 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                    <lucide-icon [img]="Zap" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    The SigningRoom Way
+                </h3>
+                <ul class="space-y-4">
+                    <li class="flex items-start gap-3 text-sm text-slate-200">
+                        <lucide-icon [img]="CheckCircle2" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <span>Real-time merging. Everyone sees the same state.</span>
+                    </li>
+                    <li class="flex items-start gap-3 text-sm text-slate-200">
+                        <lucide-icon [img]="CheckCircle2" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <span>Data lives in RAM, encrypted, and vanishes on expiry.</span>
+                    </li>
+                    <li class="flex items-start gap-3 text-sm text-slate-200">
+                        <lucide-icon [img]="CheckCircle2" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <span>Instant broadcast once signatures are collected.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <section class="mt-32 border-y border-slate-800/60 bg-slate-900/30 backdrop-blur-sm py-20 relative overflow-hidden">
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+
+      <div class="max-w-6xl mx-auto px-6 relative z-10">
+        <div class="text-center mb-16">
+          <h2 class="text-3xl font-bold text-white mb-4">Code is Law. Physics is Enforcement.</h2>
+          <p class="text-slate-400 max-w-2xl mx-auto">
+            We enforce the <span class="text-emerald-400 font-medium">Universal Declaration of Human Rights</span> 
+            not through policy, but through cryptographic guarantees.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          
+          <div class="p-6 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-emerald-500/50 transition group">
+            <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+              <lucide-icon [img]="EyeOff" class="w-6 h-6 text-emerald-400"></lucide-icon>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">Article 12</h3>
+            <div class="text-xs font-mono text-emerald-500 mb-3 uppercase tracking-wider">Privacy</div>
+            <p class="text-slate-400 text-sm leading-relaxed">
+              "No one shall be subjected to arbitrary interference with his privacy."
+              <br/><span class="opacity-50 mt-2 block border-t border-slate-800 pt-2">Enforced via AES-256-GCM.</span>
+            </p>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-emerald-500/50 transition group">
+            <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+              <lucide-icon [img]="Scale" class="w-6 h-6 text-emerald-400"></lucide-icon>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">Article 20</h3>
+            <div class="text-xs font-mono text-emerald-500 mb-3 uppercase tracking-wider">Assembly</div>
+            <p class="text-slate-400 text-sm leading-relaxed">
+              "Everyone has the right to freedom of peaceful assembly and association."
+              <br/><span class="opacity-50 mt-2 block border-t border-slate-800 pt-2">Enforced via Ephemeral Rooms.</span>
+            </p>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-emerald-500/50 transition group">
+            <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+              <lucide-icon [img]="ShieldCheck" class="w-6 h-6 text-emerald-400"></lucide-icon>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">Article 17</h3>
+            <div class="text-xs font-mono text-emerald-500 mb-3 uppercase tracking-wider">Property</div>
+            <p class="text-slate-400 text-sm leading-relaxed">
+              "No one shall be arbitrarily deprived of his property."
+              <br/><span class="opacity-50 mt-2 block border-t border-slate-800 pt-2">Enforced via Non-Custodial Multisig.</span>
+            </p>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-emerald-500/50 transition group">
+            <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+              <lucide-icon [img]="Globe" class="w-6 h-6 text-emerald-400"></lucide-icon>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">Article 19</h3>
+            <div class="text-xs font-mono text-emerald-500 mb-3 uppercase tracking-wider">Expression</div>
+            <p class="text-slate-400 text-sm leading-relaxed">
+              "Right to freedom of opinion and expression... through any media."
+              <br/><span class="opacity-50 mt-2 block border-t border-slate-800 pt-2">Enforced via Unstoppable Code.</span>
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </section>
 
     <div class="max-w-6xl mx-auto mt-24 px-6 relative z-10">
+        
+        <div class="text-center mb-10">
+            <h2 class="text-3xl font-bold text-white mb-2">The Blind Relay</h2>
+            <p class="text-slate-400">We forward your encrypted packets. We never hold the keys.</p>
+        </div>
+
+        <div class="relative group mb-32">
+            <div class="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-xl blur-lg opacity-50 group-hover:opacity-70 transition duration-1000"></div>
+            <div class="relative rounded-xl bg-slate-950/80 backdrop-blur-xl border border-slate-800 shadow-2xl overflow-hidden p-8 md:p-12">
+                <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+                    
+                    <div class="flex flex-col items-center text-center">
+                        <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 mb-4">
+                            <lucide-icon [img]="Users" class="w-8 h-8 text-emerald-400"></lucide-icon>
+                        </div>
+                        <div class="text-sm font-bold text-white">Client Side</div>
+                        <div class="text-xs text-slate-500">Encrypts with Key</div>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-2 flex-1">
+                        <div class="w-full h-0.5 bg-slate-800 relative">
+                            <div class="absolute inset-0 bg-emerald-500/50 w-1/2 animate-pulse"></div>
+                        </div>
+                        <div class="px-3 py-1 bg-slate-900 rounded border border-slate-800 text-[10px] text-emerald-400 font-mono flex items-center gap-2">
+                            <lucide-icon [img]="Lock" class="w-3 h-3"></lucide-icon> AES-256-GCM
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col items-center text-center">
+                        <div class="w-20 h-20 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-700 mb-4 relative">
+                            <lucide-icon [img]="Network" class="w-10 h-10 text-slate-600"></lucide-icon>
+                            <div class="absolute -top-3 -right-3 bg-rose-500/20 text-rose-400 text-[10px] px-2 py-0.5 rounded border border-rose-500/30">BLIND</div>
+                        </div>
+                        <div class="text-sm font-bold text-white">The Room (Server)</div>
+                        <div class="text-xs text-slate-500">Stores Encrypted Blob</div>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-2 flex-1">
+                        <div class="w-full h-0.5 bg-slate-800 relative">
+                            <div class="absolute right-0 top-0 bottom-0 bg-emerald-500/50 w-1/2 animate-pulse"></div>
+                        </div>
+                         <div class="px-3 py-1 bg-slate-900 rounded border border-slate-800 text-[10px] text-cyan-400 font-mono flex items-center gap-2">
+                            <lucide-icon [img]="FileKey" class="w-3 h-3"></lucide-icon> Sync State
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col items-center text-center">
+                        <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 mb-4">
+                            <lucide-icon [img]="Users" class="w-8 h-8 text-cyan-400"></lucide-icon>
+                        </div>
+                        <div class="text-sm font-bold text-white">Peer Side</div>
+                        <div class="text-xs text-slate-500">Decrypts via Secret Link</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-5xl mx-auto mt-24 px-6 relative z-10">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold text-white mb-4">Built for Organizational Resilience</h2>
+            <p class="text-slate-400 max-w-2xl mx-auto">
+                Single-signature wallets are a liability for teams. 
+                <br>Multisig ensures no single person—not even the CEO—is a single point of failure.
+            </p>
+        </div>
+
         <div class="grid md:grid-cols-3 gap-6">
             <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl hover:bg-slate-900/60 transition group">
-                <div class="w-12 h-12 bg-emerald-950/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <lucide-icon [img]="Eye" class="w-6 h-6 text-emerald-400"></lucide-icon>
+                <div class="w-12 h-12 bg-indigo-950/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <lucide-icon [img]="Users" class="w-6 h-6 text-indigo-400"></lucide-icon>
                 </div>
-                <h3 class="text-lg font-bold text-white mb-2">Blind Relay</h3>
-                <p class="text-sm text-slate-400 leading-relaxed">The server is blind. It relays encrypted blobs between peers without ever seeing the PSBT content or xpubs.</p>
+                <h3 class="text-lg font-bold text-white mb-2">Flexible "M-of-N" Consensus</h3>
+                <p class="text-sm text-slate-400 leading-relaxed">
+                    Don't be locked into a rigid structure. Whether you need a <strong>2-of-3</strong> for founders or a <strong>3-of-5</strong> for the board, you define the quorum required to authorize funds.
+                </p>
             </div>
+
             <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl hover:bg-slate-900/60 transition group">
                 <div class="w-12 h-12 bg-rose-950/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <lucide-icon [img]="Trash2" class="w-6 h-6 text-rose-500"></lucide-icon>
+                    <lucide-icon [img]="AlertTriangle" class="w-6 h-6 text-rose-500"></lucide-icon>
                 </div>
-                <h3 class="text-lg font-bold text-white mb-2">No Database</h3>
-                <p class="text-sm text-slate-400 leading-relaxed">Rooms exist only in RAM (Cloudflare Durable Objects). Once the session expires, data is wiped instantly.</p>
-            </div>
-            <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl hover:bg-slate-900/60 transition group">
-                <div class="w-12 h-12 bg-cyan-950/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <lucide-icon [img]="Code2" class="w-6 h-6 text-cyan-400"></lucide-icon>
-                </div>
-                <h3 class="text-lg font-bold text-white mb-2">Verifiable</h3>
-                <p class="text-sm text-slate-400 leading-relaxed">The code is AGPLv3. You can verify that the encryption happens client-side before any data leaves your browser.</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="max-w-6xl mx-auto mt-32 px-6 relative z-10">
-        <h2 class="text-3xl font-bold text-white mb-12 text-center">Why use a Stateless Room?</h2>
-        
-        <div class="grid md:grid-cols-3 gap-8">
-            <div class="p-8 bg-slate-900 border border-slate-800 rounded-2xl relative group hover:border-emerald-500/30 transition">
-                <div class="w-14 h-14 bg-slate-800 rounded-xl flex items-center justify-center mb-6 group-hover:bg-slate-700 transition">
-                    <lucide-icon [img]="Cpu" class="w-7 h-7 text-emerald-400"></lucide-icon>
-                </div>
-                <h3 class="text-xl font-bold text-white mb-3">Device Coordination</h3>
-                <p class="text-slate-400 text-sm leading-relaxed">
-                    Easily pass PSBTs between different hardware devices (Coldcard, Trezor, Ledger) without shuffling SD cards or USB cables.
+                <h3 class="text-lg font-bold text-white mb-2">Mitigate "Key Person" Risk</h3>
+                <p class="text-sm text-slate-400 leading-relaxed">
+                    What if the CEO is in an accident or loses access to their keys? In a multisig setup, the remaining board members can still approve payroll, ensuring business continuity.
                 </p>
             </div>
 
-            <div class="p-8 bg-slate-900 border border-slate-800 rounded-2xl relative group hover:border-cyan-500/30 transition">
-                <div class="w-14 h-14 bg-slate-800 rounded-xl flex items-center justify-center mb-6 group-hover:bg-slate-700 transition">
-                    <lucide-icon [img]="Globe" class="w-7 h-7 text-cyan-400"></lucide-icon>
+            <div class="bg-emerald-950/10 border border-emerald-500/30 p-6 rounded-2xl hover:bg-emerald-950/20 transition group relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 blur-xl rounded-full"></div>
+                <div class="w-12 h-12 bg-emerald-950/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <lucide-icon [img]="Zap" class="w-6 h-6 text-emerald-400"></lucide-icon>
                 </div>
-                <h3 class="text-xl font-bold text-white mb-3">Remote Signing</h3>
-                <p class="text-slate-400 text-sm leading-relaxed">
-                    Collaborate on transactions with other signers in different physical locations in real-time. No accounts required.
+                <h3 class="text-lg font-bold text-white mb-2">Security without the friction</h3>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    Historically, coordinating a board vote on-chain was slow and painful. SigningRoom fixes this. We combine the <strong>governance</strong> of multisig with the <strong>speed</strong> of a real-time chat room.
                 </p>
             </div>
-
-            <div class="p-8 bg-slate-900 border border-slate-800 rounded-2xl relative group hover:border-purple-500/30 transition">
-                <div class="w-14 h-14 bg-slate-800 rounded-xl flex items-center justify-center mb-6 group-hover:bg-slate-700 transition">
-                    <lucide-icon [img]="Fingerprint" class="w-7 h-7 text-purple-400"></lucide-icon>
-                </div>
-                <h3 class="text-xl font-bold text-white mb-3">Metadata Protection</h3>
-                <p class="text-slate-400 text-sm leading-relaxed">
-                    Because the room is encrypted client-side, the relay cannot see your XPUBs or transaction details, preserving your network privacy.
-                </p>
-            </div>
-        </div>
-    </div>
-
-    
-    <div class="max-w-5xl mx-auto mt-32 px-6 relative z-10">
-        <div class="text-center mb-16">
-            <h2 class="text-3xl font-bold text-white mb-4">Trust No One</h2>
-            <p class="text-slate-400">How Signing Room protects your data.</p>
-        </div>
-
-        <div class="grid md:grid-cols-3 gap-4 items-center justify-center text-center font-mono text-xs">
-            
-            <div class="p-6 bg-slate-950 border border-slate-800 rounded-xl relative group hover:border-emerald-500/50 transition">
-                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-900 px-2 text-slate-500">Browser A</div>
-                <div class="mb-4 text-emerald-400"><lucide-icon [img]="Lock" class="w-8 h-8 mx-auto"></lucide-icon></div>
-                <div class="bg-slate-900 p-2 rounded mb-2">PSBT</div>
-                <div class="text-slate-500">Encrypts with Key (URL Fragment)</div>
-                <div class="mt-4 text-emerald-500">Sends Encrypted Blob -></div>
-            </div>
-
-            <div class="p-6 bg-slate-900/50 border border-slate-700 border-dashed rounded-xl relative opacity-70">
-                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-900 px-2 text-slate-400">SigningRoom.io</div>
-                <div class="mb-4 text-slate-600"><lucide-icon [img]="Server" class="w-8 h-8 mx-auto"></lucide-icon></div>
-                <div class="bg-slate-800 p-2 rounded mb-2 text-slate-500">Blob (???)</div>
-                <div class="text-slate-600">"I can't read this."</div>
-                <div class="mt-4 text-slate-500">-> Relays Blob -></div>
-            </div>
-
-            <div class="p-6 bg-slate-950 border border-slate-800 rounded-xl relative group hover:border-emerald-500/50 transition">
-                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-900 px-2 text-slate-500">Browser B</div>
-                <div class="mb-4 text-emerald-400"><lucide-icon [img]="Lock" class="w-8 h-8 mx-auto"></lucide-icon></div>
-                <div class="bg-slate-900 p-2 rounded mb-2">PSBT</div>
-                <div class="text-slate-500">Decrypts with Key (URL Fragment)</div>
-                <div class="mt-4 text-emerald-500"><- Receives Blob</div>
-            </div>
-
         </div>
     </div>
 
@@ -262,16 +401,43 @@ import {
   `
 })
 export class HomeComponent implements OnInit {
-  readonly Zap = Zap; readonly Users = Users; readonly Shield = Shield;
-  readonly ChevronRight = ChevronRight; readonly Lock = Lock; readonly Github = Github;
-  readonly Code2 = Code2; readonly Eye = Eye; readonly Trash2 = Trash2;
-  readonly UploadCloud = UploadCloud; readonly Share2 = Share2;
-  readonly FileCheck = FileCheck; readonly HelpCircle = HelpCircle;
-  readonly AlertTriangle = AlertTriangle; readonly Maximize = Maximize;
-  readonly Server = Server; readonly Network = Network; readonly Key = Key;
-  readonly Cpu = Cpu; readonly Fingerprint = Fingerprint; readonly Globe = Globe;
+  readonly Zap = Zap;
+  readonly Users = Users;
+  readonly Shield = Shield;
+  readonly Terminal = Terminal;
+  readonly ChevronRight = ChevronRight;
+  readonly Lock = Lock;
+  readonly Github = Github;
+  readonly Code2 = Code2;
+  readonly Eye = Eye;
+  readonly Trash2 = Trash2;
+  readonly UploadCloud = UploadCloud;
+  readonly Share2 = Share2;
+  readonly FileCheck = FileCheck;
+  readonly HelpCircle = HelpCircle;
+  readonly Twitter = Twitter;
+  readonly Heart = Heart;
+  readonly Briefcase = Briefcase;
+  readonly Landmark = Landmark;
+  readonly Globe = Globe;
+  readonly XCircle = XCircle;
+  readonly CheckCircle2 = CheckCircle2;
+  readonly AlertTriangle = AlertTriangle;
+  readonly Network = Network;
+  readonly ArrowRight = ArrowRight;
+  readonly FileKey = FileKey;
+  readonly Cpu = Cpu;
+  readonly Fingerprint = Fingerprint;
+  readonly Crown = Crown;
+  readonly Infinity = Infinity;
+  readonly Check = Check;
+  readonly Maximize = Maximize;
+  readonly Scale = Scale;
+  readonly EyeOff = EyeOff;
+  readonly ShieldCheck = ShieldCheck;
 
-  ngOnInit() {}
+  ngOnInit() {
+  }
 
   toggleFullscreen(element: HTMLElement) {
     if (!document.fullscreenElement) {
