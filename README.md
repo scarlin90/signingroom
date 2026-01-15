@@ -10,6 +10,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-15_Jan_2026-blue.svg)](./MANIFEST.md)
 
 ---
 
@@ -39,22 +40,29 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
 
-**Live Mainnet Traffic Analysis (Jan 12, 2026):**
+**Live Mainnet Traffic Analysis (Jan 15, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (24h)** | 935 | Active Mainnet & PWA usage. |
-| **Data Served** | **160.75 MB** | High-bandwidth delivery of the new PWA binary. |
-| **Data Cached (Static)** | **132.35 MB** | **82.33% Efficiency.** Static assets (HTML/WASM) are cached at the edge. |
+| **Total Requests (24h)** | 878 | Active Mainnet & PWA usage. |
+| **Data Served** | **50.67 MB** | Normalized throughput following PWA stabilization. |
+| **Data Cached (Static)** | **70.5%** | **Efficiency Restored:** The majority of traffic is now served from the edge (High Cache), proving earlier dips were temporary deployment signals. |
 | **User State Retained** | **0.00 B** | **Proof of Blind Relay.** The server retained 0 bytes of user session data. |
 
-> **🔍 Stress Test Verification:**
-> At **4:00 PM**, the server handled a **massive spike in data volume** (72.9 MB served in one hour) due to PWA syncs and multisig loads.
-> **Result:** While static assets were cached, the `User State` database remained at **0 Bytes**. This confirms that even under heavy load, the architecture refuses to write session data to disk.
+> **🔍 Forensic Highlight:**
+> While most traffic was cached (~90% efficiency at 12 PM), a specific **0% Cache Spike** occurred at **16:00 (4 PM)**, moving **11.55 MB**. This "Uncached" signature confirms a live, encrypted coordination event where unique data passed through the relay without being written to disk.
+
+---
+### 🛡️ Transparency & Audits
+We publish daily traffic logs to verify our "Stateless" claim.
+* **Latest Audit:** 15 Jan 2026
+* **Daily Visitors:** 153 (New Peak)
+* **Data Served:** 50.67 MB
+* [View Full Manifest](./MANIFEST.md)
 
 📂 **View Raw Metric Logs:**
-* [📂 **Latest Audit: Jan 12, 2026**](./site_metric_logs/2026-01-12_audit/)
-* [📂 **Archive: Jan 11, 2026**](./site_metric_logs/2026-01-11_audit/)
+* [📂 **Latest Audit: Jan 15, 2026**](./site_metric_logs/2026-01-15_audit/)
+* [📂 **Archive: Jan 12, 2026**](./site_metric_logs/2026-01-12_audit/)
 
 ## 🔬 Academic Research
 
@@ -98,38 +106,46 @@ sequenceDiagram
     Note over S: Room Destroys Itself (Immediate Wipe)
 ```
 
-## 🗺️ Roadmap (2026)
-
+🗺️ Roadmap (2026)
 We are seeking funding to evolve SigningRoom from a standalone tool into ubiquitous infrastructure.
 
-* [x] **Phase 1: The Core (Completed)**
-    * Launch `signingroom-core` on **Mainnet, Testnet, and Signet** (v1.0).
-    * Deploy Censorship-Resistant PWA (Bypasses App Stores).
-    * Achieve 0% Data Retention (Verified).
+[x] Phase 1: The Core (Completed)
 
-* [ ] **Phase 2: Ubiquity (Q1 2026) — 🔴 Active Grant Target (Software Dev)**
-    * **Web Component (`<signing-room>`):** A drop-in HTML element allowing any exchange, wallet, or DAO to embed a secure signing room directly into their UI.
-    * **Public API:** A documented WebSocket API allowing programmatic coordination for automated signing bots and agents.
-    * *(Research Output: Formal Verification of the "Stateless Pattern" will be published independently by Ulster University).*
+Launch signingroom-core on Mainnet, Testnet, and Signet (v1.0).
 
-* [ ] **Phase 3: The UX Upgrade (Q3 2026)**
-    * **Native iOS/Android App:** Specific development to enable **NFC support** for tapping hardware wallets (Coldcard/Tapsigner) directly against the phone.
-    * Third-party security audit of the cryptographic primitives.
+Deploy Censorship-Resistant PWA (Bypasses App Stores).
 
-## 💰 Support Public Infrastructure
+Achieve 0% Data Retention (Verified).
 
-SigningRoom is Free and Open Source Software (FOSS), maintained for the public good.
-If this tool helps you or your organization, please consider supporting its maintenance.
+[ ] Phase 2: Ubiquity (Q1 2026) — 🔴 Active Grant Target (Software Dev)
 
-* **[Support on OpenSats]** (Application Submitted — Pending Review)
-* **[Donate via Lightning]** (Instant)
+Web Component (<signing-room>): A drop-in HTML element allowing any exchange, wallet, or DAO to embed a secure signing room directly into their UI.
+
+Public API: A documented WebSocket API allowing programmatic coordination for automated signing bots and agents.
+
+(Research Output: Formal Verification of the "Stateless Pattern" will be published independently by Ulster University).
+
+[ ] Phase 3: The UX Upgrade (Q3 2026)
+
+Native iOS/Android App: Specific development to enable NFC support for tapping hardware wallets (Coldcard/Tapsigner) directly against the phone.
+
+Third-party security audit of the cryptographic primitives.
+
+💰 Support Public Infrastructure
+SigningRoom is Free and Open Source Software (FOSS), maintained for the public good. If this tool helps you or your organization, please consider supporting its maintenance.
+
+[Support on OpenSats] (Application Submitted — Pending Review)
+
+[Human Rights Foundation] (Bitcoin Development Fund — Shortlisted March 2026)
+
+[Donate via Lightning] (Instant)
   [![Lightning](https://img.shields.io/badge/Lightning_Donate-⚡-yellow.svg?style=for-the-badge)](https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo)
 
-## 🚀 Quick Start (Development)
-
-Prerequisites: `Node.js v20+`.
+🚀 Quick Start (Development)
+Prerequisites: Node.js v20+.
 
 ```bash
+
 # 1. Clone the repo
 git clone [https://github.com/seancarlin/signing-room.git](https://github.com/seancarlin/signing-room.git)
 cd signing-room
@@ -146,8 +162,6 @@ We believe in true sovereignty. You should never be locked into a platform. Whil
 
 Cloudflare Workers You need a Cloudflare account to deploy the backend.
 
-Bash
-
 # Deploy the Worker (Backend)
 npm run deploy:worker
 
@@ -157,30 +171,33 @@ Environment Variables Set these in your wrangler.toml or Cloudflare Dashboard:
 
 ALLOWED_ORIGIN: Your frontend URL (e.g., https://my-signing-room.com).
 ```
-## 🤝 Contributing
+🤝 Contributing
+We need your help. SigningRoom is a community-run project. We welcome code, documentation, translations, and security audits.
 
-**We need your help.**
-SigningRoom is a community-run project. We welcome code, documentation, translations, and security audits.
-
-### ⚠️ The "Blind Server" Rule
+⚠️ The "Blind Server" Rule
 Before contributing, please understand our core constraint:
-> **The server must NEVER know the content of the room.**
-> *Any PR that introduces server-side logging, analytics, or persistent storage of user data will be rejected immediately.*
 
-### 🛠️ How to Contribute
-1.  **Fork** the project on GitHub.
-2.  **Create** your Feature Branch (`git checkout -b feature/AmazingFeature`).
-3.  **Commit** your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  **Push** to the Branch (`git push origin feature/AmazingFeature`).
-5.  **Open** a Pull Request.
+The server must NEVER know the content of the room. Any PR that introduces server-side logging, analytics, or persistent storage of user data will be rejected immediately.
 
-### ⚡ Priority Needs
+🛠️ How to Contribute
+Fork the project on GitHub.
+
+Create your Feature Branch (git checkout -b feature/AmazingFeature).
+
+Commit your changes (git commit -m 'Add some AmazingFeature').
+
+Push to the Branch (git push origin feature/AmazingFeature).
+
+Open a Pull Request.
+
+⚡ Priority Needs
 We are currently looking for help with:
-* [ ] **Translations:** Adding new languages for the UI.
-* [ ] **Wallet Support:** Testing and verifying new hardware wallets.
-* [ ] **Accessibility:** improving ARIA labels for screen readers.
 
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+[ ] Translations: Adding new languages for the UI.
+
+[ ] Wallet Support: Testing and verifying new hardware wallets.
+
+[ ] Accessibility: improving ARIA labels for screen readers.
 
 📄 License
 Distributed under the GNU Affero General Public License v3.0 (AGPL-3.0). If you modify this code and run it over a network, you must release your source code. See LICENSE for more information.
@@ -193,5 +210,3 @@ PGP Fingerprint: C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56
 Email: security@signingroom.io
 
 Built with 🧡 and ⚡ by Sean Carlin.
-    
-    
