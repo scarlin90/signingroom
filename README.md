@@ -58,7 +58,7 @@ We publish daily traffic logs to verify our "Stateless" claim.
 * **Latest Audit:** 15 Jan 2026
 * **Daily Visitors:** 153 (New Peak)
 * **Data Served:** 50.67 MB
-* [View Full Manifest](./MANIFEST.md)
+* [View Full Manifest](https://github.com/scarlin90/signingroom/blob/main/site_metric_logs/MANIFEST.md)
 
 📂 **View Raw Metric Logs:**
 * [📂 **Latest Audit: Jan 15, 2026**](./site_metric_logs/2026-01-15_audit/)
