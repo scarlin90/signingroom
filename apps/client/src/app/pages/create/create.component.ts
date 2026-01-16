@@ -204,17 +204,19 @@ export class CreateComponent implements OnInit {
         this.isLoading.set(true);
         try {
             const encryptionKey = this.generateEncryptionKey(); 
-            const cleanData = this.normalizeInput(this.rawHex);
-            const encryptedData = await this.encryption.encrypt(cleanData, encryptionKey);
+            const adminSecret = crypto.randomUUID();
             
-            // All rooms now created as 'enterprise' tier (full features) for free
+            const encryptedData = await this.encryption.encrypt(this.rawHex, encryptionKey);
+            const encryptedAdminToken = await this.encryption.encrypt(adminSecret, encryptionKey);
+            
             const res: any = await firstValueFrom(this.socket['http'].post(`${environment.apiUrl}/api/room`, { 
-                tier: 'enterprise', 
                 encryptedPsbt: encryptedData, 
+                adminToken: encryptedAdminToken,
                 network: this.selectedNetwork() 
             }));
 
-            if (res.adminToken) sessionStorage.setItem(`admin_token_${res.roomId}`, res.adminToken);
+            sessionStorage.setItem(`admin_token_${res.roomId}`, encryptedAdminToken);
+            
             this.router.navigate(['/room', res.roomId], { fragment: encryptionKey });
         } catch (e) {
             console.error(e);

@@ -6,7 +6,8 @@
   "compatibility_flags": [ "nodejs_compat" ],
   "vars": {
     "ALLOWED_ORIGIN": "https://signingroom.io",
-    "API_PUBLIC_URL": "https://api.signingroom.io"
+    "API_PUBLIC_URL": "https://api.signingroom.io",
+    "ENVIRONMENT": "production"
   },
   "routes": [
     {

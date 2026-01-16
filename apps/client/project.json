@@ -53,6 +53,7 @@
               "with": "apps/client/src/environments/environment.prod.ts"
             }
           ],
+          "removeConsole": true, 
           "outputHashing": "all",
           "serviceWorker": "apps/client/ngsw-config.json"
         },
