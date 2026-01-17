@@ -779,42 +779,36 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     ngOnInit() {
-    if (isPlatformBrowser(this.platformId)) {
-        // Use paramMap to get the ID
-        this.route.paramMap.subscribe(params => {
-            const id = params.get('id');
-            // Get key from fragment (only exists on first load)
-            const fragmentKey = this.route.snapshot.fragment;
+        if (isPlatformBrowser(this.platformId)) {
+            this.route.paramMap.subscribe(params => {
+                const id = params.get('id');
+                const fragmentKey = this.route.snapshot.fragment;
 
-            if (id) {
-                this.roomId.set(id);
+                if (id) {
+                    this.roomId.set(id);
 
-                // 1. Move encryption key to memory immediately
-                if (fragmentKey) {
-                    this.socket.setRoomKey(fragmentKey);
+                    if (fragmentKey) {
+                        this.socket.setRoomKey(fragmentKey);
+                    }
+
+                    if (this.socket.status() !== 'connected' || this.roomId() !== id) {
+                        this.socket.connect(id, this.socket.getRoomKey());
+                        
+                        if (fragmentKey) {
+
+                            Promise.resolve().then(() => {
+                                this.router.navigate([], {
+                                    relativeTo: this.route,
+                                    fragment: undefined,
+                                    replaceUrl: true 
+                                });
+                            });
+                        }
+                    }
                 }
-
-                // 2. IMPORTANT: Connect to the socket
-                // We use the key from memory now
-                if (this.socket.status() !== 'connected' || this.roomId() !== id) {
-                    this.socket.connect(id, this.socket.getRoomKey());
-                }
-
-                // 3. SCRUB URL: Only do this AFTER the connect call 
-                // and use { replaceUrl: true } to keep the session alive
-                if (fragmentKey) {
-                    setTimeout(() => {
-                        this.router.navigate([], {
-                            relativeTo: this.route,
-                            fragment: undefined,
-                            replaceUrl: true 
-                        });
-                    }, 500); // Small delay to ensure state stability
-                }
-            }
-        });
+            });
+        }
     }
-}
 
     ngOnDestroy() {
         if (isPlatformBrowser(this.platformId)) {
@@ -982,19 +976,20 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     saveLabel() {
-        const fp = this.editingFingerprint();
-        const label = this.editingLabel().trim();
-        
-        if (fp && label) {
-            this.socket.updateSignerLabel(fp, label);
-            if (this.saveToBook()) {
-                this.socket.saveToAddressBook(fp, label);
-            } else {
-                this.socket.removeFromAddressBook(fp);
-            }
+    const fp = this.editingFingerprint();
+    const label = this.editingLabel().trim();
+    
+    if (fp) {
+        this.socket.updateSignerLabel(fp, label);
+
+        if (this.saveToBook() && label) {
+            this.socket.saveToAddressBook(fp, label);
+        } else {
+            this.socket.removeFromAddressBook(fp);
         }
-        this.closeLabelModal();
     }
+    this.closeLabelModal();
+}
 
     closeLabelModal() {
         this.showLabelModal.set(false);
@@ -1051,11 +1046,18 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.socket.logAction('Broadcast', 'User clicked Broadcast button');
         if (this.finalHex()) {
             navigator.clipboard.writeText(this.finalHex()!);
-            const net = this.socket.roomState()?.network || 'bitcoin';
-            const baseUrl = net === 'bitcoin' ? 'https://mempool.space' : net === 'testnet' ? 'https://mempool.space/testnet' : 'https://mempool.space/signet';
+            
+            const rawNet = this.socket.roomState()?.network;
+            const allowed = ['bitcoin', 'testnet', 'signet'];
+            const net = allowed.includes(rawNet || '') ? rawNet : 'bitcoin';
+
+            const baseUrl = net === 'bitcoin' ? 'https://mempool.space' 
+                        : net === 'testnet' ? 'https://mempool.space/testnet' 
+                        : 'https://mempool.space/signet';
+            
             window.open(`${baseUrl}/tx/push`, '_blank');
         }
-    }
+}
 
     // -------------------------------------------------------------------------
     // Actions: Unified Modal Logic (Alerts + Confirms)

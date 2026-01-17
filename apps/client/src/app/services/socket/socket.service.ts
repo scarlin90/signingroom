@@ -145,15 +145,13 @@ export class SocketService {
 
     this.ws = new WebSocket(url);
 
-this.ws.onopen = () => {
-  console.log('WS Connected');
-  this.status.set('connected');
-
-  const token = sessionStorage.getItem(`admin_token_${roomId}`);
-  if (token) {
-    this.send('AUTH', { token });
-  }
-};
+    this.ws.onopen = () => {
+        this.status.set('connected');
+        const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
+        if (secureToken) {
+            this.send('AUTH', { token: secureToken });
+        }
+    };
 
     this.ws.onmessage = (event) => this.handleMessage(JSON.parse(event.data));
     
@@ -214,9 +212,11 @@ this.ws.onopen = () => {
       });
   }
 
-  claimCoordinator(password: string) { 
-    this.send('AUTH', { token: password }); 
-  }
+  async claimCoordinator(secureToken: string) { 
+    if (secureToken) {
+        this.send('AUTH', { token: secureToken.trim() });
+    }
+}
 
   closeRoom() { 
     this.send('CLOSE_ROOM'); 
@@ -314,20 +314,20 @@ this.ws.onopen = () => {
   }
 
   checkAndApplyLocalLabels() {
-      if (!this.isCoordinator()) return; 
-      const state = this.roomState();
-      if (!state) return;
+    if (!this.isCoordinator()) return; 
+    const state = this.roomState();
+    if (!state) return;
 
-      const currentLabels = state.signerLabels || {};
-      const signers = this.signers();
+    const currentLabels = state.signerLabels || {};
+    const signers = this.signers();
 
-      signers.forEach(signer => {
-          if (!currentLabels[signer.fingerprint]) {
-              const savedName = this.getLocalLabel(signer.fingerprint);
-              if (savedName) this.updateSignerLabel(signer.fingerprint, savedName);
-          }
-      });
-  }
+    signers.forEach(signer => {
+        if (currentLabels[signer.fingerprint] === undefined) {
+            const savedName = this.getLocalLabel(signer.fingerprint);
+            if (savedName) this.updateSignerLabel(signer.fingerprint, savedName);
+        }
+    });
+}
 
   // -------------------------------------------------------------------------
   // Private Helpers
@@ -582,17 +582,27 @@ this.ws.onopen = () => {
     try {
         const bytes = this.decodePsbt(psbtData);
         const tx = Transaction.fromPSBT(bytes);
-        for(let i=0; i<tx.inputsLength; i++) {
-            const input = tx.getInput(i);
+        
+        for (let i = 0; i < tx.inputsLength; i++) {
+        const input = tx.getInput(i);
+        
+        if (input.partialSig && input.partialSig.length > 0) {
+            const pubkeySigned = input.partialSig[0][0];
+            
             if (input.bip32Derivation) {
-                for (const [, meta] of input.bip32Derivation as any[]) {
-                    if (meta?.fingerprint) return meta.fingerprint.toString(16).padStart(8, '0');
+                for (const [pubkey, meta] of input.bip32Derivation) {
+                    if (hex.encode(pubkey) === hex.encode(pubkeySigned)) {
+                    return meta.fingerprint.toString(16).padStart(8, '0');
+                    }
                 }
             }
         }
+        }
         return null;
-    } catch (e) { return null; }
-  }
+    } catch (e) {
+        return null;
+    }
+}
 
   private formatScriptAddress(script: Uint8Array): string {
       const s = hex.encode(script);
