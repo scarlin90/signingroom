@@ -16,6 +16,7 @@ const MAX_PAYLOAD_SIZE_BYTES = 500 * 1024; // 500KB Limit for PSBT uploads
 interface Env {
   SIGNING_ROOM: DurableObjectNamespace;
   ALLOWED_ORIGIN: string;
+  ENVIRONMENT: 'development' | 'production';
 }
 
 // =============================================================================
@@ -52,24 +53,28 @@ function checkRateLimit(ip: string): boolean {
 
 const app = new Hono<{ Bindings: Env }>();
 
+app.use('/*', cors({
+  origin: (origin, c) => {
+    if (origin.endsWith('signingroom.io')) {
+      return origin;
+    }
+
+    const isLocalhost = /^https?:\/\/localhost(:\d+)?$/.test(origin);
+    const isDevelopment = c.env.ENVIRONMENT === 'development';
+
+    if (isLocalhost && isDevelopment) {
+      return origin;
+    }
+
+    return null; 
+  },
+  allowHeaders: ['Upgrade', 'Content-Type', 'Authorization', 'X-Requested-With'],
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  maxAge: 86400,
+  credentials: true,
+}));
+
 app.use('/*', async (c, next) => {
-  // A. CORS
-  const corsMiddleware = cors({
-    origin: (origin) => {
-      // Allow localhost for dev, otherwise strictly follow env var or domain
-      return origin.endsWith('signingroom.io') || origin.includes('localhost')
-        ? origin
-        : c.env.ALLOWED_ORIGIN;
-    },
-    allowHeaders: ['Upgrade', 'Content-Type', 'Authorization', 'X-Requested-With'],
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
-    maxAge: 86400,
-    credentials: true,
-  });
-
-  await corsMiddleware(c, async () => { });
-
-  // B. Security Headers (Strict)
   c.header('Content-Security-Policy',
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; " +
@@ -87,9 +92,6 @@ app.use('/*', async (c, next) => {
   c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   c.header('X-XSS-Protection', '1; mode=block');
 
-  if (c.req.method === 'OPTIONS') return c.text('', 204);
-
-  // C. Rate Limiting
   const ip = c.req.header('CF-Connecting-IP') || 'unknown';
   if (ip !== 'unknown' && !checkRateLimit(ip)) {
     return c.json({ error: "Rate limit exceeded." }, 429);
@@ -97,6 +99,7 @@ app.use('/*', async (c, next) => {
 
   await next();
 });
+
 
 app.get('/api/health', (c) => {
   return c.json({ 
@@ -112,15 +115,13 @@ app.get('/api/health', (c) => {
 
 app.post('/api/room', async (c) => {
   const body = await c.req.json();
-  const { encryptedPsbt, network } = body;
+  const { encryptedPsbt, network, adminToken } = body;
 
   if (encryptedPsbt && encryptedPsbt.length > MAX_PAYLOAD_SIZE_BYTES) {
     return c.json({ error: "Payload too large. Max 500KB." }, 413);
   }
 
   const roomId = crypto.randomUUID();
-  const adminToken = crypto.randomUUID();
-
   const id = c.env.SIGNING_ROOM.idFromName(roomId);
   const room = c.env.SIGNING_ROOM.get(id);
 
@@ -253,10 +254,8 @@ export class SigningRoom implements DurableObject {
             if (msg.token === this.roomState.adminToken) {
               this.authFailures = 0; 
               this.sessions.set(webSocket, { ...session!, role: 'admin' });
-              
               webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
-
-            } else {
+          } else {
               this.authFailures++;
               if (this.authFailures >= 5) {
                   this.isLockedOut = true;
@@ -268,21 +267,27 @@ export class SigningRoom implements DurableObject {
 
         // Label Updates (Admin Only)
         if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
-          if (!this.roomState.signerLabels) this.roomState.signerLabels = {};
-          this.roomState.signerLabels[msg.fingerprint] = msg.label;
-          await this.state.storage.put('data', this.roomState);
-          this.log('Label Updated', `${msg.fingerprint} -> ${msg.label}`, userLabel);
-          this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
+            if (!this.roomState.signerLabels) this.roomState.signerLabels = {};
+
+            const cleanLabel = sanitizeInput(msg.label, 120); 
+            this.roomState.signerLabels[msg.fingerprint] = cleanLabel;
+            
+            await this.state.storage.put('data', this.roomState);
+            this.log('Label Updated', `${msg.fingerprint} -> ${cleanLabel}`, userLabel);
+            this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
         }
 
         // Rename Room (Admin Only)
         if (msg.type === 'RENAME_ROOM' && session?.role === 'admin') {
           const oldName = this.roomState.roomName;
-          this.roomState.roomName = msg.name;
+          
+          const cleanName = sanitizeInput(msg.name, 120);
+          this.roomState.roomName = cleanName;
+          
           await this.state.storage.put('data', this.roomState);
-          this.log('Room Renamed', `${oldName} -> ${msg.name}`, userLabel);
+          this.log('Room Renamed', `${oldName} -> ${cleanName}`, userLabel);
           this.broadcast({ type: 'ROOM_RENAMED', name: this.roomState.roomName });
-        }
+      }
 
         // Action Logging
         if (msg.type === 'LOG_ACTION') {
@@ -371,4 +376,12 @@ export class SigningRoom implements DurableObject {
         socket.close(1000, "Expired");
     }
   }
+}
+
+function sanitizeInput(input: string, maxLength: number = 120): string {
+    if (typeof input !== 'string') return '';
+    return input
+        .replace(/[<>'"&]/g, '')
+        .trim()
+        .substring(0, maxLength);
 }
