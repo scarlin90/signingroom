@@ -637,7 +637,7 @@ import { jsPDF } from 'jspdf';
                     } @else {
                         <div class="text-center p-4">
                             <p class="text-sm text-slate-400 font-medium mb-1">Waiting for Finalization</p>
-                            <p class="text-xs text-slate-600 mb-4">{{ Math.max(0, 2 - (socket.signerCount() || 0)) }} more signatures required</p>
+                            <p class="text-xs text-slate-600 mb-4">{{ Math.max(0, requiredSignatures - (socket.signerCount() || 0)) }} more signatures required</p>
                             @if (!showClaimInput()) {
                                 <button (click)="showClaimInput.set(true)" class="text-xs text-slate-500 hover:text-emerald-400 underline transition">Have the Admin Key? Claim Coordinator Role</button>
                             } @else {
