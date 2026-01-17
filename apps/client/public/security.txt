@@ -2,7 +2,7 @@
 Hash: SHA256
 
 SigningRoom.io Warrant Canary
-Date: 2025-12-27
+Date: 2026-01-17
 
 I, the administrator of SigningRoom.io, represent that:
 
@@ -12,30 +12,30 @@ I, the administrator of SigningRoom.io, represent that:
 4. I have NOT been forced to modify the system code to introduce backdoors.
 
 To prove this message was generated recently, here is the latest Bitcoin block hash:
-Block Hash: 000000000000000000005313c95f69259a5f191f7a95ae49bcedd18f8e8ffc1d
+Block Hash: 0000000000000000000085b103332586f8b660054c06b1ac14563b430d7d5e43
 
-This statement is valid until: 2026-01-26
+This statement is valid until: 2026-02-16
 
 If this file is not updated by the expiry date, or if the PGP signature is invalid, please assume the service has been compromised or seized.
 
 -----BEGIN PGP MESSAGE-----
 
-hF4D20rMCycOA6QSAQdAMA6wTXEXH9h6BZG4L8YrawC1Ls1IkrG/QS2YT4AIGHYw
-UHxiX/DW8PG0A6nJ9QDEOCt//+gd4nR8BMX52CPuijAzLn9vIkcXyVFTJllgNq91
-1OkBCQIQkxAOFfJfgk8Qytv5CvIMILRkdbxi1mn4zkHCQEtIIIW8asmbIAfhZrQX
-IjLtldl32S+VSAxEmld1TxsC/1K4dwf2tvSOCjVlFAgqIoeUX/KyxgzG/pui+/SQ
-vYIGQf5GY7yL07JB464NvZ2Eoivd7xbtSRLNmUZ8qmHPI3iGldmVyeSiJTXQE09N
-PL0Ba72cjyR9e3qSiUO1FxyYHvsAmIbMH4oDnzy7mOnXhVI9rq9Swhl71cGpoH41
-+10YTUqpRB20gyl0USXOGO+tE9c4Y6SWdX+6PK0tyRxGSor9FZ1kx/5DwAAEVNWp
-9fgpwAXTC10P+F4ehEkSCk0b77otdZwM3/NrPBu6C92lqktiMVSN7m2IrTZupgs2
-tj647WKcdpW30ay7uizmrda1b/qM00uEicq8DTXq+3ueHSFc4ospLmIt2ikrZKzj
-4EV4tFNUwkwdPbWULUZ+P1DWeVdgVVHk4jiq5M1+DaHP+IB2r3lrvBST3s60TQTd
-ixVkapg6tTZsNObc32XYCd0N0GBKhozl3IEO9nsjZwNB4yUkmb50VoHkHOhUSBQ5
-WWATJpsS/zNZQBUF86fyd+k5+aayA65QbYlVoWHM1vBEuLsdrCubd/gxVRFT4HhS
-icyA2te8qhL497N75BJ4nKTHZDYhhmT22cf9OWH8wEtnbKU07usk2ea8Nk1J1tzI
-qjtPqvWfoGxpfg45p/UKOlXd5HPGGM2XM+Hw/Ic0aewLgZ1TCN+ir8xw7+ao8mxS
-CgP7J1Gj5Znn/GJzkvxPysXCBByyLFdSe5cXx3PsYkra1Yia04zb7GmFaW6vQO4o
-YG6GsOPjSE0BqGchtylHxGGKg0QytNF1crcyzf/YIIV2Sut6t+9K83rGVa7w8jVn
-NNLaDQLklaY=
-=kmWS
+hF4D20rMCycOA6QSAQdAykyaN9ugztnRztBBwbXY5Uce2tU2IrDC+bTplCdf6jYw
+w1XrToLVGErxFPTWJbHryTuzQP71zruNxu3mP1+U4dN502mm8uNeJ0N9lodav8zD
+1OkBCQIQJlHpWgmu5j6bC85MWBAx7ZudysMgL2IPd5F282f+MI8ElqetWpgVYpRT
+BnEPnMAXCY2MYJbMLFF5TEXkOr95Jjc7xh6gQPw3rZKwFSSbeWilSJW4ckBmweLA
+PIGJEGAthAInIVkIwNHb5OdS+ftEqO/TrVxFmVKmllTV88xu0FoykTPcI+qrhpF4
+grP+pAvh91pOxAM/0VTkFOuBaezq7iByr2ZzR5y0GuiNAslh38DIjWeGCAISM162
+pFOQvwY+fkAh/1ZrmwVAh8WBF/Zxgcwppy7Q32ZO5ORpvIJAT4eKkcs1b1Vvc7QT
+PbNYAJDEynPJvrdBBYVevwk7F718wS5LBdJPUs1ZFt1W/ZfnZAzwA0QGYeRC9FS4
+mwq+X/B8Y62gD8XcWR1M/TvpUWl20yfv17FxjYM7JAU/iIkG5dv6HEBzS4V8wpfb
+6I5SsHVx7TUJr0qD+wiwngjfcHHw7hNRWuP2W6LxaZr7qcWHCV/oKibscfyvwmmD
+tpprdFvWbsLpyTzl0gdVrGrmBa3nWNWZ3Pu8lRK65urWANfZGPmVX2HFQ1Iw2ZcI
+nTNDfgYe/dr7qPTO758KiEGIjmsDkhThBVfXUeWa1VhbBvisG3TtdAatek/TfiPX
+vsfi70TkvGfw1JqY1VPxAAxH0/BIzgkmQSgVtOnaCeotL6hy4NmR0Ik5EdtziPqv
+Cn4uwkRAC6a7BjOvWh1T8iAnsb71pdT6a1pLkw3ah3CUBy+qvSsUPqxIuM+f42Rw
+4gyVwhMN9UAGFrZrreP/4HakdEL+qgZeOj07Tq/9e+IlA5bhcO2mim6au/c8CJl0
+9+SBm/ihRT5eHde+aPnTAAxUOZXCcMoQgi35XeZQ/1fPvqfsTKzYzl3G7Hnq9lxm
+it2PLZDUzeSkSfY=
+=NfGz
 -----END PGP MESSAGE-----
