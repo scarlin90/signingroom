@@ -40,29 +40,29 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
 
-**Live Mainnet Traffic Analysis (Jan 15, 2026):**
+**Live Mainnet Traffic Analysis (Jan 19, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (24h)** | 878 | Active Mainnet & PWA usage. |
-| **Data Served** | **50.67 MB** | Normalized throughput following PWA stabilization. |
-| **Data Cached (Static)** | **70.5%** | **Efficiency Restored:** The majority of traffic is now served from the edge (High Cache), proving earlier dips were temporary deployment signals. |
+| **Total Requests (24h)** | 1,002 | Active Mainnet & PWA usage. |
+| **Data Served** | **43.53 MB** | Consistent throughput for coordination events. |
+| **Data Cached (Static)** | **29.8%** | **Dynamic Relay:** The lower cache rate confirms the system is primarily serving unique, encrypted session data rather than just static assets. |
 | **User State Retained** | **0.00 B** | **Proof of Blind Relay.** The server retained 0 bytes of user session data. |
 
 > **🔍 Forensic Highlight:**
-> While most traffic was cached (~90% efficiency at 12 PM), a specific **0% Cache Spike** occurred at **16:00 (4 PM)**, moving **11.55 MB**. This "Uncached" signature confirms a live, encrypted coordination event where unique data passed through the relay without being written to disk.
+> A massive **Uncached Event** occurred at **22:00 (10 PM)**, moving **12.48 MB** with **0% caching**. This signature confirms a large, real-time encrypted coordination session where data passed ephemerally through the relay without writing to disk.
 
 ---
 ### 🛡️ Transparency & Audits
-We publish daily traffic logs to verify our "Stateless" claim.
-* **Latest Audit:** 15 Jan 2026
-* **Daily Visitors:** 153 (New Peak)
-* **Data Served:** 50.67 MB
+We publish traffic logs to verify our "Stateless" claim.
+* **Latest Audit:** 19 Jan 2026
+* **Total Requests:** 1,002 (All-Time High)
+* **Data Served:** 43.53 MB
 * [View Full Manifest](https://github.com/scarlin90/signingroom/blob/main/site_metric_logs/MANIFEST.md)
 
 📂 **View Raw Metric Logs:**
-* [📂 **Latest Audit: Jan 15, 2026**](./site_metric_logs/2026-01-15_audit/)
-* [📂 **Archive: Jan 12, 2026**](./site_metric_logs/2026-01-12_audit/)
+* [📂 **Latest Audit: Jan 19, 2026**](./site_metric_logs/2026-01-19_audit/)
+* [📂 **Archive: Jan 15, 2026**](./site_metric_logs/2026-01-15_audit/)
 
 ## 🔬 Academic Research
 
@@ -105,7 +105,6 @@ sequenceDiagram
     
     Note over S: Room Destroys Itself (Immediate Wipe)
 ```
-
 🗺️ Roadmap (2026)
 We are seeking funding to evolve SigningRoom from a standalone tool into ubiquitous infrastructure.
 
@@ -139,37 +138,51 @@ SigningRoom is Free and Open Source Software (FOSS), maintained for the public g
 [Human Rights Foundation] (Bitcoin Development Fund — Shortlisted March 2026)
 
 [Donate via Lightning] (Instant)
-  [![Lightning](https://img.shields.io/badge/Lightning_Donate-⚡-yellow.svg?style=for-the-badge)](https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo)
+[![Lightning](https://img.shields.io/badge/Lightning_Donate-⚡-yellow.svg?style=for-the-badge)](https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo)
 
 🚀 Quick Start (Development)
 Prerequisites: Node.js v20+.
 
-```bash
+```
 
 # 1. Clone the repo
-git clone [https://github.com/seancarlin/signing-room.git](https://github.com/seancarlin/signing-room.git)
-cd signing-room
+git clone [https://github.com/scarlin90/signingroom.git](https://github.com/scarlin90/signingroom.git)
+cd signingroom
 
 # 2. Install dependencies
 npm install
 
 # 3. Start the Development Server
-npm start
-Frontend: http://localhost:4200 Worker: http://localhost:8787
+# You will need two terminals:
+
+# Terminal A: Start the Backend (Worker)
+npx wrangler dev
+
+# Terminal B: Start the Frontend (Client)
+npx nx run client:serve --configuration=development
+
+# Access the Application:
+# Frontend: http://localhost:4200
+# Worker:   http://localhost:8787
+```
 
 🏰 Self-Hosting (Sovereign)
 We believe in true sovereignty. You should never be locked into a platform. While SigningRoom.io offers a hosted demo for convenience, you are free to inspect the code and run your own infrastructure.
 
 Cloudflare Workers You need a Cloudflare account to deploy the backend.
 
+```
+
 # Deploy the Worker (Backend)
 npm run deploy:worker
 
 # Deploy the Client (Frontend)
 npm run deploy:client
-Environment Variables Set these in your wrangler.toml or Cloudflare Dashboard:
+
+Environment Variables Set these in your wrangler.jsonc or Cloudflare Dashboard:
 
 ALLOWED_ORIGIN: Your frontend URL (e.g., https://my-signing-room.com).
+
 ```
 🤝 Contributing
 We need your help. SigningRoom is a community-run project. We welcome code, documentation, translations, and security audits.
@@ -208,5 +221,8 @@ If you discover a vulnerability, please do NOT open a public issue. Email the ma
 PGP Fingerprint: C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56
 
 Email: security@signingroom.io
+
+Built with 🧡 and ⚡ by Sean Carlin.
+
 
 Built with 🧡 and ⚡ by Sean Carlin.
