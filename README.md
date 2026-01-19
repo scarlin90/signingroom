@@ -10,7 +10,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-15_Jan_2026-blue.svg)](./MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-19_Jan_2026-blue.svg)](./MANIFEST.md)
 
 ---
 
@@ -105,7 +105,7 @@ sequenceDiagram
     
     Note over S: Room Destroys Itself (Immediate Wipe)
 ```
-🗺️ Roadmap (2026)
+## 🗺️ Roadmap (2026)
 We are seeking funding to evolve SigningRoom from a standalone tool into ubiquitous infrastructure.
 
 [x] Phase 1: The Core (Completed)
@@ -130,7 +130,7 @@ Native iOS/Android App: Specific development to enable NFC support for tapping h
 
 Third-party security audit of the cryptographic primitives.
 
-💰 Support Public Infrastructure
+## 💰 Support Public Infrastructure
 SigningRoom is Free and Open Source Software (FOSS), maintained for the public good. If this tool helps you or your organization, please consider supporting its maintenance.
 
 [Support on OpenSats] (Application Submitted — Pending Review)
@@ -138,9 +138,10 @@ SigningRoom is Free and Open Source Software (FOSS), maintained for the public g
 [Human Rights Foundation] (Bitcoin Development Fund — Shortlisted March 2026)
 
 [Donate via Lightning] (Instant)
+
 [![Lightning](https://img.shields.io/badge/Lightning_Donate-⚡-yellow.svg?style=for-the-badge)](https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo)
 
-🚀 Quick Start (Development)
+## 🚀 Quick Start (Development)
 Prerequisites: Node.js v20+.
 
 ```
@@ -166,7 +167,7 @@ npx nx run client:serve --configuration=development
 # Worker:   http://localhost:8787
 ```
 
-🏰 Self-Hosting (Sovereign)
+## 🏰 Self-Hosting (Sovereign)
 We believe in true sovereignty. You should never be locked into a platform. While SigningRoom.io offers a hosted demo for convenience, you are free to inspect the code and run your own infrastructure.
 
 Cloudflare Workers You need a Cloudflare account to deploy the backend.
@@ -184,10 +185,10 @@ Environment Variables Set these in your wrangler.jsonc or Cloudflare Dashboard:
 ALLOWED_ORIGIN: Your frontend URL (e.g., https://my-signing-room.com).
 
 ```
-🤝 Contributing
+## 🤝 Contributing
 We need your help. SigningRoom is a community-run project. We welcome code, documentation, translations, and security audits.
 
-⚠️ The "Blind Server" Rule
+## ⚠️ The "Blind Server" Rule
 Before contributing, please understand our core constraint:
 
 The server must NEVER know the content of the room. Any PR that introduces server-side logging, analytics, or persistent storage of user data will be rejected immediately.
@@ -203,7 +204,7 @@ Push to the Branch (git push origin feature/AmazingFeature).
 
 Open a Pull Request.
 
-⚡ Priority Needs
+## ⚡ Priority Needs
 We are currently looking for help with:
 
 [ ] Translations: Adding new languages for the UI.
@@ -212,17 +213,14 @@ We are currently looking for help with:
 
 [ ] Accessibility: improving ARIA labels for screen readers.
 
-📄 License
+## 📄 License
 Distributed under the GNU Affero General Public License v3.0 (AGPL-3.0). If you modify this code and run it over a network, you must release your source code. See LICENSE for more information.
 
-🔐 Security
+## 🔐 Security
 If you discover a vulnerability, please do NOT open a public issue. Email the maintainer directly or use PGP.
 
 PGP Fingerprint: C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56
 
 Email: security@signingroom.io
-
-Built with 🧡 and ⚡ by Sean Carlin.
-
 
 Built with 🧡 and ⚡ by Sean Carlin.
