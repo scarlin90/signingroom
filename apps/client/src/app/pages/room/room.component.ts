@@ -754,6 +754,19 @@ export class RoomComponent implements OnInit, OnDestroy {
         @Inject(PLATFORM_ID) private platformId: Object
     ) {
         effect(() => {
+            const status = this.socket.status();
+            const currentFragment = this.route.snapshot.fragment;
+
+            if (status === 'connected' && currentFragment) {
+                this.router.navigate([], {
+                    relativeTo: this.route,
+                    fragment: undefined,
+                    replaceUrl: true 
+                });
+            }
+        });
+
+        effect(() => {
             if (!isPlatformBrowser(this.platformId)) return;
             const state = this.socket.roomState();
 
@@ -792,18 +805,8 @@ export class RoomComponent implements OnInit, OnDestroy {
                     }
 
                     if (this.socket.status() !== 'connected' || this.roomId() !== id) {
+                        this.socket.disconnect(false);
                         this.socket.connect(id, this.socket.getRoomKey());
-                        
-                        if (fragmentKey) {
-
-                            Promise.resolve().then(() => {
-                                this.router.navigate([], {
-                                    relativeTo: this.route,
-                                    fragment: undefined,
-                                    replaceUrl: true 
-                                });
-                            });
-                        }
                     }
                 }
             });
