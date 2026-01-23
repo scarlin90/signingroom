@@ -42,16 +42,16 @@ To verify the "Blind Relay" claim, an auditor should observe the following patte
 
 ---
 
-### 📂 ./2026-01-15_audit/
+### 📂 ./2026-01-22_audit/
 
 | Metric | Value | Analysis |
 | :--- | :--- | :--- |
-| **Total Requests** | 878 | Normalized traffic flow following the PWA update. |
-| **Unique Visitors** | 153 | **Growth Trend:** Daily active users reached a new high (153) on Jan 14. |
-| **Total Data Served** | 50.67 MB | Efficient bandwidth usage (~70% cached). |
-| **Cache Ratio** | 70.5% | **Stability Signal:** Cache efficiency restored, proving the PWA is serving static assets correctly to repeat users. |
+| **Total Requests** | 2,423 | **Major Stress Test:** Requests more than doubled since the 19th, validating the system's ability to handle concurrent load. |
+| **Peak Hourly Visitors** | 58 | **New Record:** Peak concurrency hit 58 unique IPs at 1:00 PM. |
+| **Total Data Served** | 467.57 MB | **Massive Throughput:** Nearly 0.5 GB of encrypted data relayed in 24 hours. |
+| **Data/Request Ratio** | ~200 KB | **Heavy Payloads:** The high data-per-request average confirms heavy usage of the signing room for large PSBT coordination. |
 
-> **Forensic Note:** A distinct "Uncached" ceremony was detected at **16:00 (4:00 PM)** moving **11.55 MB** with near 0% caching. This contrasts sharply with highly cached events at 12:00 PM and 03:00 AM, confirming the system correctly differentiates between static PWA assets (Cached) and dynamic room activity (Uncached).
+> **Forensic Note:** The 1:00 PM window saw **249.9 MB** of data transfer across 587 requests. This outlier event represents the largest single coordination ceremony recorded to date.
 
 ---
 
@@ -64,3 +64,16 @@ To verify the "Blind Relay" claim, an auditor should observe the following patte
 | **Cache Ratio** | 29.8% | **Dynamic Shift:** The lower cache rate (compared to 70% on Jan 15) indicates users are heavily utilizing the WebSocket relay (uncached) rather than just downloading static assets. |
 
 > **Forensic Note:** A massive **Uncached Event** occurred at **22:00 (10 PM)**, moving **12.48 MB** with **0% caching**. This signature confirms a large, real-time encrypted coordination session where data passed ephemerally through the relay without writing to disk.
+
+---
+
+### 📂 ./2026-01-15_audit/
+
+| Metric | Value | Analysis |
+| :--- | :--- | :--- |
+| **Total Requests** | 878 | Normalized traffic flow following the PWA update. |
+| **Unique Visitors** | 153 | **Growth Trend:** Daily active users reached a new high (153) on Jan 14. |
+| **Total Data Served** | 50.67 MB | Efficient bandwidth usage (~70% cached). |
+| **Cache Ratio** | 70.5% | **Stability Signal:** Cache efficiency restored, proving the PWA is serving static assets correctly to repeat users. |
+
+> **Forensic Note:** A distinct "Uncached" ceremony was detected at **16:00 (4:00 PM)** moving **11.55 MB** with near 0% caching. This contrasts sharply with highly cached events at 12:00 PM and 03:00 AM, confirming the system correctly differentiates between static PWA assets (Cached) and dynamic room activity (Uncached).

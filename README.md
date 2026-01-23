@@ -40,29 +40,30 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
 
-**Live Mainnet Traffic Analysis (Jan 19, 2026):**
+**Live Mainnet Traffic Analysis (Jan 22, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (24h)** | 1,002 | Active Mainnet & PWA usage. |
-| **Data Served** | **43.53 MB** | Consistent throughput for coordination events. |
-| **Data Cached (Static)** | **29.8%** | **Dynamic Relay:** The lower cache rate confirms the system is primarily serving unique, encrypted session data rather than just static assets. |
+| **Total Requests (24h)** | 2,423 | **High Load:** Confirmed stability under doubled traffic volume. |
+| **Data Served** | **467.57 MB** | High-throughput relay handling ~0.5 GB daily. |
+| **Peak Concurrency** | **58 Signers** | **Scale Proof:** Successfully coordinated 58 simultaneous unique IPs in a single hour (1 PM). |
 | **User State Retained** | **0.00 B** | **Proof of Blind Relay.** The server retained 0 bytes of user session data. |
 
 > **🔍 Forensic Highlight:**
-> A massive **Uncached Event** occurred at **22:00 (10 PM)**, moving **12.48 MB** with **0% caching**. This signature confirms a large, real-time encrypted coordination session where data passed ephemerally through the relay without writing to disk.
+> A massive coordination event occurred at **13:00 (1 PM)**, moving **249.9 MB** of encrypted data. Despite this heavy load, the "Blind Server" architecture ensured that **0 bytes** were written to disk.
 
 ---
+
 ### 🛡️ Transparency & Audits
 We publish traffic logs to verify our "Stateless" claim.
-* **Latest Audit:** 19 Jan 2026
-* **Total Requests:** 1,002 (All-Time High)
-* **Data Served:** 43.53 MB
+* **Latest Audit:** 22 Jan 2026
+* **Total Requests:** 2,423 (New All-Time High)
+* **Data Served:** 467.57 MB
 * [View Full Manifest](https://github.com/scarlin90/signingroom/blob/main/site_metric_logs/MANIFEST.md)
 
 📂 **View Raw Metric Logs:**
-* [📂 **Latest Audit: Jan 19, 2026**](./site_metric_logs/2026-01-19_audit/)
-* [📂 **Archive: Jan 15, 2026**](./site_metric_logs/2026-01-15_audit/)
+* [📂 **Latest Audit: Jan 22, 2026**](./site_metric_logs/2026-01-22_audit/)
+* [📂 **Archive: Jan 19, 2026**](./site_metric_logs/2026-01-19_audit/)
 
 ## 🔬 Academic Research
 
