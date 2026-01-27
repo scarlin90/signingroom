@@ -11,7 +11,7 @@ import {
   Github, Code2, Eye, Trash2, UploadCloud, Share2, FileCheck, HelpCircle,
   Twitter, Heart, Briefcase, Landmark, Globe, XCircle, CheckCircle2,  
   Clock, AlertTriangle, Network, ArrowRight, FileKey, Cpu, Fingerprint,
-  Crown, Infinity, Check, Maximize, Scale, EyeOff, ShieldCheck
+  Crown, Infinity, Check, Maximize, Scale, EyeOff, ShieldCheck, FileText
 } from 'lucide-angular';
 
 @Component({
@@ -48,7 +48,12 @@ import {
           <lucide-icon [img]="Zap" class="w-5 h-5 fill-slate-950"></lucide-icon>
         </a>
         
-        <a href="https://github.com/scarlin90/SigningRoom" target="_blank" class="px-8 py-4 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 w-full sm:w-auto justify-center">
+        <a href="https://arxiv.org/abs/2601.17875" target="_blank" class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
+          <lucide-icon [img]="FileText" class="w-5 h-5 text-emerald-400"></lucide-icon>
+          Whitepaper
+        </a>
+
+        <a href="https://github.com/scarlin90/SigningRoom" target="_blank" class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
           <lucide-icon [img]="Github" class="w-5 h-5"></lucide-icon>
           View Source
         </a>
@@ -435,6 +440,7 @@ export class HomeComponent implements OnInit {
   readonly Scale = Scale;
   readonly EyeOff = EyeOff;
   readonly ShieldCheck = ShieldCheck;
+  readonly FileText = FileText;
 
   ngOnInit() {
   }

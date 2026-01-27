@@ -1,6 +1,7 @@
 # SigningRoom.io
 
 [![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-signingroom.io-blue?style=for-the-badge)](https://signingroom.io)
+[![Whitepaper](https://img.shields.io/badge/Whitepaper-arXiv%3A2601.17875-B31B1B.svg?style=for-the-badge)](https://arxiv.org/abs/2601.17875)
 [![Research](https://img.shields.io/badge/Research-Ulster_University-blueviolet.svg)](https://www.ulster.ac.uk/)
 
 > **Stateless. Zero-Knowledge. Real-Time.**
@@ -10,7 +11,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-19_Jan_2026-blue.svg)](./MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-27_Jan_2026-blue.svg)](./MANIFEST.md)
 
 ---
 
@@ -40,37 +41,39 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
 
-**Live Mainnet Traffic Analysis (Jan 22, 2026):**
+*Live Mainnet Traffic Analysis (Jan 27, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (24h)** | 2,423 | **High Load:** Confirmed stability under doubled traffic volume. |
-| **Data Served** | **467.57 MB** | High-throughput relay handling ~0.5 GB daily. |
-| **Peak Concurrency** | **58 Signers** | **Scale Proof:** Successfully coordinated 58 simultaneous unique IPs in a single hour (1 PM). |
+| **Total Requests (24h)** | 1,057 | **Sustained Usage:** Daily active traffic consistently breaking the 1k request barrier. |
+| **Data Served** | **90.54 MB** | **Blind Relay Proven:** ~90 MB of encrypted data relayed with 0 bytes stored on disk. |
+| **Peak Concurrency** | **49 Signers** | **Global Utility:** Peak usage at 06:00 AM (UTC) confirms active coordination across global time zones. |
 | **User State Retained** | **0.00 B** | **Proof of Blind Relay.** The server retained 0 bytes of user session data. |
 
 > **🔍 Forensic Highlight:**
-> A massive coordination event occurred at **13:00 (1 PM)**, moving **249.9 MB** of encrypted data. Despite this heavy load, the "Blind Server" architecture ensured that **0 bytes** were written to disk.
+> A distinct coordination event occurred at **19:00 (7 PM)**, moving **23.39 MB** of encrypted data. Simultaneously, a "Dawn Spike" at **06:00 AM** saw the highest unique signer count (49), proving the protocol's reliability for international teams.
 
 ---
 
 ### 🛡️ Transparency & Audits
 We publish traffic logs to verify our "Stateless" claim.
-* **Latest Audit:** 22 Jan 2026
-* **Total Requests:** 2,423 (New All-Time High)
-* **Data Served:** 467.57 MB
+* **Latest Audit:** 27 Jan 2026
+* **Total Requests:** 1,057 (Sustained >1k Daily Baseline)
+* **Data Served:** 90.54 MB
 * [View Full Manifest](https://github.com/scarlin90/signingroom/blob/main/site_metric_logs/MANIFEST.md)
 
 📂 **View Raw Metric Logs:**
-* [📂 **Latest Audit: Jan 22, 2026**](./site_metric_logs/2026-01-22_audit/)
-* [📂 **Archive: Jan 19, 2026**](./site_metric_logs/2026-01-19_audit/)
+* [📂 **Latest Audit: Jan 27, 2026**](./site_metric_logs/2026-01-27_audit/)
+* [📂 **Archive: Jan 22, 2026**](./site_metric_logs/2026-01-22_audit/)
 
 ## 🔬 Academic Research
 
 This software serves as the reference implementation for **"The Stateless Pattern,"** a cryptographic architecture currently being formalized for peer review.
 
 > **Research Collaboration:**
-> *Carlin, S. & Curran, K. (2026).* **(Forthcoming).** Research regarding ephemeral coordination and privacy-preserving architectures in low-trust networks. *Intelligent Systems Research Centre, Ulster University.*
+> *Carlin, S. & Curran, K. (2026).* **The Stateless Pattern: Ephemeral Coordination as the Third Pillar of Digital Sovereignty.** *arXiv preprint arXiv:2601.17875.*
+>
+> [![Whitepaper](https://img.shields.io/badge/Whitepaper-arXiv%3A2601.17875-B31B1B.svg?style=for-the-badge)](https://arxiv.org/abs/2601.17875)
 
 ## ⚡ Features
 
@@ -158,9 +161,11 @@ npm install
 # You will need two terminals:
 
 # Terminal A: Start the Backend (Worker)
+cd apps/worker
 npx wrangler dev
 
 # Terminal B: Start the Frontend (Client)
+# (Run this from the project root)
 npx nx run client:serve --configuration=development
 
 # Access the Application:
