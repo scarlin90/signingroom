@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Sean Carlin
+ * Copyright (C) 2026 Stateless Research Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
@@ -126,12 +126,15 @@ import { filter } from 'rxjs/operators';
             </div>
             
             <div class="flex flex-col items-center justify-center gap-4">
-              <div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-2 text-xs text-slate-600">
-                <p>&copy; {{ currentYear }} Sean Carlin</p>
-                <span class="hidden sm:inline">&bull;</span>
-                <p>Made for Bitcoiners</p>
-                <span class="hidden sm:inline">&bull;</span>
-                <p>No Tracking / No Cookies</p>
+              <div class="flex flex-col items-center gap-1 text-xs text-slate-600">
+                <div class="flex flex-wrap justify-center items-center gap-x-4">
+                  <p>&copy; {{ currentYear }} <strong>Stateless Research Ltd</strong></p>
+                  <span class="hidden sm:inline">&bull;</span>
+                  <p>Made for Bitcoiners</p>
+                  <span class="hidden sm:inline">&bull;</span>
+                  <p>No Tracking / No Cookies</p>
+                </div>
+                <p class="text-[10px] opacity-60">Registered in England & Wales (No. 16990515)</p>
               </div>
 
               <div class="flex items-center gap-4 opacity-70 hover:opacity-100 transition">

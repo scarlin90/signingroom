@@ -38,7 +38,7 @@ To verify the "Blind Relay" claim, an auditor should observe the following patte
 2.  **No "User State" Logs:** Cloudflare does not generate a `KV_storage_write` or `D1_database_write` log file.
 3.  **Ephemeral Throughput:** The discrepancy between Total Requests and Cached Requests represents the "Blind" traffic—encrypted signals that pass through the worker RAM without triggering a storage event.
 
-*Maintained by: Sean Carlin, Technical Architect*
+*Maintained by: Stateless Research Ltd*
 
 ---
 

@@ -229,4 +229,4 @@ PGP Fingerprint: C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56
 
 Email: security@signingroom.io
 
-Built with 🧡 and ⚡ by Sean Carlin.
+Built with 🧡 and ⚡ by Stateless Research Ltd.
