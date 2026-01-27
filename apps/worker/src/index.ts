@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Sean Carlin
+ * Copyright (C) 2026 Stateless Research Ltd
  * Licensed under the GNU Affero General Public License v3.0
  */
 
