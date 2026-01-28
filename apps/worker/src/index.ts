@@ -8,7 +8,7 @@ import { cors } from 'hono/cors';
 import { DurableObject } from 'cloudflare:workers';
 
 // =============================================================================
-// 1. CONFIGURATION & TYPES
+// CONFIGURATION & TYPES
 // =============================================================================
 
 const MAX_PAYLOAD_SIZE_BYTES = 500 * 1024; // 500KB Limit for PSBT uploads
@@ -17,38 +17,11 @@ interface Env {
   SIGNING_ROOM: DurableObjectNamespace;
   ALLOWED_ORIGIN: string;
   ENVIRONMENT: 'development' | 'production';
+  RATE_LIMITER: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
 }
 
 // =============================================================================
-// 2. UTILITIES: RATE LIMITER
-// =============================================================================
-
-/**
- * Simple in-memory IP Rate Limiter to prevent abuse.
- * Allows 20 requests per minute per IP.
- */
-const ipLimits = new Map<string, { count: number, expires: number }>();
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = ipLimits.get(ip);
-
-  if (record && now > record.expires) {
-    ipLimits.delete(ip);
-  }
-
-  if (!ipLimits.has(ip)) {
-    ipLimits.set(ip, { count: 1, expires: now + 60000 });
-    return true;
-  }
-
-  const current = ipLimits.get(ip)!;
-  current.count++;
-  return current.count <= 20;
-}
-
-// =============================================================================
-// 3. HONO APP & MIDDLEWARE
+// HONO APP & MIDDLEWARE
 // =============================================================================
 
 const app = new Hono<{ Bindings: Env }>();
@@ -75,6 +48,7 @@ app.use('/*', cors({
 }));
 
 app.use('/*', async (c, next) => {
+  // Security Headers
   c.header('Content-Security-Policy',
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; " +
@@ -92,9 +66,20 @@ app.use('/*', async (c, next) => {
   c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   c.header('X-XSS-Protection', '1; mode=block');
 
+  // --- RATE LIMITING (THE BOUNCER) ---
   const ip = c.req.header('CF-Connecting-IP') || 'unknown';
-  if (ip !== 'unknown' && !checkRateLimit(ip)) {
-    return c.json({ error: "Rate limit exceeded." }, 429);
+
+  if (c.env.ENVIRONMENT === 'production' && ip !== 'unknown') {
+    try {
+      // use the global Cloudflare counter
+      const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
+      
+      if (!success) {
+        return c.json({ error: "Rate limit exceeded. Please wait." }, 429);
+      }
+    } catch (err) {
+      console.error("Rate Limiter Error:", err);
+    }
   }
 
   await next();
@@ -110,7 +95,7 @@ app.get('/api/health', (c) => {
 });
 
 // =============================================================================
-// 4. API ROUTES: ROOM MANAGEMENT
+// API ROUTES: ROOM MANAGEMENT
 // =============================================================================
 
 app.post('/api/room', async (c) => {
@@ -145,7 +130,7 @@ app.get('/api/room/:id/websocket', async (c) => {
 export default app;
 
 // =============================================================================
-// 5. DURABLE OBJECT: SIGNING ROOM (STATELESS RELAY)
+// DURABLE OBJECT: SIGNING ROOM (STATELESS RELAY)
 // =============================================================================
 
 export class SigningRoom implements DurableObject {
@@ -216,7 +201,6 @@ export class SigningRoom implements DurableObject {
       return;
     }
 
-    // Generous limit for free version
     if (this.sessions.size >= 40) {
       webSocket.accept();
       webSocket.close(4001, "Room Full");
