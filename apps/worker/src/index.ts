@@ -89,7 +89,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '1.2.0', 
+    version: '1.2.1', 
     timestamp: Date.now() 
   });
 });
