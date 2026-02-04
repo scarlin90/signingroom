@@ -128,7 +128,7 @@ import { filter } from 'rxjs/operators';
             <div class="flex flex-col items-center justify-center gap-4">
               <div class="flex flex-col items-center gap-1 text-xs text-slate-600">
                 <div class="flex flex-wrap justify-center items-center gap-x-4">
-                  <p>&copy; {{ currentYear }} <strong>Stateless Research Ltd</strong></p>
+                  <p>&copy; {{ currentYear }} <strong><a href="https://statelessresearch.com" target="_blank" class="hover:text-emerald-400 transition">Stateless Research Ltd</a></strong></p>
                   <span class="hidden sm:inline">&bull;</span>
                   <p>Made for Bitcoiners</p>
                   <span class="hidden sm:inline">&bull;</span>

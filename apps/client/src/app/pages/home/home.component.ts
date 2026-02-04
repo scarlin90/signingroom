@@ -11,7 +11,7 @@ import {
   Github, Code2, Eye, Trash2, UploadCloud, Share2, FileCheck, HelpCircle,
   Twitter, Heart, Briefcase, Landmark, Globe, XCircle, CheckCircle2,  
   Clock, AlertTriangle, Network, ArrowRight, FileKey, Cpu, Fingerprint,
-  Crown, Infinity, Check, Maximize, Scale, EyeOff, ShieldCheck, FileText
+  Crown, Infinity, Check, Maximize, Scale, EyeOff, ShieldCheck, FileText, Building2
 } from 'lucide-angular';
 
 @Component({
@@ -44,8 +44,8 @@ import {
 
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
         <a routerLink="/create" class="px-8 py-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] cursor-pointer w-full sm:w-auto justify-center hover:scale-105 transform duration-200">
-          Start Signing
           <lucide-icon [img]="Zap" class="w-5 h-5 fill-slate-950"></lucide-icon>
+          Start Signing
         </a>
         
         <a href="https://arxiv.org/abs/2601.17875" target="_blank" class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
@@ -382,10 +382,26 @@ import {
           </h3>
           <div class="text-slate-400 text-sm leading-relaxed">
             <p class="mb-2">
-              <strong class="text-slate-200">Yes.</strong> SigningRoom is a 100% free, open-source public good for the Bitcoin community. 
+              <strong class="text-slate-200">Yes.</strong> SigningRoom.io is a 100% free, open-source public good.
             </p>
             <p>
-              There are no paid tiers, no "enterprise" locks, and no hidden fees. All features—including 20-signer rooms and Audit Logs—are available to everyone.
+              We cover our costs through optional donations and enterprise licensing. There are no paid tiers for the public service.
+            </p>
+          </div>
+        </div>
+
+        <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
+          <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+            <lucide-icon [img]="Building2" class="w-4 h-4 text-cyan-400"></lucide-icon>
+            Can I host this myself? (Enterprise)
+          </h3>
+          <div class="text-slate-400 text-sm leading-relaxed">
+            <p class="mb-2">
+              <strong class="text-slate-200">Yes.</strong> The code is open source (AGPL v3), so you can audit and run it yourself.
+            </p>
+            <p>
+              For institutions requiring a commercial license (AGPL waiver) to integrate into proprietary, closed-source infrastructure, please contact 
+              <a href="https://statelessresearch.com" target="_blank" class="text-emerald-400 hover:underline">Stateless Research Ltd</a>.
             </p>
           </div>
         </div>
@@ -441,6 +457,7 @@ export class HomeComponent implements OnInit {
   readonly EyeOff = EyeOff;
   readonly ShieldCheck = ShieldCheck;
   readonly FileText = FileText;
+  readonly Building2 = Building2;
 
   ngOnInit() {
   }
