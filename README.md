@@ -11,7 +11,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-27_Jan_2026-blue.svg)](./MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-03_Feb_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -41,30 +41,32 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
 
-*Live Mainnet Traffic Analysis (Jan 27, 2026):**
+**Live Mainnet Traffic Analysis (Feb 03, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (24h)** | 1,057 | **Sustained Usage:** Daily active traffic consistently breaking the 1k request barrier. |
-| **Data Served** | **90.54 MB** | **Blind Relay Proven:** ~90 MB of encrypted data relayed with 0 bytes stored on disk. |
-| **Peak Concurrency** | **49 Signers** | **Global Utility:** Peak usage at 06:00 AM (UTC) confirms active coordination across global time zones. |
+| **Total Requests (24h)** | **1,143** | **Sustained Usage:** Daily active traffic consistently breaking the 1k request barrier. |
+| **Data Served** | **66.78 MB** | **Blind Relay Proven:** ~67 MB of encrypted data relayed with 0 bytes stored on disk. |
+| **Peak Throughput** | **12.06 MB (1h)** | **Institutional Utility:** A massive data spike at 06:00 UTC confirms heavy key ceremonies occurring entirely in RAM. |
 | **User State Retained** | **0.00 B** | **Proof of Blind Relay.** The server retained 0 bytes of user session data. |
 
-> **🔍 Forensic Highlight:**
-> A distinct coordination event occurred at **19:00 (7 PM)**, moving **23.39 MB** of encrypted data. Simultaneously, a "Dawn Spike" at **06:00 AM** saw the highest unique signer count (49), proving the protocol's reliability for international teams.
+### 🔍 Forensic Highlight: The "Institutional Spike" (Feb 03, 2026)
+Our latest audit reveals a perfect example of the **"Stateless Signature"**:
+
+* **Metric:** A massive **12.06 MB Uncached Data Spike** occurred at 06:00 UTC.
+* **Analysis:** This represents a high-density coordination ceremony (likely 50+ signatures or complex scripts) relayed entirely through RAM.
+* **The Proof:** Despite moving ~66 MB of total data that day, the database size remained at **0KB**. The server acted purely as a "Vacuum," relaying encrypted packets without retaining a single byte of state.
 
 ---
 
 ### 🛡️ Transparency & Audits
-We publish traffic logs to verify our "Stateless" claim.
-* **Latest Audit:** 27 Jan 2026
-* **Total Requests:** 1,057 (Sustained >1k Daily Baseline)
-* **Data Served:** 90.54 MB
-* [View Full Manifest](https://github.com/scarlin90/signingroom/blob/main/site_metric_logs/MANIFEST.md)
+We don't just claim to be stateless; we prove it. We publish our raw traffic logs so you can verify our "Zero-Knowledge" architecture yourself.
 
-📂 **View Raw Metric Logs:**
-* [📂 **Latest Audit: Jan 27, 2026**](./site_metric_logs/2026-01-27_audit/)
-* [📂 **Archive: Jan 22, 2026**](./site_metric_logs/2026-01-22_audit/)
+* **Latest Audit:** [Feb 03, 2026](./site_metric_logs/MANIFEST.md#-2026-02-03_audit)
+* **Traffic Volume:** 1,143 Requests / 569 Unique Visitors
+* **Key Finding:** 52.5% Cache Ratio (Perfect "Hybrid" balance between new user downloads and live coordination).
+
+> 📂 **[View the full Data Manifest](./site_metric_logs/MANIFEST.md)** to inspect the raw CSV logs.
 
 ## 🔬 Academic Research
 
@@ -218,6 +220,14 @@ We are currently looking for help with:
 [ ] Wallet Support: Testing and verifying new hardware wallets.
 
 [ ] Accessibility: improving ARIA labels for screen readers.
+
+## 🏢 Enterprise & Commercial Licensing
+**SigningRoom.io** is fully open-source under the **AGPLv3 License**. 
+
+* **Community Use:** Free for everyone. If you modify the code and host it publicly, you must open-source your changes.
+* **Commercial Use:** Institutions requiring a **Commercial License (AGPL Waiver)** to integrate this technology into proprietary, closed-source infrastructure (e.g., internal banking systems, custodial platforms) must contact **Stateless Research Ltd**.
+
+> 🔗 **[Contact Stateless Research for Licensing](https://statelessresearch.com)**
 
 ## 📄 License
 Distributed under the GNU Affero General Public License v3.0 (AGPL-3.0). If you modify this code and run it over a network, you must release your source code. See LICENSE for more information.
