@@ -12,10 +12,11 @@ import {
     LucideAngularModule, Shield, Users, CheckCircle, Loader2, 
     Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud,
     Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Lock, Unlock, Key, RefreshCw, AlertOctagon, FileKey, FileCheck,
-    Edit2, Tag, Bell, Infinity, ArrowDown, Book
+    Edit2, Tag, Bell, Infinity, ArrowDown, Book, QrCode, Eye, EyeOff
 } from 'lucide-angular';
 import { SocketService } from '../../services/socket/socket.service';
 import { jsPDF } from 'jspdf';
+import * as QRCode from 'qrcode';
 
 @Component({
   selector: 'app-room',
@@ -137,6 +138,133 @@ import { jsPDF } from 'jspdf';
     </div>
     }
 
+    @if (showRenameModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="Tag" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Rename Room</h3>
+                </div>
+                <button (click)="closeRenameModal()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+
+            <div class="p-6">
+                <p class="text-sm text-slate-400 mb-4">
+                    Give this room a label to make it easier to identify. This name is visible to all participants.
+                </p>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Room Name</label>
+                        <span class="text-xs font-mono" 
+                            [class.text-red-400]="newRoomName().length > 32" 
+                            [class.text-slate-600]="newRoomName().length <= 32">
+                            {{ newRoomName().length }} / 32
+                        </span>
+                    </div>
+                    
+                    <input 
+                        type="text" 
+                        [(ngModel)]="newRoomName" 
+                        (keyup.enter)="saveRoomName()"
+                        maxlength="32"  placeholder="e.g. Q1 Treasury Board Vote"
+                        class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 transition"
+                        autofocus
+                    />
+                    
+                    @if (newRoomName().length >= 32) {
+                        <p class="text-xs text-red-400 animate-pulse">
+                            Maximum length reached.
+                        </p>
+                    }
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-950/50 border-t border-slate-800 flex justify-end gap-3">
+                <button (click)="closeRenameModal()" class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition text-sm font-medium">
+                    Cancel
+                </button>
+                <button (click)="saveRoomName()" class="px-6 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition shadow-lg shadow-emerald-500/20">
+                    Save Name
+                </button>
+            </div>
+
+        </div>
+    </div>
+  }
+
+    @if (showQrModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden relative">
+            
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="QrCode" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Room QR Code</h3>
+                </div>
+                <button (click)="closeQr()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+
+            <div class="p-6 flex flex-col items-center">
+                
+                <div class="w-full bg-red-500/10 border border-red-500/20 rounded-lg p-3 mb-6 flex items-start gap-3">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-red-400 shrink-0"></lucide-icon>
+                    <p class="text-xs text-red-200 leading-relaxed">
+                        <strong>Security Warning:</strong> This QR code contains the <strong>Private Encryption Key</strong>. 
+                        Anyone who scans this can join the room and view transaction details. Treat it like a password.
+                    </p>
+                </div>
+
+                <div class="relative group cursor-pointer" (click)="toggleQrReveal()">
+                    
+                    <div class="bg-white p-2 rounded-lg transition-all duration-300"
+                         [class.blur-md]="!isQrRevealed()"
+                         [class.opacity-50]="!isQrRevealed()">
+                        @if (qrDataUrl()) {
+                            <img [src]="qrDataUrl()" alt="Room QR Code" class="w-48 h-48 sm:w-56 sm:h-56">
+                        } @else {
+                            <div class="w-48 h-48 flex items-center justify-center">
+                                <lucide-icon [img]="Loader2" class="w-8 h-8 text-slate-900 animate-spin"></lucide-icon>
+                            </div>
+                        }
+                    </div>
+
+                    @if (!isQrRevealed()) {
+                        <div class="absolute inset-0 flex flex-col items-center justify-center z-10">
+                            <div class="bg-slate-900/90 p-3 rounded-full border border-slate-700 shadow-xl mb-2">
+                                <lucide-icon [img]="Eye" class="w-6 h-6 text-white"></lucide-icon>
+                            </div>
+                            <span class="text-xs font-bold text-slate-900 bg-white/90 px-2 py-1 rounded shadow-sm">Click to Reveal</span>
+                        </div>
+                    }
+                </div>
+
+                <p class="text-xs text-slate-500 mt-4 text-center">
+                    Scan with a mobile wallet or camera to join.
+                </p>
+
+            </div>
+
+            <div class="p-4 bg-slate-950/50 border-t border-slate-800 flex gap-3">
+                <button (click)="downloadQr()" class="flex-1 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition flex items-center justify-center gap-2 border border-slate-700">
+                    <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                    Download Image
+                </button>
+                <button (click)="closeQr()" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white font-medium text-sm transition border border-transparent hover:border-slate-700">
+                    Close
+                </button>
+            </div>
+
+        </div>
+    </div>
+  }
+
     @if (showConfirmModal()) {
     <div class="fixed inset-0 z-[250] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 relative overflow-hidden">
@@ -191,8 +319,11 @@ import { jsPDF } from 'jspdf';
             </h1>
 
             @if (socket.isCoordinator()) {
-                <button (click)="renameRoom()" class="p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition flex items-center justify-center cursor-pointer shrink-0" title="Rename Room">
-                    <lucide-icon [img]="Edit2" class="w-3.5 h-3.5"></lucide-icon>
+                <button 
+                    (click)="openRenameModal()" 
+                    class="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                    title="Rename Room">
+                    <lucide-icon [img]="Edit2" class="w-4 h-4"></lucide-icon>
                 </button>
             }
 
@@ -278,6 +409,8 @@ import { jsPDF } from 'jspdf';
                         </button>
                     </div>
 
+                    <div class="w-px h-6 bg-slate-800 mx-1"></div>
+
                     <div class="relative group">
                         <button (click)="copyAdminToken()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20">
                             <lucide-icon [img]="adminCopied() ? Check : FileKey" class="w-4 h-4"></lucide-icon>
@@ -292,6 +425,15 @@ import { jsPDF } from 'jspdf';
                     <button (click)="copyInvite()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700">
                         <lucide-icon [img]="inviteCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
                         {{ inviteCopied() ? 'Copied' : 'Share Link' }}
+                    </button>
+                </div>
+
+                <div class="w-px h-6 bg-slate-800 mx-1"></div>
+
+                <div class="relative group">
+                    <button (click)="openQr()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700">
+                        <lucide-icon [img]="QrCode" class="w-4 h-4"></lucide-icon>
+                        <span class="hidden sm:inline">QR Code</span>
                     </button>
                 </div>
 
@@ -397,138 +539,142 @@ import { jsPDF } from 'jspdf';
             </div>
 
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 min-h-[400px] flex flex-col">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider">Transaction Details</h3>
-                    
-                    <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
-                        <button (click)="viewMode.set('inputs')" 
-                                class="px-3 py-1 text-xs font-bold rounded-md transition-all"
-                                [class.bg-slate-800]="viewMode() === 'inputs'"
-                                [class.text-white]="viewMode() === 'inputs'"
-                                [class.text-slate-500]="viewMode() !== 'inputs'"
-                                [class.hover:text-slate-300]="viewMode() !== 'inputs'">
-                            Inputs ({{ socket.txDetails()?.inputs || 0 }})
-                        </button>
-                        <button (click)="viewMode.set('outputs')" 
-                                class="px-3 py-1 text-xs font-bold rounded-md transition-all"
-                                [class.bg-slate-800]="viewMode() === 'outputs'"
-                                [class.text-white]="viewMode() === 'outputs'"
-                                [class.text-slate-500]="viewMode() !== 'outputs'"
-                                [class.hover:text-slate-300]="viewMode() !== 'outputs'">
-                            Outputs ({{ socket.txDetails()?.outputs?.length || 0 }})
-                        </button>
-                    </div>
-                </div>
+          <div class="flex items-center justify-between mb-6">
+              <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider">Transaction Details</h3>
+              
+              <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                  <button (click)="viewMode.set('inputs')" 
+                          class="px-3 py-1 text-xs font-bold rounded-md transition-all"
+                          [class.bg-slate-800]="viewMode() === 'inputs'"
+                          [class.text-white]="viewMode() === 'inputs'"
+                          [class.text-slate-500]="viewMode() !== 'inputs'">
+                      Inputs ({{ socket.txDetails()?.inputs || 0 }})
+                  </button>
+                  <button (click)="viewMode.set('outputs')" 
+                          class="px-3 py-1 text-xs font-bold rounded-md transition-all"
+                          [class.bg-slate-800]="viewMode() === 'outputs'"
+                          [class.text-white]="viewMode() === 'outputs'"
+                          [class.text-slate-500]="viewMode() !== 'outputs'">
+                      Outputs ({{ socket.txDetails()?.outputs?.length || 0 }})
+                  </button>
+              </div>
+          </div>
 
-                <div class="space-y-3 flex-grow overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                    
-                    @if (viewMode() === 'inputs') {
-                        @for (input of socket.txDetails()?.inputsList; track $index) {
-                            <div class="p-3 bg-slate-950 rounded border transition-all"
-                                 [class.border-emerald-500]="isWhitelisted(input.address)"
-                                 [class.border-slate-800]="!isWhitelisted(input.address)">
-                                
-                                <div class="flex justify-between items-start mb-2">
-                                    <div class="flex items-center gap-2 text-slate-400 text-xs">
-                                        <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
-                                        <span class="font-mono text-[10px] text-slate-600 truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
-                                    </div>
-                                    <div class="text-white font-bold text-sm">{{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
-                                </div>
-                                
-                                <div class="flex items-start gap-2">
-                                    <lucide-icon [img]="ArrowDown" class="w-4 h-4 text-slate-600 mt-0.5 shrink-0"></lucide-icon>
-                                    
-                                    <div class="flex-grow">
-                                        <div class="font-mono text-xs text-slate-400 break-all leading-relaxed select-all">
-                                            {{ input.address }}
-                                        </div>
-                                        
-                                        @if (socket.isCoordinator()) {
-                                            <div class="mt-2 flex items-center gap-2">
-                                                @if (isWhitelisted(input.address)) {
-                                                    <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                                                        <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Source
-                                                    </span>
-                                                    <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">
-                                                        Revoke
-                                                    </button>
-                                                } @else {
-                                                    <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
-                                                        <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Source
-                                                    </button>
-                                                }
-                                            </div>
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                        @if ((socket.txDetails()?.inputsList?.length || 0) === 0) {
-                            <div class="text-center py-8 text-slate-600 text-sm">No input data available.</div>
-                        }
-                   }
+          @if (socket.isCoordinator()) {
+            <div class="flex justify-end mb-2">
+                @if (viewMode() === 'inputs' && (socket.txDetails()?.inputsList?.length || 0) > 3) {
+                    <button (click)="verifyAllInputs()" class="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-2 py-1 rounded transition border border-transparent hover:border-emerald-500/20 flex items-center gap-1">
+                        <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Inputs
+                    </button>
+                }
+                @if (viewMode() === 'outputs' && (socket.txDetails()?.outputs?.length || 0) > 3) {
+                    <button (click)="verifyAllOutputs()" class="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 px-2 py-1 rounded transition border border-transparent hover:border-cyan-500/20 flex items-center gap-1">
+                        <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Outputs
+                    </button>
+                }
+            </div>
+          }
 
-                   @if (viewMode() === 'outputs') {
-                       @for (out of socket.txDetails()?.outputs; track $index) {
-                        <div class="p-3 bg-slate-950 rounded border transition-all"
-                             [class.border-emerald-500]="isWhitelisted(out.address)"
-                             [class.border-amber-500]="out.isChange" 
-                             [class.border-rose-900]="!out.isChange && !isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0"
-                             [class.border-slate-800]="!out.isChange && !isWhitelisted(out.address) && (!socket.roomState()?.whitelist || socket.roomState()?.whitelist?.length === 0)">
-                            
-                            <div class="flex justify-between items-start mb-2">
-                                <div class="flex items-center gap-2 text-slate-400 text-xs">
-                                    <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
-                                    
-                                    @if (out.isChange) {
-                                        <span class="flex items-center gap-1 text-[10px] text-amber-500 font-bold uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                                            <lucide-icon [img]="RefreshCw" class="w-3 h-3"></lucide-icon> Change (Back to Wallet)
-                                        </span>
-                                    } 
-                                    @else if (!isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0) {
-                                        <span class="flex items-center gap-1 text-[10px] text-rose-500 font-bold uppercase tracking-wider">
-                                            <lucide-icon [img]="AlertTriangle" class="w-3 h-3"></lucide-icon> Unverified
-                                        </span>
-                                    }
-                                </div>
-                                <div class="text-white font-bold text-sm">{{ out.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
-                            </div>
+          <div class="space-y-3 flex-grow overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
+              
+              @if (viewMode() === 'inputs') {
+                  @for (input of socket.txDetails()?.inputsList; track $index) {
+                      <div class="p-3 bg-slate-950 rounded border transition-all"
+                           [class.border-emerald-500]="isWhitelisted(input.address)"
+                           [class.border-slate-800]="!isWhitelisted(input.address)">
+                          
+                          <div class="flex justify-between items-start mb-2">
+                              <div class="flex items-center gap-2 text-slate-400 text-xs">
+                                  <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
+                                  <span class="font-mono text-[10px] text-slate-600 truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
+                              </div>
+                              <div class="text-white font-bold text-sm">{{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
+                          </div>
+                          
+                          <div class="flex items-start gap-2">
+                              <lucide-icon [img]="ArrowDown" class="w-4 h-4 text-slate-600 mt-0.5 shrink-0"></lucide-icon>
+                              <div class="flex-grow">
+                                  <div class="font-mono text-xs text-slate-400 break-all leading-relaxed select-all">
+                                      {{ input.address }}
+                                  </div>
+                                  
+                                  @if (socket.isCoordinator()) {
+                                      <div class="mt-2 flex items-center gap-2">
+                                          @if (isWhitelisted(input.address)) {
+                                              <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
+                                                  <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Source
+                                              </span>
+                                              <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">Revoke</button>
+                                          } @else {
+                                              <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
+                                                  <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Source
+                                              </button>
+                                          }
+                                      </div>
+                                  }
+                              </div>
+                          </div>
+                      </div>
+                  }
+                  @if ((socket.txDetails()?.inputsList?.length || 0) === 0) { <div class="text-center py-8 text-slate-600 text-sm">No input data available.</div> }
+             }
 
-                            <div class="flex items-start gap-2">
-                                <lucide-icon [img]="out.isChange ? RefreshCw : ArrowRight" 
-                                             class="w-4 h-4 mt-0.5 shrink-0"
-                                             [class.text-amber-500]="out.isChange"
-                                             [class.text-emerald-500]="!out.isChange">
-                                </lucide-icon>
-                                
-                                <div class="flex-grow">
-                                    <div class="font-mono text-xs text-slate-300 break-all leading-relaxed select-all">
-                                        {{ out.address }}
-                                    </div>
+             @if (viewMode() === 'outputs') {
+                 @for (out of socket.txDetails()?.outputs; track $index) {
+                  <div class="p-3 bg-slate-950 rounded border transition-all"
+                       [class.border-emerald-500]="isWhitelisted(out.address)"
+                       [class.border-amber-500]="out.isChange" 
+                       [class.border-rose-900]="!out.isChange && !isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0"
+                       [class.border-slate-800]="!out.isChange && !isWhitelisted(out.address) && (!socket.roomState()?.whitelist || socket.roomState()?.whitelist?.length === 0)">
+                      
+                      <div class="flex justify-between items-start mb-2">
+                          <div class="flex items-center gap-2 text-slate-400 text-xs">
+                              <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
+                              @if (out.isChange) {
+                                  <span class="flex items-center gap-1 text-[10px] text-amber-500 font-bold uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                      <lucide-icon [img]="RefreshCw" class="w-3 h-3"></lucide-icon> Change
+                                  </span>
+                              } 
+                              @else if (!isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0) {
+                                  <span class="flex items-center gap-1 text-[10px] text-rose-500 font-bold uppercase tracking-wider">
+                                      <lucide-icon [img]="AlertTriangle" class="w-3 h-3"></lucide-icon> Unverified
+                                  </span>
+                              }
+                          </div>
+                          <div class="text-white font-bold text-sm">{{ out.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
+                      </div>
 
-                                    @if (socket.isCoordinator()) {
-                                        <div class="mt-2 flex items-center gap-2">
-                                            @if (isWhitelisted(out.address)) {
-                                                <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                                                    <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Destination
-                                                </span>
-                                                <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">
-                                                    Revoke
-                                                </button>
-                                            } @else {
-                                                <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
-                                                    <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Destination
-                                                </button>
-                                            }
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                       }
-                       @if (!socket.txDetails()) { <div class="text-slate-500 text-sm text-center">Parsing transaction data...</div> }
-                   }
+                      <div class="flex items-start gap-2">
+                          <lucide-icon [img]="out.isChange ? RefreshCw : ArrowRight" 
+                                       class="w-4 h-4 mt-0.5 shrink-0"
+                                       [class.text-amber-500]="out.isChange"
+                                       [class.text-emerald-500]="!out.isChange">
+                          </lucide-icon>
+                          
+                          <div class="flex-grow">
+                              <div class="font-mono text-xs text-slate-300 break-all leading-relaxed select-all">{{ out.address }}</div>
+
+                              @if (socket.isCoordinator()) {
+                                  <div class="mt-2 flex items-center gap-2">
+                                      @if (isWhitelisted(out.address)) {
+                                          <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
+                                              <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Destination
+                                          </span>
+                                          <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">Revoke</button>
+                                      } @else {
+                                          <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
+                                              <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Destination
+                                          </button>
+                                      }
+                                  </div>
+                              }
+                          </div>
+                      </div>
+                  </div>
+                 }
+                 @if (!socket.txDetails()) { <div class="text-slate-500 text-sm text-center">Parsing transaction data...</div> }
+             }
+
                 </div>
             </div>
         </div>
@@ -699,6 +845,9 @@ export class RoomComponent implements OnInit, OnDestroy {
     readonly Bell = Bell;
     readonly Infinity = Infinity;
     readonly ArrowDown = ArrowDown;
+    readonly QrCode = QrCode;
+    readonly Eye = Eye;
+    readonly EyeOff = EyeOff;
     
     // -------------------------------------------------------------------------
     // Signals & UI State
@@ -707,6 +856,12 @@ export class RoomComponent implements OnInit, OnDestroy {
     public roomId = signal<string | null>(null);
     public viewMode = signal<'inputs' | 'outputs'>('outputs');
     public isUploading = signal(false);
+    public showRenameModal = signal(false);
+    public newRoomName = signal('');
+
+    public showQrModal = signal(false);
+    public isQrRevealed = signal(false);
+    public qrDataUrl = signal<string | null>(null);
     
     public timeRemaining = signal("Loading...");
     public isExpired = signal(false);
@@ -945,12 +1100,30 @@ export class RoomComponent implements OnInit, OnDestroy {
         );
     }
 
-    renameRoom() {
-        const current = this.socket.roomState()?.roomName;
-        // Prompt is acceptable for renaming as it's a simple text input, 
-        // but could be modalized if desired. Keeping simple for now.
-        const newName = prompt("Enter a name:", current);
-        if (newName?.trim()) this.socket.renameRoom(newName.trim());
+    openRenameModal() {
+        const currentRoomName = this.socket.roomState()?.roomName;
+        this.newRoomName.set(currentRoomName || '');
+        this.showRenameModal.set(true);
+    }
+
+    closeRenameModal() {
+        this.showRenameModal.set(false);
+    }
+
+    saveRoomName() {
+        let name = this.newRoomName().trim();
+        const MAX_LENGTH = 32;
+
+        if (name.length > MAX_LENGTH) {
+            name = name.slice(0, MAX_LENGTH);
+        }
+
+        if (!name) {
+            return;
+        }
+
+        this.socket.renameRoom(name); 
+        this.closeRenameModal();
     }
 
     toggleLock() {
@@ -1012,6 +1185,43 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     // -------------------------------------------------------------------------
+    // BATCH ACTIONS
+    // -------------------------------------------------------------------------
+
+    verifyAllInputs() {
+        const inputs = this.socket.txDetails()?.inputsList || [];
+        if (inputs.length === 0) return;
+
+        const toAdd = inputs
+            .map(i => i.address)
+            .filter(addr => !this.isWhitelisted(addr));
+
+        if (toAdd.length > 0) {
+            this.socket.updateWhitelistBatch(toAdd, false);
+        }
+    }
+
+    verifyAllOutputs() {
+        const outputs = this.socket.txDetails()?.outputs || [];
+        if (outputs.length === 0) return;
+
+        this.openConfirm(
+            'Batch Verify Outputs',
+            `Are you sure you want to verify all ${outputs.length} outputs?`,
+            () => {
+                const toAdd = outputs
+                    .map(o => o.address)
+                    .filter(addr => !this.isWhitelisted(addr));
+
+                if (toAdd.length > 0) {
+                    this.socket.updateWhitelistBatch(toAdd, false); 
+                }
+            },
+            false
+        );
+    }
+
+    // -------------------------------------------------------------------------
     // Actions: Finalization
     // -------------------------------------------------------------------------
 
@@ -1030,7 +1240,13 @@ export class RoomComponent implements OnInit, OnDestroy {
 
         if (state?.whitelist && state.whitelist.length > 0) {
              const outputs = this.socket.txDetails()?.outputs || [];
-             const unverified = outputs.filter(out => !state.whitelist.includes(out.address));
+             
+             const unverified = outputs.filter(out => {
+                 if (out.isChange) return false;
+                 if (state.whitelist.includes(out.address)) return false;
+                 return true;
+             });
+
              if (unverified.length > 0) {
                  this.openConfirm(
                      'Security Warning',
@@ -1086,6 +1302,56 @@ export class RoomComponent implements OnInit, OnDestroy {
         // Reset state
         this.confirmData.set({ title: '', message: '', action: () => {}, isDestructive: false, type: 'confirm' });
     }
+
+    // -------------------------------------------------------------------------
+    // Actions: QR Code Generation & Sharing
+    // -------------------------------------------------------------------------
+
+    async openQr() {
+        this.showQrModal.set(true);
+        this.isQrRevealed.set(false); // Always reset to hidden for security
+        
+        // Generate the QR code on the fly
+        try {
+            const link = this.getFullShareLink();
+            const dataUrl = await QRCode.toDataURL(link, {
+                width: 400,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                },
+                errorCorrectionLevel: 'M' // Medium is good balance for scanning vs density
+            });
+            this.qrDataUrl.set(dataUrl);
+        } catch (err) {
+            console.error('QR Generation failed', err);
+        }
+    }
+
+    closeQr() {
+        this.showQrModal.set(false);
+        this.qrDataUrl.set(null); 
+    }
+
+    toggleQrReveal() {
+        this.isQrRevealed.update(v => !v);
+    }
+
+    downloadQr() {
+        const url = this.qrDataUrl();
+        if (!url) return;
+
+        const safeId = this.roomId() ?? 'unknown-room';
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `signingroom-qr-${safeId.slice(0, 8)}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
 
     // -------------------------------------------------------------------------
     // Actions: Decryption & Keys
