@@ -89,7 +89,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '1.2.1', 
+    version: '1.3.0', 
     timestamp: Date.now() 
   });
 });
@@ -309,6 +309,20 @@ export class SigningRoom implements DurableObject {
           else if (!list.includes(msg.address)) this.roomState.whitelist.push(msg.address);
           await this.state.storage.put('data', this.roomState);
           this.log('Whitelist Updated', `${msg.remove ? 'Removed' : 'Added'} ${msg.address}`, userLabel);
+          this.broadcast({ type: 'WHITELIST_UPDATED', whitelist: this.roomState.whitelist });
+        }
+
+        // Batch Whitelist Management (Admin Only)
+        if (msg.type === 'WHITELIST_BATCH_UPDATE' && session?.role === 'admin') {
+          const list = this.roomState.whitelist || [];
+          if (msg.remove) {
+            this.roomState.whitelist = list.filter((a: string) => !msg.addresses.includes(a));
+          } else {
+            const newAddresses = msg.addresses.filter(addr => !list.includes(addr));
+            this.roomState.whitelist = [...list, ...newAddresses];
+          }
+          await this.state.storage.put('data', this.roomState);
+          this.log('Whitelist Updated (Batch)', `${msg.remove ? 'Removed' : 'Added'} ${msg.addresses.length} addresses`, userLabel);
           this.broadcast({ type: 'WHITELIST_UPDATED', whitelist: this.roomState.whitelist });
         }
 

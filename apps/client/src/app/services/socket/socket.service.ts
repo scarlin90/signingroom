@@ -242,6 +242,11 @@ export class SocketService {
       this.send('TOGGLE_LOCK', { locked });
   }
 
+  updateWhitelistBatch(addresses: string[], remove: boolean) {
+        if (addresses.length === 0) return;
+        this.send('WHITELIST_BATCH_UPDATE', { addresses, remove });
+    }
+
   // -------------------------------------------------------------------------
   // PSBT & Crypto Logic
   // -------------------------------------------------------------------------
