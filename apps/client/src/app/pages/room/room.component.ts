@@ -7,7 +7,7 @@ import { Component, OnInit, signal, OnDestroy, effect, Inject, PLATFORM_ID, Host
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { combineLatest } from 'rxjs';
+import { Title } from '@angular/platform-browser';
 import { 
     LucideAngularModule, Shield, Users, CheckCircle, Loader2, 
     Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud,
@@ -398,7 +398,16 @@ import * as QRCode from 'qrcode';
                             Audit Log
                         </button>
                     </div>
+
                     <div class="w-px h-6 bg-slate-800 mx-1"></div> 
+
+                    <div class="relative group">
+                        <button (click)="downloadCsv()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20">
+                            <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                            CSV
+                        </button>
+                    </div>
+                    <div class="w-px h-6 bg-slate-800 mx-1"></div>
                 }
 
                 @if (socket.isCoordinator()) {
@@ -906,6 +915,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         private route: ActivatedRoute,
         public socket: SocketService,
         private router: Router,
+        private titleService: Title,
         @Inject(PLATFORM_ID) private platformId: Object
     ) {
         effect(() => {
@@ -942,6 +952,30 @@ export class RoomComponent implements OnInit, OnDestroy {
             if (this.socket.isCoordinator()) {
                 const _ = this.socket.signers(); 
                 this.socket.checkAndApplyLocalLabels();
+            }
+        });
+
+        effect(() => {
+            const state = this.socket.roomState();
+            const signers = this.socket.signers();
+            
+            // 1. Calculate Progress
+            const signedCount = signers.filter(s => s.signed).length;
+            const threshold = this.requiredSignatures; 
+            const remaining = Math.max(0, threshold - signedCount);
+
+            // 2. Determine State
+            if (this.finalHex()) {
+                // Stage 3: Done -> Green (Safe)
+                this.titleService.setTitle("✅ Ready to Broadcast | Signing Room");
+            } else if (signedCount >= threshold) {
+                // Stage 2: Action Needed -> Orange (Alert)
+                this.titleService.setTitle("🟠 Ready to Finalize | Signing Room");
+            } else if (state?.isLocked) {
+                this.titleService.setTitle("🔒 Room Locked | Signing Room");
+            } else {
+                // Stage 1: Waiting -> Red (Blocked)
+                this.titleService.setTitle(`🔴 ${remaining} Needed | Signing Room`);
             }
         });
     }
@@ -1467,14 +1501,12 @@ export class RoomComponent implements OnInit, OnDestroy {
 
             if (y > 270) { doc.addPage(); y = 20; }
 
-            // Line 1: Index & Address
             doc.setFontSize(8); 
             doc.setTextColor(50);
             doc.setFont('courier', 'normal');
             doc.text(`${i + 1}. ${inpt.address}`, 20, y);
             y += 4; 
 
-            // Line 2: Amount & Status
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(0);
@@ -1484,10 +1516,10 @@ export class RoomComponent implements OnInit, OnDestroy {
                  doc.setTextColor(100); 
                  doc.text("NO WHITELIST", 150, y);
             } else if (isWhitelisted) {
-                 doc.setTextColor(16, 185, 129); // Green
+                 doc.setTextColor(16, 185, 129);
                  doc.text("VERIFIED SOURCE", 150, y);
             } else {
-                 doc.setTextColor(220, 38, 38); // Red
+                 doc.setTextColor(220, 38, 38);
                  doc.text("UNVERIFIED", 150, y);
             }
             
@@ -1522,32 +1554,32 @@ export class RoomComponent implements OnInit, OnDestroy {
             
             if (y > 270) { doc.addPage(); y = 20; }
 
-            // Line 1: Index & Address (MATCHING INPUT STYLE)
             doc.setFontSize(8);
             doc.setTextColor(50);
             doc.setFont('courier', 'normal');
             doc.text(`${i + 1}. ${out.address}`, 20, y);
             y += 4; // Move down
 
-            // Line 2: Amount
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(0);
             doc.text(`${amount} BTC`, 25, y);
 
-            // C. Status Label
             if (whitelist.length === 0) {
                 doc.setTextColor(100); 
                 doc.text("NO WHITELIST", 150, y);
+            } else if (out.isChange) {
+                doc.setTextColor(245, 158, 11);
+                doc.text("CHANGE (VERIFIED)", 150, y);
             } else if (isWhitelisted) {
-                doc.setTextColor(16, 185, 129); 
-                doc.text("VERIFIED DESTINATION", 150, y); // Changed text slightly to be specific
+                doc.setTextColor(16, 185, 129); // Green
+                doc.text("VERIFIED DESTINATION", 150, y); 
             } else {
-                doc.setTextColor(220, 38, 38); 
+                doc.setTextColor(220, 38, 38); // Red
                 doc.text("UNVERIFIED", 150, y);
             }
             
-            y += 8; // Spacing matching Inputs
+            y += 8;
         });
 
         doc.setDrawColor(200);
@@ -1664,6 +1696,43 @@ export class RoomComponent implements OnInit, OnDestroy {
         }
 
         doc.save(filename);
+    }
+
+    downloadCsv() {
+        const state = this.socket.roomState();
+        const tx = this.socket.txDetails();
+        if (!state || !tx) return;
+
+        const headers = ["Date", "Room ID", "Network", "TXID", "Total Amount (BTC)", "Fee Rate (sats/vB)", "Inputs", "Outputs", "Signers", "Status"];
+        
+        const signersList = this.socket.signers().map(s => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`).join("; ");
+        
+        const row = [
+            new Date().toISOString(),
+            state.roomId,
+            state.network,
+            this.socket.getFinalTxId() || "Pending",
+            (tx.amount / 100000000).toFixed(8),
+            tx.feeRate,
+            tx.inputsList?.length || 0,
+            tx.outputs?.length || 0,
+            `"${signersList}"`, 
+            this.finalHex() ? "Signed & Ready" : "Pending Signatures"
+        ];
+
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + headers.join(",") + "\n" 
+            + row.join(",");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `settlement_${state.roomId}_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        this.socket.logAction('CSV Export', 'User downloaded settlement data');
     }
 
     private startTimer(expiryTime: number) {
