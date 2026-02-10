@@ -11,13 +11,24 @@ import { DurableObject } from 'cloudflare:workers';
 // CONFIGURATION & TYPES
 // =============================================================================
 
-const MAX_PAYLOAD_SIZE_BYTES = 500 * 1024; // 500KB Limit for PSBT uploads
+const MAX_PAYLOAD_SIZE_BYTES = 2 * 1024 * 1024; // 2MB Hard Limit
+const MAX_CONNECTIONS = 40;                     // Room Capacity
+const RATE_LIMIT_WINDOW = 1000;                 // 1 Second
+const MAX_MSGS_PER_WINDOW = 10;                 // 10 messages per second per user
 
 interface Env {
   SIGNING_ROOM: DurableObjectNamespace;
   ALLOWED_ORIGIN: string;
   ENVIRONMENT: 'development' | 'production';
   RATE_LIMITER: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
+}
+
+interface SessionData {
+  id: string;
+  role: 'admin' | 'guest';
+  joinedAt: number;
+  msgsInWindow: number;
+  lastMsgTime: number;
 }
 
 // =============================================================================
@@ -89,7 +100,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '1.3.0', 
+    version: '1.3.2', 
     timestamp: Date.now() 
   });
 });
@@ -135,7 +146,7 @@ export default app;
 
 export class SigningRoom implements DurableObject {
   state: DurableObjectState;
-  sessions = new Map<WebSocket, { role: string; id: string }>();
+  sessions = new Map<WebSocket, SessionData>();
   roomState: any = null;
   env: Env;
   private authFailures = 0;
@@ -201,7 +212,7 @@ export class SigningRoom implements DurableObject {
       return;
     }
 
-    if (this.sessions.size >= 40) {
+    if (this.sessions.size >= MAX_CONNECTIONS) {
       webSocket.accept();
       webSocket.close(4001, "Room Full");
       return;
@@ -216,7 +227,13 @@ export class SigningRoom implements DurableObject {
 
     webSocket.accept();
     const sessionId = Math.random().toString(36).substring(2, 6).toUpperCase();
-    this.sessions.set(webSocket, { role: 'guest', id: sessionId });
+    this.sessions.set(webSocket, { 
+        role: 'guest', 
+        id: sessionId,
+        joinedAt: Date.now(),
+        msgsInWindow: 0,
+        lastMsgTime: 0
+    });
     
     this.log('User Joined', `Session: ${sessionId}`, 'Guest');
     this.broadcast({ type: 'CONNECTIONS_UPDATE', count: this.sessions.size });
@@ -226,8 +243,32 @@ export class SigningRoom implements DurableObject {
 
     webSocket.addEventListener('message', async (event) => {
       try {
-        const msg = JSON.parse(event.data as string);
+
         const session = this.sessions.get(webSocket);
+        if (!session) return;
+
+        const rawData = event.data;
+        const size = typeof rawData === 'string' ? rawData.length : rawData.byteLength;
+
+        if (size > MAX_PAYLOAD_SIZE_BYTES) {
+          webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Payload too large (Max 2MB)' }));
+          return;
+        }
+
+        const now = Date.now();
+        if (now - session.lastMsgTime > RATE_LIMIT_WINDOW) {
+            // Reset window
+            session.msgsInWindow = 1;
+            session.lastMsgTime = now;
+        } else {
+            session.msgsInWindow++;
+            if (session.msgsInWindow > MAX_MSGS_PER_WINDOW) {
+                // Too fast - ignore
+                return; 
+            }
+        }
+
+        const msg = JSON.parse(event.data as string);
         const userLabel = session?.role === 'admin' ? 'Coordinator' : `Guest (${session?.id})`;
 
           if (msg.type === 'AUTH') {

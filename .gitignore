@@ -49,3 +49,4 @@ vitest.config.*.timestamp*
 
 .dev.vars
 .wrangler/
+stress-test.js
