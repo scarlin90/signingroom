@@ -1,6 +1,6 @@
 {
   "name": "@signing-room/source",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "license": "AGPL-3.0",
   "author": {
     "name": "Stateless Research Ltd",
@@ -27,6 +27,7 @@
     "lucide-angular": "^0.554.0",
     "qrcode": "^1.5.4",
     "rxjs": "~7.8.0",
+    "ws": "^8.19.0",
     "zone.js": "~0.15.0"
   },
   "devDependencies": {
