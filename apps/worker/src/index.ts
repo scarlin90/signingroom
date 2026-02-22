@@ -100,7 +100,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '1.3.2', 
+    version: '1.4.0', 
     timestamp: Date.now() 
   });
 });
@@ -111,7 +111,7 @@ app.get('/api/health', (c) => {
 
 app.post('/api/room', async (c) => {
   const body = await c.req.json();
-  const { encryptedPsbt, network, adminToken } = body;
+  const { encryptedPsbt, network, adminToken, protocolVersion } = body;
 
   if (encryptedPsbt && encryptedPsbt.length > MAX_PAYLOAD_SIZE_BYTES) {
     return c.json({ error: "Payload too large. Max 500KB." }, 413);
@@ -124,7 +124,7 @@ app.post('/api/room', async (c) => {
   // Initialize the Durable Object
   await room.fetch(new Request('http://internal/init', {
     method: 'POST',
-    body: JSON.stringify({ encryptedPsbt, adminToken, roomId, network })
+    body: JSON.stringify({ encryptedPsbt, adminToken, roomId, network, protocolVersion })
   }));
 
   return c.json({ roomId, adminToken, socketUrl: `/api/room/${roomId}/websocket` });
@@ -176,7 +176,7 @@ export class SigningRoom implements DurableObject {
 
     // 1. Initialize Room
     if (url.pathname === '/init') {
-      const { encryptedPsbt, adminToken, roomId, network } = await request.json<any>();
+      const { encryptedPsbt, adminToken, roomId, network, protocolVersion } = await request.json<any>();
       const now = Date.now();
       
       // Default to 24 hour (86400s)
@@ -186,7 +186,8 @@ export class SigningRoom implements DurableObject {
         roomId, encryptedPsbt, adminToken, signatures: [], 
         createdAt: now, expiresAt: now + (ttlSeconds * 1000), 
         auditLog: [], signerLabels: {}, roomName: "Untitled Room", whitelist: [], 
-        isLocked: false, network: network || 'bitcoin'
+        isLocked: false, network: network || 'bitcoin',
+        protocolVersion: protocolVersion || '1.0.0'
       };
 
       this.roomState.auditLog.push({ timestamp: now, event: 'Room Created', detail: 'Public Session', user: 'System' });
@@ -198,6 +199,27 @@ export class SigningRoom implements DurableObject {
 
     // 2. Handle WebSocket Upgrade
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected Websocket', { status: 426 });
+
+    const clientVersion = url.searchParams.get('v') || '1.0.0';
+    const roomVersion = this.roomState?.protocolVersion || '1.0.0';
+
+    // Extract the Major version
+    const clientMajor = clientVersion.split('.')[0];
+    const roomMajor = roomVersion.split('.')[0];
+
+    if (clientMajor !== roomMajor) {
+        const { 0: client, 1: server } = new WebSocketPair();
+        server.accept();
+        
+        server.send(JSON.stringify({ 
+            type: 'ERROR_VERSION_MISMATCH', 
+            roomVersion: roomVersion 
+        }));
+        
+        server.close(4026, "Protocol Mismatch"); 
+        
+        return new Response(null, { status: 101, webSocket: client });
+    }
 
     const { 0: client, 1: server } = new WebSocketPair();
     this.handleSession(server);

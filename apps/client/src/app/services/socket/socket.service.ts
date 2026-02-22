@@ -11,6 +11,12 @@ import { environment } from '../../../environments/environment';
 import { EncryptionService } from '../encryption/encryption.service';
 
 // -------------------------------------------------------------------------
+// Constants
+// -------------------------------------------------------------------------
+
+export const PROTOCOL_VERSION = '1.0.0';
+
+// -------------------------------------------------------------------------
 // Interfaces
 // -------------------------------------------------------------------------
 
@@ -22,6 +28,7 @@ export interface AuditEntry {
 }
 
 export interface RoomState {
+  protocolVersion: string;
   roomId: string;
   roomName: string;
   network: 'bitcoin' | 'testnet' | 'signet';
@@ -63,6 +70,7 @@ type DerivationEntry = [Uint8Array, { fingerprint: number; path: number[] }];
 export class SocketService {
   private ws: WebSocket | null = null;
   private encryptionKey: string | null = null; 
+  private fallbackVersion: string | null = null;
 
   // -------------------------------------------------------------------------
   // Signals
@@ -130,18 +138,20 @@ export class SocketService {
   // Connection Management
   // -------------------------------------------------------------------------
 
-  connect(roomId: string, key: string | null) { 
+  connect(roomId: string, key: string | null, targetVersion?: string) { 
     this.reset();
     this.encryptionKey = key; 
+
+    const versionToUse = targetVersion || PROTOCOL_VERSION;
     
-    this.roomState.set(this.getInitialState(roomId));
+    this.roomState.set(this.getInitialState(roomId, versionToUse));
 
     if (this.ws) this.disconnect(false);
     this.status.set('connecting');
 
     const apiBase = environment.apiUrl; 
     const wsBase = apiBase.replace(/^http/, 'ws');
-    const url = `${wsBase}/api/room/${roomId}/websocket`;
+    const url = `${wsBase}/api/room/${roomId}/websocket?v=${versionToUse}`;
 
     this.ws = new WebSocket(url);
 
@@ -158,6 +168,14 @@ export class SocketService {
     this.ws.onclose = (event) => {
       this.status.set('disconnected');
       this.role.set('guest');
+
+      if (event.code === 4026) {
+          console.warn(`Protocol mismatch. Downgrading connection...`);
+          const target = this.fallbackVersion || '1.0.0';
+          this.fallbackVersion = null;
+          this.connect(roomId, this.encryptionKey, target);
+          return;
+      }
       
       if (event.code === 4001) {
           this.isRoomFull.set(true);
@@ -184,6 +202,7 @@ export class SocketService {
         this.ws = null; 
     }
     this.status.set('disconnected');
+    this.fallbackVersion = null;
     if (clearState) this.reset();
   }
 
@@ -355,12 +374,13 @@ export class SocketService {
     this.roomNotFound.set(false);
   }
 
-  private getInitialState(roomId: string): RoomState {
+  private getInitialState(roomId: string, version: string): RoomState {
       return {
         roomId, psbt: '', signatures: [], connectedCount: 0, createdAt: Date.now(),
         expiresAt: Date.now() + 1200000, 
         auditLog: [], signerLabels: {}, roomName: 'Signing Room', whitelist: [],
-        isLocked: false, network: 'bitcoin'
+        isLocked: false, network: 'bitcoin',
+        protocolVersion: version
       };
   }
 
@@ -412,6 +432,9 @@ export class SocketService {
                 this.roomNotFound.set(true);
                 this.disconnect(false);
                 break;
+            case 'ERROR_VERSION_MISMATCH':
+                this.fallbackVersion = msg.roomVersion;
+                break;
         }
     } catch (e) {
         console.error("Message Handler Error", e);
@@ -445,7 +468,7 @@ export class SocketService {
     }
     
     this.roomState.set({
-        ...this.getInitialState(msg.roomId),
+        ...this.getInitialState(msg.roomId, msg.protocolVersion || PROTOCOL_VERSION),
         ...msg,
         psbt: mergedPsbt,
         signatures: decryptedHistory,
