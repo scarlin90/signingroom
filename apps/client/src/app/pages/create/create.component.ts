@@ -17,7 +17,7 @@ import {
   X, UploadCloud, FileJson, AlertTriangle
 } from 'lucide-angular';
 
-import { SocketService } from '../../services/socket/socket.service';
+import { PROTOCOL_VERSION, SocketService } from '../../services/socket/socket.service';
 import { EncryptionService } from '../../services/encryption/encryption.service';
 import { environment } from '../../../environments/environment';
 
@@ -212,7 +212,8 @@ export class CreateComponent implements OnInit {
             const res: any = await firstValueFrom(this.socket['http'].post(`${environment.apiUrl}/api/room`, { 
                 encryptedPsbt: encryptedData, 
                 adminToken: encryptedAdminToken,
-                network: this.selectedNetwork() 
+                network: this.selectedNetwork(),
+                protocolVersion: PROTOCOL_VERSION
             }));
 
             sessionStorage.setItem(`admin_token_${res.roomId}`, encryptedAdminToken);
