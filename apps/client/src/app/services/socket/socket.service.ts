@@ -214,8 +214,18 @@ export class SocketService {
       if (!this.encryptionKey) return;
 
       const currentRoom = this.roomState();
-      let payloadToSend = partialPsbtBase64;
+    
       const detectedFingerprint = this.getFingerprintFromPsbt(partialPsbtBase64);
+
+      if (detectedFingerprint) {
+          const alreadySigned = this.signers().find(s => s.fingerprint === detectedFingerprint)?.signed;
+          if (alreadySigned) {
+              console.warn(`Signature for ${detectedFingerprint} has already been applied.`);
+              return;
+          }
+      }  
+      
+      let payloadToSend = partialPsbtBase64;
 
       if (currentRoom?.psbt) {
           try {
