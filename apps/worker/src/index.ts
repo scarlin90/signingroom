@@ -100,7 +100,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '1.4.0', 
+    version: '1.4.1', 
     timestamp: Date.now() 
   });
 });
@@ -261,7 +261,9 @@ export class SigningRoom implements DurableObject {
     this.broadcast({ type: 'CONNECTIONS_UPDATE', count: this.sessions.size });
     
     // Send initial state sync
-    webSocket.send(JSON.stringify({ type: 'STATE_SYNC', ...this.roomState, connectedCount: this.sessions.size }));
+    const { adminToken, ...safeRoomState } = this.roomState;
+
+    webSocket.send(JSON.stringify({ type: 'STATE_SYNC', ...safeRoomState, connectedCount: this.sessions.size }));
 
     webSocket.addEventListener('message', async (event) => {
       try {
