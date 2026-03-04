@@ -161,15 +161,33 @@ export class SigningRoom implements DurableObject {
     });
   }
 
-  async log(event: string, detail: string = '', user: string = 'System') {
+  // async log(event: string, detail: string = '', user: string = 'System') {
+  //   if (!this.roomState) return;
+  //   if (!this.roomState.auditLog) this.roomState.auditLog = [];
+  //   // Keep log reasonable size
+  //   if (this.roomState.auditLog.length > 100) this.roomState.auditLog.shift();
+    
+  //   this.roomState.auditLog.push({ timestamp: Date.now(), event, detail, user });
+  //   await this.state.storage.put('data', this.roomState);
+  // }
+
+  async log(event: string, detail: string = '', user: string = 'System', encryptedDetail?: string) {
     if (!this.roomState) return;
     if (!this.roomState.auditLog) this.roomState.auditLog = [];
-    // Keep log reasonable size
+    
     if (this.roomState.auditLog.length > 100) this.roomState.auditLog.shift();
     
-    this.roomState.auditLog.push({ timestamp: Date.now(), event, detail, user });
+    this.roomState.auditLog.push({ 
+        timestamp: Date.now(), 
+        event, 
+        detail, 
+        user, 
+        encryptedDetail 
+    });
+    
     await this.state.storage.put('data', this.roomState);
   }
+
 
   async fetch(request: Request) {
     const url = new URL(request.url);
@@ -321,25 +339,25 @@ export class SigningRoom implements DurableObject {
         if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
             if (!this.roomState.signerLabels) this.roomState.signerLabels = {};
 
-            const cleanLabel = sanitizeInput(msg.label, 1024); 
-            this.roomState.signerLabels[msg.fingerprint] = cleanLabel;
+            // msg.label is now a secure Base64 blob, so no need to sanitize!
+            this.roomState.signerLabels[msg.fingerprint] = msg.label;
             
             await this.state.storage.put('data', this.roomState);
-            this.log('Label Updated', `Signer Alias Modified`, 'Coordinator');
+            
+            // Pass the encryptedLogDetail as the 4th parameter!
+            this.log('Label Updated', '', 'Coordinator', msg.encryptedLogDetail);
             this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
         }
 
         // Rename Room (Admin Only)
         if (msg.type === 'RENAME_ROOM' && session?.role === 'admin') {
-          const oldName = this.roomState.roomName;
-          
-          const cleanName = sanitizeInput(msg.name, 120);
-          this.roomState.roomName = cleanName;
-          
+          this.roomState.roomName = msg.encryptedName; 
           await this.state.storage.put('data', this.roomState);
-          this.log('Room Renamed', `${oldName} -> ${cleanName}`, userLabel);
-          this.broadcast({ type: 'ROOM_RENAMED', name: this.roomState.roomName });
-      }
+          
+          this.log('Room Renamed', '', 'Coordinator', msg.encryptedLogDetail);
+          
+          this.broadcast({ type: 'ROOM_RENAMED', encryptedName: msg.encryptedName });
+        }
 
         // Action Logging
         if (msg.type === 'LOG_ACTION') {
@@ -347,18 +365,19 @@ export class SigningRoom implements DurableObject {
           this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
         }
 
-        // PSBT Chunk Upload (Blind Relay)
+        // PSBT Chunk Upload
         if (msg.type === 'UPLOAD_PARTIAL') {
           if (msg.data?.encryptedData && msg.data.encryptedData.length > MAX_PAYLOAD_SIZE_BYTES) return;
-          if (this.roomState.signatures.length >= 100) { // Safety Cap
+          if (this.roomState.signatures.length >= 100) { 
             webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
             return;
           }
-          this.roomState.signatures.push(msg.data);
-          const detail = msg.fingerprint ? `Signer: ${msg.fingerprint}` : 'Unknown Signer';
-          await this.log('Signature Uploaded', detail, userLabel);
+          
+          this.roomState.signatures.push(msg.data.encryptedData); 
           await this.state.storage.put('data', this.roomState);
-          this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, signerId: msg.signerId, auditLog: this.roomState.auditLog });
+          
+          this.log('Signature Uploaded', '', userLabel, msg.encryptedLogDetail);
+          this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint, auditLog: this.roomState.auditLog });
         }
 
         // Destroy Room (Admin Only)
@@ -372,27 +391,13 @@ export class SigningRoom implements DurableObject {
 
         // Whitelist Management (Admin Only)
         if (msg.type === 'UPDATE_WHITELIST' && session?.role === 'admin') {
-          const list = this.roomState.whitelist || [];
-          if (msg.remove) this.roomState.whitelist = list.filter((a: string) => a !== msg.address);
-          else if (!list.includes(msg.address)) this.roomState.whitelist.push(msg.address);
+          this.roomState.whitelist = msg.encryptedWhitelist; 
           await this.state.storage.put('data', this.roomState);
-          this.log('Whitelist Updated', `${msg.remove ? 'Removed' : 'Added'} ${msg.address}`, userLabel);
-          this.broadcast({ type: 'WHITELIST_UPDATED', whitelist: this.roomState.whitelist });
+          
+          this.log('Whitelist Updated', '', userLabel, msg.encryptedLogDetail);
+          this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
         }
 
-        // Batch Whitelist Management (Admin Only)
-        if (msg.type === 'WHITELIST_BATCH_UPDATE' && session?.role === 'admin') {
-          const list = this.roomState.whitelist || [];
-          if (msg.remove) {
-            this.roomState.whitelist = list.filter((a: string) => !msg.addresses.includes(a));
-          } else {
-            const newAddresses = msg.addresses.filter(addr => !list.includes(addr));
-            this.roomState.whitelist = [...list, ...newAddresses];
-          }
-          await this.state.storage.put('data', this.roomState);
-          this.log('Whitelist Updated (Batch)', `${msg.remove ? 'Removed' : 'Added'} ${msg.addresses.length} addresses`, userLabel);
-          this.broadcast({ type: 'WHITELIST_UPDATED', whitelist: this.roomState.whitelist });
-        }
 
         // Room Lock (Admin Only)
         if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {

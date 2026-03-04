@@ -161,9 +161,9 @@ import * as QRCode from 'qrcode';
                     <div class="flex justify-between">
                         <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Room Name</label>
                         <span class="text-xs font-mono" 
-                            [class.text-red-400]="newRoomName().length > 32" 
-                            [class.text-slate-600]="newRoomName().length <= 32">
-                            {{ newRoomName().length }} / 32
+                            [class.text-red-400]="newRoomName().length > 64" 
+                            [class.text-slate-600]="newRoomName().length <= 64">
+                            {{ newRoomName().length }} / 64
                         </span>
                     </div>
                     
@@ -171,12 +171,12 @@ import * as QRCode from 'qrcode';
                         type="text" 
                         [(ngModel)]="newRoomName" 
                         (keyup.enter)="saveRoomName()"
-                        maxlength="32"  placeholder="e.g. Q1 Treasury Board Vote"
+                        maxlength="64"  placeholder="e.g. Q1 Treasury Board Vote"
                         class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 transition"
                         autofocus
                     />
                     
-                    @if (newRoomName().length >= 32) {
+                    @if (newRoomName().length >= 64) {
                         <p class="text-xs text-red-400 animate-pulse">
                             Maximum length reached.
                         </p>
@@ -1146,7 +1146,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     saveRoomName() {
         let name = this.newRoomName().trim();
-        const MAX_LENGTH = 32;
+        const MAX_LENGTH = 64;
 
         if (name.length > MAX_LENGTH) {
             name = name.slice(0, MAX_LENGTH);

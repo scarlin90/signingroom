@@ -24,6 +24,7 @@ export interface AuditEntry {
   timestamp: number;
   event: string;
   detail?: string;
+  encryptedDetail?: string;
   user: string;
 }
 
@@ -241,10 +242,13 @@ export class SocketService {
       }
 
       const encryptedData = await this.encryption.encrypt(payloadToSend, this.encryptionKey);
-      
+      const logText = `Signer: ${detectedFingerprint || 'Unknown'}`;
+      const encryptedLogDetail = await this.encryption.encrypt(logText, this.encryptionKey);
+
       this.send('UPLOAD_PARTIAL', { 
           data: { encryptedData },
-          fingerprint: blindedFingerprint
+          fingerprint: blindedFingerprint,
+          encryptedLogDetail
       });
   }
 
@@ -262,16 +266,25 @@ export class SocketService {
       this.send('LOG_ACTION', { action, detail });
   }
 
-  renameRoom(name: string) {
-      this.send('RENAME_ROOM', { name });
-  }
+async renameRoom(newName: string) {
+    const key = this.getRoomKey();
+    if (!key) return;
 
-  async updateSignerLabel(fingerprint: string, label: string) {
-    // 1. Harden the guard clause to handle undefined/null on load
+    const encryptedName = await this.encryption.encrypt(newName, key);
+
+    const logText = `Renamed: ${newName}`;
+    const encryptedLogDetail = await this.encryption.encrypt(logText, key);
+
+    this.send('RENAME_ROOM', { 
+        encryptedName,
+        encryptedLogDetail
+    });
+}
+
+async updateSignerLabel(fingerprint: string, label: string) {
     const safeLabel = label || '';
     const currentLabel = this.roomState()?.signerLabels?.[fingerprint] || '';
     
-    // If the label hasn't actually changed, BREAK THE LOOP
     if (currentLabel === safeLabel) return; 
 
     const key = this.getRoomKey();
@@ -282,24 +295,81 @@ export class SocketService {
     this.blindFingerprintMap.set(fingerprint, fingerprint); // Fallback
 
     const encryptedLabel = await this.encryption.encrypt(safeLabel, key);
+    
+    const logText = `${safeLabel} (${fingerprint})`;
+    const encryptedLogDetail = await this.encryption.encrypt(logText, key);
 
     this.send('UPDATE_LABEL', { 
         fingerprint: blindedFingerprint, 
-        label: encryptedLabel 
+        label: encryptedLabel,
+        encryptedLogDetail
     });
   }
 
-  updateWhitelist(address: string, remove: boolean) {
-      this.send('UPDATE_WHITELIST', { address, remove });
+  async updateWhitelist(address: string, remove: boolean) {
+    const key = this.getRoomKey();
+    if (!key) return;
+
+    const currentList = this.roomState()?.whitelist || [];
+    let newList = [];
+    
+    if (remove) {
+        newList = currentList.filter(a => a !== address);
+    } else {
+        if (!currentList.includes(address)) {
+            newList = [...currentList, address];
+        } else {
+            newList = [...currentList];
+        }
+    }
+
+    const encryptedWhitelist = await this.encryption.encrypt(JSON.stringify(newList), key);
+    
+    const logText = remove ? `Removed address from whitelist` : `Added address to whitelist`;
+    const encryptedLogDetail = await this.encryption.encrypt(logText, key);
+
+    this.send('UPDATE_WHITELIST', { 
+        encryptedWhitelist,
+        encryptedLogDetail
+    });
   }
 
   toggleLock(locked: boolean) {
       this.send('TOGGLE_LOCK', { locked });
   }
 
-  updateWhitelistBatch(addresses: string[], remove: boolean) {
-        if (addresses.length === 0) return;
-        this.send('WHITELIST_BATCH_UPDATE', { addresses, remove });
+  async updateWhitelistBatch(addresses: string[], remove: boolean) {
+        const key = this.getRoomKey();
+        if (!key) return;
+
+        // 1. Get the current state of the whitelist
+        const currentList = this.roomState()?.whitelist || [];
+        let newList: string[] = [];
+
+        // 2. Calculate the new array locally
+        if (remove) {
+            // Filter out any addresses that are in the batch removal list
+            newList = currentList.filter(a => !addresses.includes(a));
+        } else {
+            // Merge the current list with the new batch, and use a Set to deduplicate
+            const combined = [...currentList, ...addresses];
+            newList = Array.from(new Set(combined)); 
+        }
+
+        // 3. Encrypt the entire resulting array
+        const encryptedWhitelist = await this.encryption.encrypt(JSON.stringify(newList), key);
+        
+        // 4. Create the secure audit log string
+        const action = remove ? 'Removed' : 'Verified';
+        const logText = `${action} ${addresses.length} batch address(es)`;
+        const encryptedLogDetail = await this.encryption.encrypt(logText, key);
+
+        // 5. Send it using the exact same standard UPDATE_WHITELIST event!
+        // The server doesn't care if it's 1 or 50 addresses, it just saves the blob.
+        this.send('UPDATE_WHITELIST', { 
+            encryptedWhitelist,
+            encryptedLogDetail
+        });
     }
 
   // -------------------------------------------------------------------------
@@ -478,10 +548,22 @@ export class SocketService {
                 break;
             }
             case 'ROOM_RENAMED':
-                this.roomState.update(s => s ? { ...s, roomName: msg.name } : null);
+                 if (msg.encryptedName && this.encryptionKey) {
+                    try {
+                        const decName = await this.encryption.decrypt(msg.encryptedName, this.encryptionKey);
+                        this.roomState.update(s => s ? { ...s, roomName: decName } : null);
+                    } catch (e) {
+                        console.error("Failed to decrypt renamed room", e);
+                    }
+                }
                 break;
             case 'LOG_UPDATE':
-                this.roomState.update(s => s ? { ...s, auditLog: msg.auditLog } : null);
+                try {
+                    const decryptedLog = await this.decryptAuditLog(msg.auditLog || []);
+                    this.roomState.update(s => s ? { ...s, auditLog: decryptedLog } : null);
+                } catch (e) {
+                    console.error("Failed to decrypt audit log update", e);
+                }
                 break;
             case 'CONNECTIONS_UPDATE':
                 this.roomState.update(s => s ? { ...s, connectedCount: msg.count } : null);
@@ -494,8 +576,19 @@ export class SocketService {
                 this.isClosed.set(true);
                 this.disconnect(false);
                 break;
-            case 'WHITELIST_UPDATED':
-                this.roomState.update(s => s ? { ...s, whitelist: msg.whitelist } : null);
+            case 'WHITELIST_UPDATED': 
+                {
+                    const key = this.getRoomKey();
+                    if (key && msg.encryptedWhitelist) {
+                        try {
+                            const decW = await this.encryption.decrypt(msg.encryptedWhitelist, key);
+                            const newWhitelist = JSON.parse(decW);
+                            this.roomState.update(s => s ? { ...s, whitelist: newWhitelist } : null);
+                        } catch (e) {
+                            console.error("Failed to decrypt updated whitelist", e);
+                        }
+                    }
+                }
                 break;
             case 'LOCK_UPDATED':
                 this.roomState.update(s => s ? { ...s, isLocked: msg.isLocked } : null);
@@ -529,11 +622,18 @@ export class SocketService {
     const decryptedHistory: string[] = [];
     if (msg.signatures?.length) {
         for (const sig of msg.signatures) {
-            if (sig?.encryptedData) {
-                const dec = await this.encryption.decrypt(sig.encryptedData, this.encryptionKey!);
-                decryptedHistory.push(this.normalizePsbt(dec)); 
-            } else if (typeof sig === 'string') {
-                decryptedHistory.push(this.normalizePsbt(sig));
+            try {
+                if (sig?.encryptedData) {
+                    const dec = await this.encryption.decrypt(sig.encryptedData, this.encryptionKey!);
+                    decryptedHistory.push(this.normalizePsbt(dec)); 
+                } else if (typeof sig === 'string') {
+                    const dec = await this.encryption.decrypt(sig, this.encryptionKey!);
+                    decryptedHistory.push(this.normalizePsbt(dec));
+                }
+            } catch (e) {
+                if (typeof sig === 'string') {
+                    decryptedHistory.push(this.normalizePsbt(sig));
+                }
             }
         }
     }
@@ -562,13 +662,37 @@ export class SocketService {
             }
         }
     }
-    
+
+    const decryptedLog = await this.decryptAuditLog(msg.auditLog || []);
+
+    let decryptedWhitelist: string[] = [];
+    if (msg.whitelist && typeof msg.whitelist === 'string') {
+        try {
+            const decW = await this.encryption.decrypt(msg.whitelist, this.encryptionKey!);
+            decryptedWhitelist = JSON.parse(decW);
+        } catch(e) { console.error("Failed to decrypt whitelist"); }
+    } else if (Array.isArray(msg.whitelist)) {
+        decryptedWhitelist = msg.whitelist;
+    }
+
+    let decryptedRoomName = msg.roomName || 'Untitled Room';
+    if (msg.roomName && msg.roomName !== 'Untitled Room') {
+        try {
+            decryptedRoomName = await this.encryption.decrypt(msg.roomName, this.encryptionKey!);
+        } catch (e) {
+            decryptedRoomName = msg.roomName; 
+        }
+    }
+
     this.roomState.set({
         ...this.getInitialState(msg.roomId, msg.protocolVersion || PROTOCOL_VERSION),
         ...msg,
         psbt: mergedPsbt,
         signatures: decryptedHistory,
-        signerLabels: Object.keys(decryptedLabels).length > 0 ? decryptedLabels : msg.signerLabels
+        signerLabels: Object.keys(decryptedLabels).length > 0 ? decryptedLabels : msg.signerLabels,
+        auditLog: decryptedLog,
+        whitelist: decryptedWhitelist,
+        roomName: decryptedRoomName
     });
   }
 
@@ -582,13 +706,18 @@ export class SocketService {
         realFingerprint = this.blindFingerprintMap.get(msg.fingerprint) || msg.fingerprint;
     }
 
+    let updatedLog = this.roomState()?.auditLog || [];
+    if (msg.auditLog) {
+        updatedLog = await this.decryptAuditLog(msg.auditLog);
+    }
+
     this.roomState.update(current => {
         if (!current) return null;
         return {
             ...current,
             psbt: this.mergePsbts(current.psbt, this.normalizePsbt(decrypted)),
             signatures: [...current.signatures, decrypted],
-            auditLog: msg.auditLog || current.auditLog 
+            auditLog: updatedLog 
         };
     });
     
@@ -752,5 +881,25 @@ export class SocketService {
         const getX = (k: Uint8Array) => k.length === 33 ? k.slice(1) : k.length === 65 ? k.slice(1, 33) : k;
         return hex.encode(getX(k1)) === hex.encode(getX(k2));
     } catch (e) { return false; }
+  }
+
+  private async decryptAuditLog(log: AuditEntry[]): Promise<AuditEntry[]> {
+      const key = this.getRoomKey();
+      if (!key || !log) return log;
+      
+      const decryptedLog = [];
+      for (const entry of log) {
+          if (entry.encryptedDetail) {
+              try {
+                  const dec = await this.encryption.decrypt(entry.encryptedDetail, key);
+                  decryptedLog.push({ ...entry, detail: dec });
+              } catch (e) {
+                  decryptedLog.push({ ...entry, detail: '*** Encrypted Data ***' });
+              }
+          } else {
+              decryptedLog.push(entry);
+          }
+      }
+      return decryptedLog;
   }
 }
