@@ -209,9 +209,12 @@ export class CreateComponent implements OnInit {
             const encryptedData = await this.encryption.encrypt(this.rawHex, encryptionKey);
             const encryptedAdminToken = await this.encryption.encrypt(adminSecret, encryptionKey);
             
+            const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(encryptedAdminToken));
+            const adminHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
             const res: any = await firstValueFrom(this.socket['http'].post(`${environment.apiUrl}/api/room`, { 
                 encryptedPsbt: encryptedData, 
-                adminToken: encryptedAdminToken,
+                adminToken: adminHash,
                 network: this.selectedNetwork(),
                 protocolVersion: PROTOCOL_VERSION
             }));

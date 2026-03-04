@@ -71,6 +71,7 @@ export class SocketService {
   private ws: WebSocket | null = null;
   private encryptionKey: string | null = null; 
   private fallbackVersion: string | null = null;
+  private blindFingerprintMap: Map<string, string> = new Map();
 
   // -------------------------------------------------------------------------
   // Signals
@@ -214,15 +215,21 @@ export class SocketService {
       if (!this.encryptionKey) return;
 
       const currentRoom = this.roomState();
-    
       const detectedFingerprint = this.getFingerprintFromPsbt(partialPsbtBase64);
+      
+      let blindedFingerprint: string | undefined;
 
       if (detectedFingerprint) {
-          const alreadySigned = this.signers().find(s => s.fingerprint === detectedFingerprint)?.signed;
+                   const alreadySigned = this.signers().find(s => s.fingerprint === detectedFingerprint)?.signed;
           if (alreadySigned) {
               console.warn(`Signature for ${detectedFingerprint} has already been applied.`);
               return;
           }
+ 
+          blindedFingerprint = await this.encryption.blindData(detectedFingerprint, this.encryptionKey);
+          
+          this.blindFingerprintMap.set(blindedFingerprint, detectedFingerprint);
+          this.blindFingerprintMap.set(detectedFingerprint, detectedFingerprint);
       }  
       
       let payloadToSend = partialPsbtBase64;
@@ -237,7 +244,7 @@ export class SocketService {
       
       this.send('UPLOAD_PARTIAL', { 
           data: { encryptedData },
-          fingerprint: detectedFingerprint 
+          fingerprint: blindedFingerprint
       });
   }
 
@@ -259,8 +266,27 @@ export class SocketService {
       this.send('RENAME_ROOM', { name });
   }
 
-  updateSignerLabel(fingerprint: string, label: string) {
-      this.send('UPDATE_LABEL', { fingerprint, label });
+  async updateSignerLabel(fingerprint: string, label: string) {
+    // 1. Harden the guard clause to handle undefined/null on load
+    const safeLabel = label || '';
+    const currentLabel = this.roomState()?.signerLabels?.[fingerprint] || '';
+    
+    // If the label hasn't actually changed, BREAK THE LOOP
+    if (currentLabel === safeLabel) return; 
+
+    const key = this.getRoomKey();
+    if (!key) return;
+
+    const blindedFingerprint = await this.encryption.blindData(fingerprint, key);
+    this.blindFingerprintMap.set(blindedFingerprint, fingerprint);
+    this.blindFingerprintMap.set(fingerprint, fingerprint); // Fallback
+
+    const encryptedLabel = await this.encryption.encrypt(safeLabel, key);
+
+    this.send('UPDATE_LABEL', { 
+        fingerprint: blindedFingerprint, 
+        label: encryptedLabel 
+    });
   }
 
   updateWhitelist(address: string, remove: boolean) {
@@ -329,6 +355,30 @@ export class SocketService {
         }
         return 0;
     } catch (e) { return 0; }
+  }
+
+  private async registerAllFingerprints(psbtData: string) {
+    const key = this.getRoomKey();
+    if (!key) return;
+
+    try {
+        const bytes = this.decodePsbt(psbtData);
+        const tx = Transaction.fromPSBT(bytes);
+        
+        for (let i = 0; i < tx.inputsLength; i++) {
+            const input = tx.getInput(i);
+            if (input.bip32Derivation) {
+                for (const [, meta] of input.bip32Derivation) {
+                    const fp = meta.fingerprint.toString(16).padStart(8, '0');
+                    const blinded = await this.encryption.blindData(fp, key);
+                    this.blindFingerprintMap.set(blinded, fp);
+                    this.blindFingerprintMap.set(fp, fp); // Fallback
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Failed to parse fingerprints for blind map");
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -409,8 +459,24 @@ export class SocketService {
                 await this.handleNewPartial(msg);
                 break;
             case 'LABELS_UPDATED':
-                this.roomState.update(s => s ? { ...s, signerLabels: msg.signerLabels } : null);
+                {
+                const decryptedLabels: Record<string, string> = {};
+                const key = this.getRoomKey();
+                
+                if (key && msg.signerLabels) {
+                    for (const [blindedFp, encryptedLabel] of Object.entries(msg.signerLabels)) {
+                        try {
+                            const realFp = this.blindFingerprintMap.get(blindedFp) || blindedFp;
+                            const plainLabel = await this.encryption.decrypt(encryptedLabel as string, key);
+                            decryptedLabels[realFp] = plainLabel;
+                        } catch (e) {
+                            console.error("Failed to decrypt label for", blindedFp);
+                        }
+                    }
+                }
+                this.roomState.update(s => s ? { ...s, signerLabels: decryptedLabels } : null);
                 break;
+            }
             case 'ROOM_RENAMED':
                 this.roomState.update(s => s ? { ...s, roomName: msg.name } : null);
                 break;
@@ -476,27 +542,57 @@ export class SocketService {
     for (const sigData of decryptedHistory) {
         mergedPsbt = this.mergePsbts(mergedPsbt, sigData);
     }
+
+    // CRITICAL: Ensure the fingerprint map is fully populated BEFORE we decrypt the labels
+    if (mergedPsbt) {
+        await this.registerAllFingerprints(mergedPsbt);
+    }
+
+    const decryptedLabels: Record<string, string> = {};
+    if (msg.signerLabels && this.encryptionKey) {
+        for (const [blindedFp, encryptedLabel] of Object.entries(msg.signerLabels)) {
+            try {
+                // Now that the map is populated, this lookup will instantly succeed!
+                const realFp = this.blindFingerprintMap.get(blindedFp) || blindedFp;
+                const plainLabel = await this.encryption.decrypt(encryptedLabel as string, this.encryptionKey);
+                decryptedLabels[realFp] = plainLabel;
+            } catch (e) {
+                // Fallback for legacy rooms with plaintext labels
+                decryptedLabels[blindedFp] = encryptedLabel as string;
+            }
+        }
+    }
     
     this.roomState.set({
         ...this.getInitialState(msg.roomId, msg.protocolVersion || PROTOCOL_VERSION),
         ...msg,
         psbt: mergedPsbt,
         signatures: decryptedHistory,
+        signerLabels: Object.keys(decryptedLabels).length > 0 ? decryptedLabels : msg.signerLabels
     });
   }
 
   private async handleNewPartial(msg: any) {
     if (!msg.data?.encryptedData) return;
+    
     const decrypted = await this.encryption.decrypt(msg.data.encryptedData, this.encryptionKey!);
+    
+    let realFingerprint = msg.fingerprint;
+    if (msg.fingerprint) {
+        realFingerprint = this.blindFingerprintMap.get(msg.fingerprint) || msg.fingerprint;
+    }
+
     this.roomState.update(current => {
         if (!current) return null;
         return {
             ...current,
-            psbt: this.mergePsbts(current.psbt, decrypted),
+            psbt: this.mergePsbts(current.psbt, this.normalizePsbt(decrypted)),
             signatures: [...current.signatures, decrypted],
-            auditLog: msg.auditLog || current.auditLog
+            auditLog: msg.auditLog || current.auditLog 
         };
     });
+    
+    console.log(`Successfully merged new signature from signer: ${realFingerprint}`);
   }
 
   private decodePsbt(raw: string): Uint8Array {

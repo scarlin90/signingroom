@@ -300,7 +300,10 @@ export class SigningRoom implements DurableObject {
               return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Room locked due to multiple failed attempts' }));
             }
 
-            if (msg.token === this.roomState.adminToken) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg.token));
+            const incomingHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+            if (incomingHash === this.roomState.adminToken) {
               this.authFailures = 0; 
               this.sessions.set(webSocket, { ...session!, role: 'admin' });
               webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
@@ -318,11 +321,11 @@ export class SigningRoom implements DurableObject {
         if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
             if (!this.roomState.signerLabels) this.roomState.signerLabels = {};
 
-            const cleanLabel = sanitizeInput(msg.label, 120); 
+            const cleanLabel = sanitizeInput(msg.label, 1024); 
             this.roomState.signerLabels[msg.fingerprint] = cleanLabel;
             
             await this.state.storage.put('data', this.roomState);
-            this.log('Label Updated', `${msg.fingerprint} -> ${cleanLabel}`, userLabel);
+            this.log('Label Updated', `Signer Alias Modified`, 'Coordinator');
             this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
         }
 
