@@ -127,7 +127,7 @@ app.post('/api/room', async (c) => {
     body: JSON.stringify({ encryptedPsbt, adminToken, roomId, network, protocolVersion })
   }));
 
-  return c.json({ roomId, adminToken, socketUrl: `/api/room/${roomId}/websocket` });
+  return c.json({ roomId, socketUrl: `/api/room/${roomId}/websocket` });
 });
 
 // WebSocket Upgrade Handler
