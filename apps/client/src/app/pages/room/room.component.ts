@@ -3,7 +3,7 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Component, OnInit, signal, OnDestroy, effect, Inject, PLATFORM_ID, HostListener } from '@angular/core';
+import { Component, OnInit, signal, computed, OnDestroy, effect, Inject, PLATFORM_ID, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -161,9 +161,9 @@ import * as QRCode from 'qrcode';
                     <div class="flex justify-between">
                         <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Room Name</label>
                         <span class="text-xs font-mono" 
-                            [class.text-red-400]="newRoomName().length > 32" 
-                            [class.text-slate-600]="newRoomName().length <= 32">
-                            {{ newRoomName().length }} / 32
+                            [class.text-red-400]="newRoomName().length > 64" 
+                            [class.text-slate-600]="newRoomName().length <= 64">
+                            {{ newRoomName().length }} / 64
                         </span>
                     </div>
                     
@@ -171,12 +171,12 @@ import * as QRCode from 'qrcode';
                         type="text" 
                         [(ngModel)]="newRoomName" 
                         (keyup.enter)="saveRoomName()"
-                        maxlength="32"  placeholder="e.g. Q1 Treasury Board Vote"
+                        maxlength="64"  placeholder="e.g. Q1 Treasury Board Vote"
                         class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 transition"
                         autofocus
                     />
                     
-                    @if (newRoomName().length >= 32) {
+                    @if (newRoomName().length >= 64) {
                         <p class="text-xs text-red-400 animate-pulse">
                             Maximum length reached.
                         </p>
@@ -766,17 +766,22 @@ import * as QRCode from 'qrcode';
                                 </div>
                                 <div>
                                     <h4 class="text-white font-bold text-sm">Transaction Signed</h4>
-                                    <p class="text-emerald-400 text-xs">Ready to broadcast</p>
+                                    <p class="text-emerald-400 text-xs">
+                                        {{ socket.isCoordinator() ? 'Ready to broadcast' : 'Awaiting Coordinator broadcast' }}
+                                    </p>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <button (click)="copyHex()" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg border border-slate-700 transition flex items-center justify-center gap-2">
-                                    <lucide-icon [img]="copied() ? Check : Copy" class="w-3 h-3"></lucide-icon> {{ copied() ? 'Copied' : 'Copy Hex' }}
-                                </button>
-                                <button (click)="broadcastAndCopy()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 text-center decoration-0">
-                                    Broadcast <lucide-icon [img]="ExternalLink" class="w-3 h-3"></lucide-icon>
-                                </button>
-                            </div>
+                            
+                            @if (socket.isCoordinator()) {
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button (click)="copyHex()" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg border border-slate-700 transition flex items-center justify-center gap-2">
+                                        <lucide-icon [img]="copied() ? Check : Copy" class="w-3 h-3"></lucide-icon> {{ copied() ? 'Copied' : 'Copy Hex' }}
+                                    </button>
+                                    <button (click)="broadcastAndCopy()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 text-center decoration-0">
+                                        Broadcast <lucide-icon [img]="ExternalLink" class="w-3 h-3"></lucide-icon>
+                                    </button>
+                                </div>
+                            }
                         </div>
                     } @else if (canFinalize) {  @if (socket.isCoordinator()) {
                         <button (click)="finalize()" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer">
@@ -818,7 +823,12 @@ export class RoomComponent implements OnInit, OnDestroy {
             $event.returnValue = true; 
         }
     }
-    
+
+    @HostListener('window:beforeunload')
+    onBeforeUnload() {
+        this.socket.gracefullyDisconnect();
+    }
+
     // -------------------------------------------------------------------------
     // Icons
     // -------------------------------------------------------------------------
@@ -896,7 +906,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     // -------------------------------------------------------------------------
     // Workflow Flags & Inputs
     // -------------------------------------------------------------------------
-    public finalHex = signal<string | null>(null);
+    public finalHex = computed(() => this.socket.roomState()?.finalTxHex || null);
     public copied = signal(false);
     public inviteCopied = signal(false);
     public keyCopied = signal(false);
@@ -1004,7 +1014,8 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     ngOnDestroy() {
         if (isPlatformBrowser(this.platformId)) {
-            this.socket.disconnect(true); 
+            this.socket.gracefullyDisconnect();
+            
             if (this.timerInterval) clearInterval(this.timerInterval);
         }
     }
@@ -1146,7 +1157,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     saveRoomName() {
         let name = this.newRoomName().trim();
-        const MAX_LENGTH = 32;
+        const MAX_LENGTH = 64;
 
         if (name.length > MAX_LENGTH) {
             name = name.slice(0, MAX_LENGTH);
@@ -1265,9 +1276,9 @@ export class RoomComponent implements OnInit, OnDestroy {
         
         const doFinalize = () => {
             const hex = this.socket.getFinalTxHex();
-            if (hex) {
-                this.finalHex.set(hex);
-                this.socket.logAction('Tx Finalized', 'Signatures merged successfully');
+            const txId = this.socket.getFinalTxId();
+            if (hex && txId) { 
+                this.socket.broadcastFinalization(hex, txId);
                 this.triggerConfetti();
             }
         };
@@ -1618,8 +1629,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         doc.setFont('helvetica', 'bold');
         doc.text("Transaction Data", 20, y); y += 8;
         
-        // A. Transaction ID (The most important part)
-        const txId = this.socket.getFinalTxId();
+
+        const txId = this.socket.roomState()?.finalTxId;
         if (txId) {
             doc.setFontSize(10);
             doc.setTextColor(50);

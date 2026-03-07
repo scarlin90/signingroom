@@ -100,7 +100,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '1.4.2', 
+    version: '1.5.0', 
     timestamp: Date.now() 
   });
 });
@@ -127,7 +127,7 @@ app.post('/api/room', async (c) => {
     body: JSON.stringify({ encryptedPsbt, adminToken, roomId, network, protocolVersion })
   }));
 
-  return c.json({ roomId, adminToken, socketUrl: `/api/room/${roomId}/websocket` });
+  return c.json({ roomId, socketUrl: `/api/room/${roomId}/websocket` });
 });
 
 // WebSocket Upgrade Handler
@@ -161,22 +161,25 @@ export class SigningRoom implements DurableObject {
     });
   }
 
-  async log(event: string, detail: string = '', user: string = 'System') {
+  async log(encryptedLogBlob: string) {
     if (!this.roomState) return;
-    if (!this.roomState.auditLog) this.roomState.auditLog = [];
-    // Keep log reasonable size
-    if (this.roomState.auditLog.length > 100) this.roomState.auditLog.shift();
+    if (!this.roomState.auditLog) this.roomState.auditLog = []; 
     
-    this.roomState.auditLog.push({ timestamp: Date.now(), event, detail, user });
+    if (this.roomState.auditLog.length > 2000) this.roomState.auditLog.shift();
+    
+    this.roomState.auditLog.push(encryptedLogBlob);
+    
     await this.state.storage.put('data', this.roomState);
+    this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
   }
+
 
   async fetch(request: Request) {
     const url = new URL(request.url);
 
     // 1. Initialize Room
     if (url.pathname === '/init') {
-      const { encryptedPsbt, adminToken, roomId, network, protocolVersion } = await request.json<any>();
+      const { encryptedPsbt, adminToken, roomId, network, protocolVersion, encryptedLogBlob, encryptedRoomName } = await request.json<any>();
       const now = Date.now();
       
       // Default to 24 hour (86400s)
@@ -185,13 +188,17 @@ export class SigningRoom implements DurableObject {
       this.roomState = {
         roomId, encryptedPsbt, adminToken, signatures: [], 
         createdAt: now, expiresAt: now + (ttlSeconds * 1000), 
-        auditLog: [], signerLabels: {}, roomName: "Untitled Room", whitelist: [], 
+        auditLog: [], signerLabels: {}, 
+        whitelist: [], 
         isLocked: false, network: network || 'bitcoin',
-        protocolVersion: protocolVersion || '1.0.0'
+        protocolVersion: protocolVersion || '1.0.0',
+        roomName: encryptedRoomName || "Untitled Room"
       };
 
-      this.roomState.auditLog.push({ timestamp: now, event: 'Room Created', detail: 'Public Session', user: 'System' });
-      
+      if (encryptedLogBlob) {
+          this.roomState.auditLog.push(encryptedLogBlob);
+      }
+
       await this.state.storage.put('data', this.roomState);
       await this.state.storage.setAlarm(now + (ttlSeconds * 1000));
       return new Response('OK');
@@ -256,8 +263,9 @@ export class SigningRoom implements DurableObject {
         msgsInWindow: 0,
         lastMsgTime: 0
     });
+
+    webSocket.send(JSON.stringify({ type: 'SESSION_CONNECTED', sessionId: sessionId }));
     
-    this.log('User Joined', `Session: ${sessionId}`, 'Guest');
     this.broadcast({ type: 'CONNECTIONS_UPDATE', count: this.sessions.size });
     
     // Send initial state sync
@@ -300,7 +308,10 @@ export class SigningRoom implements DurableObject {
               return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Room locked due to multiple failed attempts' }));
             }
 
-            if (msg.token === this.roomState.adminToken) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg.token));
+            const incomingHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+            if (incomingHash === this.roomState.adminToken) {
               this.authFailures = 0; 
               this.sessions.set(webSocket, { ...session!, role: 'admin' });
               webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
@@ -318,49 +329,48 @@ export class SigningRoom implements DurableObject {
         if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
             if (!this.roomState.signerLabels) this.roomState.signerLabels = {};
 
-            const cleanLabel = sanitizeInput(msg.label, 120); 
-            this.roomState.signerLabels[msg.fingerprint] = cleanLabel;
+            // msg.label is now a secure Base64 blob, so no need to sanitize!
+            this.roomState.signerLabels[msg.fingerprint] = msg.label;
             
             await this.state.storage.put('data', this.roomState);
-            this.log('Label Updated', `${msg.fingerprint} -> ${cleanLabel}`, userLabel);
+            
+            this.log(msg.encryptedLogBlob);
             this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
         }
 
         // Rename Room (Admin Only)
         if (msg.type === 'RENAME_ROOM' && session?.role === 'admin') {
-          const oldName = this.roomState.roomName;
-          
-          const cleanName = sanitizeInput(msg.name, 120);
-          this.roomState.roomName = cleanName;
-          
+          this.roomState.roomName = msg.encryptedName; 
           await this.state.storage.put('data', this.roomState);
-          this.log('Room Renamed', `${oldName} -> ${cleanName}`, userLabel);
-          this.broadcast({ type: 'ROOM_RENAMED', name: this.roomState.roomName });
-      }
+          
+          this.log(msg.encryptedLogBlob);
+          this.broadcast({ type: 'ROOM_RENAMED', encryptedName: msg.encryptedName });
+        }
 
         // Action Logging
         if (msg.type === 'LOG_ACTION') {
-          await this.log(msg.action, msg.detail, userLabel);
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
         }
 
-        // PSBT Chunk Upload (Blind Relay)
+        // PSBT Chunk Upload
         if (msg.type === 'UPLOAD_PARTIAL') {
           if (msg.data?.encryptedData && msg.data.encryptedData.length > MAX_PAYLOAD_SIZE_BYTES) return;
-          if (this.roomState.signatures.length >= 100) { // Safety Cap
+          if (this.roomState.signatures.length >= 100) { 
             webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
             return;
           }
-          this.roomState.signatures.push(msg.data);
-          const detail = msg.fingerprint ? `Signer: ${msg.fingerprint}` : 'Unknown Signer';
-          await this.log('Signature Uploaded', detail, userLabel);
+          
+          this.roomState.signatures.push(msg.data.encryptedData); 
           await this.state.storage.put('data', this.roomState);
-          this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, signerId: msg.signerId, auditLog: this.roomState.auditLog });
+          
+          this.log(msg.encryptedLogBlob);
+          this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint });
         }
 
         // Destroy Room (Admin Only)
         if (msg.type === 'CLOSE_ROOM' && session?.role === 'admin') {
-          await this.log('Room Destroyed', 'Coordinator closed session', 'Coordinator');
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'ROOM_CLOSED', finalLog: this.roomState.auditLog });
           await this.state.storage.deleteAll();
           this.roomState = null;
@@ -369,34 +379,35 @@ export class SigningRoom implements DurableObject {
 
         // Whitelist Management (Admin Only)
         if (msg.type === 'UPDATE_WHITELIST' && session?.role === 'admin') {
-          const list = this.roomState.whitelist || [];
-          if (msg.remove) this.roomState.whitelist = list.filter((a: string) => a !== msg.address);
-          else if (!list.includes(msg.address)) this.roomState.whitelist.push(msg.address);
+          this.roomState.whitelist = msg.encryptedWhitelist; 
           await this.state.storage.put('data', this.roomState);
-          this.log('Whitelist Updated', `${msg.remove ? 'Removed' : 'Added'} ${msg.address}`, userLabel);
-          this.broadcast({ type: 'WHITELIST_UPDATED', whitelist: this.roomState.whitelist });
+          
+          this.log(msg.encryptedLogBlob);
+          this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
         }
 
-        // Batch Whitelist Management (Admin Only)
-        if (msg.type === 'WHITELIST_BATCH_UPDATE' && session?.role === 'admin') {
-          const list = this.roomState.whitelist || [];
-          if (msg.remove) {
-            this.roomState.whitelist = list.filter((a: string) => !msg.addresses.includes(a));
-          } else {
-            const newAddresses = msg.addresses.filter(addr => !list.includes(addr));
-            this.roomState.whitelist = [...list, ...newAddresses];
-          }
-          await this.state.storage.put('data', this.roomState);
-          this.log('Whitelist Updated (Batch)', `${msg.remove ? 'Removed' : 'Added'} ${msg.addresses.length} addresses`, userLabel);
-          this.broadcast({ type: 'WHITELIST_UPDATED', whitelist: this.roomState.whitelist });
-        }
 
         // Room Lock (Admin Only)
         if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {
           this.roomState.isLocked = msg.locked;
           await this.state.storage.put('data', this.roomState);
-          this.log('Security Alert', `Room ${msg.locked ? 'LOCKED' : 'UNLOCKED'}`, 'Coordinator');
+          this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'LOCK_UPDATED', isLocked: this.roomState.isLocked });
+        }
+
+        // Finalize Transaction (Admin Only)
+        if (msg.type === 'TX_FINALIZED' && session?.role === 'admin') {
+          this.roomState.encryptedFinalTxHex = msg.encryptedFinalTxHex;
+          this.roomState.encryptedFinalTxId = msg.encryptedFinalTxId;
+          await this.state.storage.put('data', this.roomState);
+          
+          this.log(msg.encryptedLogBlob);
+          
+          this.broadcast({ 
+              type: 'TX_FINALIZED_BROADCAST', 
+              encryptedFinalTxHex: msg.encryptedFinalTxHex,
+              encryptedFinalTxId: msg.encryptedFinalTxId
+          });
         }
 
       } catch (e) { console.error(e); }
@@ -406,7 +417,6 @@ export class SigningRoom implements DurableObject {
       const session = this.sessions.get(webSocket);
       this.sessions.delete(webSocket);
       this.broadcast({ type: 'CONNECTIONS_UPDATE', count: this.sessions.size });
-      if (this.roomState) this.log('User Left', `Session ID: ${session?.id}`, 'Guest');
     });
   }
 
@@ -439,12 +449,4 @@ export class SigningRoom implements DurableObject {
         socket.close(1000, "Expired");
     }
   }
-}
-
-function sanitizeInput(input: string, maxLength: number = 120): string {
-    if (typeof input !== 'string') return '';
-    return input
-        .replace(/[<>'"&]/g, '')
-        .trim()
-        .substring(0, maxLength);
 }
