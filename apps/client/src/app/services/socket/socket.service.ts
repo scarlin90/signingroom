@@ -37,6 +37,8 @@ export interface RoomState {
   // Transaction Data
   psbt: string; 
   signatures: string[]; 
+  finalTxHex?: string;
+  finalTxId?: string;
   
   // Metadata
   connectedCount: number;
@@ -73,6 +75,8 @@ export class SocketService {
   private encryptionKey: string | null = null; 
   private fallbackVersion: string | null = null;
   private blindFingerprintMap: Map<string, string> = new Map();
+  private currentSessionId?: string;
+  private hasAnnouncedJoin = false;
 
   // -------------------------------------------------------------------------
   // Signals
@@ -242,13 +246,18 @@ export class SocketService {
       }
 
       const encryptedData = await this.encryption.encrypt(payloadToSend, this.encryptionKey);
-      const logText = `Signer: ${detectedFingerprint || 'Unknown'}`;
-      const encryptedLogDetail = await this.encryption.encrypt(logText, this.encryptionKey);
+      
+      const role = this.isCoordinator() ? 'Coordinator' : `Guest (${this.currentSessionId || 'Unknown'})`;
+      const encryptedLogBlob = await this.createSecureLogBlob(
+          'Signature Uploaded',
+          `Signer: ${detectedFingerprint || 'Unknown'}`,
+          role
+      );
 
       this.send('UPLOAD_PARTIAL', { 
           data: { encryptedData },
           fingerprint: blindedFingerprint,
-          encryptedLogDetail
+          encryptedLogBlob 
       });
   }
 
@@ -262,8 +271,14 @@ export class SocketService {
     this.send('CLOSE_ROOM'); 
   }
 
-  logAction(action: string, detail: string = '') {
-      this.send('LOG_ACTION', { action, detail });
+  async logAction(action: string, detail: string) {
+      const encryptedLogBlob = await this.createSecureLogBlob(
+          action, 
+          detail, 
+          this.isCoordinator() ? 'Coordinator' : `Guest (${this.currentSessionId || 'Unknown'})`
+      );
+      
+      this.send('LOG_ACTION', { encryptedLogBlob });
   }
 
 async renameRoom(newName: string) {
@@ -272,12 +287,14 @@ async renameRoom(newName: string) {
 
     const encryptedName = await this.encryption.encrypt(newName, key);
 
-    const logText = `Renamed: ${newName}`;
-    const encryptedLogDetail = await this.encryption.encrypt(logText, key);
-
+    const encryptedLogBlob = await this.createSecureLogBlob(
+        'Room Renamed', 
+        `Renamed: ${newName}`, 
+        'Coordinator'
+    );
     this.send('RENAME_ROOM', { 
         encryptedName,
-        encryptedLogDetail
+        encryptedLogBlob 
     });
 }
 
@@ -296,13 +313,16 @@ async updateSignerLabel(fingerprint: string, label: string) {
 
     const encryptedLabel = await this.encryption.encrypt(safeLabel, key);
     
-    const logText = `${safeLabel} (${fingerprint})`;
-    const encryptedLogDetail = await this.encryption.encrypt(logText, key);
+    const encryptedLogBlob = await this.createSecureLogBlob(
+        'Label Updated',
+        `${safeLabel} (${fingerprint})`,
+        'Coordinator'
+    );
 
     this.send('UPDATE_LABEL', { 
         fingerprint: blindedFingerprint, 
         label: encryptedLabel,
-        encryptedLogDetail
+        encryptedLogBlob 
     });
   }
 
@@ -325,12 +345,19 @@ async updateSignerLabel(fingerprint: string, label: string) {
 
     const encryptedWhitelist = await this.encryption.encrypt(JSON.stringify(newList), key);
     
-    const logText = remove ? `Removed address from whitelist` : `Added address to whitelist`;
-    const encryptedLogDetail = await this.encryption.encrypt(logText, key);
+    const shortAddr = address.length > 5 ? address.slice(-5) : address;
+    const actionWord = remove ? 'Removed' : 'Added';
+    const logText = `${actionWord} ...${shortAddr} to whitelist`;
+    
+    const encryptedLogBlob = await this.createSecureLogBlob(
+        'Whitelist Updated',
+        logText,
+        'Coordinator'
+    );
 
     this.send('UPDATE_WHITELIST', { 
         encryptedWhitelist,
-        encryptedLogDetail
+        encryptedLogBlob 
     });
   }
 
@@ -342,35 +369,52 @@ async updateSignerLabel(fingerprint: string, label: string) {
         const key = this.getRoomKey();
         if (!key) return;
 
-        // 1. Get the current state of the whitelist
         const currentList = this.roomState()?.whitelist || [];
         let newList: string[] = [];
 
-        // 2. Calculate the new array locally
         if (remove) {
-            // Filter out any addresses that are in the batch removal list
             newList = currentList.filter(a => !addresses.includes(a));
         } else {
-            // Merge the current list with the new batch, and use a Set to deduplicate
             const combined = [...currentList, ...addresses];
             newList = Array.from(new Set(combined)); 
         }
 
-        // 3. Encrypt the entire resulting array
         const encryptedWhitelist = await this.encryption.encrypt(JSON.stringify(newList), key);
         
-        // 4. Create the secure audit log string
-        const action = remove ? 'Removed' : 'Verified';
-        const logText = `${action} ${addresses.length} batch address(es)`;
-        const encryptedLogDetail = await this.encryption.encrypt(logText, key);
+        const actionWord = remove ? 'Removed' : 'Verified';
+        const logText = `${actionWord} ${addresses.length} batch address(es)`;
+        
+        const encryptedLogBlob = await this.createSecureLogBlob(
+            'Whitelist Updated',
+            logText,
+            'Coordinator'
+        );
 
-        // 5. Send it using the exact same standard UPDATE_WHITELIST event!
-        // The server doesn't care if it's 1 or 50 addresses, it just saves the blob.
         this.send('UPDATE_WHITELIST', { 
             encryptedWhitelist,
-            encryptedLogDetail
+            encryptedLogBlob 
         });
     }
+
+    async broadcastFinalization(finalTxHex: string, finalTxId: string) {
+      const key = this.getRoomKey();
+      if (!key) return;
+
+      const encryptedFinalTxHex = await this.encryption.encrypt(finalTxHex, key);
+      const encryptedFinalTxId = await this.encryption.encrypt(finalTxId, key);
+
+      const encryptedLogBlob = await this.createSecureLogBlob(
+          'Tx Finalized',
+          'Signatures merged successfully',
+          'Coordinator'
+      );
+      
+      this.send('TX_FINALIZED', {
+          encryptedFinalTxHex,
+          encryptedFinalTxId,
+          encryptedLogBlob
+      });
+  }
 
   // -------------------------------------------------------------------------
   // PSBT & Crypto Logic
@@ -494,6 +538,7 @@ async updateSignerLabel(fingerprint: string, label: string) {
   }
 
   private reset() {
+    this.hasAnnouncedJoin = false;
     this.roomState.set(null);
     this.role.set('guest');
     this.isClosed.set(false); 
@@ -522,6 +567,9 @@ async updateSignerLabel(fingerprint: string, label: string) {
 
     try {
         switch (msg.type) {
+            case 'SESSION_CONNECTED':
+                this.currentSessionId = msg.sessionId;
+                break;
             case 'STATE_SYNC':
                 await this.handleStateSync(msg);
                 break;
@@ -569,7 +617,15 @@ async updateSignerLabel(fingerprint: string, label: string) {
                 this.roomState.update(s => s ? { ...s, connectedCount: msg.count } : null);
                 break;
             case 'ROLE_UPDATE':
-                this.role.set(msg.role); 
+                {
+                    this.role.set(msg.role); 
+        
+                    if (!this.hasAnnouncedJoin && msg.role === 'admin') {
+                        this.hasAnnouncedJoin = true;
+                        this.createSecureLogBlob('User Joined', `Session: ${this.currentSessionId}`, 'Coordinator')
+                            .then(blob => this.send('LOG_ACTION', { encryptedLogBlob: blob }));
+                    }
+                }
                 break;
             case 'ROOM_CLOSED':
                 if (msg.finalLog) this.roomState.update(s => s ? { ...s, auditLog: msg.finalLog } : null);
@@ -592,6 +648,18 @@ async updateSignerLabel(fingerprint: string, label: string) {
                 break;
             case 'LOCK_UPDATED':
                 this.roomState.update(s => s ? { ...s, isLocked: msg.isLocked } : null);
+                break;
+            case 'TX_FINALIZED_BROADCAST':
+                if (msg.encryptedFinalTxHex && msg.encryptedFinalTxId && this.encryptionKey) {
+                    try {
+                        const decHex = await this.encryption.decrypt(msg.encryptedFinalTxHex, this.encryptionKey);
+                        const decId = await this.encryption.decrypt(msg.encryptedFinalTxId, this.encryptionKey);
+                        
+                        this.roomState.update(s => s ? { ...s, finalTxHex: decHex, finalTxId: decId } : null);
+                    } catch (e) {
+                        console.error("Failed to decrypt final tx data", e);
+                    }
+                }
                 break;
             case 'ERROR_LOCKED':
                 this.isLockedOut.set(true);
@@ -643,7 +711,6 @@ async updateSignerLabel(fingerprint: string, label: string) {
         mergedPsbt = this.mergePsbts(mergedPsbt, sigData);
     }
 
-    // CRITICAL: Ensure the fingerprint map is fully populated BEFORE we decrypt the labels
     if (mergedPsbt) {
         await this.registerAllFingerprints(mergedPsbt);
     }
@@ -651,14 +718,17 @@ async updateSignerLabel(fingerprint: string, label: string) {
     const decryptedLabels: Record<string, string> = {};
     if (msg.signerLabels && this.encryptionKey) {
         for (const [blindedFp, encryptedLabel] of Object.entries(msg.signerLabels)) {
-            try {
-                // Now that the map is populated, this lookup will instantly succeed!
-                const realFp = this.blindFingerprintMap.get(blindedFp) || blindedFp;
-                const plainLabel = await this.encryption.decrypt(encryptedLabel as string, this.encryptionKey);
-                decryptedLabels[realFp] = plainLabel;
-            } catch (e) {
-                // Fallback for legacy rooms with plaintext labels
-                decryptedLabels[blindedFp] = encryptedLabel as string;
+            const labelStr = encryptedLabel as string;
+            const realFp = this.blindFingerprintMap.get(blindedFp) || blindedFp;
+            
+            if (labelStr.length >= 40) {
+                try {
+                    decryptedLabels[realFp] = await this.encryption.decrypt(labelStr, this.encryptionKey);
+                } catch (e) {
+                    decryptedLabels[realFp] = labelStr;
+                }
+            } else {
+                decryptedLabels[realFp] = labelStr;
             }
         }
     }
@@ -675,13 +745,37 @@ async updateSignerLabel(fingerprint: string, label: string) {
         decryptedWhitelist = msg.whitelist;
     }
 
-    let decryptedRoomName = msg.roomName || 'Untitled Room';
-    if (msg.roomName && msg.roomName !== 'Untitled Room') {
-        try {
-            decryptedRoomName = await this.encryption.decrypt(msg.roomName, this.encryptionKey!);
-        } catch (e) {
-            decryptedRoomName = msg.roomName; 
+    let decryptedRoomName = 'Untitled Room';
+    if (msg.roomName && this.encryptionKey) {
+        if (msg.roomName.length >= 40) {
+            try {
+                decryptedRoomName = await this.encryption.decrypt(msg.roomName, this.encryptionKey);
+            } catch (e) {
+                decryptedRoomName = msg.roomName; 
+            }
+        } else {
+            decryptedRoomName = msg.roomName;
         }
+    }
+
+    let finalTxHex = msg.finalTxHex; 
+    let finalTxId = msg.finalTxId;  
+    
+    if (msg.encryptedFinalTxHex && msg.encryptedFinalTxId && this.encryptionKey) {
+        try {
+            finalTxHex = await this.encryption.decrypt(msg.encryptedFinalTxHex, this.encryptionKey);
+            finalTxId = await this.encryption.decrypt(msg.encryptedFinalTxId, this.encryptionKey);
+        } catch (e) {
+            console.error("Failed to decrypt final TX data in sync", e);
+        }
+    }
+
+    const hasAdminToken = !!sessionStorage.getItem(`admin_token_${msg.roomId}`);
+
+    if (!this.hasAnnouncedJoin && this.currentSessionId && !hasAdminToken) {
+        this.hasAnnouncedJoin = true;
+        this.createSecureLogBlob('User Joined', `Session: ${this.currentSessionId}`, 'Guest')
+            .then(blob => this.send('LOG_ACTION', { encryptedLogBlob: blob }));
     }
 
     this.roomState.set({
@@ -692,7 +786,9 @@ async updateSignerLabel(fingerprint: string, label: string) {
         signerLabels: Object.keys(decryptedLabels).length > 0 ? decryptedLabels : msg.signerLabels,
         auditLog: decryptedLog,
         whitelist: decryptedWhitelist,
-        roomName: decryptedRoomName
+        roomName: decryptedRoomName,
+        finalTxHex: finalTxHex, 
+        finalTxId: finalTxId
     });
   }
 
@@ -706,18 +802,12 @@ async updateSignerLabel(fingerprint: string, label: string) {
         realFingerprint = this.blindFingerprintMap.get(msg.fingerprint) || msg.fingerprint;
     }
 
-    let updatedLog = this.roomState()?.auditLog || [];
-    if (msg.auditLog) {
-        updatedLog = await this.decryptAuditLog(msg.auditLog);
-    }
-
     this.roomState.update(current => {
         if (!current) return null;
         return {
             ...current,
             psbt: this.mergePsbts(current.psbt, this.normalizePsbt(decrypted)),
-            signatures: [...current.signatures, decrypted],
-            auditLog: updatedLog 
+            signatures: [...current.signatures, decrypted]
         };
     });
     
@@ -883,23 +973,63 @@ async updateSignerLabel(fingerprint: string, label: string) {
     } catch (e) { return false; }
   }
 
-  private async decryptAuditLog(log: AuditEntry[]): Promise<AuditEntry[]> {
+  private async decryptAuditLog(serverLogArray: any[]): Promise<AuditEntry[]> {
       const key = this.getRoomKey();
-      if (!key || !log) return log;
+      if (!key || !serverLogArray || !Array.isArray(serverLogArray)) return [];
       
-      const decryptedLog = [];
-      for (const entry of log) {
-          if (entry.encryptedDetail) {
-              try {
-                  const dec = await this.encryption.decrypt(entry.encryptedDetail, key);
-                  decryptedLog.push({ ...entry, detail: dec });
-              } catch (e) {
-                  decryptedLog.push({ ...entry, detail: '*** Encrypted Data ***' });
+      const decryptedLog: AuditEntry[] = [];
+      
+      for (const encryptedBlob of serverLogArray) {
+          if (!encryptedBlob) continue; 
+
+          try {
+              if (typeof encryptedBlob === 'string') {
+                  const dec = await this.encryption.decrypt(encryptedBlob, key);
+                  const entry = JSON.parse(dec);
+                  if (entry) decryptedLog.push(entry);
+              } else {
+                  decryptedLog.push(encryptedBlob);
               }
-          } else {
-              decryptedLog.push(entry);
+          } catch (e) {
+              decryptedLog.push({ timestamp: 0, event: 'Encrypted Data', user: 'Unknown' });
           }
       }
-      return decryptedLog;
+      
+      return decryptedLog
+          .filter(entry => entry !== null && typeof entry === 'object')
+          .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  }
+
+  private async createSecureLogBlob(event: string, detail: string, user: string): Promise<string> {
+      const key = this.getRoomKey();
+      if (!key) return '';
+      
+      const logEntry = {
+          timestamp: Date.now(),
+          event: event,
+          detail: detail,
+          user: user
+      };
+      
+      return await this.encryption.encrypt(JSON.stringify(logEntry), key);
+  }
+
+  async gracefullyDisconnect() {
+      if (this.currentSessionId && this.status() === 'connected') {
+          try {
+              const encryptedLogBlob = await this.createSecureLogBlob(
+                  'User Left', 
+                  `Session ID: ${this.currentSessionId}`, 
+                  'Guest'
+              );
+              this.send('LOG_ACTION', { encryptedLogBlob });
+          } catch (e) {
+              console.error("Failed to send disconnect log");
+          }
+      }
+      
+      setTimeout(() => {
+          this.disconnect();
+      }, 50);
   }
 }
