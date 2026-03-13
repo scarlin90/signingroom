@@ -1286,8 +1286,11 @@ export class RoomComponent implements OnInit, OnDestroy {
             'Close Room',
             'Are you sure you want to close this room? This action cannot be undone and will delete all data immediately.',
             () => {
-                this.socket.closeRoom();
-                this.router.navigate(['/']); 
+                this.generateAuditLog();
+                setTimeout(() => {
+                    this.socket.closeRoom();
+                    this.router.navigate(['/']); 
+                }, 300);
             },
             true 
         );
@@ -1660,7 +1663,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         
         doc.text(`Room: ${state.roomName}`, 20, y); y += 6;
         doc.text(`Room ID: ${state.roomId}`, 20, y); y += 6;
-        doc.text(`Network: ${state.network.toUpperCase()}`, 20, y); y += 6;
+        doc.text(`Network: ${(state.network || 'bitcoin').toUpperCase()}`, 20, y); y += 6;
         doc.text(`Created: ${new Date(state.createdAt).toLocaleString()}`, 20, y); y += 6;
 
         const lockStatus = state.isLocked ? "LOCKED (Secure)" : "UNLOCKED (Open)";
@@ -1689,7 +1692,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             doc.setFont('courier', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(0);
-            doc.text(txId, 20, y); y += 8;
+            doc.text(String(txId), 20, y); y += 8;
             
             // Add a clickable link hint
             doc.setFont('helvetica', 'italic');
@@ -1803,10 +1806,14 @@ export class RoomComponent implements OnInit, OnDestroy {
             doc.text("No events logged yet.", 20, y); y += 6;
         } else {
             logs.forEach((log) => {
+                if (!log) return;
                 checkPageBreak(15);
                 
-                const time = new Date(log.timestamp).toLocaleTimeString();
-                const date = new Date(log.timestamp).toLocaleDateString();
+                const safeEvent = log.event ? String(log.event) : 'System Event';
+                const safeUser = log.user ? String(log.user) : 'System';
+                
+                const time = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '--:--';
+                const date = log.timestamp ? new Date(log.timestamp).toLocaleDateString() : '--/--/--';
                 
                 doc.setTextColor(120);
                 doc.setFont('helvetica', 'normal');
@@ -1814,14 +1821,15 @@ export class RoomComponent implements OnInit, OnDestroy {
                 
                 doc.setTextColor(0);
                 doc.setFont('helvetica', 'bold');
-                doc.text(log.event, 65, y);
+                doc.text(safeEvent, 65, y);
                 
                 doc.setFont('helvetica', 'normal');
-                doc.text(log.user, 110, y);
+                doc.text(safeUser, 110, y);
                 
                 if (log.detail) {
                     doc.setTextColor(100);
-                    const detailText = log.detail.length > 30 ? log.detail.substring(0, 27) + '...' : log.detail;
+                    const detailStr = String(log.detail);
+                    const detailText = detailStr.length > 30 ? detailStr.substring(0, 27) + '...' : detailStr;
                     doc.text(detailText, 150, y);
                 }
                 y += 7;

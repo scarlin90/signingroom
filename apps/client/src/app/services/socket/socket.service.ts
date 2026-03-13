@@ -246,16 +246,16 @@ export class SocketService {
       let blindedFingerprint: string | undefined;
 
       if (detectedFingerprint) {
-                   const alreadySigned = this.signers().find(s => s.fingerprint === detectedFingerprint)?.signed;
-          if (alreadySigned) {
-              console.warn(`Signature for ${detectedFingerprint} has already been applied.`);
-              return;
-          }
- 
-          blindedFingerprint = await this.encryption.blindData(detectedFingerprint, this.encryptionKey);
-          
-          this.blindFingerprintMap.set(blindedFingerprint, detectedFingerprint);
-          this.blindFingerprintMap.set(detectedFingerprint, detectedFingerprint);
+        const alreadySigned = this.signers().find(s => s.fingerprint === detectedFingerprint)?.signed;
+        if (alreadySigned) {
+            console.warn(`Signature for ${detectedFingerprint} has already been applied.`);
+            return;
+        }
+
+        blindedFingerprint = await this.encryption.blindData(detectedFingerprint, this.encryptionKey);
+        
+        this.blindFingerprintMap.set(blindedFingerprint, detectedFingerprint);
+        this.blindFingerprintMap.set(detectedFingerprint, detectedFingerprint);
 
         if (detectedFingerprint && typeof localStorage !== 'undefined' && currentRoom) {
           const savedLabel = this.getLocalLabel(detectedFingerprint);
@@ -695,7 +695,6 @@ async updateSignerLabel(fingerprint: string, label: string) {
                 }
                 break;
             case 'ROOM_CLOSED':
-                if (msg.finalLog) this.roomState.update(s => s ? { ...s, auditLog: msg.finalLog } : null);
                 this.isClosed.set(true);
                 this.disconnect(false);
                 break;
@@ -1050,25 +1049,27 @@ async updateSignerLabel(fingerprint: string, label: string) {
     } catch (e) { return false; }
   }
 
-  private async decryptAuditLog(serverLogArray: any[]): Promise<AuditEntry[]> {
+  private async decryptAuditLog(logs: any[]): Promise<any[]> {
       const key = this.getRoomKey();
-      if (!key || !serverLogArray || !Array.isArray(serverLogArray)) return [];
+      if (!key || !logs || !Array.isArray(logs)) return [];
       
-      const decryptedLog: AuditEntry[] = [];
+      const decryptedLog = [];
       
-      for (const encryptedBlob of serverLogArray) {
-          if (!encryptedBlob) continue; 
-
-          try {
-              if (typeof encryptedBlob === 'string') {
+      for (const item of logs) {
+          if (!item) continue;
+          
+          const encryptedBlob = typeof item === 'string' ? item : item.encryptedLogBlob;
+          
+          if (encryptedBlob) {
+              try {
                   const dec = await this.encryption.decrypt(encryptedBlob, key);
                   const entry = JSON.parse(dec);
                   if (entry) decryptedLog.push(entry);
-              } else {
-                  decryptedLog.push(encryptedBlob);
+              } catch (e) {
+                  decryptedLog.push({ timestamp: 0, event: 'Encrypted Data (Decryption Failed)', user: 'Unknown' });
               }
-          } catch (e) {
-              decryptedLog.push({ timestamp: 0, event: 'Encrypted Data', user: 'Unknown' });
+          } else if (item.event && item.user) {
+              decryptedLog.push(item);
           }
       }
       

@@ -350,6 +350,7 @@ export class SigningRoom implements DurableObject {
                 .join('');
 
             if (attemptedHash === this.roomState?.adminToken) {
+
               this.authFailures = 0; 
               this.sessions.set(webSocket, { ...session!, role: 'admin' });
               webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
@@ -422,7 +423,14 @@ export class SigningRoom implements DurableObject {
           this.broadcast({ type: 'ROOM_CLOSED', finalLog: this.roomState.auditLog });
           await this.state.storage.deleteAll();
           this.roomState = null;
-          for (const s of this.sessions.keys()) s.close(1000, "Closed");
+          for (const sock of this.sessions.keys()) {
+                try {
+                    sock.close(1000, "Room Closed by Coordinator");
+                } catch (e) {
+                    // Ignore errors on close
+                }
+            }
+          this.sessions.clear();
         }
 
         // Whitelist Management (Admin Only)

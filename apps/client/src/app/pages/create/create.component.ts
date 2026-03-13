@@ -226,7 +226,7 @@ export class CreateComponent implements OnInit {
             }));
 
             sessionStorage.setItem(`admin_token_${roomId}`, encryptedAdminToken);
-            
+
             this.router.navigate(['/room', roomId], { fragment: encryptionKey });
         } catch (e) {
             console.error(e);
