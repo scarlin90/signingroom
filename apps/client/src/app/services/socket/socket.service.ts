@@ -75,7 +75,6 @@ export class SocketService {
   private encryptionKey: string | null = null; 
   private fallbackVersion: string | null = null;
   private blindFingerprintMap: Map<string, string> = new Map();
-  private currentSessionId?: string;
   private hasAnnouncedJoin = false;
 
   // -------------------------------------------------------------------------
@@ -85,6 +84,8 @@ export class SocketService {
   // Connection Status
   public status = signal<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   public role = signal<'guest' | 'admin'>('guest');
+  public currentSessionId = signal<string | null>(null);
+  public activeSessions = signal<{id: string, role: string, displayName?: string}[]>([]);
   
   // Room Data
   public roomState = signal<RoomState | null>(null);
@@ -132,7 +133,7 @@ export class SocketService {
   // Security Handoff
   // -------------------------------------------------------------------------
 
-  setRoomKey(key: string) {
+  setRoomKey(key: string | null) {
     this.encryptionKey = key;
   }
 
@@ -144,7 +145,7 @@ export class SocketService {
   // Connection Management
   // -------------------------------------------------------------------------
 
-  connect(roomId: string, key: string | null, targetVersion?: string) { 
+  async connect(roomId: string, key: string | null, targetVersion?: string) { 
     this.reset();
     this.encryptionKey = key; 
 
@@ -155,17 +156,30 @@ export class SocketService {
     if (this.ws) this.disconnect(false);
     this.status.set('connecting');
 
+    let roomPass = '';
+    if (key) {
+        roomPass = await this.encryption.blindData(roomId, key);
+    }
+
     const apiBase = environment.apiUrl; 
     const wsBase = apiBase.replace(/^http/, 'ws');
-    const url = `${wsBase}/api/room/${roomId}/websocket?v=${versionToUse}`;
+    const url = `${wsBase}/api/room/${roomId}/websocket?v=${versionToUse}&pass=${roomPass}`;
 
     this.ws = new WebSocket(url);
 
-    this.ws.onopen = () => {
+    this.ws.onopen = async () => {
         this.status.set('connected');
         const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
         if (secureToken) {
             this.send('AUTH', { token: secureToken });
+        }
+
+        if (typeof localStorage !== 'undefined' && this.encryptionKey) {
+            const savedName = localStorage.getItem(`display_name_${roomId}`);
+            if (savedName) {
+                const encryptedDisplayName = await this.encryption.encrypt(savedName, this.encryptionKey);
+                this.send('SET_DISPLAY_NAME', { encryptedDisplayName });
+            }
         }
     };
 
@@ -186,6 +200,13 @@ export class SocketService {
       if (event.code === 4001) {
           this.isRoomFull.set(true);
           return; 
+      }
+
+      if (event.code === 1006 && !this.hasAnnouncedJoin) {
+          console.warn("Connection rejected by server. Invalid room pass.");
+          this.decryptionError.set('Invalid decryption key. Access denied.');
+          this.setRoomKey(null);
+          return;
       }
 
       if (!this.isClosed()) {
@@ -235,6 +256,15 @@ export class SocketService {
           
           this.blindFingerprintMap.set(blindedFingerprint, detectedFingerprint);
           this.blindFingerprintMap.set(detectedFingerprint, detectedFingerprint);
+
+        if (detectedFingerprint && typeof localStorage !== 'undefined' && currentRoom) {
+          const savedLabel = this.getLocalLabel(detectedFingerprint);
+          const currentSessionName = localStorage.getItem(`display_name_${currentRoom.roomId}`);
+          
+          if (savedLabel && !currentSessionName) {
+              await this.setDisplayName(savedLabel);
+          }
+        }
       }  
       
       let payloadToSend = partialPsbtBase64;
@@ -324,6 +354,29 @@ async updateSignerLabel(fingerprint: string, label: string) {
         label: encryptedLabel,
         encryptedLogBlob 
     });
+  }
+
+  async setDisplayName(name: string) {
+      const key = this.getRoomKey();
+      const roomId = this.roomState()?.roomId;
+      if (!key || !roomId) return;
+
+      const safeName = name.trim().substring(0, 64);
+      
+      if (typeof localStorage !== 'undefined') {
+          if (safeName) {
+              localStorage.setItem(`display_name_${roomId}`, safeName); // Scoped to Room!
+          } else {
+              localStorage.removeItem(`display_name_${roomId}`);
+          }
+      }
+      
+      if (safeName) {
+          const encryptedDisplayName = await this.encryption.encrypt(safeName, key);
+          this.send('SET_DISPLAY_NAME', { encryptedDisplayName });
+      } else {
+          this.send('SET_DISPLAY_NAME', { encryptedDisplayName: null });
+      }
   }
 
   async updateWhitelist(address: string, remove: boolean) {
@@ -568,7 +621,7 @@ async updateSignerLabel(fingerprint: string, label: string) {
     try {
         switch (msg.type) {
             case 'SESSION_CONNECTED':
-                this.currentSessionId = msg.sessionId;
+                this.currentSessionId.set(msg.sessionId);
                 break;
             case 'STATE_SYNC':
                 await this.handleStateSync(msg);
@@ -615,6 +668,20 @@ async updateSignerLabel(fingerprint: string, label: string) {
                 break;
             case 'CONNECTIONS_UPDATE':
                 this.roomState.update(s => s ? { ...s, connectedCount: msg.count } : null);
+                if (msg.sessions && this.encryptionKey) {
+                    const decryptedSessions = await Promise.all(msg.sessions.map(async (s: any) => {
+                        let plainName = undefined;
+                        if (s.encryptedDisplayName) {
+                            try {
+                                plainName = await this.encryption.decrypt(s.encryptedDisplayName, this.encryptionKey!);
+                            } catch (e) {
+                                plainName = 'Decrypt Error';
+                            }
+                        }
+                        return { id: s.id, role: s.role, displayName: plainName };
+                    }));
+                    this.activeSessions.set(decryptedSessions);
+                }
                 break;
             case 'ROLE_UPDATE':
                 {
@@ -680,10 +747,18 @@ async updateSignerLabel(fingerprint: string, label: string) {
 
   private async handleStateSync(msg: any) {
     let masterPsbt = "";
-    if (msg.encryptedPsbt) {
-        masterPsbt = await this.encryption.decrypt(msg.encryptedPsbt, this.encryptionKey!);
-    } else {
-        masterPsbt = msg.psbt || ""; 
+    try {
+        if (msg.encryptedPsbt) {
+            masterPsbt = await this.encryption.decrypt(msg.encryptedPsbt, this.encryptionKey!);
+        } else {
+            masterPsbt = msg.psbt || ""; 
+        }
+    } catch (e) {
+        console.error("State Sync Decryption Error:", e);
+        this.decryptionError.set('Invalid decryption key provided.');
+        this.setRoomKey('');
+        this.disconnect(false);
+        return;
     }
     masterPsbt = this.normalizePsbt(masterPsbt);
 
@@ -830,8 +905,8 @@ async updateSignerLabel(fingerprint: string, label: string) {
   private parseTxDetails(psbtBase64: string): TxDetails | null {
     try {
       const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
-      const inputsList = [];
-      const outputs = [];
+      let inputsList = [];
+      let outputs = [];
       let totalInput = 0;
       let totalOutput = 0;
 
@@ -870,26 +945,28 @@ async updateSignerLabel(fingerprint: string, label: string) {
         const address = this.formatScriptAddress(output.script || new Uint8Array([]));
         let isChange = false;
         
-        if (output.bip32Derivation) {
-            for (const [, meta] of output.bip32Derivation as any[]) {
-                if (meta?.path?.length >= 2 && meta.path[meta.path.length - 2] === 1) {
-                    isChange = true;
-                    break; 
+            if (output.bip32Derivation) {
+                for (const [, meta] of output.bip32Derivation as any[]) {
+                    if (meta?.path?.length >= 2 && meta.path[meta.path.length - 2] === 1) {
+                        isChange = true;
+                        break; 
+                    }
                 }
             }
+            outputs.push({ address, amount, isChange });
         }
-        outputs.push({ address, amount, isChange });
-      }
 
-      const fee = totalInput > 0 ? Math.max(0, totalInput - totalOutput) : 0;
-      let vBytes = 0;
-      try { vBytes = (tx as any).vsize; } catch (e) { 
-          vBytes = 10 + (tx.inputsLength * 100) + (tx.outputsLength * 31); 
-      }
+        outputs.sort((a, b) => Number(b.isChange) - Number(a.isChange));
+
+        const fee = totalInput > 0 ? Math.max(0, totalInput - totalOutput) : 0;
+        let vBytes = 0;
+        try { vBytes = (tx as any).vsize; } catch (e) { 
+            vBytes = 10 + (tx.inputsLength * 100) + (tx.outputsLength * 31); 
+        }
       
-      const feeRate = vBytes > 0 ? Number((fee / vBytes).toFixed(2)) : 0;
+        const feeRate = vBytes > 0 ? Number((fee / vBytes).toFixed(2)) : 0;
 
-      return { amount: totalOutput, fee, vBytes, feeRate, inputs: tx.inputsLength, inputsList, outputs };
+        return { amount: totalOutput, fee, vBytes, feeRate, inputs: tx.inputsLength, inputsList, outputs };
     } catch (e) {
       console.error("Failed to parse PSBT", e);
       return null;

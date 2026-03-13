@@ -29,3 +29,34 @@ html, body {
     overscroll-behavior-y: none; 
     background-color: #020617; /* Match slate-950 to hide browser chrome gaps */
 }
+
+/* Custom Scrollbar for Dark Theme */
+.custom-scrollbar {
+  /* For Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent; 
+}
+
+/* For Chrome, Edge, Safari */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; 
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #334155; 
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #475569; 
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: #10b981; 
+}
