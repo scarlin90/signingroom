@@ -1391,6 +1391,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     savePersonalName() {
         const name = this.personalDisplayName().trim();
         this.socket.setDisplayName(name);
+        const sid = this.socket.currentSessionId(); 
         const actionLabel = name ? `Identified as "${name}"` : 'Cleared display name';
         this.socket.logAction('Participant Identified', actionLabel);
         this.showSessionsModal.set(false);

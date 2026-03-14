@@ -277,7 +277,7 @@ export class SocketService {
 
       const encryptedData = await this.encryption.encrypt(payloadToSend, this.encryptionKey);
       
-      const role = this.isCoordinator() ? 'Coordinator' : `Guest (${this.currentSessionId || 'Unknown'})`;
+      const role = this.isCoordinator() ? 'Coordinator' : `Guest (${this.currentSessionId() || 'Unknown'})`;
       const encryptedLogBlob = await this.createSecureLogBlob(
           'Signature Uploaded',
           `Signer: ${detectedFingerprint || 'Unknown'}`,
@@ -305,7 +305,7 @@ export class SocketService {
       const encryptedLogBlob = await this.createSecureLogBlob(
           action, 
           detail, 
-          this.isCoordinator() ? 'Coordinator' : `Guest (${this.currentSessionId || 'Unknown'})`
+          this.isCoordinator() ? 'Coordinator' : `Guest (${this.currentSessionId() || 'Unknown'})`
       );
       
       this.send('LOG_ACTION', { encryptedLogBlob });
@@ -689,7 +689,7 @@ async updateSignerLabel(fingerprint: string, label: string) {
         
                     if (!this.hasAnnouncedJoin && msg.role === 'admin') {
                         this.hasAnnouncedJoin = true;
-                        this.createSecureLogBlob('User Joined', `Session: ${this.currentSessionId}`, 'Coordinator')
+                        this.createSecureLogBlob('User Joined', `Session: ${this.currentSessionId()}`, 'Coordinator')
                             .then(blob => this.send('LOG_ACTION', { encryptedLogBlob: blob }));
                     }
                 }
@@ -854,7 +854,7 @@ async updateSignerLabel(fingerprint: string, label: string) {
 
     if (!this.hasAnnouncedJoin && this.currentSessionId && !hasAdminToken) {
         this.hasAnnouncedJoin = true;
-        this.createSecureLogBlob('User Joined', `Session: ${this.currentSessionId}`, 'Guest')
+        this.createSecureLogBlob('User Joined', `Session: ${this.currentSessionId()}`, 'Guest')
             .then(blob => this.send('LOG_ACTION', { encryptedLogBlob: blob }));
     }
 
@@ -1103,7 +1103,7 @@ async updateSignerLabel(fingerprint: string, label: string) {
           try {
               const encryptedLogBlob = await this.createSecureLogBlob(
                   'User Left', 
-                  `Session ID: ${this.currentSessionId}`, 
+                  `Session ID: ${this.currentSessionId()}`, 
                   'Guest'
               );
               this.send('LOG_ACTION', { encryptedLogBlob });
