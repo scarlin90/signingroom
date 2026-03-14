@@ -12,7 +12,7 @@ import {
     LucideAngularModule, Shield, Users, CheckCircle, Loader2, 
     Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud,
     Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Lock, Unlock, Key, RefreshCw, AlertOctagon, FileKey, FileCheck,
-    Edit2, Tag, Bell, Infinity, ArrowDown, Book, QrCode, Eye, EyeOff
+    Edit2, Tag, Bell, Infinity, ArrowDown, Book, QrCode, Eye, EyeOff, Search
 } from 'lucide-angular';
 import { SocketService } from '../../services/socket/socket.service';
 import { jsPDF } from 'jspdf';
@@ -126,8 +126,8 @@ import * as QRCode from 'qrcode';
             <div class="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-rose-500/30">
                 <lucide-icon [img]="Lock" class="w-8 h-8 text-rose-500"></lucide-icon>
             </div>
-            <h2 class="text-2xl font-bold text-white mb-2">Decryption Failed</h2>
-            <p class="text-slate-400 mb-6 text-sm">We successfully connected to the room, but your link is missing the correct decryption key.</p>
+<h2 class="text-2xl font-bold text-white mb-2">Decryption Key Required</h2>
+            <p class="text-slate-400 mb-6 text-sm">Your link is missing the private decryption key. Please enter it below to join the room.</p>
             <div class="flex gap-2 mb-4">
                 <input type="text" [(ngModel)]="manualKey" placeholder="Enter decryption key..." class="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-lg block p-2.5 outline-none"/>
             </div>
@@ -361,7 +361,8 @@ import * as QRCode from 'qrcode';
 
             <div class="w-px h-4 bg-slate-800"></div>
             
-            <div class="relative group cursor-help">
+            <div class="relative group">
+                <button (click)="openSessionsModal()" class="relative group cursor-pointer hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700">
                 <div class="flex items-center gap-2">
                     <lucide-icon [img]="Users" class="w-4 h-4" 
                         [class.text-emerald-400]="(socket.roomState()?.connectedCount || 0) > 1"
@@ -371,6 +372,7 @@ import * as QRCode from 'qrcode';
                         {{ socket.roomState()?.connectedCount || 1 }} 
                     </span>
                 </div>
+            </button>
             </div>
 
             <div class="w-px h-4 bg-slate-800"></div>
@@ -474,6 +476,87 @@ import * as QRCode from 'qrcode';
         </div>
       </div>
 
+      @if (showSessionsModal()) {
+        <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-fade-in p-4">
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[80vh]">
+                
+                <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 z-10 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <lucide-icon [img]="Users" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                        <h3 class="font-bold text-white">Active Sessions</h3>
+                    </div>
+                    <button (click)="showSessionsModal.set(false)" class="text-slate-400 hover:text-white transition">
+                        <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                    </button>
+                </div>
+
+                <div class="p-4 border-b border-slate-800 bg-slate-950 shrink-0">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">My Display Name</label>
+                    <div class="flex gap-2">
+                        <input type="text" [(ngModel)]="personalDisplayName" (keyup.enter)="savePersonalName()"
+                            placeholder="e.g. Auditor Bob" maxlength="32"
+                            class="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-lg block p-2.5 outline-none focus:border-emerald-500 transition"/>
+                        <button (click)="savePersonalName()" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg transition text-sm">
+                            Save
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mt-2">Your name is end-to-end encrypted and only visible to people currently in this room.</p>
+                </div>
+
+                <div class="p-4 overflow-y-auto custom-scrollbar flex-grow space-y-2">
+                    @for (session of socket.activeSessions(); track session.id) {
+                        <div class="flex items-center justify-between p-3 rounded-xl border transition-all"
+                            [class.bg-emerald-900_10]="session.id === socket.currentSessionId()"
+                            [class.border-emerald-500_30]="session.id === socket.currentSessionId()"
+                            [class.bg-slate-950]="session.id !== socket.currentSessionId()"
+                            [class.border-slate-800]="session.id !== socket.currentSessionId()">
+                            
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                                    [class.bg-indigo-500_10]="session.role === 'admin'"
+                                    [class.bg-slate-800]="session.role !== 'admin'">
+                                    <lucide-icon [img]="session.role === 'admin' ? Crown : Users" 
+                                                class="w-5 h-5"
+                                                [class.text-indigo-400]="session.role === 'admin'"
+                                                [class.text-slate-400]="session.role !== 'admin'"></lucide-icon>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-white font-bold text-sm truncate" [class.italic]="!session.displayName">
+                                            {{ session.displayName || 'Anonymous Guest' }}
+                                        </span>
+                                        @if (session.id === socket.currentSessionId()) {
+                                            <span class="text-[9px] uppercase tracking-wider font-bold bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">You</span>
+                                        }
+                                    </div>
+                                    <div class="text-slate-500 text-[10px] font-mono mt-0.5">
+                                        Session: {{ session.id }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button class="transition p-2" 
+                                [class.text-emerald-400]="copiedSessionId() === session.id"
+                                [class.text-slate-600]="copiedSessionId() !== session.id"
+                                [class.hover:text-white]="copiedSessionId() !== session.id"
+                                title="Copy Session Details" 
+                                (click)="copySessionId(session.id, session.displayName)">
+                            <lucide-icon [img]="copiedSessionId() === session.id ? Check : Copy" class="w-3.5 h-3.5"></lucide-icon>
+                            </button>
+                        </div>
+                    }
+                    
+                    @if (socket.activeSessions().length === 0) {
+                        <div class="text-center py-6 text-slate-500 text-sm flex flex-col items-center gap-2">
+                            <lucide-icon [img]="Loader2" class="w-5 h-5 animate-spin"></lucide-icon>
+                            Syncing sessions...
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        }
+
       @if (socket.isClosed()) {
         <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm rounded-3xl border border-slate-800 animate-fade-in-up">
             <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
@@ -548,7 +631,7 @@ import * as QRCode from 'qrcode';
             </div>
 
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 min-h-[400px] flex flex-col">
-          <div class="flex items-center justify-between mb-6">
+          <div class="flex items-center justify-between mb-4">
               <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider">Transaction Details</h3>
               
               <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
@@ -569,6 +652,34 @@ import * as QRCode from 'qrcode';
               </div>
           </div>
 
+          <div class="mb-4 relative">
+              @if (viewMode() === 'inputs') {
+                  <div class="relative flex items-center">
+                      <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
+                      
+                      <input type="text" [(ngModel)]="inputSearchQuery" placeholder="Search input address..."
+                             class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
+                      
+                      <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none"
+                           title="Filtered Results">
+                          {{ filteredInputs().length }}
+                      </div>
+                  </div>
+              } @else {
+                  <div class="relative flex items-center">
+                      <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
+                      
+                      <input type="text" [(ngModel)]="outputSearchQuery" placeholder="Search output address..."
+                             class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
+                      
+                      <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none"
+                           title="Filtered Results">
+                          {{ filteredOutputs().length }}
+                      </div>
+                  </div>
+              }
+          </div>
+
           @if (socket.isCoordinator()) {
             <div class="flex justify-end mb-2">
                 @if (viewMode() === 'inputs' && (socket.txDetails()?.inputsList?.length || 0) > 3) {
@@ -587,17 +698,19 @@ import * as QRCode from 'qrcode';
           <div class="space-y-3 flex-grow overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
               
               @if (viewMode() === 'inputs') {
-                  @for (input of socket.txDetails()?.inputsList; track $index) {
+                  @for (input of filteredInputs(); track $index) {
                       <div class="p-3 bg-slate-950 rounded border transition-all"
                            [class.border-emerald-500]="isWhitelisted(input.address)"
                            [class.border-slate-800]="!isWhitelisted(input.address)">
                           
                           <div class="flex justify-between items-start mb-2">
                               <div class="flex items-center gap-2 text-slate-400 text-xs">
-                                  <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
-                                  <span class="font-mono text-[10px] text-slate-600 truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
-                              </div>
-                              <div class="text-white font-bold text-sm">{{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
+                                <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
+                                @if (input.txId && input.txId !== '????') {
+                                    <span class="font-mono text-[10px] text-slate-600 truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
+                                }
+                            </div>
+                            <div class="text-white font-bold text-sm">{{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
                           </div>
                           
                           <div class="flex items-start gap-2">
@@ -625,11 +738,16 @@ import * as QRCode from 'qrcode';
                           </div>
                       </div>
                   }
-                  @if ((socket.txDetails()?.inputsList?.length || 0) === 0) { <div class="text-center py-8 text-slate-600 text-sm">No input data available.</div> }
+                  
+                  @if ((socket.txDetails()?.inputsList?.length || 0) === 0) { 
+                      <div class="text-center py-8 text-slate-600 text-sm">No input data available.</div> 
+                  } @else if (filteredInputs().length === 0) {
+                      <div class="text-center py-8 text-slate-500 text-sm">No inputs match your search.</div>
+                  }
              }
 
              @if (viewMode() === 'outputs') {
-                 @for (out of socket.txDetails()?.outputs; track $index) {
+                 @for (out of filteredOutputs(); track $index) {
                   <div class="p-3 bg-slate-950 rounded border transition-all"
                        [class.border-emerald-500]="isWhitelisted(out.address)"
                        [class.border-amber-500]="out.isChange" 
@@ -681,10 +799,15 @@ import * as QRCode from 'qrcode';
                       </div>
                   </div>
                  }
-                 @if (!socket.txDetails()) { <div class="text-slate-500 text-sm text-center">Parsing transaction data...</div> }
+                 
+                 @if (!socket.txDetails()) { 
+                     <div class="text-slate-500 text-sm text-center">Parsing transaction data...</div> 
+                 } @else if (filteredOutputs().length === 0 && (socket.txDetails()?.outputs?.length || 0) > 0) {
+                     <div class="text-center py-8 text-slate-500 text-sm">No outputs match your search.</div>
+                 }
              }
 
-                </div>
+          </div>
             </div>
         </div>
 
@@ -867,6 +990,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     readonly QrCode = QrCode;
     readonly Eye = Eye;
     readonly EyeOff = EyeOff;
+    readonly Search = Search;
     
     // -------------------------------------------------------------------------
     // Signals & UI State
@@ -879,6 +1003,9 @@ export class RoomComponent implements OnInit, OnDestroy {
     public newRoomName = signal('');
 
     public showQrModal = signal(false);
+    public showSessionsModal = signal(false);
+    public personalDisplayName = signal('');
+    public copiedSessionId = signal<string | null>(null);
     public isQrRevealed = signal(false);
     public qrDataUrl = signal<string | null>(null);
     
@@ -886,6 +1013,23 @@ export class RoomComponent implements OnInit, OnDestroy {
     public isExpired = signal(false);
     public isLowTime = signal(false);
     private timerInterval: any;
+
+    public inputSearchQuery = signal('');
+    public outputSearchQuery = signal('');
+
+    public filteredInputs = computed(() => {
+        const inputs = this.socket.txDetails()?.inputsList || [];
+        const query = this.inputSearchQuery().toLowerCase().trim();
+        if (!query) return inputs;
+        return inputs.filter(input => input.address.toLowerCase().includes(query));
+    });
+
+    public filteredOutputs = computed(() => {
+        const outputs = this.socket.txDetails()?.outputs || [];
+        const query = this.outputSearchQuery().toLowerCase().trim();
+        if (!query) return outputs;
+        return outputs.filter(output => output.address.toLowerCase().includes(query));
+    });
 
     // -------------------------------------------------------------------------
     // Modals State
@@ -1001,11 +1145,13 @@ export class RoomComponent implements OnInit, OnDestroy {
 
                     if (fragmentKey) {
                         this.socket.setRoomKey(fragmentKey);
-                    }
-
-                    if (this.socket.status() !== 'connected' || this.roomId() !== id) {
-                        this.socket.disconnect(false);
-                        this.socket.connect(id, this.socket.getRoomKey());
+                        
+                        if (this.socket.status() !== 'connected' || this.roomId() !== id) {
+                            this.socket.disconnect(false);
+                            this.socket.connect(id, fragmentKey);
+                        }
+                    } else {
+                        this.socket.decryptionError.set('Missing decryption key in URL'); 
                     }
                 }
             });
@@ -1127,7 +1273,9 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     claimRole() {
         if (this.claimPassword) {
-            this.socket.claimCoordinator(this.claimPassword);
+            const cleanToken = this.claimPassword.trim();
+            sessionStorage.setItem(`admin_token_${this.roomId()}`, cleanToken);
+            this.socket.claimCoordinator(cleanToken);
             this.showClaimInput.set(false);
             this.claimPassword = '';
         }
@@ -1138,8 +1286,11 @@ export class RoomComponent implements OnInit, OnDestroy {
             'Close Room',
             'Are you sure you want to close this room? This action cannot be undone and will delete all data immediately.',
             () => {
-                this.socket.closeRoom();
-                this.router.navigate(['/']); 
+                this.generateAuditLog();
+                setTimeout(() => {
+                    this.socket.closeRoom();
+                    this.router.navigate(['/']); 
+                }, 300);
             },
             true 
         );
@@ -1227,6 +1378,33 @@ export class RoomComponent implements OnInit, OnDestroy {
             () => this.socket.updateWhitelist(address, isPresent),
             false
         );
+    }
+
+    openSessionsModal() {
+        if (typeof localStorage !== 'undefined') {
+            const savedName = localStorage.getItem(`display_name_${this.roomId()}`);
+            this.personalDisplayName.set(savedName || '');
+        }
+        this.showSessionsModal.set(true);
+    }
+
+    savePersonalName() {
+        const name = this.personalDisplayName().trim();
+        this.socket.setDisplayName(name);
+        const actionLabel = name ? `Identified as "${name}"` : 'Cleared display name';
+        this.socket.logAction('Participant Identified', actionLabel);
+        this.showSessionsModal.set(false);
+    }
+
+    copySessionId(id: string, displayName?: string) {
+        const name = displayName || 'Anonymous Guest';
+        const textToCopy = `${name} (Session: ${id})`;
+        
+        navigator.clipboard.writeText(textToCopy);
+        this.copiedSessionId.set(id);
+        
+        // Reset it after 2 seconds
+        setTimeout(() => this.copiedSessionId.set(null), 2000);
     }
 
     // -------------------------------------------------------------------------
@@ -1406,6 +1584,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         if (!this.manualKey) return;
         let key = this.manualKey.trim();
         if (key.includes('#')) key = key.split('#')[1];
+        this.socket.decryptionError.set('');
         this.socket.disconnect(false);
         this.socket.connect(this.roomId()!, key);
         this.manualKey = '';
@@ -1422,10 +1601,18 @@ export class RoomComponent implements OnInit, OnDestroy {
         const doc = new jsPDF();
         let y = 20;
 
-        // 1. Header
+        // Helper to check page bounds and add new pages automatically
+        const checkPageBreak = (spaceNeeded: number) => {
+            if (y + spaceNeeded > 280) {
+                doc.addPage();
+                y = 20;
+            }
+        };
+
+        // Header
         doc.setFont('helvetica', 'bold'); 
         doc.setFontSize(24);
-        doc.setTextColor(16, 185, 129); // Emerald Green
+        doc.setTextColor(16, 185, 129);
         doc.text("SigningRoom.io", 20, y);
         
         // Subtitle
@@ -1439,9 +1626,9 @@ export class RoomComponent implements OnInit, OnDestroy {
         doc.setDrawColor(200); 
         doc.setLineWidth(0.5);
         doc.line(20, y, 190, y);
-        y += 15;
+        y += 10;
 
-        // 2. Filename Construction
+        // Filename Construction
         const dateStr = new Date().toISOString().split('T')[0];
         const shortId = state.roomId.slice(0, 8);
         
@@ -1449,187 +1636,52 @@ export class RoomComponent implements OnInit, OnDestroy {
         let partialHexDisplay = "Not yet finalized";
         
         const finalHex = this.finalHex();
+        const finalTxId = this.socket.roomState()?.finalTxId;
+        
         if (finalHex) {
-            txSuffix = `${finalHex.slice(0,6)}...${finalHex.slice(-6)}`;
             partialHexDisplay = `${finalHex.slice(0, 32)}...[${finalHex.length} bytes]...${finalHex.slice(-32)}`;
+        }
+
+        if (finalTxId) {
+            txSuffix = finalTxId.slice(0, 8);
         }
 
         const filename = `SigningRoom_Audit_${dateStr}_Room-${shortId}_Tx-${txSuffix}.pdf`;
 
-        // 3. Room Metadata
+        // =========================================================
+        // SECTION 1: ROOM METADATA & GOVERNANCE
+        // =========================================================
+        checkPageBreak(40);
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Room Info & Governance", 20, y); y += 8;
+
         doc.setFontSize(10);
-        doc.setTextColor(100);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(50);
         
         doc.text(`Room: ${state.roomName}`, 20, y); y += 6;
         doc.text(`Room ID: ${state.roomId}`, 20, y); y += 6;
-        // NEW: Network Field
-        doc.text(`Network: ${state.network.toUpperCase()}`, 20, y); y += 6;
+        doc.text(`Network: ${(state.network || 'bitcoin').toUpperCase()}`, 20, y); y += 6;
         doc.text(`Created: ${new Date(state.createdAt).toLocaleString()}`, 20, y); y += 6;
-        // REMOVED TIER FROM PDF
-        
-        y += 15;
 
-        doc.setFontSize(14);
-        doc.setTextColor(0);
-        doc.setFont('helvetica', 'bold');
-        doc.text("Governance & Security", 20, y); y += 8;
-        doc.setFont('helvetica', 'normal');
-
-        // Lock Status
-        doc.setFontSize(10);
-        doc.setTextColor(50);
         const lockStatus = state.isLocked ? "LOCKED (Secure)" : "UNLOCKED (Open)";
         doc.text(`Room Status: ${lockStatus}`, 20, y); y += 6;
 
-        // Whitelist Status
         const whitelistCount = state.whitelist?.length || 0;
-        doc.text(`Whitelist Enforcement: ${whitelistCount > 0 ? 'Active' : 'Disabled'}`, 20, y); y += 10;
+        doc.text(`Whitelist Enforcement: ${whitelistCount > 0 ? 'Active' : 'Disabled'}`, 20, y); 
+        y += 15;
 
-        // ---------------------------------------------------------
-        // 3.5 INPUT VERIFICATION TABLE
-        // ---------------------------------------------------------
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.setFont('helvetica', 'bold');
-        doc.text("Input Verification (Sources)", 20, y); y += 6;
-        
-        doc.setDrawColor(200);
-        doc.line(20, y, 190, y); y += 5;
-
-        const inputs = this.socket.txDetails()?.inputsList || [];
-        const whitelist = state.whitelist || [];
-
-        if (inputs.length === 0) {
-            doc.setFont('helvetica', 'italic');
-            doc.setFontSize(9);
-            doc.setTextColor(150);
-            doc.text("No input data parsed.", 20, y); y += 6;
-        }
-
-        inputs.forEach((inpt, i) => {
-            const isWhitelisted = whitelist.includes(inpt.address);
-            const amount = (inpt.amount / 100000000).toFixed(8);
-
-            if (y > 270) { doc.addPage(); y = 20; }
-
-            doc.setFontSize(8); 
-            doc.setTextColor(50);
-            doc.setFont('courier', 'normal');
-            doc.text(`${i + 1}. ${inpt.address}`, 20, y);
-            y += 4; 
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.setTextColor(0);
-            doc.text(`${amount} BTC`, 25, y); 
-
-            if (whitelist.length === 0) {
-                 doc.setTextColor(100); 
-                 doc.text("NO WHITELIST", 150, y);
-            } else if (isWhitelisted) {
-                 doc.setTextColor(16, 185, 129);
-                 doc.text("VERIFIED SOURCE", 150, y);
-            } else {
-                 doc.setTextColor(220, 38, 38);
-                 doc.text("UNVERIFIED", 150, y);
-            }
-            
-            y += 8; // Spacing
-        });
-        
-        y += 5; 
-
-        // ---------------------------------------------------------
-        // 4. OUTPUT VERIFICATION TABLE
-        // ---------------------------------------------------------
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.setFont('helvetica', 'bold');
-        doc.text("Output Verification", 20, y); y += 6;
-        
-        doc.setDrawColor(200);
-        doc.line(20, y, 190, y); y += 5;
-        
-        const outputs = this.socket.txDetails()?.outputs || [];
-        
-        if (outputs.length === 0) {
-            doc.setFont('helvetica', 'italic');
-            doc.setFontSize(9);
-            doc.setTextColor(150);
-            doc.text("No output data available yet.", 20, y); y += 6;
-        }
-
-        outputs.forEach((out, i) => {
-            const isWhitelisted = whitelist.includes(out.address);
-            const amount = (out.amount / 100000000).toFixed(8);
-            
-            if (y > 270) { doc.addPage(); y = 20; }
-
-            doc.setFontSize(8);
-            doc.setTextColor(50);
-            doc.setFont('courier', 'normal');
-            doc.text(`${i + 1}. ${out.address}`, 20, y);
-            y += 4; // Move down
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.setTextColor(0);
-            doc.text(`${amount} BTC`, 25, y);
-
-            if (whitelist.length === 0) {
-                doc.setTextColor(100); 
-                doc.text("NO WHITELIST", 150, y);
-            } else if (out.isChange) {
-                doc.setTextColor(245, 158, 11);
-                doc.text("CHANGE (VERIFIED)", 150, y);
-            } else if (isWhitelisted) {
-                doc.setTextColor(16, 185, 129); // Green
-                doc.text("VERIFIED DESTINATION", 150, y); 
-            } else {
-                doc.setTextColor(220, 38, 38); // Red
-                doc.text("UNVERIFIED", 150, y);
-            }
-            
-            y += 8;
-        });
-
-        doc.setDrawColor(200);
-        doc.line(20, y, 190, y); y += 8;
-        
-        doc.setFont('helvetica', 'normal'); 
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text(`Total Outputs: ${outputs.length}`, 20, y); y += 15;
-        // ---------------------------------------------------------
-
-        // 5. Signer Table
-        doc.setFontSize(14);
-        doc.setTextColor(0);
-        doc.text("Signer Activity", 20, y); y += 10;
-        
-        doc.setFontSize(10);
-        const signers = this.socket.signers();
-        signers.forEach((s, i) => {
-            const status = s.signed ? "SIGNED" : "PENDING";
-            
-            const label = state.signerLabels?.[s.fingerprint];
-            const displayName = label ? `${label} (${s.fingerprint})` : s.fingerprint;
-
-            doc.text(`${i+1}. ${displayName}`, 20, y);
-            doc.text(status, 150, y);
-            y += 6;
-        });
-        y += 10;
-
-        // ---------------------------------------------------------
-        // 6. Transaction Data (UPDATED)
-        // ---------------------------------------------------------
+        // =========================================================
+        // SECTION 2: TRANSACTION DATA
+        // =========================================================
+        checkPageBreak(40);
         doc.setFontSize(14);
         doc.setTextColor(0);
         doc.setFont('helvetica', 'bold');
         doc.text("Transaction Data", 20, y); y += 8;
         
-
         const txId = this.socket.roomState()?.finalTxId;
         if (txId) {
             doc.setFontSize(10);
@@ -1640,7 +1692,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             doc.setFont('courier', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(0);
-            doc.text(txId, 20, y); y += 8;
+            doc.text(String(txId), 20, y); y += 8;
             
             // Add a clickable link hint
             doc.setFont('helvetica', 'italic');
@@ -1661,46 +1713,250 @@ export class RoomComponent implements OnInit, OnDestroy {
         doc.setFontSize(8);
         doc.setFont('courier', 'normal'); 
         doc.setTextColor(80);
-        // Break long hex string if needed, though here we use the partial display
+        // Break long hex string if needed
         doc.text(partialHexDisplay, 20, y, { maxWidth: 170 });
         doc.setFont('helvetica', 'normal'); 
         y += 15;
 
-        // 7. Detailed Event Log
+        // =========================================================
+        // SECTION 3: SIGNER ACTIVITY
+        // =========================================================
+        checkPageBreak(30);
         doc.setFontSize(14);
         doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Signer Activity", 20, y); y += 10;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const signers = this.socket.signers();
+        
+        if (signers.length === 0) {
+            doc.setTextColor(150);
+            doc.text("No signers detected yet.", 20, y); y += 6;
+        } else {
+            signers.forEach((s, i) => {
+                checkPageBreak(10);
+                const status = s.signed ? "SIGNED" : "PENDING";
+                
+                const label = state.signerLabels?.[s.fingerprint];
+                const displayName = label ? `${label} (${s.fingerprint})` : s.fingerprint;
+
+                doc.setTextColor(50);
+                doc.text(`${i+1}. ${displayName}`, 20, y);
+                doc.text(status, 150, y);
+                y += 6;
+            });
+        }
+        y += 10;
+
+        // =========================================================
+        // SECTION 4: ROOM PARTICIPANTS
+        // =========================================================
+        checkPageBreak(30);
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Room Participants (Witnesses)", 20, y); y += 8;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        const activeSessions = this.socket.activeSessions();
+        if (activeSessions.length === 0) {
+            doc.setTextColor(150);
+            doc.text("No participants recorded.", 20, y); y += 6;
+        } else {
+            activeSessions.forEach((s, i) => {
+                checkPageBreak(10);
+                doc.setTextColor(50);
+                
+                const roleBadge = s.role === 'admin' ? '[Coordinator]' : '[Guest]';
+                const displayName = s.displayName ? s.displayName : 'Anonymous';
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${i + 1}. ${displayName} ${roleBadge}`, 20, y);
+                
+                doc.setFont('courier', 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(100);
+                doc.text(`Session ID: ${s.id}`, 140, y);
+                
+                doc.setFontSize(10); // Reset for next loop
+                y += 6;
+            });
+        }
+        y += 10;
+
+        // =========================================================
+        // SECTION 5: EVENT TIMELINE
+        // =========================================================
+        checkPageBreak(30);
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
         doc.text("Event Timeline", 20, y); y += 10;
         
         doc.setFontSize(9);
         const logs = state.auditLog || [];
         
-        logs.forEach((log) => {
-            if (y > 270) { doc.addPage(); y = 20; } 
-            
-            const time = new Date(log.timestamp).toLocaleTimeString();
-            const date = new Date(log.timestamp).toLocaleDateString();
-            
-            doc.setTextColor(120);
-            doc.text(`${date} ${time}`, 20, y);
-            
-            doc.setTextColor(0);
-            doc.setFont('helvetica', 'bold');
-            doc.text(log.event, 65, y);
-            
-            doc.setFont('helvetica', 'normal');
-            doc.text(log.user, 110, y);
-            
-            if (log.detail) {
-                doc.setTextColor(100);
-                const detailText = log.detail.length > 30 ? log.detail.substring(0, 27) + '...' : log.detail;
-                doc.text(detailText, 150, y);
-            }
-            y += 7;
-        });
+        if (logs.length === 0) {
+            doc.setTextColor(150);
+            doc.setFont('helvetica', 'italic');
+            doc.text("No events logged yet.", 20, y); y += 6;
+        } else {
+            logs.forEach((log) => {
+                if (!log) return;
+                checkPageBreak(15);
+                
+                const safeEvent = log.event ? String(log.event) : 'System Event';
+                const safeUser = log.user ? String(log.user) : 'System';
+                
+                const time = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '--:--';
+                const date = log.timestamp ? new Date(log.timestamp).toLocaleDateString() : '--/--/--';
+                
+                doc.setTextColor(120);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`${date} ${time}`, 20, y);
+                
+                doc.setTextColor(0);
+                doc.setFont('helvetica', 'bold');
+                doc.text(safeEvent, 65, y);
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(safeUser, 110, y);
+                
+                if (log.detail) {
+                    doc.setTextColor(100);
+                    const detailStr = String(log.detail);
+                    const detailText = detailStr.length > 30 ? detailStr.substring(0, 27) + '...' : detailStr;
+                    doc.text(detailText, 150, y);
+                }
+                y += 7;
+            });
+        }
+        y += 10;
 
-        // 8. Footer
+        // =========================================================
+        // SECTION 6: INPUT VERIFICATION (Appendix Data)
+        // =========================================================
+        checkPageBreak(30);
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Input Verification (Sources)", 20, y); y += 6;
+        
+        doc.setDrawColor(200);
+        doc.line(20, y, 190, y); y += 5;
+
+        const inputs = this.socket.txDetails()?.inputsList || [];
+        const whitelist = state.whitelist || [];
+
+        if (inputs.length === 0) {
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(9);
+            doc.setTextColor(150);
+            doc.text("No input data parsed.", 20, y); y += 6;
+        } else {
+            inputs.forEach((inpt, i) => {
+                checkPageBreak(15);
+                const isWhitelisted = whitelist.includes(inpt.address);
+                const amount = (inpt.amount / 100000000).toFixed(8);
+
+                doc.setFontSize(8); 
+                doc.setTextColor(50);
+                doc.setFont('courier', 'normal');
+                doc.text(`${i + 1}. ${inpt.address}`, 20, y);
+                y += 4; 
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.setTextColor(0);
+                doc.text(`${amount} BTC`, 25, y); 
+
+                if (whitelist.length === 0) {
+                     doc.setTextColor(100); 
+                     doc.text("NO WHITELIST", 150, y);
+                } else if (isWhitelisted) {
+                     doc.setTextColor(16, 185, 129);
+                     doc.text("VERIFIED SOURCE", 150, y);
+                } else {
+                     doc.setTextColor(220, 38, 38);
+                     doc.text("UNVERIFIED", 150, y);
+                }
+                
+                y += 8; // Spacing
+            });
+        }
+        y += 10;
+
+        // =========================================================
+        // SECTION 7: OUTPUT VERIFICATION (Appendix Data)
+        // =========================================================
+        checkPageBreak(30);
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Output Verification", 20, y); y += 6;
+        
+        doc.setDrawColor(200);
+        doc.line(20, y, 190, y); y += 5;
+        
+        const outputs = this.socket.txDetails()?.outputs || [];
+        
+        if (outputs.length === 0) {
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(9);
+            doc.setTextColor(150);
+            doc.text("No output data available yet.", 20, y); y += 6;
+        } else {
+            outputs.forEach((out, i) => {
+                checkPageBreak(15);
+                const isWhitelisted = whitelist.includes(out.address);
+                const amount = (out.amount / 100000000).toFixed(8);
+                
+                doc.setFontSize(8);
+                doc.setTextColor(50);
+                doc.setFont('courier', 'normal');
+                doc.text(`${i + 1}. ${out.address}`, 20, y);
+                y += 4; 
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.setTextColor(0);
+                doc.text(`${amount} BTC`, 25, y);
+
+                if (whitelist.length === 0) {
+                    doc.setTextColor(100); 
+                    doc.text("NO WHITELIST", 150, y);
+                } else if (out.isChange) {
+                    doc.setTextColor(245, 158, 11);
+                    doc.text("CHANGE (VERIFIED)", 150, y);
+                } else if (isWhitelisted) {
+                    doc.setTextColor(16, 185, 129); // Green
+                    doc.text("VERIFIED DESTINATION", 150, y); 
+                } else {
+                    doc.setTextColor(220, 38, 38); // Red
+                    doc.text("UNVERIFIED", 150, y);
+                }
+                
+                y += 8;
+            });
+
+            doc.setDrawColor(200);
+            doc.line(20, y, 190, y); y += 8;
+            
+            doc.setFont('helvetica', 'normal'); 
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Total Outputs: ${outputs.length}`, 20, y); y += 15;
+        }
+
+        // =========================================================
+        // FOOTER
+        // =========================================================
         if (this.finalHex()) {
-            y += 10;
+            checkPageBreak(20);
             doc.setFontSize(8);
             doc.setTextColor(150);
             doc.text(`Final Tx Hash (SHA256 of Hex): Verified`, 20, y);
@@ -1714,9 +1970,15 @@ export class RoomComponent implements OnInit, OnDestroy {
         const tx = this.socket.txDetails();
         if (!state || !tx) return;
 
-        const headers = ["Date", "Room ID", "Network", "TXID", "Total Amount (BTC)", "Fee Rate (sats/vB)", "Inputs", "Outputs", "Signers", "Status"];
+        const headers = ["Date", "Room ID", "Network", "TXID", "Total Amount (BTC)", "Fee Rate (sats/vB)", "Inputs", "Outputs", "Signers", "Witnesses", "Status"];
         
         const signersList = this.socket.signers().map(s => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`).join("; ");
+        
+        const witnessesList = this.socket.activeSessions().map(s => {
+            const name = s.displayName || 'Anonymous';
+            const role = s.role === 'admin' ? 'Coordinator' : 'Guest';
+            return `${name} [${role}] (${s.id})`;
+        }).join("; ");
         
         const row = [
             new Date().toISOString(),
@@ -1728,6 +1990,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             tx.inputsList?.length || 0,
             tx.outputs?.length || 0,
             `"${signersList}"`, 
+            `"${witnessesList}"`,
             this.finalHex() ? "Signed & Ready" : "Pending Signatures"
         ];
 

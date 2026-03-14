@@ -15,6 +15,7 @@ const MAX_PAYLOAD_SIZE_BYTES = 2 * 1024 * 1024; // 2MB Hard Limit
 const MAX_CONNECTIONS = 40;                     // Room Capacity
 const RATE_LIMIT_WINDOW = 1000;                 // 1 Second
 const MAX_MSGS_PER_WINDOW = 10;                 // 10 messages per second per user
+const MAX_CONNECTIONS_PER_IP = 10;               // Maximum connections per IP address
 
 interface Env {
   SIGNING_ROOM: DurableObjectNamespace;
@@ -29,6 +30,8 @@ interface SessionData {
   joinedAt: number;
   msgsInWindow: number;
   lastMsgTime: number;
+  ip: string;
+  encryptedDisplayName?: string;
 }
 
 // =============================================================================
@@ -100,7 +103,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '1.5.0', 
+    version: '1.6.0', 
     timestamp: Date.now() 
   });
 });
@@ -111,20 +114,19 @@ app.get('/api/health', (c) => {
 
 app.post('/api/room', async (c) => {
   const body = await c.req.json();
-  const { encryptedPsbt, network, adminToken, protocolVersion } = body;
+  const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion } = body;
 
   if (encryptedPsbt && encryptedPsbt.length > MAX_PAYLOAD_SIZE_BYTES) {
     return c.json({ error: "Payload too large. Max 500KB." }, 413);
   }
 
-  const roomId = crypto.randomUUID();
   const id = c.env.SIGNING_ROOM.idFromName(roomId);
   const room = c.env.SIGNING_ROOM.get(id);
 
   // Initialize the Durable Object
   await room.fetch(new Request('http://internal/init', {
     method: 'POST',
-    body: JSON.stringify({ encryptedPsbt, adminToken, roomId, network, protocolVersion })
+    body: JSON.stringify({ roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion })
   }));
 
   return c.json({ roomId, socketUrl: `/api/room/${roomId}/websocket` });
@@ -151,6 +153,7 @@ export class SigningRoom implements DurableObject {
   env: Env;
   private authFailures = 0;
   private isLockedOut = false;
+  private ipConnectionCounts = new Map<string, number>();
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -179,14 +182,24 @@ export class SigningRoom implements DurableObject {
 
     // 1. Initialize Room
     if (url.pathname === '/init') {
-      const { encryptedPsbt, adminToken, roomId, network, protocolVersion, encryptedLogBlob, encryptedRoomName } = await request.json<any>();
+      const { roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, encryptedLogBlob, encryptedRoomName } = await request.json<any>();
       const now = Date.now();
       
       // Default to 24 hour (86400s)
       const ttlSeconds = 86400; 
 
+      const tokenBuffer = new TextEncoder().encode(adminToken);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', tokenBuffer);
+      const secureStoredHash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+
       this.roomState = {
-        roomId, encryptedPsbt, adminToken, signatures: [], 
+        roomId, 
+        expectedPass,
+        encryptedPsbt, 
+        adminToken: secureStoredHash, 
+        signatures: [], 
         createdAt: now, expiresAt: now + (ttlSeconds * 1000), 
         auditLog: [], signerLabels: {}, 
         whitelist: [], 
@@ -206,6 +219,13 @@ export class SigningRoom implements DurableObject {
 
     // 2. Handle WebSocket Upgrade
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected Websocket', { status: 426 });
+
+    const providedPass = url.searchParams.get('pass');
+    if (this.roomState && this.roomState.expectedPass) {
+        if (providedPass !== this.roomState.expectedPass) {
+            return new Response("Unauthorized: Invalid Room Pass", { status: 401 });
+        }
+    }
 
     const clientVersion = url.searchParams.get('v') || '1.0.0';
     const roomVersion = this.roomState?.protocolVersion || '1.0.0';
@@ -228,12 +248,20 @@ export class SigningRoom implements DurableObject {
         return new Response(null, { status: 101, webSocket: client });
     }
 
+    const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+
+        const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
+        if (currentIpCount >= MAX_CONNECTIONS_PER_IP) {
+            return new Response("Rate Limit Exceeded: Too many concurrent connections from this IP.", { status: 429 });
+        }
+    
+
     const { 0: client, 1: server } = new WebSocketPair();
-    this.handleSession(server);
+    this.handleSession(server, ip);
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  handleSession(webSocket: WebSocket) {
+  handleSession(webSocket: WebSocket, ip: string) {
     if (!this.roomState) {
       webSocket.accept();
       webSocket.send(JSON.stringify({ type: 'ERROR_NOT_FOUND' }));
@@ -256,17 +284,24 @@ export class SigningRoom implements DurableObject {
 
     webSocket.accept();
     const sessionId = Math.random().toString(36).substring(2, 6).toUpperCase();
+   
+
+        const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
+        this.ipConnectionCounts.set(ip, currentIpCount + 1);
+    
+   
     this.sessions.set(webSocket, { 
         role: 'guest', 
         id: sessionId,
         joinedAt: Date.now(),
         msgsInWindow: 0,
-        lastMsgTime: 0
+        lastMsgTime: 0,
+        ip: ip
     });
 
     webSocket.send(JSON.stringify({ type: 'SESSION_CONNECTED', sessionId: sessionId }));
     
-    this.broadcast({ type: 'CONNECTIONS_UPDATE', count: this.sessions.size });
+    this.broadcastConnections();
     
     // Send initial state sync
     const { adminToken, ...safeRoomState } = this.roomState;
@@ -308,14 +343,18 @@ export class SigningRoom implements DurableObject {
               return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Room locked due to multiple failed attempts' }));
             }
 
-            const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg.token));
-            const incomingHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+            const incomingBuffer = new TextEncoder().encode(msg.token);
+            const incomingHashBuffer = await crypto.subtle.digest('SHA-256', incomingBuffer);
+            const attemptedHash = Array.from(new Uint8Array(incomingHashBuffer))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
 
-            if (incomingHash === this.roomState.adminToken) {
+            if (attemptedHash === this.roomState?.adminToken) {
+
               this.authFailures = 0; 
               this.sessions.set(webSocket, { ...session!, role: 'admin' });
               webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
-          } else {
+            } else {
               this.authFailures++;
               if (this.authFailures >= 5) {
                   this.isLockedOut = true;
@@ -323,6 +362,7 @@ export class SigningRoom implements DurableObject {
               }
               return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Admin Token' }));
             }
+            this.broadcastConnections();
         }
 
         // Label Updates (Admin Only)
@@ -336,6 +376,15 @@ export class SigningRoom implements DurableObject {
             
             this.log(msg.encryptedLogBlob);
             this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
+        }
+
+        // Set Display Name (Self-Identify)
+        if (msg.type === 'SET_DISPLAY_NAME') {
+            const safeName = msg.encryptedDisplayName ? String(msg.encryptedDisplayName).substring(0, 500) : undefined;
+            
+            this.sessions.set(webSocket, { ...session!, encryptedDisplayName: safeName });
+            
+            this.broadcastConnections();
         }
 
         // Rename Room (Admin Only)
@@ -374,7 +423,14 @@ export class SigningRoom implements DurableObject {
           this.broadcast({ type: 'ROOM_CLOSED', finalLog: this.roomState.auditLog });
           await this.state.storage.deleteAll();
           this.roomState = null;
-          for (const s of this.sessions.keys()) s.close(1000, "Closed");
+          for (const sock of this.sessions.keys()) {
+                try {
+                    sock.close(1000, "Room Closed by Coordinator");
+                } catch (e) {
+                    // Ignore errors on close
+                }
+            }
+          this.sessions.clear();
         }
 
         // Whitelist Management (Admin Only)
@@ -415,8 +471,20 @@ export class SigningRoom implements DurableObject {
 
     webSocket.addEventListener('close', () => {
       const session = this.sessions.get(webSocket);
+      
+      if (session && session.ip) {
+          const currentIpCount = this.ipConnectionCounts.get(session.ip) || 1;
+          const newCount = Math.max(0, currentIpCount - 1);
+          
+          if (newCount === 0) {
+              this.ipConnectionCounts.delete(session.ip);
+          } else {
+              this.ipConnectionCounts.set(session.ip, newCount);
+          }
+      }
+      
       this.sessions.delete(webSocket);
-      this.broadcast({ type: 'CONNECTIONS_UPDATE', count: this.sessions.size });
+      this.broadcastConnections();
     });
   }
 
@@ -448,5 +516,19 @@ export class SigningRoom implements DurableObject {
     for (const socket of this.sessions.keys()) {
         socket.close(1000, "Expired");
     }
+  }
+
+  broadcastConnections() {
+    const activeSessions = Array.from(this.sessions.values()).map(s => ({
+        id: s.id,
+        role: s.role,
+        encryptedDisplayName: s.encryptedDisplayName
+    }));
+
+    this.broadcast({ 
+        type: 'CONNECTIONS_UPDATE', 
+        count: this.sessions.size,
+        sessions: activeSessions 
+    });
   }
 }
