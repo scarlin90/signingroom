@@ -695,8 +695,14 @@ async updateSignerLabel(fingerprint: string, label: string) {
                 }
                 break;
             case 'ROOM_CLOSED':
-                this.isClosed.set(true);
-                this.disconnect(false);
+                {
+                    this.isClosed.set(true);
+                    const roomToClear = this.roomState()?.roomId;
+                    if (roomToClear) {
+                        this.clearLocalRoomData(roomToClear);
+                    }
+                    this.disconnect(false);
+                }
                 break;
             case 'WHITELIST_UPDATED': 
                 {
@@ -1109,5 +1115,18 @@ async updateSignerLabel(fingerprint: string, label: string) {
       setTimeout(() => {
           this.disconnect();
       }, 50);
+  }
+
+  /**
+   * Wipes all room-specific identity data from localStorage.
+   */
+  private clearLocalRoomData(roomId: string) {
+      if (typeof localStorage === 'undefined') return;
+
+      localStorage.removeItem(`display_name_${roomId}`);
+
+      sessionStorage.removeItem(`admin_token_${roomId}`);
+
+      console.log(`[Privacy] Local identity data for room ${roomId} has been purged.`);
   }
 }
