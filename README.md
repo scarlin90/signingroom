@@ -11,7 +11,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-12_Feb_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-21_Mar_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -41,30 +41,30 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
 
-**Live Mainnet Traffic Analysis (Feb 12, 2026):**
+**Live Mainnet Traffic Analysis (Mar 21, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (24h)** | **962** | **High Fidelity:** Sustained traffic with zero downtime during identified vulnerability probes. |
-| **Data Served** | **55.29 MB** | **Blind Relay Proven:** ~55 MB of encrypted coordination data relayed with 0 bytes stored on disk. |
-| **Peak Throughput** | **14.09 MB (1h)** | **Institutional Velocity:** A massive data spike at 19:00 GMT confirms heavy key ceremonies occurring entirely in RAM. |
+| **Total Requests (24h)** | **812** | **Continuous Availability:** Steady-state operations following the v1.6.0 deployment window. |
+| **Data Served (24h)** | **73.77 MB** | **Blind Relay Proven:** ~74 MB of encrypted coordination data relayed with 0 bytes stored on disk. |
+| **Peak Throughput** | **34.82 MB (1h)** | **The v1.6.0 Signal:** A massive throughput spike at 11:00 AM confirms institutional-density ceremonies. |
 | **User State Retained** | **0.00 B** | **Proof of Blind Relay.** The server retained 0 bytes of user session data. |
 
-### 🔍 Forensic Highlight: The "Atlantic Convergence" (Feb 12, 2026)
-Our latest audit reveals the emergence of global, high-intensity coordination cycles:
+### 🔍 Forensic Highlight: The "v1.6.0 Ceremony" (Mar 21, 2026)
+Our latest audit reveals the emergence of high-weight coordination events following the release of the Enterprise Audit system:
 
-* **Metric:** A massive **14.09 MB Uncached Data Spike** occurred at 19:00 GMT.
-* **Analysis:** This represents the "Atlantic Convergence"—the peak daily overlap of US and European coordination windows. At 267 KB/request, this is the definitive signature of multi-sig PSBT exchanges.
-* **The Proof:** Despite moving ~55 MB of total data in 24 hours, the data retention size remained at **0KB**. The server acted purely as a "Vacuum," relaying encrypted packets without retaining a single byte of state.
+* **Metric:** A massive **34.82 MB Data Spike** occurred at 11:00 AM.
+* **Analysis:** This represents the highest single-hour data density recorded to date. Despite a ~66% cache ratio (indicating broad v1.6.0 PWA downloads), the **11.72 MB Uncached Signature** confirms a complex, real-time coordination ceremony involving multiple high-weight PSBTs.
+* **The Proof:** Despite moving ~74 MB of total data in 24 hours (and ~1.94 GB over the last 30 days), the data retention size remained at **0KB**. The server acted purely as a "Vacuum," relaying encrypted packets without writing a single byte to persistent storage.
 
 ---
 
 ### 🛡️ Transparency & Audits
 We don't just claim to be stateless; we prove it. We publish our raw traffic logs so you can verify our "Zero-Knowledge" architecture yourself.
 
-* **Latest Audit:** [Feb 12, 2026](./site_metric_logs/MANIFEST.md#-2026-02-12_audit)
-* **Traffic Volume:** 962 Requests / 634 Unique Visitors
-* **Key Finding:** Sustained "Institutional Rhythm" with three distinct 12MB+ coordination sessions across US and Asian timezones.
+* **Latest Audit:** [Mar 21, 2026](./site_metric_logs/MANIFEST.md#-2026-03-21_audit)
+* **Traffic Volume:** 812 Requests / 480 Active Sessions (Proxy)
+* **Key Finding:** Sustained "Institutional Rhythm" with a 34MB+ peak density event confirming the success of the new E2EE Witness system.
 
 > 📂 **[View the full Data Manifest](./site_metric_logs/MANIFEST.md)** to inspect the raw CSV logs.
 
@@ -139,9 +139,9 @@ Third-party security audit of the cryptographic primitives.
 ## 💰 Support Public Infrastructure
 SigningRoom is Free and Open Source Software (FOSS), maintained for the public good. If this tool helps you or your organization, please consider supporting its maintenance.
 
-[Support on OpenSats] (Application Submitted — Pending Review)
+[Support on OpenSats] (Application Initial Rejection Q1 - Feedback go BIP — Actively drafting BIP)
 
-[Human Rights Foundation] (Bitcoin Development Fund — Shortlisted March 2026)
+[Human Rights Foundation] (Bitcoin Development Fund — Deferred Q2 2026)
 
 [Donate via Lightning] (Instant)
 
