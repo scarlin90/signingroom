@@ -117,20 +117,24 @@ sequenceDiagram
     Note over S: Room Destroys Itself (Immediate Wipe)
 ```
 ## 🗺️ Roadmap (2026)
-We are seeking funding to evolve SigningRoom from a standalone tool into ubiquitous infrastructure.
+We are actively seeking funding and grants to evolve **SigningRoom** from a standalone tool into ubiquitous Bitcoin multisig infrastructure.
 
-[x] Phase 1: The Core (Completed)
-[x] Launch signingroom-core on Mainnet, Testnet, and Signet (v1.0).
-[x] Deploy Censorship-Resistant PWA (Bypasses App Stores).
+### Phase 1: The Core — ✅ Completed
+- [x] Launch `signingroom-core` on Mainnet, Testnet, and Signet (v1.0)
+- [x] Deploy censorship-resistant Progressive Web App (PWA) that bypasses app stores
 
-[ ] Phase 2: Ubiquity (Q1 2026) — 🔴 Active Grant Target
-[x] **BIP Draft Submitted:** Standardizing Stateless PSBT Coordination.
-[ ] **Web Component (<signing-room>):** A drop-in HTML element for third-party integration.
-[ ] **Public API:** Documented WebSocket API for automated agents.
+### Phase 2: Ubiquity — 🔴 Active Grant Target (Q1 2026)
+- [x] **BIP Draft Submitted**: Standardizing Stateless Encrypted WebSocket Coordination for PSBTs
+- [ ] **Web Component (`<signing-room>`)**: Drop-in HTML element for easy third-party integration
+- [ ] **Public API**: Well-documented WebSocket API for automated agents and services
 
-[ ] Phase 3: The UX Upgrade (Q3 2026)
-[ ] Native iOS/Android App: Specific development to enable NFC support for tapping hardware wallets (Coldcard/Tapsigner) directly against the phone.
-[ ] Third-party security audit of the cryptographic primitives.
+### Phase 3: The UX Upgrade (Q3 2026)
+- [ ] Native iOS & Android Apps with NFC support for direct tapping of hardware wallets (Coldcard, Tapsigner, etc.)
+- [ ] Third-party security audit of all cryptographic primitives and implementation
+
+---
+
+**Status**: Phase 1 complete. Phase 2 is the current focus and primary grant target.
 
 ## 💰 Support Public Infrastructure
 SigningRoom is Free and Open Source Software (FOSS), maintained for the public good. If this tool helps you or your organization, please consider supporting its maintenance.
