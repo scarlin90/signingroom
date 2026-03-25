@@ -1,5 +1,6 @@
 # SigningRoom.io
 
+[![BIP Draft](https://img.shields.io/badge/BIP_Draft-Stateless_PSBT-orange?style=for-the-badge)](https://github.com/scarlin90/bip-stateless-psbt-coordination/blob/main/bip-draft.md)
 [![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-signingroom.io-blue?style=for-the-badge)](https://signingroom.io)
 [![Whitepaper](https://img.shields.io/badge/Whitepaper-arXiv%3A2601.17875-B31B1B.svg?style=for-the-badge)](https://arxiv.org/abs/2601.17875)
 [![Research](https://img.shields.io/badge/Research-Ulster_University-blueviolet.svg)](https://www.ulster.ac.uk/)
@@ -11,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-21_Mar_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-25_Mar_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -68,11 +69,15 @@ We don't just claim to be stateless; we prove it. We publish our raw traffic log
 
 > 📂 **[View the full Data Manifest](./site_metric_logs/MANIFEST.md)** to inspect the raw CSV logs.
 
-## 🔬 Academic Research
+## 🔬 Research & Standards
 
-This software serves as the reference implementation for **"The Stateless Pattern,"** a cryptographic architecture currently being formalized for peer review.
+This software serves as the reference implementation for **"The Stateless Pattern,"** a cryptographic architecture formalized for both peer review and Bitcoin protocol standardization.
 
-> **Research Collaboration:**
+> 📜 **Bitcoin Improvement Proposal (BIP)**
+> **[Draft: Stateless PSBT Coordination Relay](https://github.com/scarlin90/bip-stateless-psbt-coordination/blob/main/bip-draft.md)**
+> *This proposal defines a standard for ephemeral, encrypted PSBT transport to ensure interoperability between stateless relays and coordinators.*
+
+> 🎓 **Academic Whitepaper**
 > *Carlin, S. & Curran, K. (2026).* **The Stateless Pattern: Ephemeral Coordination as the Third Pillar of Digital Sovereignty.** *arXiv preprint arXiv:2601.17875.*
 >
 > [![Whitepaper](https://img.shields.io/badge/Whitepaper-arXiv%3A2601.17875-B31B1B.svg?style=for-the-badge)](https://arxiv.org/abs/2601.17875)
@@ -115,26 +120,17 @@ sequenceDiagram
 We are seeking funding to evolve SigningRoom from a standalone tool into ubiquitous infrastructure.
 
 [x] Phase 1: The Core (Completed)
+[x] Launch signingroom-core on Mainnet, Testnet, and Signet (v1.0).
+[x] Deploy Censorship-Resistant PWA (Bypasses App Stores).
 
-Launch signingroom-core on Mainnet, Testnet, and Signet (v1.0).
-
-Deploy Censorship-Resistant PWA (Bypasses App Stores).
-
-Achieve 0% Data Retention (Verified).
-
-[ ] Phase 2: Ubiquity (Q1 2026) — 🔴 Active Grant Target (Software Dev)
-
-Web Component (<signing-room>): A drop-in HTML element allowing any exchange, wallet, or DAO to embed a secure signing room directly into their UI.
-
-Public API: A documented WebSocket API allowing programmatic coordination for automated signing bots and agents.
-
-(Research Output: Formal Verification of the "Stateless Pattern" will be published independently by Ulster University).
+[ ] Phase 2: Ubiquity (Q1 2026) — 🔴 Active Grant Target
+[x] **BIP Draft Submitted:** Standardizing Stateless PSBT Coordination.
+[ ] **Web Component (<signing-room>):** A drop-in HTML element for third-party integration.
+[ ] **Public API:** Documented WebSocket API for automated agents.
 
 [ ] Phase 3: The UX Upgrade (Q3 2026)
-
-Native iOS/Android App: Specific development to enable NFC support for tapping hardware wallets (Coldcard/Tapsigner) directly against the phone.
-
-Third-party security audit of the cryptographic primitives.
+[ ] Native iOS/Android App: Specific development to enable NFC support for tapping hardware wallets (Coldcard/Tapsigner) directly against the phone.
+[ ] Third-party security audit of the cryptographic primitives.
 
 ## 💰 Support Public Infrastructure
 SigningRoom is Free and Open Source Software (FOSS), maintained for the public good. If this tool helps you or your organization, please consider supporting its maintenance.

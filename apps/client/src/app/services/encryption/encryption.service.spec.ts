@@ -78,7 +78,7 @@ describe('EncryptionService', () => {
     console.log(`* Global Key (Hex): ${Array.from(rawKey).map(b => b.toString(16).padStart(2, '0')).join('')}`);
     console.log(`* Global Key (Base64 FBEK): ${base64Key}\n`);
 
-    // --- 1. AUTH ---
+    // --- 2.1 AUTH ---
     const adminSecret = "4155db36-6997-4f67-8ccb-1d740c0f54b6";
     
     // 1. Encrypt the secret
@@ -90,7 +90,7 @@ describe('EncryptionService', () => {
     const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(encryptedAdminToken));
     const adminHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-    console.log(`### 9.4.1 AUTH`);
+    console.log(`### 2.1 AUTH`);
     console.log(`* adminSecret Plaintext (UUID): "${adminSecret}"`);
     console.log(`* encryptedAdminToken IV (Hex): ${ivAuth}`);
     console.log(`* encryptedAdminToken Output (Base64): ${encryptedAdminToken}`);
@@ -98,7 +98,7 @@ describe('EncryptionService', () => {
     console.log(JSON.stringify({ type: "AUTH", token: adminHash }, null, 2) + "\n");
 
     
-    // --- 2. UPLOAD_PARTIAL ---
+    // --- 2.2 UPLOAD_PARTIAL ---
     const fpPt = "af4b013d";
     const blindedFp = await service.blindData(fpPt, base64Key);
     
@@ -112,7 +112,7 @@ describe('EncryptionService', () => {
     const encLog1 = await service.encrypt(logPt1, base64Key);
     const ivLog1 = Array.from({length: 12}, (_, i) => (12 + i).toString(16).padStart(2, '0')).join('');
 
-    console.log(`### 9.4.2 UPLOAD_PARTIAL`);
+    console.log(`### 2.2 UPLOAD_PARTIAL`);
     console.log(`* Fingerprint Plaintext: "${fpPt}"`);
     console.log(`* Fingerprint Output (Blinded): ${blindedFp}`);
     console.log(`* encryptedData Plaintext: "${psbtPt}"`);
@@ -128,7 +128,7 @@ describe('EncryptionService', () => {
       encryptedLogBlob: encLog1
     }, null, 2) + "\n");
 
-    // --- 3. UPDATE_LABEL ---
+    // --- 2.3 UPDATE_LABEL ---
     currentIvSeed = 24;
     const labelPt = "Bob - CFO";
     const encLabel = await service.encrypt(labelPt, base64Key);
@@ -139,7 +139,7 @@ describe('EncryptionService', () => {
     const encLog2 = await service.encrypt(logPt2, base64Key);
     const ivLog2 = Array.from({length: 12}, (_, i) => (36 + i).toString(16).padStart(2, '0')).join('');
 
-    console.log(`### 9.4.3 UPDATE_LABEL`);
+    console.log(`### 2.3 UPDATE_LABEL`);
     console.log(`* label Plaintext: "${labelPt}"`);
     console.log(`* label IV (Hex): ${ivLabel}`);
     console.log(`* label Output (Base64): ${encLabel}`);
@@ -153,18 +153,74 @@ describe('EncryptionService', () => {
       encryptedLogBlob: encLog2
     }, null, 2) + "\n");
 
-    // --- 4. UPDATE_WHITELIST ---
+    // --- 2.4 SET_DISPLAY_NAME ---
     currentIvSeed = 48;
+    const displayNamePt = "Alice (Ledger)";
+    const encDisplayName = await service.encrypt(displayNamePt, base64Key);
+    const ivDisplayName = Array.from({length: 12}, (_, i) => (48 + i).toString(16).padStart(2, '0')).join('');
+
+    console.log(`### 2.4 SET_DISPLAY_NAME`);
+    console.log(`* encryptedDisplayName Plaintext: "${displayNamePt}"`);
+    console.log(`* encryptedDisplayName IV (Hex): ${ivDisplayName}`);
+    console.log(`* encryptedDisplayName Output (Base64): ${encDisplayName}`);
+    console.log(JSON.stringify({
+      type: "SET_DISPLAY_NAME",
+      encryptedDisplayName: encDisplayName
+    }, null, 2) + "\n");
+
+    // --- 2.5 RENAME_ROOM ---
+    currentIvSeed = 60;
+    const roomNamePt = "Q1 Treasury Board Vote";
+    const encRoomName = await service.encrypt(roomNamePt, base64Key);
+    const ivRoomName = Array.from({length: 12}, (_, i) => (60 + i).toString(16).padStart(2, '0')).join('');
+
+    currentIvSeed = 72;
+    const logPtRename = '{"timestamp":1710000000000,"event":"Room Renamed","detail":"Renamed: Q1 Treasury Board Vote","user":"Coordinator"}';
+    const encLogRename = await service.encrypt(logPtRename, base64Key);
+    const ivLogRename = Array.from({length: 12}, (_, i) => (72 + i).toString(16).padStart(2, '0')).join('');
+
+    console.log(`### 2.5 RENAME_ROOM`);
+    console.log(`* encryptedName Plaintext: "${roomNamePt}"`);
+    console.log(`* encryptedName IV (Hex): ${ivRoomName}`);
+    console.log(`* encryptedName Output (Base64): ${encRoomName}`);
+    console.log(`* encryptedLogBlob Plaintext: ${logPtRename}`);
+    console.log(`* encryptedLogBlob IV (Hex): ${ivLogRename}`);
+    console.log(`* encryptedLogBlob Output (Base64): ${encLogRename}`);
+    console.log(JSON.stringify({
+      type: "RENAME_ROOM",
+      encryptedName: encRoomName,
+      encryptedLogBlob: encLogRename
+    }, null, 2) + "\n");
+
+    // --- 2.6 TOGGLE_LOCK ---
+    currentIvSeed = 84;
+    const logPtLock = '{"timestamp":1710000000000,"event":"Room Locked","detail":"Coordinator locked the room","user":"Coordinator"}';
+    const encLogLock = await service.encrypt(logPtLock, base64Key);
+    const ivLogLock = Array.from({length: 12}, (_, i) => (84 + i).toString(16).padStart(2, '0')).join('');
+
+    console.log(`### 2.6 TOGGLE_LOCK`);
+    console.log(`* isLocked Plaintext (Boolean): true`);
+    console.log(`* encryptedLogBlob Plaintext: ${logPtLock}`);
+    console.log(`* encryptedLogBlob IV (Hex): ${ivLogLock}`);
+    console.log(`* encryptedLogBlob Output (Base64): ${encLogLock}`);
+    console.log(JSON.stringify({
+      type: "TOGGLE_LOCK",
+      isLocked: true,
+      encryptedLogBlob: encLogLock
+    }, null, 2) + "\n");
+
+    // --- 2.7 UPDATE_WHITELIST ---
+    currentIvSeed = 96;
     const wlPt = '["bc1q04e2117f1b09f7c6a6ff92daecfb9a4de57bc4ca18e33933f28d1067d81b3196"]';
     const encWl = await service.encrypt(wlPt, base64Key);
-    const ivWl = Array.from({length: 12}, (_, i) => (48 + i).toString(16).padStart(2, '0')).join('');
+    const ivWl = Array.from({length: 12}, (_, i) => (96 + i).toString(16).padStart(2, '0')).join('');
 
-    currentIvSeed = 60;
+    currentIvSeed = 108;
     const logPt3 = '{"timestamp":1710000000000,"event":"Whitelist Updated","detail":"Added ...b3196 to whitelist","user":"Coordinator"}';
     const encLog3 = await service.encrypt(logPt3, base64Key);
-    const ivLog3 = Array.from({length: 12}, (_, i) => (60 + i).toString(16).padStart(2, '0')).join('');
+    const ivLog3 = Array.from({length: 12}, (_, i) => (108 + i).toString(16).padStart(2, '0')).join('');
 
-    console.log(`### 9.4.4 UPDATE_WHITELIST`);
+    console.log(`### 2.7 UPDATE_WHITELIST`);
     console.log(`* encryptedWhitelist Plaintext: ${wlPt}`);
     console.log(`* encryptedWhitelist IV (Hex): ${ivWl}`);
     console.log(`* encryptedWhitelist Output (Base64): ${encWl}`);
@@ -177,23 +233,38 @@ describe('EncryptionService', () => {
       encryptedLogBlob: encLog3
     }, null, 2) + "\n");
 
-    // --- 5. TX_FINALIZED ---
-    currentIvSeed = 72;
+    // --- 2.8 LOG_ACTION ---
+    currentIvSeed = 120;
+    const logPtAction = '{"timestamp":1710000000000,"event":"PSBT Downloaded","detail":"Unsigned file exported","user":"Guest (ABCD)"}';
+    const encLogAction = await service.encrypt(logPtAction, base64Key);
+    const ivLogAction = Array.from({length: 12}, (_, i) => (120 + i).toString(16).padStart(2, '0')).join('');
+
+    console.log(`### 2.8 LOG_ACTION`);
+    console.log(`* encryptedLogBlob Plaintext: ${logPtAction}`);
+    console.log(`* encryptedLogBlob IV (Hex): ${ivLogAction}`);
+    console.log(`* encryptedLogBlob Output (Base64): ${encLogAction}`);
+    console.log(JSON.stringify({
+      type: "LOG_ACTION",
+      encryptedLogBlob: encLogAction
+    }, null, 2) + "\n");
+
+    // --- 2.9 TX_FINALIZED ---
+    currentIvSeed = 132;
     const hexPt = "0200000000010153ae6e073b...";
     const encHex = await service.encrypt(hexPt, base64Key);
-    const ivHex = Array.from({length: 12}, (_, i) => (72 + i).toString(16).padStart(2, '0')).join('');
+    const ivHex = Array.from({length: 12}, (_, i) => (132 + i).toString(16).padStart(2, '0')).join('');
 
-    currentIvSeed = 84;
+    currentIvSeed = 144;
     const idPt = "6698923ed3153ddb30b96bff7924f47f67e184d243e5bc57098166967c193ce3";
     const encId = await service.encrypt(idPt, base64Key);
-    const ivId = Array.from({length: 12}, (_, i) => (84 + i).toString(16).padStart(2, '0')).join('');
+    const ivId = Array.from({length: 12}, (_, i) => (144 + i).toString(16).padStart(2, '0')).join('');
 
-    currentIvSeed = 96;
+    currentIvSeed = 156;
     const logPt4 = '{"timestamp":1710000000000,"event":"Tx Finalized","detail":"Signatures merged successfully","user":"Coordinator"}';
     const encLog4 = await service.encrypt(logPt4, base64Key);
-    const ivLog4 = Array.from({length: 12}, (_, i) => (96 + i).toString(16).padStart(2, '0')).join('');
+    const ivLog4 = Array.from({length: 12}, (_, i) => (156 + i).toString(16).padStart(2, '0')).join('');
 
-    console.log(`### 9.4.5 TX_FINALIZED`);
+    console.log(`### 2.9 TX_FINALIZED`);
     console.log(`* encryptedFinalTxHex Plaintext: "${hexPt}"`);
     console.log(`* encryptedFinalTxHex IV (Hex): ${ivHex}`);
     console.log(`* encryptedFinalTxHex Output (Base64): ${encHex}`);
@@ -208,6 +279,25 @@ describe('EncryptionService', () => {
       encryptedFinalTxHex: encHex,
       encryptedFinalTxId: encId,
       encryptedLogBlob: encLog4
+    }, null, 2) + "\n");
+
+    // --- STATE_SYNC (Server-to-Client Aggregation) ---
+    console.log(`### STATE_SYNC (Relay-to-Client)`);
+    console.log(JSON.stringify({
+        type: "STATE_SYNC",
+        roomId: "123e4567-e89b-12d3-a456-426614174000",
+        network: "bitcoin",
+        roomName: encRoomName,
+        encryptedPsbt: encPsbt,
+        signatures: [encPsbt],
+        isLocked: true,
+        auditLog: [encLog1],
+        signerLabels: { [blindedFp]: encLabel },
+        whitelist: encWl,
+        encryptedFinalTxHex: encHex,
+        encryptedFinalTxId: encId,
+        connectedCount: 2,
+        protocolVersion: "1.0.0"
     }, null, 2) + "\n");
 
     console.log(`======================================================\n`);

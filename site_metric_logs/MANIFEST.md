@@ -11,6 +11,7 @@ To ensure immutable audit trails, logs are grouped by their specific Audit Date.
 * `./2026-02-03_audit/` - (Institutional Scale)
 * `./2026-02-12_audit/` - (Stability & Convergence)
 * `./2026-03-21_audit/` - (v1.6.0 Scalability & 30-Day Performance Audit)
+* `./2026-03-25_audit/` - (Post-v1.6.1 Stability & Automated Probe Analysis)
 
 ## 🗂 File Legend & Interpretation
 **1. data_cached_*.csv**
@@ -119,4 +120,22 @@ To ensure immutable audit trails, logs are grouped by their specific Audit Date.
 
 ---
 
-**Audit Verdict:** Passed. The architecture continues to demonstrate a "Vacuum" state—high data velocity with zero data persistence.
+### 📂 ./2026-03-25_audit/
+
+| Metric                  | Value          | Analysis |
+|-------------------------|----------------|----------|
+| **Total Requests (24h)**    | 3,715         | High Volatility: Sharp spike compared to previous audits, largely due to automated probing at 1:00 AM. |
+| **Unique Visitors**         | 537           | Stable organic base. Visitor count does not correlate with the request spike, confirming automated activity. |
+| **Total Data Served**       | 107.32 MB     | Consistent data weight despite high request volume, as probes resulted in minimal data transfer. |
+| **Cache Ratio (Avg)**       | 34.2%         | Probing Artifact: Low cache ratio during peak hours confirms traffic was directed at dynamic endpoints rather than static assets. |
+
+### Forensic Notes
+
+> **Automated Probe Detection**  
+A distinct automated event occurred at 1:00 AM, generating **1,260 requests** from only **22 unique visitors**. This 57:1 request-to-visitor ratio, combined with a 2.2% cache ratio and only ~0.8 MB of data transferred, is a textbook signature of an automated vulnerability scanner or bot probe.
+
+> **High-Density Organic Event**  
+Despite the bot noise, a legitimate high-density coordination ceremony was detected at 12:00 PM, moving **28.72 MB** of data with **83 requests**. This represents the highest single-hour organic throughput for the v1.6.0 release.
+
+### Audit Verdict
+**Passed.** The "Stateless Vacuum" architecture successfully absorbed the automated probe volume at 1:00 AM without resource exhaustion or data retention.
