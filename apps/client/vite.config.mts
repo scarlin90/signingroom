@@ -24,5 +24,9 @@ export default defineConfig(() => ({
       reportsDirectory: '../../coverage/apps/client',
       provider: 'v8' as const,
     },
+    pool: 'threads',
+    poolOptions: {
+    threads: { singleThread: false }
+  },
   },
 }));
