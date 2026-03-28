@@ -47,6 +47,14 @@ describe('SocketService', () => {
       removeItem: vi.fn()
     };
     vi.stubGlobal('localStorage', localStorageMock);
+
+    const sessionStorageMock = {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn()
+    };
+    vi.stubGlobal('sessionStorage', sessionStorageMock);
   });
 
   afterEach(() => {
@@ -65,7 +73,8 @@ describe('SocketService', () => {
     });
 
     it('should send AUTH token if present in sessionStorage on connect', async () => {
-      sessionStorage.setItem(`admin_token_room-1`, 'secret-token');
+      (sessionStorage.getItem as any).mockReturnValue('secret-token');
+      
       await service.connect('room-1', 'key');
       
       if (ws.onopen) await ws.onopen({} as any); 
@@ -286,6 +295,65 @@ describe('SocketService', () => {
       if (ws.onclose) ws.onclose({ code: 4026 } as any);
       expect(connectSpy).toHaveBeenCalledWith('room-1', 'key', '1.0.0');
     });
+
+    it('should block encrypted payloads if no decryption key is present', async () => {
+      service.setRoomKey(null);
+      
+      const msg = { data: JSON.stringify({ type: 'NEW_PARTIAL_DATA', data: { encryptedData: 'enc' } }) };
+      if (ws.onmessage) await ws.onmessage(msg);
+      
+      expect(service.decryptionError()).toContain('Decryption Key Missing');
+    });
+
+    it('should handle STATE_SYNC fatal decryption error and disconnect', async () => {
+      const disconnectSpy = vi.spyOn(service, 'disconnect');
+      
+      // Force the decryptor to throw an error
+      encryptionMock.decrypt.mockRejectedValueOnce(new Error('Fatal Key Error'));
+      
+      const msg = { data: JSON.stringify({ type: 'STATE_SYNC', roomId: '1', encryptedPsbt: 'bad_data' }) };
+      if (ws.onmessage) await ws.onmessage(msg);
+      
+      // It should set the decryption error and immediately disconnect
+      expect(service.decryptionError()).toContain('Invalid decryption key');
+      expect(disconnectSpy).toHaveBeenCalledWith(false);
+    });
+
+    it('should gracefully catch decryption errors on minor room updates', async () => {
+      // Force decrypt to fail for all subsequent calls
+      encryptionMock.decrypt.mockRejectedValue(new Error('Bad Data'));
+      
+      // 1. Room Renamed
+      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'ROOM_RENAMED', encryptedName: 'bad' }) });
+      
+      // 2. Labels Updated
+      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'LABELS_UPDATED', signerLabels: { 'fp1': 'bad' } }) });
+      
+      // 3. Whitelist Updated
+      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'WHITELIST_UPDATED', encryptedWhitelist: 'bad' }) });
+      
+      // 4. TX Finalized Broadcast
+      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'TX_FINALIZED_BROADCAST', encryptedFinalTxHex: 'bad', encryptedFinalTxId: 'bad' }) });
+      
+      // 5. Connections Update (Session Display Names)
+      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'CONNECTIONS_UPDATE', count: 1, sessions: [{ id: 'S1', encryptedDisplayName: 'bad' }] }) });
+
+      // If we got here without the test crashing, the catch blocks successfully swallowed the errors!
+      expect(service.roomState()?.roomName).not.toBe('bad'); // Should still be default
+      expect(service.activeSessions()[0].displayName).toBe('Decrypt Error'); // Expected fallback
+    });
+
+    it('should completely clear local and session storage on ROOM_CLOSED', () => {
+      service.roomState.set({ roomId: 'room-1' } as any);
+      
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      if (ws.onmessage) ws.onmessage({ data: JSON.stringify({ type: 'ROOM_CLOSED' }) });
+
+      expect(localStorage.removeItem).toHaveBeenCalledWith('display_name_room-1');
+      expect(sessionStorage.removeItem).toHaveBeenCalledWith('admin_token_room-1');
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[Privacy] Local identity data for room room-1 has been purged.'));
+    });
   });
 
   describe('Public Actions (Sending Data)', () => {
@@ -385,6 +453,43 @@ describe('SocketService', () => {
       vi.advanceTimersByTime(100);
       expect(spy).toHaveBeenCalled();
       vi.useRealTimers();
+    });
+
+    it('should exit early from actions if no encryption key is set', async () => {
+      // Clear the encryption key
+      service.setRoomKey(null);
+      
+      await service.uploadSignature('AAAA');
+      await service.renameRoom('New Room');
+      await service.updateSignerLabel('fp1', 'label');
+      await service.updateWhitelist('addr1', true);
+      await service.updateWhitelistBatch(['addr1'], false);
+      await service.broadcastFinalization('hex', 'id');
+      await service.setDisplayName('Name');
+      
+      // None of these should have sent a WebSocket message because the key was missing
+      expect(ws.send).not.toHaveBeenCalled();
+    });
+
+    it('should not send label update if the label is exactly the same', async () => {
+      service.roomState.set({ signerLabels: { 'fp123': 'My Wallet' } } as any);
+      await service.updateSignerLabel('fp123', 'My Wallet');
+      
+      // Should exit early before encrypting or sending
+      expect(ws.send).not.toHaveBeenCalled();
+    });
+
+    it('should catch errors during gracefullyDisconnect if logging fails', async () => {
+      service.currentSessionId.set('S1');
+      // Force the encryptor to throw so createSecureLogBlob fails
+      encryptionMock.encrypt.mockRejectedValueOnce(new Error('Encryption failure'));
+      
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      await service.gracefullyDisconnect();
+      
+      // It should catch the error and log it without crashing
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to send disconnect log');
     });
   });
 
@@ -594,6 +699,41 @@ describe('Getters & Crypto Helpers', () => {
       
       // If the loop ran successfully, it should have blinded the extracted fingerprint
       expect(encryptionMock.blindData).toHaveBeenCalledWith('11223344', 'key');
+    });
+
+    it('should handle legacy inputs and taproot signatures in PSBT parsing', () => {
+      const mockPubkey = new Uint8Array(33).fill(5);
+      
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
+        inputsLength: 1,
+        outputsLength: 0,
+        unsignedTx: { inputs: [{ index: 0 }] }, // Missing txid
+        getInput: () => ({
+          nonWitnessUtxo: new Uint8Array([1, 2, 3]), // Legacy input
+          tapScriptSig: [[{ pubKey: mockPubkey }, new Uint8Array([9, 9])]], // Taproot signature
+          bip32Derivation: [[mockPubkey, { fingerprint: 0x99887766 }]]
+        }),
+        getOutput: () => ({}),
+        vsize: 150
+      } as any);
+
+      service.roomState.set({ psbt: 'AAAA' } as any);
+      
+      const details = service.txDetails();
+      expect(details?.inputsList[0].address).toBe('Legacy Input');
+      
+      const signers = service.signers();
+      expect(signers[0].fingerprint).toBe('99887766');
+      expect(signers[0].signed).toBe(true); // Detected via tapScriptSig branch
+    });
+
+    it('should return 0 for getThreshold if script is empty or invalid', () => {
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
+        getInput: () => ({ witnessScript: new Uint8Array([0x00]) }) // Not an OP_N code
+      } as any);
+
+      const threshold = service.getThreshold('AAAA');
+      expect(threshold).toBe(0); // Hit the fallback branch
     });
   });
 

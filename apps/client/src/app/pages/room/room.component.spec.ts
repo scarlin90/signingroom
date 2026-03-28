@@ -184,6 +184,37 @@ describe('RoomComponent', () => {
     expect(component.showConfirmModal()).toBe(true);
   });
 
+  it('should abort downloadCsv if roomState or txDetails are missing', () => {
+    socketSpy.roomState.mockReturnValue(null);
+    const csvSpy = vi.spyOn(document, 'createElement');
+    
+    component.downloadCsv();
+    
+    // Should exit early before creating the download anchor
+    expect(csvSpy).not.toHaveBeenCalled();
+  });
+
+  it('should not broadcast finalization if hex or txId are missing', () => {
+    socketSpy.getFinalTxHex.mockReturnValueOnce(null);
+    
+    component.finalize();
+    
+    expect(socketSpy.broadcastFinalization).not.toHaveBeenCalled();
+  });
+
+  it('should clear timer intervals on destroy', () => {
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+    
+    // Force a timer to start
+    (component as any).startTimer(Date.now() + 5000);
+    
+    // Trigger the destroy lifecycle
+    component.ngOnDestroy();
+    
+    // Ensure the cleanup function was called
+    expect(clearIntervalSpy).toHaveBeenCalled();
+  });
+
   // ====================== SIGNER LABELING ======================
   it('should handle signer labeling and address book storage', () => {
     component.openLabelModal('fingerprint123');
@@ -220,6 +251,28 @@ describe('RoomComponent', () => {
   expect(alertSpy).toHaveBeenCalledWith('Invalid File', expect.any(String));
 });
 
+it('should reject file over 2MB', async () => {
+    const alertSpy = vi.spyOn(component, 'openAlert' as any);
+    
+    // Create a dummy file slightly larger than 2MB
+    const largeFile = new File(['a'.repeat((2 * 1024 * 1024) + 1)], 'huge.psbt', { type: 'text/plain' });
+    
+    await component.onFileSelected({ target: { files: [largeFile] } } as any);
+    expect(alertSpy).toHaveBeenCalledWith('File Too Large', expect.any(String));
+  });
+
+  it('should catch read error on file upload', async () => {
+    const alertSpy = vi.spyOn(component, 'openAlert' as any);
+    const badFile = new File([''], 'broken.psbt', { type: 'text/plain' });
+    
+    // Force the arrayBuffer method to throw an error to hit the catch block
+    badFile.arrayBuffer = vi.fn().mockRejectedValue(new Error('Disk read failed'));
+
+    await component.onFileSelected({ target: { files: [badFile] } } as any);
+    expect(alertSpy).toHaveBeenCalledWith('Read Error', expect.any(String));
+    expect(component.isUploading()).toBe(false); // Ensure the finally block ran
+  });
+
   // ====================== SECURITY & FINALIZE ======================
   it('should show security warning when finalizing with unverified outputs', () => {
     socketSpy.roomState.mockReturnValue({
@@ -252,6 +305,18 @@ describe('RoomComponent', () => {
     expect(confettiSpy).toHaveBeenCalled();
   });
 
+  it('should reset copiedSessionId after 2 seconds', () => {
+    vi.useFakeTimers();
+    
+    component.copySessionId('S1', 'Alice');
+    expect(component.copiedSessionId()).toBe('S1'); // Should be set immediately
+    
+    vi.advanceTimersByTime(2000);
+    expect(component.copiedSessionId()).toBeNull(); // Should reset after 2s
+    
+    vi.useRealTimers();
+  });
+
   // ====================== QR CODE ======================
   it('should handle QR code generation and reveal toggle', async () => {
     await component.openQr();
@@ -264,6 +329,28 @@ describe('RoomComponent', () => {
     component.downloadQr();
     component.closeQr();
     expect(component.showQrModal()).toBe(false);
+  });
+
+  it('should handle QR code generation failure gracefully', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    // Import QRCode and force it to reject
+    const QRCode = await import('qrcode');
+    vi.spyOn(QRCode, 'toDataURL').mockRejectedValueOnce(new Error('QR Engine Fail'));
+
+    await component.openQr();
+    
+    // Should catch the error and log it without breaking the UI
+    expect(consoleSpy).toHaveBeenCalledWith('QR Generation failed', expect.any(Error));
+  });
+
+  it('should copy admin token if it exists in session storage', () => {
+    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
+    sessionStorage.setItem('admin_token_123', 'admin-secret');
+    
+    component.copyAdminToken();
+    
+    expect(clipboardSpy).toHaveBeenCalledWith('admin-secret');
   });
 
   // ====================== WHITELIST ======================
