@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'jsdom', // Required for Angular components
     coverage: {
       provider: 'v8', //
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'json-summary'],
       // Exclude setup files and configuration from coverage
       exclude: [
         'node_modules/**',

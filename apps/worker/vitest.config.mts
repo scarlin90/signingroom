@@ -10,7 +10,7 @@ export default defineWorkersConfig({
 		},
 		coverage: {
 			provider: 'istanbul',
-			reporter: ['text', 'html', 'clover', 'json'],
+			reporter: ['text', 'html', 'clover', 'json', 'json-summary'],
 			thresholds: {
 				lines: 94,
 				functions: 95,
