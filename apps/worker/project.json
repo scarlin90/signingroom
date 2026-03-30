@@ -1,0 +1,14 @@
+{
+  "name": "worker",
+  "targets": {
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "passWithNoTests": true,
+        "reportsDirectory": "../../coverage/apps/worker",
+        "vitestConfig": "apps/worker/vitest.config.mts"
+      }
+    }
+  }
+}

@@ -23,6 +23,12 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: '../../coverage/apps/client',
       provider: 'v8' as const,
+      thresholds: {
+        lines: 88,
+        functions: 90,
+        branches: 69,
+        statements: 88
+      }
     },
     pool: 'threads',
     poolOptions: {

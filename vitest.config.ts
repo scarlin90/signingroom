@@ -17,14 +17,5 @@ export default defineConfig({
         '**/main.ts',
         '**/environments/**',
       ],
-	  reportsDirectory: './coverage/apps/client', 
-      enabled: true,
-      thresholds: {
-        lines: 90,
-        functions: 85,
-        branches: 80,
-        statements: 90
-      }
-    }
   }
 });

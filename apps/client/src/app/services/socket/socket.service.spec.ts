@@ -160,7 +160,6 @@ describe('SocketService', () => {
     });
 
     it('should handle ROOM_CLOSED and clear local data', () => {
-      // Set roomId to trigger clearLocalRoomData
       service.roomState.set({ roomId: 'room-1' } as any);
       
       const closeMsg = { data: JSON.stringify({ type: 'ROOM_CLOSED' }) };
@@ -172,7 +171,6 @@ describe('SocketService', () => {
     });
 
     it('should handle LOG_UPDATE with mixed audit log formats', async () => {
-      // Mock decryptAuditLog behavior
       const logMsg = { data: JSON.stringify({ 
         type: 'LOG_UPDATE', 
         auditLog: [
@@ -199,7 +197,7 @@ describe('SocketService', () => {
         count: 2, 
         sessions: [
           { id: 'S1', role: 'admin', encryptedDisplayName: 'enc_name_1' },
-          { id: 'S2', role: 'guest' } // Simulating a guest with no name
+          { id: 'S2', role: 'guest' } 
         ] 
       })};
       
@@ -235,9 +233,9 @@ describe('SocketService', () => {
         data: JSON.stringify({
           type: 'STATE_SYNC',
           roomId: 'room-1',
-          psbt: 'unencrypted_psbt', // Triggering the fallback if encryptedPsbt is missing
-          whitelist: ['addr1', 'addr2'], // Passing an array instead of a string
-          signatures: ['plain_sig', { encryptedData: 'enc_sig' }], // Mixed signature formats
+          psbt: 'unencrypted_psbt',
+          whitelist: ['addr1', 'addr2'],
+          signatures: ['plain_sig', { encryptedData: 'enc_sig' }],
           protocolVersion: '1.0.0'
         })
       };
@@ -308,39 +306,32 @@ describe('SocketService', () => {
     it('should handle STATE_SYNC fatal decryption error and disconnect', async () => {
       const disconnectSpy = vi.spyOn(service, 'disconnect');
       
-      // Force the decryptor to throw an error
       encryptionMock.decrypt.mockRejectedValueOnce(new Error('Fatal Key Error'));
       
       const msg = { data: JSON.stringify({ type: 'STATE_SYNC', roomId: '1', encryptedPsbt: 'bad_data' }) };
       if (ws.onmessage) await ws.onmessage(msg);
       
-      // It should set the decryption error and immediately disconnect
       expect(service.decryptionError()).toContain('Invalid decryption key');
       expect(disconnectSpy).toHaveBeenCalledWith(false);
     });
 
     it('should gracefully catch decryption errors on minor room updates', async () => {
-      // Force decrypt to fail for all subsequent calls
+      
       encryptionMock.decrypt.mockRejectedValue(new Error('Bad Data'));
       
-      // 1. Room Renamed
       if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'ROOM_RENAMED', encryptedName: 'bad' }) });
       
-      // 2. Labels Updated
       if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'LABELS_UPDATED', signerLabels: { 'fp1': 'bad' } }) });
       
-      // 3. Whitelist Updated
       if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'WHITELIST_UPDATED', encryptedWhitelist: 'bad' }) });
       
-      // 4. TX Finalized Broadcast
       if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'TX_FINALIZED_BROADCAST', encryptedFinalTxHex: 'bad', encryptedFinalTxId: 'bad' }) });
       
-      // 5. Connections Update (Session Display Names)
       if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'CONNECTIONS_UPDATE', count: 1, sessions: [{ id: 'S1', encryptedDisplayName: 'bad' }] }) });
 
-      // If we got here without the test crashing, the catch blocks successfully swallowed the errors!
-      expect(service.roomState()?.roomName).not.toBe('bad'); // Should still be default
-      expect(service.activeSessions()[0].displayName).toBe('Decrypt Error'); // Expected fallback
+      
+      expect(service.roomState()?.roomName).not.toBe('bad');
+      expect(service.activeSessions()[0].displayName).toBe('Decrypt Error');
     });
 
     it('should completely clear local and session storage on ROOM_CLOSED', () => {
@@ -456,7 +447,6 @@ describe('SocketService', () => {
     });
 
     it('should exit early from actions if no encryption key is set', async () => {
-      // Clear the encryption key
       service.setRoomKey(null);
       
       await service.uploadSignature('AAAA');
@@ -467,7 +457,6 @@ describe('SocketService', () => {
       await service.broadcastFinalization('hex', 'id');
       await service.setDisplayName('Name');
       
-      // None of these should have sent a WebSocket message because the key was missing
       expect(ws.send).not.toHaveBeenCalled();
     });
 
@@ -475,20 +464,17 @@ describe('SocketService', () => {
       service.roomState.set({ signerLabels: { 'fp123': 'My Wallet' } } as any);
       await service.updateSignerLabel('fp123', 'My Wallet');
       
-      // Should exit early before encrypting or sending
       expect(ws.send).not.toHaveBeenCalled();
     });
 
     it('should catch errors during gracefullyDisconnect if logging fails', async () => {
       service.currentSessionId.set('S1');
-      // Force the encryptor to throw so createSecureLogBlob fails
       encryptionMock.encrypt.mockRejectedValueOnce(new Error('Encryption failure'));
       
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       await service.gracefullyDisconnect();
       
-      // It should catch the error and log it without crashing
       expect(consoleSpy).toHaveBeenCalledWith('Failed to send disconnect log');
     });
   });
@@ -515,7 +501,6 @@ describe('SocketService', () => {
       service.role.set('admin');
       service.roomState.set({ signerLabels: {} } as any);
       
-      // Force the signers computed signal to return a dummy signer
       vi.spyOn(service as any, 'signers').mockReturnValue([{ fingerprint: 'fp123', signed: false }]);
       (localStorage.getItem as any).mockReturnValue('Local Device Name');
       
@@ -540,7 +525,6 @@ describe('SocketService', () => {
 describe('Getters & Crypto Helpers', () => {
     beforeEach(() => {
       service.role.set('admin');
-      // Use a strictly valid base64 string so base64.decode doesn't throw
       service.roomState.set({ psbt: 'AAAA' } as any);
     });
 
@@ -574,7 +558,6 @@ describe('Getters & Crypto Helpers', () => {
         getInput: () => ({ witnessScript: new Uint8Array([82]) }) // 0x52 = OP_2
       } as any);
 
-      // Pass a valid base64 string here as well
       const threshold = service.getThreshold('AAAA');
       expect(threshold).toBe(2);
     });
@@ -588,10 +571,9 @@ describe('Getters & Crypto Helpers', () => {
     });
 
     it('should safely return base psbt if merge fails', () => {
-      // Intentionally break the decode process to test the catch block
       vi.spyOn(Transaction, 'fromPSBT').mockImplementation(() => { throw new Error('Crash'); });
       const result = service.mergePsbts('valid-base', 'invalid-next');
-      expect(result).toBe('valid-base'); // Falls back to base
+      expect(result).toBe('valid-base');
     });
   });
 
@@ -601,7 +583,6 @@ describe('Getters & Crypto Helpers', () => {
     });
 
     it('should parse TxDetails and detect change outputs', () => {
-      // Mocking a PSBT with 1 input and 2 outputs (one standard, one change)
       vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
         inputsLength: 1,
         outputsLength: 2,
@@ -611,7 +592,6 @@ describe('Getters & Crypto Helpers', () => {
         }),
         getOutput: (i: number) => {
           if (i === 0) return { amount: 1000n, script: new Uint8Array([0, 20, 9, 9]) };
-          // Second output is change (derivation path ends in 1, then index)
           return { 
             amount: 800n, 
             script: new Uint8Array([0, 20, 8, 8]),
@@ -628,14 +608,12 @@ describe('Getters & Crypto Helpers', () => {
       expect(details?.inputs).toBe(1);
       expect(details?.outputs.length).toBe(2);
       
-      // FIX: The service sorts change outputs to the top (index 0)!
       expect(details?.outputs[0].isChange).toBe(true); 
       expect(details?.outputs[1].isChange).toBe(false); 
       expect(details?.fee).toBe(200); // 2000 - (1000 + 800)
     });
 
     it('should extract signers successfully', () => {
-      // Mocking an input with a valid partial signature matching a BIP32 derivation
       const mockPubkey = new Uint8Array(33).fill(1);
       vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
         inputsLength: 1,
@@ -669,7 +647,6 @@ describe('Getters & Crypto Helpers', () => {
 
       service.roomState.set({ psbt: 'AAAA', roomId: 'room-1' } as any);
       
-      // FIX: Smart mock that only returns the label for the address book lookup
       (localStorage.getItem as any).mockImplementation((key: string) => {
         if (key.startsWith('addr_book_')) return 'Saved Label';
         return null;
@@ -697,7 +674,6 @@ describe('Getters & Crypto Helpers', () => {
 
       if (ws.onmessage) await ws.onmessage(stateSyncMsg);
       
-      // If the loop ran successfully, it should have blinded the extracted fingerprint
       expect(encryptionMock.blindData).toHaveBeenCalledWith('11223344', 'key');
     });
 
@@ -707,10 +683,10 @@ describe('Getters & Crypto Helpers', () => {
       vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
         inputsLength: 1,
         outputsLength: 0,
-        unsignedTx: { inputs: [{ index: 0 }] }, // Missing txid
+        unsignedTx: { inputs: [{ index: 0 }] },
         getInput: () => ({
-          nonWitnessUtxo: new Uint8Array([1, 2, 3]), // Legacy input
-          tapScriptSig: [[{ pubKey: mockPubkey }, new Uint8Array([9, 9])]], // Taproot signature
+          nonWitnessUtxo: new Uint8Array([1, 2, 3]),
+          tapScriptSig: [[{ pubKey: mockPubkey }, new Uint8Array([9, 9])]],
           bip32Derivation: [[mockPubkey, { fingerprint: 0x99887766 }]]
         }),
         getOutput: () => ({}),
@@ -724,16 +700,16 @@ describe('Getters & Crypto Helpers', () => {
       
       const signers = service.signers();
       expect(signers[0].fingerprint).toBe('99887766');
-      expect(signers[0].signed).toBe(true); // Detected via tapScriptSig branch
+      expect(signers[0].signed).toBe(true);
     });
 
     it('should return 0 for getThreshold if script is empty or invalid', () => {
       vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        getInput: () => ({ witnessScript: new Uint8Array([0x00]) }) // Not an OP_N code
+        getInput: () => ({ witnessScript: new Uint8Array([0x00]) })
       } as any);
 
       const threshold = service.getThreshold('AAAA');
-      expect(threshold).toBe(0); // Hit the fallback branch
+      expect(threshold).toBe(0);
     });
   });
 

@@ -27,7 +27,6 @@ vi.mock('qrcode', () => ({
   }
 }));
 
-// Helper to create a real signal that behaves like a vi.fn() mock
 const createMockSignal = (initialValue: any) => {
   const sig = signal(initialValue);
   (sig as any).mockReturnValue = (val: any) => {
@@ -59,7 +58,6 @@ describe('RoomComponent', () => {
     connectedCount: 1
   };
 
-  // Replaced vi.fn() signal properties with real reactive signals
   const socketSpy: any = {
     decryptionError: createMockSignal(null),
     roomState: createMockSignal({ ...baseRoomState }),
@@ -111,7 +109,6 @@ describe('RoomComponent', () => {
         return Promise.resolve(new ArrayBuffer(0));
       };
     }
-    // Suppresses the JSDOM "Not implemented: navigation" warnings in stderr
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
   });
 
@@ -151,7 +148,7 @@ describe('RoomComponent', () => {
   afterEach(() => {
     if (fixture) fixture.destroy();
     vi.clearAllMocks();
-    sessionStorage.clear(); // ADD THIS
+    sessionStorage.clear();
   });
 
   // ====================== BASIC TESTS ======================
@@ -190,7 +187,6 @@ describe('RoomComponent', () => {
     
     component.downloadCsv();
     
-    // Should exit early before creating the download anchor
     expect(csvSpy).not.toHaveBeenCalled();
   });
 
@@ -205,13 +201,10 @@ describe('RoomComponent', () => {
   it('should clear timer intervals on destroy', () => {
     const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
     
-    // Force a timer to start
     (component as any).startTimer(Date.now() + 5000);
     
-    // Trigger the destroy lifecycle
     component.ngOnDestroy();
     
-    // Ensure the cleanup function was called
     expect(clearIntervalSpy).toHaveBeenCalled();
   });
 
@@ -244,7 +237,6 @@ describe('RoomComponent', () => {
   const rawTxContent = '020000000001';
   const rawTxFile = new File([rawTxContent], 'tx.hex', { type: 'text/plain' });
 
-  // Supply the actual buffer for this file so TextDecoder reads it properly
   rawTxFile.arrayBuffer = () => Promise.resolve(new TextEncoder().encode(rawTxContent).buffer);
 
   await component.onFileSelected({ target: { files: [rawTxFile] } } as any);
@@ -254,7 +246,6 @@ describe('RoomComponent', () => {
 it('should reject file over 2MB', async () => {
     const alertSpy = vi.spyOn(component, 'openAlert' as any);
     
-    // Create a dummy file slightly larger than 2MB
     const largeFile = new File(['a'.repeat((2 * 1024 * 1024) + 1)], 'huge.psbt', { type: 'text/plain' });
     
     await component.onFileSelected({ target: { files: [largeFile] } } as any);
@@ -265,12 +256,11 @@ it('should reject file over 2MB', async () => {
     const alertSpy = vi.spyOn(component, 'openAlert' as any);
     const badFile = new File([''], 'broken.psbt', { type: 'text/plain' });
     
-    // Force the arrayBuffer method to throw an error to hit the catch block
     badFile.arrayBuffer = vi.fn().mockRejectedValue(new Error('Disk read failed'));
 
     await component.onFileSelected({ target: { files: [badFile] } } as any);
     expect(alertSpy).toHaveBeenCalledWith('Read Error', expect.any(String));
-    expect(component.isUploading()).toBe(false); // Ensure the finally block ran
+    expect(component.isUploading()).toBe(false);
   });
 
   // ====================== SECURITY & FINALIZE ======================
@@ -309,10 +299,10 @@ it('should reject file over 2MB', async () => {
     vi.useFakeTimers();
     
     component.copySessionId('S1', 'Alice');
-    expect(component.copiedSessionId()).toBe('S1'); // Should be set immediately
+    expect(component.copiedSessionId()).toBe('S1');
     
     vi.advanceTimersByTime(2000);
-    expect(component.copiedSessionId()).toBeNull(); // Should reset after 2s
+    expect(component.copiedSessionId()).toBeNull();
     
     vi.useRealTimers();
   });
@@ -334,13 +324,11 @@ it('should reject file over 2MB', async () => {
   it('should handle QR code generation failure gracefully', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     
-    // Import QRCode and force it to reject
     const QRCode = await import('qrcode');
     vi.spyOn(QRCode, 'toDataURL').mockRejectedValueOnce(new Error('QR Engine Fail'));
 
     await component.openQr();
     
-    // Should catch the error and log it without breaking the UI
     expect(consoleSpy).toHaveBeenCalledWith('QR Generation failed', expect.any(Error));
   });
 
@@ -414,11 +402,11 @@ it('should reject file over 2MB', async () => {
 
     component.executeConfirmAction();
     
-    vi.advanceTimersByTime(300); // Advance time by 300ms
+    vi.advanceTimersByTime(300);
     
     expect(socketSpy.closeRoom).toHaveBeenCalled();
     expect(routerSpy).toHaveBeenCalledWith(['/']);
-    vi.useRealTimers(); // Clean up
+    vi.useRealTimers();
   });
 
   // ====================== SHARING & UTILS ======================
@@ -433,14 +421,11 @@ it('should reject file over 2MB', async () => {
   });
 
   it('should handle downloadUnsignedPsbt', () => {
-  // 1. Create a real DOM element so we don't break Angular's renderer
   const anchor = document.createElement('a');
   const clickSpy = vi.spyOn(anchor, 'click').mockImplementation(() => {});
   
-  // 2. Use mockReturnValueOnce to avoid polluting other tests
   const createElementSpy = vi.spyOn(document, 'createElement').mockReturnValueOnce(anchor);
   
-  // 3. Polyfill URL methods for jsdom before spying
   if (!URL.createObjectURL) URL.createObjectURL = vi.fn();
   if (!URL.revokeObjectURL) URL.revokeObjectURL = vi.fn();
   const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});

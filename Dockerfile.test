@@ -1,0 +1,16 @@
+FROM node:20-bookworm
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Setup the test script
+RUN chmod +x run-all-tests.sh
+
+# Run the script
+CMD ["./run-all-tests.sh"]

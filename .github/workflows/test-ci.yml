@@ -1,0 +1,20 @@
+name: CI Test Suite
+
+on:
+  push:
+    branches: [ "main", "Improve-Coverage" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t signingroom-ci -f Dockerfile.test .
+
+      - name: Execute Tests in Docker
+        run: docker run --rm signingroom-ci
