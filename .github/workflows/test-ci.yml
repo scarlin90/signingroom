@@ -16,19 +16,28 @@ jobs:
       - name: Build and Run Tests
         run: |
           docker build -t signingroom-ci -f Dockerfile.test .
+          # Run without --rm so we can extract files afterward
           docker run --name test-container signingroom-ci
 
-      - name: Extract Coverage Summary
+      - name: Extract Coverage Summaries
         if: always()
         run: |
           docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json
           docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json
 
-      - name: Post to Job Summary
+      - name: Post Worker Coverage to Summary
         if: always()
         uses: davelosert/vitest-coverage-report-action@v2
         with:
+          name: "Worker Relay Coverage"
           json-summary-path: ./worker-summary.json
+
+      - name: Post Client Coverage to Summary
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: "Client Dashboard Coverage"
+          json-summary-path: ./client-summary.json
 
       - name: Cleanup Docker
         if: always()
