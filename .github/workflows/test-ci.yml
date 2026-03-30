@@ -17,8 +17,7 @@ jobs:
         run: |
           docker build -t signingroom-ci -f Dockerfile.test .
           docker run --name test-container signingroom-ci
-      
-      # This part pulls the summary out of the container so GitHub can display it
+
       - name: Extract Coverage Summary
         if: always()
         run: |
@@ -30,3 +29,7 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           json-summary-path: ./worker-summary.json
+
+      - name: Cleanup Docker
+        if: always()
+        run: docker rm test-container
