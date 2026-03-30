@@ -8,10 +8,6 @@ export default defineConfig(() => ({
   root: __dirname,
   cacheDir: '../../node_modules/.vite/apps/client',
   plugins: [angular(), nxViteTsPaths(), nxCopyAssetsPlugin(['*.md'])],
-  // Uncomment this if you are using workers.
-  // worker: {
-  //  plugins: [ nxViteTsPaths() ],
-  // },
   test: {
     name: 'client',
     watch: false,
@@ -24,6 +20,7 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: '../../coverage/apps/client',
       provider: 'v8' as const,
+      reporter: ['text', 'json', 'html', 'json-summary'], 
       thresholds: {
         lines: 88,
         functions: 90,
@@ -33,7 +30,7 @@ export default defineConfig(() => ({
     },
     pool: 'threads',
     poolOptions: {
-    threads: { singleThread: false }
-  },
+      threads: { singleThread: false }
+    },
   },
 }));
