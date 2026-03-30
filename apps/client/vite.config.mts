@@ -19,7 +19,7 @@ export default defineConfig(() => ({
     environment: 'jsdom',
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     setupFiles: ['src/test-setup.ts'],
-    reporters: ['default', 'json-summary'],
+    reporters: ['default'],
     reportOnFailure: true,
     coverage: {
       reportsDirectory: '../../coverage/apps/client',
