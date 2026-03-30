@@ -11,6 +11,7 @@ export default defineWorkersConfig({
 		coverage: {
 			provider: 'istanbul',
 			reporter: ['text', 'html', 'clover', 'json', 'json-summary'],
+			reportOnFailure: true,
 			thresholds: {
 				lines: 94,
 				functions: 95,

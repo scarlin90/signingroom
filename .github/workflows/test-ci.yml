@@ -13,8 +13,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Docker Image
-        run: docker build -t signingroom-ci -f Dockerfile.test .
+      - name: Build and Run Tests
+        run: |
+          docker build -t signingroom-ci -f Dockerfile.test .
+          docker run --name test-container signingroom-ci
+      
+      # This part pulls the summary out of the container so GitHub can display it
+      - name: Extract Coverage Summary
+        if: always()
+        run: |
+          docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json
+          docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json
 
-      - name: Execute Tests in Docker
-        run: docker run --rm signingroom-ci
+      - name: Post to Job Summary
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          json-summary-path: ./worker-summary.json
