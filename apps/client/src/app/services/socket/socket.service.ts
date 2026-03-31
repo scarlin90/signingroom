@@ -50,6 +50,7 @@ export interface RoomState {
   auditLog: AuditEntry[];
   signerLabels: Record<string, string>; 
   whitelist: string[];
+  participants?: Record<string, { id: string; role: string; encryptedDisplayName?: string; displayName?: string }>;
 }
 
 export interface SignerStatus {
@@ -604,9 +605,15 @@ async updateSignerLabel(fingerprint: string, label: string) {
 
   private getInitialState(roomId: string, version: string): RoomState {
       return {
-        roomId, psbt: '', signatures: [], connectedCount: 0, createdAt: Date.now(),
+        roomId, psbt: '', 
+        signatures: [], 
+        connectedCount: 0, 
+        createdAt: Date.now(),
         expiresAt: Date.now() + 1200000, 
-        auditLog: [], signerLabels: {}, roomName: 'Signing Room', whitelist: [],
+        auditLog: [], signerLabels: {}, 
+        roomName: 'Signing Room', 
+        whitelist: [], 
+        participants: {},
         isLocked: false, network: 'bitcoin',
         protocolVersion: version
       };
@@ -716,6 +723,20 @@ async updateSignerLabel(fingerprint: string, label: string) {
                             console.error("Failed to decrypt updated whitelist", e);
                         }
                     }
+                }
+                break;
+            case 'PARTICIPANTS_UPDATE':
+                if (msg.participants && this.encryptionKey) {
+                    const decParts: Record<string, any> = {};
+                    for (const [sid, pData] of Object.entries(msg.participants)) {
+                        let plainName = undefined;
+                        const typedP = pData as any;
+                        if (typedP.encryptedDisplayName) {
+                            try { plainName = await this.encryption.decrypt(typedP.encryptedDisplayName, this.encryptionKey); } catch(e) {}
+                        }
+                        decParts[sid] = { ...typedP, displayName: plainName };
+                    }
+                    this.roomState.update(s => s ? { ...s, participants: decParts } : null);
                 }
                 break;
             case 'LOCK_UPDATED':
@@ -852,6 +873,20 @@ async updateSignerLabel(fingerprint: string, label: string) {
 
     const hasAdminToken = !!sessionStorage.getItem(`admin_token_${msg.roomId}`);
 
+    let decryptedParticipants: Record<string, any> = {};
+    if (msg.participants && this.encryptionKey) {
+        for (const [sid, pData] of Object.entries(msg.participants)) {
+            let plainName = undefined;
+            const typedP = pData as any;
+            if (typedP.encryptedDisplayName) {
+                try { plainName = await this.encryption.decrypt(typedP.encryptedDisplayName, this.encryptionKey); } catch(e) {}
+            }
+            decryptedParticipants[sid] = { ...typedP, displayName: plainName };
+        }
+    } else {
+        decryptedParticipants = msg.participants || {};
+    }
+
     if (!this.hasAnnouncedJoin && this.currentSessionId && !hasAdminToken) {
         this.hasAnnouncedJoin = true;
         this.createSecureLogBlob('User Joined', `Session: ${this.currentSessionId()}`, 'Guest')
@@ -866,6 +901,7 @@ async updateSignerLabel(fingerprint: string, label: string) {
         signerLabels: Object.keys(decryptedLabels).length > 0 ? decryptedLabels : msg.signerLabels,
         auditLog: decryptedLog,
         whitelist: decryptedWhitelist,
+        participants: Object.keys(decryptedParticipants).length > 0 ? decryptedParticipants : msg.participants || {},
         roomName: decryptedRoomName,
         finalTxHex: finalTxHex, 
         finalTxId: finalTxId

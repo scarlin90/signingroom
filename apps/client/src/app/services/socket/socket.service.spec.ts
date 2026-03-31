@@ -711,6 +711,42 @@ describe('Getters & Crypto Helpers', () => {
       const threshold = service.getThreshold('AAAA');
       expect(threshold).toBe(0);
     });
+
+    it('should handle PARTICIPANTS_UPDATE and decrypt historical display names', async () => {
+      const partsMsg = { data: JSON.stringify({
+        type: 'PARTICIPANTS_UPDATE',
+        participants: {
+          'S1': { id: 'S1', role: 'admin', encryptedDisplayName: 'enc_name_1' },
+          'S2': { id: 'S2', role: 'guest' }
+        }
+      })};
+
+      encryptionMock.decrypt.mockResolvedValueOnce('Alice Auditor');
+      if (ws.onmessage) await ws.onmessage(partsMsg);
+
+      const participants = service.roomState()?.participants;
+      expect(participants).toBeDefined();
+      expect(participants!['S1'].displayName).toBe('Alice Auditor');
+      expect(participants!['S2'].displayName).toBeUndefined(); 
+    });
+
+    it('should decrypt participants display names during STATE_SYNC', async () => {
+      const syncMsg = { data: JSON.stringify({
+        type: 'STATE_SYNC',
+        roomId: 'room-1',
+        participants: {
+          'S3': { id: 'S3', role: 'guest', encryptedDisplayName: 'enc_name_3' }
+        },
+        protocolVersion: '1.0.0'
+      })};
+
+      encryptionMock.decrypt.mockResolvedValueOnce('Bob Signer');
+      if (ws.onmessage) await ws.onmessage(syncMsg);
+
+      const participants = service.roomState()?.participants;
+      expect(participants).toBeDefined();
+      expect(participants!['S3'].displayName).toBe('Bob Signer');
+    });
   });
 
 });

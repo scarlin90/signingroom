@@ -1763,17 +1763,19 @@ export class RoomComponent implements OnInit, OnDestroy {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         
-        const activeSessions = this.socket.activeSessions();
-        if (activeSessions.length === 0) {
+        const participantsObj = state.participants || {};
+        const historicalParticipants = Object.values(participantsObj);
+
+        if (historicalParticipants.length === 0) {
             doc.setTextColor(150);
             doc.text("No participants recorded.", 20, y); y += 6;
         } else {
-            activeSessions.forEach((s, i) => {
+            historicalParticipants.forEach((p: any, i) => {
                 checkPageBreak(10);
                 doc.setTextColor(50);
                 
-                const roleBadge = s.role === 'admin' ? '[Coordinator]' : '[Guest]';
-                const displayName = s.displayName ? s.displayName : 'Anonymous';
+                const roleBadge = p.role === 'admin' ? '[Coordinator]' : '[Guest]';
+                const displayName = p.displayName ? p.displayName : 'Anonymous';
                 
                 doc.setFont('helvetica', 'bold');
                 doc.text(`${i + 1}. ${displayName} ${roleBadge}`, 20, y);
@@ -1781,9 +1783,9 @@ export class RoomComponent implements OnInit, OnDestroy {
                 doc.setFont('courier', 'normal');
                 doc.setFontSize(9);
                 doc.setTextColor(100);
-                doc.text(`Session ID: ${s.id}`, 140, y);
+                doc.text(`Session ID: ${p.id}`, 140, y);
                 
-                doc.setFontSize(10); // Reset for next loop
+                doc.setFontSize(10); 
                 y += 6;
             });
         }
@@ -1975,11 +1977,12 @@ export class RoomComponent implements OnInit, OnDestroy {
         
         const signersList = this.socket.signers().map(s => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`).join("; ");
         
-        const witnessesList = this.socket.activeSessions().map(s => {
-            const name = s.displayName || 'Anonymous';
-            const role = s.role === 'admin' ? 'Coordinator' : 'Guest';
-            return `${name} [${role}] (${s.id})`;
-        }).join("; ");
+        const participantsObj = state.participants || {};
+        const witnessesList = Object.values(participantsObj).map((p: any) => {
+            const name = p.displayName || 'Anonymous';
+            const role = p.role === 'admin' ? 'Coordinator' : 'Guest';
+            return `${name} [${role}] (${p.id})`;
+        }).join("; ")
         
         const row = [
             new Date().toISOString(),

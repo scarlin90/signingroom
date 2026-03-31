@@ -30,8 +30,10 @@ import {
       </a>
 
       <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-6 leading-tight relative z-10">
-        The Real-Time <br />
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Bitcoin Multisig Coordinator</span>
+        Signing Room® <br />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 text-3xl md:text-5xl">
+          The Real-Time Bitcoin Multisig Coordinator
+        </span>
       </h1>
 
       <p class="text-lg md:text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed relative z-10">
@@ -116,7 +118,7 @@ import {
                 <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
                 <h3 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
                     <lucide-icon [img]="Zap" class="w-5 h-5 text-emerald-400"></lucide-icon>
-                    The SigningRoom Way
+                    The Signing Room® Way
                 </h3>
                 <ul class="space-y-4">
                     <li class="flex items-start gap-3 text-sm text-slate-200">

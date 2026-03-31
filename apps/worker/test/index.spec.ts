@@ -633,4 +633,34 @@ async function cleanupClient(client: WebSocket, stub: DurableObjectStub) {
     try { failWs.close(1000, "Clean up"); } catch (e) {}
   });
 
+  it('should maintain persistent participants state and broadcast updates', async () => {
+    await initRoom();
+    const { client, received } = await createWebSocketClient();
+
+    await vi.waitFor(() => {
+      expect(received.some((m) => 
+        m.type === 'PARTICIPANTS_UPDATE' && 
+        Object.values(m.participants).some((p: any) => p.role === 'guest')
+      )).toBe(true);
+    });
+
+    client.send(JSON.stringify({ type: 'AUTH', token: 'admin-secret' }));
+    await vi.waitFor(() => {
+      expect(received.some((m) => 
+        m.type === 'PARTICIPANTS_UPDATE' && 
+        Object.values(m.participants).some((p: any) => p.role === 'admin')
+      )).toBe(true);
+    });
+
+    client.send(JSON.stringify({ type: 'SET_DISPLAY_NAME', encryptedDisplayName: 'EncryptedNameBlob' }));
+    await vi.waitFor(() => {
+      expect(received.some((m) => 
+        m.type === 'PARTICIPANTS_UPDATE' && 
+        Object.values(m.participants).some((p: any) => p.encryptedDisplayName === 'EncryptedNameBlob')
+      )).toBe(true);
+    });
+
+    await cleanupClient(client, roomStub);
+  });
+
 });

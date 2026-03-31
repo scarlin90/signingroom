@@ -103,7 +103,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '1.6.1', 
+    version: '1.7.0', 
     timestamp: Date.now() 
   });
 });
@@ -205,6 +205,7 @@ export class SigningRoom implements DurableObject {
         createdAt: now, expiresAt: now + (ttlSeconds * 1000), 
         auditLog: [], signerLabels: {}, 
         whitelist: [], 
+        participants: {},
         isLocked: false, network: network || 'bitcoin',
         protocolVersion: protocolVersion || '1.0.0',
         roomName: encryptedRoomName || "Untitled Room"
@@ -301,6 +302,11 @@ export class SigningRoom implements DurableObject {
         ip: ip
     });
 
+    if (!this.roomState.participants) this.roomState.participants = {};
+    this.roomState.participants[sessionId] = { id: sessionId, role: 'guest' };
+    this.state.storage.put('data', this.roomState);
+    this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+
     webSocket.send(JSON.stringify({ type: 'SESSION_CONNECTED', sessionId: sessionId }));
     
     this.broadcastConnections();
@@ -364,6 +370,13 @@ export class SigningRoom implements DurableObject {
 
               this.authFailures = 0; 
               this.sessions.set(webSocket, { ...session!, role: 'admin' });
+
+              if (this.roomState.participants && this.roomState.participants[session.id]) {
+                  this.roomState.participants[session.id].role = 'admin';
+                  await this.state.storage.put('data', this.roomState);
+                  this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+              }
+
               webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
             } else {
               this.authFailures++;
@@ -394,6 +407,12 @@ export class SigningRoom implements DurableObject {
             const safeName = msg.encryptedDisplayName ? String(msg.encryptedDisplayName).substring(0, 500) : undefined;
             
             this.sessions.set(webSocket, { ...session!, encryptedDisplayName: safeName });
+
+            if (this.roomState.participants && this.roomState.participants[session.id]) {
+                this.roomState.participants[session.id].encryptedDisplayName = safeName;
+                await this.state.storage.put('data', this.roomState);
+                this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+            }
             
             this.broadcastConnections();
         }
