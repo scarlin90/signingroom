@@ -1,4 +1,4 @@
-# SigningRoom.io
+# Signing Room® (SigningRoom.io)
 
 [![BIP Draft](https://img.shields.io/badge/BIP_Draft-Stateless_PSBT-orange?style=for-the-badge)](https://github.com/scarlin90/bip-stateless-psbt-coordination/blob/main/bip-draft.md)
 [![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-signingroom.io-blue?style=for-the-badge)](https://signingroom.io)
@@ -17,6 +17,8 @@
 ---
 
 ### ⚠️ Disclaimer
+
+**Trademark Notice:** **"Signing Room"** is a **registered trademark** of **Stateless Research Ltd** in the United Kingdom.
 
 **THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.**
 
@@ -240,3 +242,4 @@ PGP Fingerprint: C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56
 Email: security@signingroom.io
 
 Built with 🧡 and ⚡ by Stateless Research Ltd.
+Signing Room® is a registered trademark of Stateless Research Ltd.

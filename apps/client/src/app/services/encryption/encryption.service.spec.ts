@@ -281,6 +281,34 @@ describe('EncryptionService', () => {
       encryptedLogBlob: encLog4
     }, null, 2) + "\n");
 
+    // --- 2.10 PARTICIPANTS_UPDATE ---
+    currentIvSeed = 168;
+    const participantNamePt = "Charlie (Coldcard)";
+    const encParticipantName = await service.encrypt(participantNamePt, base64Key);
+    const ivParticipantName = Array.from({length: 12}, (_, i) => (168 + i).toString(16).padStart(2, '0')).join('');
+
+    console.log(`### 2.10 PARTICIPANTS_UPDATE`);
+    console.log(`* participantName Plaintext: "${participantNamePt}"`);
+    console.log(`* participantName IV (Hex): ${ivParticipantName}`);
+    console.log(`* participantName Output (Base64): ${encParticipantName}`);
+    
+    const participantsPayload = {
+      "ABCD": {
+        id: "ABCD",
+        role: "admin",
+        encryptedDisplayName: encParticipantName
+      },
+      "EFGH": {
+        id: "EFGH",
+        role: "guest"
+      }
+    };
+
+    console.log(JSON.stringify({
+      type: "PARTICIPANTS_UPDATE",
+      participants: participantsPayload
+    }, null, 2) + "\n");
+
     // --- STATE_SYNC (Server-to-Client Aggregation) ---
     console.log(`### STATE_SYNC (Relay-to-Client)`);
     console.log(JSON.stringify({
@@ -294,6 +322,7 @@ describe('EncryptionService', () => {
         auditLog: [encLog1],
         signerLabels: { [blindedFp]: encLabel },
         whitelist: encWl,
+        participants: participantsPayload,
         encryptedFinalTxHex: encHex,
         encryptedFinalTxId: encId,
         connectedCount: 2,

@@ -9,6 +9,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Strip Windows CRLF line endings
+RUN sed -i 's/\r$//' run-all-tests.sh
+
 # Setup the test script
 RUN chmod +x run-all-tests.sh
 

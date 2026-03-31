@@ -54,7 +54,7 @@ import { filter } from 'rxjs/operators';
                 </svg>
                 
                 <span class="text-xl font-bold tracking-tight text-slate-100">
-                    SigningRoom<span class="text-emerald-400">.io</span>
+                    Signing Room®<span class="text-emerald-400">.io</span>
                 </span>
             </div>
             <div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
@@ -74,11 +74,8 @@ import { filter } from 'rxjs/operators';
         
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-10">
             <div class="text-center md:text-left">
-              <div class="font-bold text-white text-lg mb-1 flex items-center gap-2">
-                SigningRoom.io
-                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-widest font-mono">
-                  Beta
-                </span>
+              <div class="font-bold text-white text-lg mb-1 flex items-center">
+                Signing Room®<span class="text-emerald-400">.io</span>
               </div>
               <p class="text-xs text-slate-500">
                 100% Free &bull; Zero Knowledge &bull; Bitcoin Only
@@ -129,6 +126,8 @@ import { filter } from 'rxjs/operators';
               <div class="flex flex-col items-center gap-1 text-xs text-slate-600">
                 <div class="flex flex-wrap justify-center items-center gap-x-4">
                   <p>&copy; {{ currentYear }} <strong><a href="https://statelessresearch.com" target="_blank" class="hover:text-emerald-400 transition">Stateless Research Ltd</a></strong></p>
+                  <span class="hidden sm:inline">&bull;</span>
+                  <p>Signing Room® is a registered trademark of Stateless Research Ltd.</p>
                   <span class="hidden sm:inline">&bull;</span>
                   <p>Made for Bitcoiners</p>
                   <span class="hidden sm:inline">&bull;</span>

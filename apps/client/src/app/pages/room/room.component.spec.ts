@@ -409,6 +409,36 @@ it('should reject file over 2MB', async () => {
     vi.useRealTimers();
   });
 
+  it('should include historical participants in the CSV export', () => {
+    
+    socketSpy.roomState.mockReturnValue({
+      ...baseRoomState,
+      participants: {
+        'S1': { id: 'S1', role: 'admin', displayName: 'Alice' },
+        'S2': { id: 'S2', role: 'guest' }
+      }
+    });
+    
+    const originalCreateElement = document.createElement.bind(document);
+    const anchor = originalCreateElement('a');
+    const setAttributeSpy = vi.spyOn(anchor, 'setAttribute');
+    
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName.toLowerCase() === 'a') return anchor;
+      return originalCreateElement(tagName);
+    });
+    
+    component.downloadCsv();
+    
+    // The component wraps columns in quotes and uses encodeURI (which ignores semicolons)
+    expect(setAttributeSpy).toHaveBeenCalledWith(
+      'href', 
+      expect.stringContaining('Alice%20%5BCoordinator%5D%20(S1);%20Anonymous%20%5BGuest%5D%20(S2)')
+    );
+    
+    createElementSpy.mockRestore();
+  });
+
   // ====================== SHARING & UTILS ======================
   it('should copy invite link and key', () => {
     const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
