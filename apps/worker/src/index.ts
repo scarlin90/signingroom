@@ -124,10 +124,12 @@ app.post('/api/room', async (c) => {
   const room = c.env.SIGNING_ROOM.get(id);
 
   // Initialize the Durable Object
-  await room.fetch(new Request('http://internal/init', {
+  const initRes = await room.fetch(new Request('http://internal/init', {
     method: 'POST',
     body: JSON.stringify({ roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion })
   }));
+
+  await initRes.text();
 
   return c.json({ roomId, socketUrl: `/api/room/${roomId}/websocket` });
 });
@@ -308,8 +310,17 @@ export class SigningRoom implements DurableObject {
 
     webSocket.send(JSON.stringify({ type: 'STATE_SYNC', ...safeRoomState, connectedCount: this.sessions.size }));
 
-    webSocket.addEventListener('message', async (event) => {
-      try {
+    webSocket.addEventListener('message', (event) => {
+      void this.handleMessage(event, webSocket);
+    });
+
+    webSocket.addEventListener('close', () => {
+      void this.handleClose(webSocket);
+    });
+  }
+
+  async handleMessage(event: MessageEvent, webSocket: WebSocket) {
+    try {
 
         const session = this.sessions.get(webSocket);
         if (!session) return;
@@ -467,10 +478,10 @@ export class SigningRoom implements DurableObject {
         }
 
       } catch (e) { console.error(e); }
-    });
+  }
 
-    webSocket.addEventListener('close', () => {
-      const session = this.sessions.get(webSocket);
+  private async handleClose(webSocket: WebSocket) {
+  const session = this.sessions.get(webSocket);
       
       if (session && session.ip) {
           const currentIpCount = this.ipConnectionCounts.get(session.ip) || 1;
@@ -482,11 +493,10 @@ export class SigningRoom implements DurableObject {
               this.ipConnectionCounts.set(session.ip, newCount);
           }
       }
-      
+
       this.sessions.delete(webSocket);
       this.broadcastConnections();
-    });
-  }
+}
 
   broadcast(msg: any) {
     const data = JSON.stringify(msg);

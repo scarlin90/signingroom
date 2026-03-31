@@ -29,7 +29,10 @@
     },
     "@nx/vitest:test": {
       "cache": true,
-      "inputs": ["default", "^production"]
+      "inputs": ["default", "^production"],
+      "options": {
+        "coverage": true
+      }
     },
     "@nx/esbuild:esbuild": {
       "cache": true,
