@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-25_Mar_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-02_Apr_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -44,30 +44,30 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
 
-**Live Mainnet Traffic Analysis (Mar 21, 2026):**
+**Live Mainnet Traffic Analysis (Apr 02, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (24h)** | **812** | **Continuous Availability:** Steady-state operations following the v1.6.0 deployment window. |
-| **Data Served (24h)** | **73.77 MB** | **Blind Relay Proven:** ~74 MB of encrypted coordination data relayed with 0 bytes stored on disk. |
-| **Peak Throughput** | **34.82 MB (1h)** | **The v1.6.0 Signal:** A massive throughput spike at 11:00 AM confirms institutional-density ceremonies. |
-| **User State Retained** | **0.00 B** | **Proof of Blind Relay.** The server retained 0 bytes of user session data. |
+| **Total Requests (30d)** | **42,129** | **High Velocity:** Sustained interest and recurring protocol usage globally. |
+| **Data Served (30d)** | **2.66 GB** | **Blind Relay Proven:** Over 2.6GB of encrypted data relayed with 0 bytes stored on disk. |
+| **Peak Throughput** | **23.69 MB (1h)** | **The v1.7.0 Launch:** Significant traffic surge during trademark rollout and witness upgrade. |
+| **User State Retained** | **0.00 B** | **Proof of Blind Relay.** Despite massive throughput, the database footprint remains at 0 bytes. |
 
-### 🔍 Forensic Highlight: The "v1.6.0 Ceremony" (Mar 21, 2026)
-Our latest audit reveals the emergence of high-weight coordination events following the release of the Enterprise Audit system:
+### 🔍 Forensic Highlight: The "Triple Vacuum" (Apr 02, 2026)
+Our latest audit reveals a sophisticated usage pattern following the deployment of v1.7.0 (Trademark and Witness Persistence update):
 
-* **Metric:** A massive **34.82 MB Data Spike** occurred at 11:00 AM.
-* **Analysis:** This represents the highest single-hour data density recorded to date. Despite a ~66% cache ratio (indicating broad v1.6.0 PWA downloads), the **11.72 MB Uncached Signature** confirms a complex, real-time coordination ceremony involving multiple high-weight PSBTs.
-* **The Proof:** Despite moving ~74 MB of total data in 24 hours (and ~1.94 GB over the last 30 days), the data retention size remained at **0KB**. The server acted purely as a "Vacuum," relaying encrypted packets without writing a single byte to persistent storage.
+* **Metric:** Three distinct, high-density uncached events moved a cumulative **35.17 MB** of dynamic data in just three hours (1 PM, 6 AM, 7 AM).
+* **Analysis:** These events occurred with near **0% cache ratios**, confirming they were purely WebSocket-based coordination ceremonies. This validates that the new `PARTICIPANTS_UPDATE` payload is successfully synchronizing complex multisig sets in real-time.
+* **The Proof:** Over the last 30 days, the server acted as a **2.66 GB "Vacuum."** It moved enough data to fill a standard database thousands of times over, yet the persistent storage size remained exactly **0KB**.
 
 ---
 
 ### 🛡️ Transparency & Audits
 We don't just claim to be stateless; we prove it. We publish our raw traffic logs so you can verify our "Zero-Knowledge" architecture yourself.
 
-* **Latest Audit:** [Mar 21, 2026](./site_metric_logs/MANIFEST.md#-2026-03-21_audit)
-* **Traffic Volume:** 812 Requests / 480 Active Sessions (Proxy)
-* **Key Finding:** Sustained "Institutional Rhythm" with a 34MB+ peak density event confirming the success of the new E2EE Witness system.
+* **Latest Audit:** [Apr 02, 2026](./site_metric_logs/MANIFEST.md#-2026-04-02_audit)
+* **Traffic Volume:** 42,129 Monthly Requests / 3,704 Unique Visitors (30d)
+* **Key Finding:** Healthy equilibrium between PWA asset delivery (44% cache) and active "Vacuum" relaying, confirming the robustness of the v1.7.0 "Signing Room®" trademarked release.
 
 > 📂 **[View the full Data Manifest](./site_metric_logs/MANIFEST.md)** to inspect the raw CSV logs.
 
@@ -91,7 +91,7 @@ This software serves as the reference implementation for **"The Stateless Patter
 * **Real-Time Sync:** Utilizing WebSockets for instant state propagation between signers.
 * **Hardware Agnostic:** Works with Coldcard, Sparrow, Electrum, Ledger, Trezor, and any BIP-174 compatible wallet.
 * **Ephemeral Rooms:** All rooms and data self-destruct after **24 hours**.
-* **Audit Logs:** Automatically generates a client-side, cryptographically verifiable PDF audit trail of the signing ceremony.
+* **Audit Logs:** Automatically generates a client-side, cryptographically verifiable PDF audit trail of the signing ceremony, now featuring persistent witness tracking for disconnected signers.
 
 ## 🛠️ Architecture
 
