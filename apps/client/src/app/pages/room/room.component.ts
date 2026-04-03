@@ -213,13 +213,40 @@ import * as QRCode from 'qrcode';
 
             <div class="p-6 flex flex-col items-center">
                 
-                <div class="w-full bg-red-500/10 border border-red-500/20 rounded-lg p-3 mb-6 flex items-start gap-3">
-                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-red-400 shrink-0"></lucide-icon>
-                    <p class="text-xs text-red-200 leading-relaxed">
-                        <strong>Security Warning:</strong> This QR code contains the <strong>Private Encryption Key</strong>. 
-                        Anyone who scans this can join the room and view transaction details. Treat it like a password.
-                    </p>
+                <div class="w-full flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-4">
+                    <button (click)="toggleQrKey(false)" 
+                            class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2"
+                            [class.bg-slate-800]="!qrIncludesKey()"
+                            [class.text-emerald-400]="!qrIncludesKey()"
+                            [class.text-slate-500]="qrIncludesKey()">
+                        <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon>
+                        Link Only
+                    </button>
+                    <button (click)="toggleQrKey(true)" 
+                            class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2"
+                            [class.bg-slate-800]="qrIncludesKey()"
+                            [class.text-amber-400]="qrIncludesKey()"
+                            [class.text-slate-500]="!qrIncludesKey()">
+                        <lucide-icon [img]="Key" class="w-3 h-3"></lucide-icon>
+                        Full (Link + Key)
+                    </button>
                 </div>
+
+                @if (qrIncludesKey()) {
+                    <div class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
+                        <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-amber-500 shrink-0"></lucide-icon>
+                        <p class="text-xs text-amber-200/80 leading-relaxed">
+                            <strong>Contains Decryption Key:</strong> Anyone who scans this can join the room and view data. Treat it like a password.
+                        </p>
+                    </div>
+                } @else {
+                    <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
+                        <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <p class="text-xs text-emerald-200/80 leading-relaxed">
+                            <strong>Maximum Security:</strong> Key is excluded. You must send the <em>Link Key</em> via a separate secure channel.
+                        </p>
+                    </div>
+                }
 
                 <div class="relative group cursor-pointer" (click)="toggleQrReveal()">
                     
@@ -261,6 +288,125 @@ import * as QRCode from 'qrcode';
                 </button>
             </div>
 
+        </div>
+    </div>
+  }
+
+  @if (showShareModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="Copy" class="w-5 h-5 text-slate-300"></lucide-icon>
+                    <h3 class="font-bold text-white">Share Room Securely</h3>
+                </div>
+                <button (click)="closeShareModal()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+
+            <div class="p-6 flex flex-col gap-4">
+                
+                <div class="border border-emerald-500/30 bg-emerald-950/10 rounded-xl p-4 relative overflow-hidden group">
+                    <div class="flex justify-between items-start mb-2 relative z-10">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <lucide-icon [img]="Shield" class="w-4 h-4 text-emerald-400"></lucide-icon>
+                                <h4 class="text-white font-bold text-sm">Maximum Security (Split)</h4>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Copies the room URL <strong>without</strong> the decryption key. Send this link, then use the <em>"Link Key"</em> action to send the key via a separate, secure channel (e.g., Signal vs Email).
+                            </p>
+                        </div>
+                    </div>
+                    <button (click)="copySecureLink()" class="mt-3 w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2 relative z-10">
+                        <lucide-icon [img]="secureLinkCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                        {{ secureLinkCopied() ? 'Secure Link Copied!' : 'Copy Link Only (No Key)' }}
+                    </button>
+                </div>
+
+                <div class="border border-slate-700 bg-slate-900/50 rounded-xl p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <lucide-icon [img]="AlertTriangle" class="w-4 h-4 text-amber-500"></lucide-icon>
+                                <h4 class="text-white font-bold text-sm">Standard (Combined)</h4>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Copies the full URL including the decryption key (<code>#key</code>). Convenient for quick sharing, but if this single link is intercepted, the room is compromised.
+                            </p>
+                        </div>
+                    </div>
+                    <button (click)="copyFullLink()" class="mt-3 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg border border-slate-700 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="fullLinkCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                        {{ fullLinkCopied() ? 'Full Link Copied!' : 'Copy Full Link (Link + Key)' }}
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+  }
+
+  @if (showKeyModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="Key" class="w-5 h-5 text-cyan-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Room Decryption Key</h3>
+                </div>
+                <button (click)="closeKeyModal()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div class="w-full bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3 flex items-start gap-3">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-cyan-400 shrink-0"></lucide-icon>
+                    <p class="text-xs text-cyan-200 leading-relaxed">
+                        <strong>Sensitive Data:</strong> This is the private encryption key for the room. Anyone with this key can decrypt and view the transaction details if they also have the room link.
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    For maximum operational security, send this key to signers using a different communication channel than the one used for the room link (e.g., Signal vs. Email).
+                </p>
+                <button (click)="copyKey()" class="mt-2 w-full py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-bold rounded-lg border border-cyan-500/20 transition flex items-center justify-center gap-2">
+                    <lucide-icon [img]="keyCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                    {{ keyCopied() ? 'Key Copied!' : 'Copy Decryption Key' }}
+                </button>
+            </div>
+        </div>
+    </div>
+  }
+
+  @if (showAdminModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="FileKey" class="w-5 h-5 text-purple-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Backup Admin Token</h3>
+                </div>
+                <button (click)="closeAdminModal()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div class="w-full bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 flex items-start gap-3">
+                    <lucide-icon [img]="AlertOctagon" class="w-5 h-5 text-purple-400 shrink-0"></lucide-icon>
+                    <p class="text-xs text-purple-200 leading-relaxed">
+                        <strong>High Privilege:</strong> This token allows any guest in the room to claim the "Coordinator" role.
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Coordinators have the authority to manage whitelists, lock the room, verify inputs, and broadcast the final transaction. Only share this with trusted co-administrators.
+                </p>
+                <button (click)="copyAdminToken()" class="mt-2 w-full py-2.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs font-bold rounded-lg border border-purple-500/20 transition flex items-center justify-center gap-2">
+                    <lucide-icon [img]="adminCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                    {{ adminCopied() ? 'Admin Token Copied!' : 'Copy Admin Token' }}
+                </button>
+            </div>
         </div>
     </div>
   }
@@ -414,16 +560,16 @@ import * as QRCode from 'qrcode';
 
                 @if (socket.isCoordinator()) {
                     <div class="relative group">
-                        <button (click)="copyKey()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20">
+                        <button (click)="openKeyModal()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20">
                             <lucide-icon [img]="keyCopied() ? Check : Key" class="w-4 h-4"></lucide-icon>
-                            {{ keyCopied() ? 'Link Key' : 'Link Key' }}
+                            {{ keyCopied() ? 'Copied' : 'Link Key' }}
                         </button>
                     </div>
 
                     <div class="w-px h-6 bg-slate-800 mx-1"></div>
 
                     <div class="relative group">
-                        <button (click)="copyAdminToken()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20">
+                        <button (click)="openAdminModal()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20">
                             <lucide-icon [img]="adminCopied() ? Check : FileKey" class="w-4 h-4"></lucide-icon>
                             {{ adminCopied() ? 'Copied' : 'Backup Admin' }}
                         </button>
@@ -433,9 +579,9 @@ import * as QRCode from 'qrcode';
                 }
 
                 <div class="relative group">
-                    <button (click)="copyInvite()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700">
-                        <lucide-icon [img]="inviteCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
-                        {{ inviteCopied() ? 'Copied' : 'Share Link' }}
+                    <button (click)="openShareModal()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700">
+                        <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
+                        Share Link
                     </button>
                 </div>
 
@@ -1004,10 +1150,13 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     public showQrModal = signal(false);
     public showSessionsModal = signal(false);
+    public showKeyModal = signal(false);
+    public showAdminModal = signal(false);
     public personalDisplayName = signal('');
     public copiedSessionId = signal<string | null>(null);
     public isQrRevealed = signal(false);
     public qrDataUrl = signal<string | null>(null);
+    public qrIncludesKey = signal(false);
     
     public timeRemaining = signal("Loading...");
     public isExpired = signal(false);
@@ -1052,7 +1201,9 @@ export class RoomComponent implements OnInit, OnDestroy {
     // -------------------------------------------------------------------------
     public finalHex = computed(() => this.socket.roomState()?.finalTxHex || null);
     public copied = signal(false);
-    public inviteCopied = signal(false);
+    public showShareModal = signal(false);
+    public secureLinkCopied = signal(false);
+    public fullLinkCopied = signal(false);
     public keyCopied = signal(false);
     public adminCopied = signal(false);
     
@@ -1533,11 +1684,23 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     async openQr() {
         this.showQrModal.set(true);
-        this.isQrRevealed.set(false); // Always reset to hidden for security
-        
-        // Generate the QR code on the fly
+        this.isQrRevealed.set(false); 
+        this.qrIncludesKey.set(false); 
+        await this.generateQrData();
+    }
+
+    async toggleQrKey(includesKey: boolean) {
+        this.qrIncludesKey.set(includesKey);
+        this.isQrRevealed.set(false);
+        await this.generateQrData();
+    }
+
+    private async generateQrData() {
         try {
-            const link = this.getFullShareLink();
+            const link = this.qrIncludesKey() 
+                ? this.getFullShareLink() 
+                : window.location.href.split('#')[0];
+
             const dataUrl = await QRCode.toDataURL(link, {
                 width: 400,
                 margin: 2,
@@ -1545,7 +1708,7 @@ export class RoomComponent implements OnInit, OnDestroy {
                     dark: '#000000',
                     light: '#ffffff'
                 },
-                errorCorrectionLevel: 'M' // Medium is good balance for scanning vs density
+                errorCorrectionLevel: 'M'
             });
             this.qrDataUrl.set(dataUrl);
         } catch (err) {
@@ -2043,11 +2206,6 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     copyHex() { this.doCopy(this.finalHex() || '', this.copied); }
 
-    copyAdminToken() { 
-        const t = sessionStorage.getItem(`admin_token_${this.roomId()}`);
-        if(t) this.doCopy(t, this.adminCopied);
-    }
-
     private doCopy(text: string, signalToToggle: any) {
         navigator.clipboard.writeText(text);
         if (signalToToggle) {
@@ -2062,14 +2220,6 @@ export class RoomComponent implements OnInit, OnDestroy {
         return `${baseUrl}${key ? '#' + key : ''}`;
     }
 
-    copyKey() { 
-        this.doCopy(this.socket.getRoomKey() || '', this.keyCopied); 
-    }
-
-    copyInvite() { 
-        this.doCopy(this.getFullShareLink(), this.inviteCopied); 
-    }
-
     nudgeSigner(fingerprint: string) {
         const label = this.getSignerLabel(fingerprint); 
         const msg = `Signature needed from: ${label}\n${this.getFullShareLink()}`;
@@ -2078,5 +2228,53 @@ export class RoomComponent implements OnInit, OnDestroy {
             this.openAlert('Nudge Message Copied', `Nudge message for ${label} copied! Paste it in your chat app.`);
         });
         this.socket.logAction('Nudge Sent', `Reminder sent to ${label}`);
+    }
+
+    // -------------------------------------------------------------------------
+    // Actions: OpSec Link Sharing
+    // -------------------------------------------------------------------------
+
+    openShareModal() {
+        this.showShareModal.set(true);
+    }
+
+    closeShareModal() {
+        this.showShareModal.set(false);
+    }
+
+    copySecureLink() {
+        // Gets the URL without the #key fragment
+        const baseUrl = window.location.href.split('#')[0];
+        this.doCopy(baseUrl, this.secureLinkCopied);
+        this.closeShareModal();
+    }
+
+    copyFullLink() {
+        // Gets the URL including the #key fragment
+        this.doCopy(this.getFullShareLink(), this.fullLinkCopied);
+        this.closeShareModal();
+    }
+
+    // -------------------------------------------------------------------------
+    // Actions: OpSec Key & Admin Sharing
+    // -------------------------------------------------------------------------
+
+    openKeyModal() { this.showKeyModal.set(true); }
+    closeKeyModal() { this.showKeyModal.set(false); }
+
+    openAdminModal() { this.showAdminModal.set(true); }
+    closeAdminModal() { this.showAdminModal.set(false); }
+
+    // Update your existing copyKey method
+    copyKey() { 
+        this.doCopy(this.socket.getRoomKey() || '', this.keyCopied); 
+        this.closeKeyModal();
+    }
+
+    // Update your existing copyAdminToken method
+    copyAdminToken() { 
+        const t = sessionStorage.getItem(`admin_token_${this.roomId()}`);
+        if(t) this.doCopy(t, this.adminCopied);
+        this.closeAdminModal();
     }
 }

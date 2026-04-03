@@ -312,6 +312,7 @@ it('should reject file over 2MB', async () => {
     await component.openQr();
     expect(component.showQrModal()).toBe(true);
     expect(component.isQrRevealed()).toBe(false);
+    expect(component.qrIncludesKey()).toBe(false); // New OpSec default
 
     component.toggleQrReveal();
     expect(component.isQrRevealed()).toBe(true);
@@ -321,24 +322,26 @@ it('should reject file over 2MB', async () => {
     expect(component.showQrModal()).toBe(false);
   });
 
+  it('should toggle QR key inclusion securely', async () => {
+    await component.openQr();
+    component.toggleQrReveal(); // Reveal it
+    expect(component.isQrRevealed()).toBe(true);
+
+    // Toggle to include key
+    await component.toggleQrKey(true);
+    
+    // Should update state and instantly re-blur the image
+    expect(component.qrIncludesKey()).toBe(true);
+    expect(component.isQrRevealed()).toBe(false); 
+  });
+
   it('should handle QR code generation failure gracefully', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
     const QRCode = await import('qrcode');
     vi.spyOn(QRCode, 'toDataURL').mockRejectedValueOnce(new Error('QR Engine Fail'));
 
     await component.openQr();
-    
     expect(consoleSpy).toHaveBeenCalledWith('QR Generation failed', expect.any(Error));
-  });
-
-  it('should copy admin token if it exists in session storage', () => {
-    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
-    sessionStorage.setItem('admin_token_123', 'admin-secret');
-    
-    component.copyAdminToken();
-    
-    expect(clipboardSpy).toHaveBeenCalledWith('admin-secret');
   });
 
   // ====================== WHITELIST ======================
@@ -440,38 +443,73 @@ it('should reject file over 2MB', async () => {
   });
 
   // ====================== SHARING & UTILS ======================
-  it('should copy invite link and key', () => {
+  it('should handle Share Link modal and secure copying', () => {
     const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
+    const closeSpy = vi.spyOn(component, 'closeShareModal');
+    socketSpy.getRoomKey.mockReturnValue('secret-key');
 
-    component.copyInvite();
-    expect(clipboardSpy).toHaveBeenCalledWith(expect.stringContaining('#key'));
+    component.openShareModal();
+    expect(component.showShareModal()).toBe(true);
+
+    // Test Secure Link
+    component.copySecureLink();
+    expect(clipboardSpy).toHaveBeenCalled();
+    expect(closeSpy).toHaveBeenCalled();
+
+    // Test Full Link
+    component.copyFullLink();
+    expect(clipboardSpy).toHaveBeenCalledWith(expect.stringContaining('#secret-key'));
+    expect(closeSpy).toHaveBeenCalled();
+  });
+
+  it('should handle Key modal and copying', () => {
+    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
+    const closeSpy = vi.spyOn(component, 'closeKeyModal');
+    socketSpy.getRoomKey.mockReturnValue('room-key-123');
+
+    component.openKeyModal();
+    expect(component.showKeyModal()).toBe(true);
 
     component.copyKey();
-    expect(clipboardSpy).toHaveBeenCalledWith('key');
+    expect(clipboardSpy).toHaveBeenCalledWith('room-key-123');
+    expect(closeSpy).toHaveBeenCalled();
+  });
+
+  it('should handle Admin modal and copying', () => {
+    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
+    const closeSpy = vi.spyOn(component, 'closeAdminModal');
+    sessionStorage.setItem('admin_token_123', 'admin-secret');
+
+    component.openAdminModal();
+    expect(component.showAdminModal()).toBe(true);
+
+    component.copyAdminToken();
+    expect(clipboardSpy).toHaveBeenCalledWith('admin-secret');
+    expect(closeSpy).toHaveBeenCalled();
   });
 
   it('should handle downloadUnsignedPsbt', () => {
-  const anchor = document.createElement('a');
-  const clickSpy = vi.spyOn(anchor, 'click').mockImplementation(() => {});
-  
-  const createElementSpy = vi.spyOn(document, 'createElement').mockReturnValueOnce(anchor);
-  
-  if (!URL.createObjectURL) URL.createObjectURL = vi.fn();
-  if (!URL.revokeObjectURL) URL.revokeObjectURL = vi.fn();
-  const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const anchor = document.createElement('a');
+    const clickSpy = vi.spyOn(anchor, 'click').mockImplementation(() => {});
+    
+    const createElementSpy = vi.spyOn(document, 'createElement').mockReturnValueOnce(anchor);
+    
+    if (!URL.createObjectURL) URL.createObjectURL = vi.fn();
+    if (!URL.revokeObjectURL) URL.revokeObjectURL = vi.fn();
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
-  component.downloadUnsignedPsbt();
-  
-  expect(createElementSpy).toHaveBeenCalledWith('a');
-  expect(clickSpy).toHaveBeenCalled(); // Verify the download was triggered
-  expect(revokeSpy).toHaveBeenCalled();
-});
+    component.downloadUnsignedPsbt();
+    
+    expect(createElementSpy).toHaveBeenCalledWith('a');
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeSpy).toHaveBeenCalled();
+  });
 
   it('should handle nudgeSigner', async () => {
     const alertSpy = vi.spyOn(component, 'openAlert' as any);
     component.nudgeSigner('fingerprint123');
     
-    await Promise.resolve(); // Wait for the clipboard promise to resolve
+    await Promise.resolve(); // Wait for clipboard promise
     
     expect(alertSpy).toHaveBeenCalledWith('Nudge Message Copied', expect.any(String));
     expect(socketSpy.logAction).toHaveBeenCalledWith('Nudge Sent', expect.any(String));
@@ -580,5 +618,100 @@ it('should reject file over 2MB', async () => {
     const disconnectSpy = vi.spyOn(socketSpy, 'gracefullyDisconnect');
     component.onBeforeUnload();
     expect(disconnectSpy).toHaveBeenCalled();
+  });
+
+  // ====================== EDGE CASES & EARLY RETURNS ======================
+  
+  it('should abort onFileSelected if no file is provided', async () => {
+    const alertSpy = vi.spyOn(component, 'openAlert' as any);
+    await component.onFileSelected({ target: { files: [] } } as any);
+    // Should return silently without alerting or attempting to parse
+    expect(alertSpy).not.toHaveBeenCalled(); 
+  });
+
+  it('should not rename room if new name is empty or only whitespace', () => {
+    component.newRoomName.set('   ');
+    component.saveRoomName();
+    expect(socketSpy.renameRoom).not.toHaveBeenCalled();
+  });
+
+  it('should abort downloadQr if qrDataUrl is null', () => {
+    component.qrDataUrl.set(null);
+    const createElementSpy = vi.spyOn(document, 'createElement');
+    component.downloadQr();
+    expect(createElementSpy).not.toHaveBeenCalled();
+  });
+
+  it('should abort finalize if the room is expired', () => {
+    component.isExpired.set(true);
+    component.finalize();
+    expect(socketSpy.broadcastFinalization).not.toHaveBeenCalled();
+  });
+
+  it('should not set returnValue on beforeunload if transaction is already finalized', () => {
+    socketSpy.roomState.mockReturnValue({ ...baseRoomState, finalTxHex: 'hex123' });
+    const event = { returnValue: '' } as any;
+    component.unloadNotification(event);
+    // Because finalHex exists, it should NOT set returnValue to true
+    expect(event.returnValue).toBe('');
+  });
+
+  // ====================== URL PARSING & DECRYPTION ======================
+  
+  it('should set decryption error if URL lacks a fragment key on init', () => {
+    (component as any).route.snapshot.fragment = null;
+    component.ngOnInit();
+    
+    expect(socketSpy.decryptionError()).toBe('Missing decryption key in URL');
+  });
+
+  it('should extract key correctly if manualKey contains a full URL with #', () => {
+    component.manualKey = 'https://signingroom.io/room/123#my-secret-key';
+    component.submitKey();
+    expect(socketSpy.connect).toHaveBeenCalledWith('123', 'my-secret-key');
+  });
+
+  it('should abort submitKey if manualKey is empty', () => {
+    component.manualKey = '';
+    component.submitKey();
+    expect(socketSpy.connect).not.toHaveBeenCalled();
+  });
+
+  // ====================== EMPTY ARRAYS & BATCH ACTIONS ======================
+  
+  it('should abort batch verify actions if arrays are empty', () => {
+    socketSpy.txDetails.mockReturnValue({ inputsList: [], outputs: [] });
+    
+    component.verifyAllInputs();
+    expect(socketSpy.updateWhitelistBatch).not.toHaveBeenCalled();
+
+    component.verifyAllOutputs();
+    expect(component.showConfirmModal()).toBe(false); // Shouldn't even open the confirm modal
+  });
+
+  it('should not update whitelist batch if all addresses are already whitelisted', () => {
+    socketSpy.roomState.mockReturnValue({ ...baseRoomState, whitelist: ['addr1', 'addr2'] });
+    socketSpy.txDetails.mockReturnValue({
+      inputsList: [{ address: 'addr1' }],
+      outputs: [{ address: 'addr2' }]
+    });
+
+    component.verifyAllInputs();
+    expect(socketSpy.updateWhitelistBatch).not.toHaveBeenCalled();
+  });
+
+  it('should handle empty arrays in generateAuditLog gracefully', () => {
+    socketSpy.roomState.mockReturnValue({ 
+      ...baseRoomState, 
+      auditLog: [], 
+      participants: {},
+      whitelist: []
+    });
+    socketSpy.txDetails.mockReturnValue({ inputsList: [], outputs: [] });
+    
+    component.generateAuditLog();
+    
+    // As long as jsPDF is called and doesn't crash, the empty branches were handled successfully
+    expect(jsPDF).toHaveBeenCalled(); 
   });
 });
