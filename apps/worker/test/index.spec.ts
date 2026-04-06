@@ -1,4 +1,3 @@
-// index.spec.ts
 import {
   env,
   createExecutionContext,
@@ -94,11 +93,12 @@ describe('SigningRoom Durable Object', () => {
   });
 
   afterEach(async () => {
+    // CRITICAL FIX: Give the DO 50ms to process any webSocketClose events 
+    // from cleanupClient BEFORE we force the room expiration alarm to run!
+    await new Promise((r) => setTimeout(r, 50));
     try {
       await runDurableObjectAlarm(roomStub);
     } catch (_) {}
-
-    await new Promise((r) => setTimeout(r, 200));
   });
 
   async function initRoom(overrides: any = {}) {
@@ -139,45 +139,36 @@ describe('SigningRoom Durable Object', () => {
       }
     });
 
-    client.addEventListener('close', () => {});
     client.accept();
     await new Promise(r => setTimeout(r, 10));
 
     return { client, received };
   }
 
-  async function cleanupClient(client: WebSocket, stub: DurableObjectStub) {
+  async function cleanupClient(client: WebSocket) {
     if (!client) return;
 
-    const closePromise = new Promise<void>((resolve) => {
-      const onClose = () => {
-        client.removeEventListener('close', onClose);
-        resolve();
-      };
-      client.addEventListener('close', onClose, { once: true });
-      client.close(1000, "Test cleanup");
-    });
-
-    try {
-      await Promise.race([
-        closePromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('WebSocket close timeout')), 500))
-      ]);
-    } catch (e) {
-      console.warn('WebSocket close timed out during cleanup');
-      try { client.close(); } catch {}
+    if (client.readyState !== 3) { // 3 = CLOSED
+      const closePromise = new Promise<void>((resolve) => {
+        client.addEventListener('close', () => resolve(), { once: true });
+      });
+      
+      if (client.readyState === 1) { // 1 = OPEN
+        client.close(1000, "Test cleanup");
+      }
+      
+      try {
+        await Promise.race([
+          closePromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 500))
+        ]);
+      } catch (e) {
+        // silently ignore timeout
+      }
     }
-
-    await new Promise(r => setTimeout(r, 150));
-
-    try {
-      await runDurableObjectAlarm(stub);
-    } catch (_) {}
-
-    await new Promise(r => setTimeout(r, 50));
   }
 
-  it('should initialize a room via POST /api/room', async () => {
+  it.only('should initialize a room via POST /api/room', async () => {
     const request = new Request('http://localhost/api/room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -198,12 +189,12 @@ describe('SigningRoom Durable Object', () => {
     expect(data.socketUrl).toContain('/websocket');
   });
 
-  it('should reject non-websocket upgrade requests', async () => {
+  it.only('should reject non-websocket upgrade requests', async () => {
     const response = await roomStub.fetch(new Request('http://localhost/'));
     expect(response.status).toBe(426);
   });
 
-  it('should successfully upgrade to a WebSocket and send initial state', async () => {
+  it.only('should successfully upgrade to a WebSocket and send initial state', async () => {
     await initRoom({ encryptedLogBlob: 'initial-creation-log' });
     const { client, received } = await createWebSocketClient();
 
@@ -215,11 +206,11 @@ describe('SigningRoom Durable Object', () => {
       expect(received.some((m) => m.type === 'SESSION_CONNECTED')).toBe(true);
       expect(received.some((m) => m.type === 'STATE_SYNC')).toBe(true);
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should maintain persistent participants state and broadcast updates', async () => {
+  it.only('should maintain persistent participants state and broadcast updates', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -247,11 +238,11 @@ describe('SigningRoom Durable Object', () => {
         )).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should authenticate admin with correct token', async () => {
+  it.only('should authenticate admin with correct token', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -265,11 +256,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.type === 'ROLE_UPDATE' && m.role === 'admin')).toBe(true);
       }, { timeout: 800 });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should reject invalid admin token and lock out after 5 failures', async () => {
+  it.only('should reject invalid admin token and lock out after 5 failures', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -282,11 +273,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.message?.includes('Room locked'))).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should update signer labels (admin only)', async () => {
+  it.only('should update signer labels (admin only)', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -305,11 +296,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.type === 'LABELS_UPDATED')).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should close room and clean up on CLOSE_ROOM (admin)', async () => {
+  it.only('should close room and clean up on CLOSE_ROOM (admin)', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -326,11 +317,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.type === 'ROOM_CLOSED')).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should reject connection on protocol version mismatch', async () => {
+  it.only('should reject connection on protocol version mismatch', async () => {
     await initRoom({ protocolVersion: '2.0.0' });
     
     const wsResponse = await roomStub.fetch(new Request('http://localhost/?pass=pass123&v=1.0.0', {
@@ -350,11 +341,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some(m => m.type === 'ERROR_VERSION_MISMATCH')).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should enforce message rate limiting', async () => {
+  it.only('should enforce message rate limiting', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -374,13 +365,13 @@ describe('SigningRoom Durable Object', () => {
       const logUpdates = received.filter((m) => m.type === 'LOG_UPDATE');
       expect(logUpdates.length).toBeLessThan(15); 
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should reject more than 10 connections from the same IP', async () => {
+  it.only('should reject more than 10 connections from the same IP', async () => {
     await initRoom();
-    const clients = [];
+    const clients: WebSocket[] = [];
 
     for (let i = 0; i < 10; i++) {
       const res = await roomStub.fetch(new Request('http://localhost/?pass=pass123', {
@@ -388,6 +379,7 @@ describe('SigningRoom Durable Object', () => {
       }));
       if (res.webSocket) {
         res.webSocket.accept();
+        await new Promise(r => setTimeout(r, 5));
         clients.push(res.webSocket);
       }
     }
@@ -399,15 +391,11 @@ describe('SigningRoom Durable Object', () => {
     expect(failRes.status).toBe(429);
     
     for (const c of clients) {
-      try { c.close(1000, "Test end"); } catch {}
+      await cleanupClient(c);
     }
-    await new Promise(r => setTimeout(r, 200));
-    try {
-      await runDurableObjectAlarm(roomStub);
-    } catch (_) {}
   });
 
-  it('should set display name and broadcast connections', async () => {
+  it.only('should set display name and broadcast connections', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -424,11 +412,11 @@ describe('SigningRoom Durable Object', () => {
         )).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should rename the room (admin only)', async () => {
+  it.only('should rename the room (admin only)', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -446,11 +434,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.type === 'ROOM_RENAMED' && m.encryptedName === 'New Encrypted Room Name')).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should accept partial uploads and enforce limit', async () => {
+  it.only('should accept partial uploads and enforce limit', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -466,11 +454,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.type === 'NEW_PARTIAL_DATA' && m.fingerprint === '123456')).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should allow admin to update whitelist and lock room', async () => {
+  it.only('should allow admin to update whitelist and lock room', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -498,11 +486,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.type === 'LOCK_UPDATED' && m.isLocked === true)).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should finalize transaction (admin only)', async () => {
+  it.only('should finalize transaction (admin only)', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -521,11 +509,11 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.type === 'TX_FINALIZED_BROADCAST')).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should safely catch malformed JSON messages', async () => {
+  it.only('should safely catch malformed JSON messages', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
     
@@ -537,11 +525,11 @@ describe('SigningRoom Durable Object', () => {
       expect(client.readyState).toBe(WebSocket.OPEN);
       expect(received.some(m => m.parseError)).toBe(false); 
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should reject connection with an invalid password', async () => {
+  it.only('should reject connection with an invalid password', async () => {
     await initRoom();
 
     const response = await roomStub.fetch(new Request('http://localhost/?pass=wrongpassword', {
@@ -552,7 +540,7 @@ describe('SigningRoom Durable Object', () => {
     expect(await response.text()).toBe("Unauthorized: Invalid Room Pass");
   });
 
-  it('should enforce the 100 signature upload limit safely via state injection', async () => {
+  it.only('should enforce the 100 signature upload limit safely via state injection', async () => {
     await initRoom();
 
     await runInDurableObject(roomStub, (instance: any) => {
@@ -571,17 +559,17 @@ describe('SigningRoom Durable Object', () => {
         expect(received.some((m) => m.message === 'Signature limit reached.')).toBe(true);
       });
     } finally {
-      await cleanupClient(client, roomStub);
+      await cleanupClient(client);
     }
   });
 
-  it('should remove disconnected clients gracefully during broadcast', async () => {
+  it.only('should remove disconnected clients gracefully during broadcast', async () => {
     await initRoom();
     const { client: client1 } = await createWebSocketClient();
     const { client: client2 } = await createWebSocketClient();
     
     try {
-      client1.close(1000);
+      await cleanupClient(client1);
 
       client2.send(JSON.stringify({ 
         type: 'SET_DISPLAY_NAME', 
@@ -590,28 +578,31 @@ describe('SigningRoom Durable Object', () => {
       
       await new Promise(r => setTimeout(r, 150));
     } finally {
-      await cleanupClient(client2, roomStub);
+      await cleanupClient(client2);
     }
   });
 
-  it('should reject connection if room is not initialized', async () => {
+  it.only('should reject connection if room is not initialized', async () => {
     const wsResponse = await roomStub.fetch(new Request('http://localhost/?pass=pass123', {
       headers: { 'Upgrade': 'websocket' },
     }));
 
     const client = wsResponse.webSocket!;
-    
-    const closePromise = new Promise<{code: number}>((resolve) => {
-      client.addEventListener('close', (e) => resolve({ code: e.code }));
-    });
-    
-    client.accept();
-    const closeEvent = await closePromise;
-    
-    expect(closeEvent.code).toBe(4004); 
+    try {
+      const closePromise = new Promise<{code: number}>((resolve) => {
+        client.addEventListener('close', (e) => resolve({ code: e.code }));
+      });
+      
+      client.accept();
+      const closeEvent = await closePromise;
+      
+      expect(closeEvent.code).toBe(4004); 
+    } finally {
+      await cleanupClient(client);
+    }
   });
 
-  it('should enforce the room capacity limit (MAX_CONNECTIONS) via state injection', async () => {
+  it.only('should enforce the room capacity limit (MAX_CONNECTIONS) via state injection', async () => {
     await initRoom();
 
     await runInDurableObject(roomStub, (instance: any) => {
@@ -625,14 +616,33 @@ describe('SigningRoom Durable Object', () => {
     }));
     
     const failWs = failRes.webSocket!;
-    
-    const closePromise = new Promise<{code: number}>((resolve) => {
-      failWs.addEventListener('close', (e) => resolve({ code: e.code }));
-    });
-    
-    failWs.accept();
-    const closeEvent = await closePromise;
-    
-    expect(closeEvent.code).toBe(4001); 
+    try {
+      const closePromise = new Promise<{code: number}>((resolve) => {
+        failWs.addEventListener('close', (e) => resolve({ code: e.code }));
+      });
+      
+      failWs.accept();
+      const closeEvent = await closePromise;
+      
+      expect(closeEvent.code).toBe(4001); 
+    } finally {
+      await cleanupClient(failWs);
+    }
+  });
+
+  it.only('should reject messages larger than MAX_PAYLOAD_SIZE_BYTES', async () => {
+    await initRoom();
+    const { client, received } = await createWebSocketClient();
+
+    try {
+      const massivePayload = 'a'.repeat((2 * 1024 * 1024) + 10);
+      client.send(massivePayload);
+
+      await vi.waitFor(() => {
+        expect(received.some(m => m.message === 'Payload too large (Max 2MB)')).toBe(true);
+      });
+    } finally {
+      await cleanupClient(client);
+    }
   });
 });
