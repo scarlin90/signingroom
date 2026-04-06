@@ -14,7 +14,8 @@ import { base64, hex } from '@scure/base';
 
 import { 
   LucideAngularModule, Zap, Check, Loader2, 
-  X, UploadCloud, FileJson, AlertTriangle, Shield, Key, Users
+  X, UploadCloud, FileJson, AlertTriangle, Shield, Key, Users,
+  Eye, EyeOff,
 } from 'lucide-angular';
 
 import { PROTOCOL_VERSION, SocketService } from '../../services/socket/socket.service';
@@ -170,8 +171,21 @@ interface PsbtAnalysis {
                                         {{ manualRoomId.length }} / 36
                                     </span>
                                 </div>
-                                <input type="text" [(ngModel)]="manualRoomId" maxlength="36" placeholder="Paste Room ID..." 
-                                    class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white font-mono text-sm outline-none focus:border-emerald-500 transition"/>
+                                <div class="relative">
+                                    <input [type]="showManualRoomId ? 'text' : 'password'" 
+                                        [(ngModel)]="manualRoomId" 
+                                        maxlength="36" 
+                                        placeholder="Paste Room ID..." 
+                                        autocomplete="off" 
+                                        data-1p-ignore="true" 
+                                        data-lpignore="true" 
+                                        data-bwignore="true"
+                                        class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 pr-10 text-white font-mono text-sm outline-none focus:border-emerald-500 transition"/>
+                                    <button (click)="showManualRoomId = !showManualRoomId" 
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition">
+                                        <lucide-icon [img]="showManualRoomId ? EyeOff : Eye" class="w-4 h-4"></lucide-icon>
+                                    </button>
+                                </div>
                             </div>
                             
                             <div>
@@ -183,8 +197,21 @@ interface PsbtAnalysis {
                                         {{ manualKey.length }} / 44
                                     </span>
                                 </div>
-                                <input type="text" [(ngModel)]="manualKey" maxlength="44" placeholder="Paste Key..." 
-                                    class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white font-mono text-sm outline-none focus:border-emerald-500 transition"/>
+                                <div class="relative">
+                                    <input [type]="showManualKey ? 'text' : 'password'" 
+                                        [(ngModel)]="manualKey" 
+                                        maxlength="44" 
+                                        placeholder="Paste Key..." 
+                                        autocomplete="off" 
+                                        data-1p-ignore="true" 
+                                        data-lpignore="true" 
+                                        data-bwignore="true"
+                                        class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 pr-10 text-white font-mono text-sm outline-none focus:border-emerald-500 transition"/>
+                                    <button (click)="showManualKey = !showManualKey" 
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition">
+                                        <lucide-icon [img]="showManualKey ? EyeOff : Eye" class="w-4 h-4"></lucide-icon>
+                                    </button>
+                                </div>
                             </div>
                             <button 
                                 (click)="joinRoom()" 
@@ -197,7 +224,7 @@ interface PsbtAnalysis {
                                 
                                 <span>Enter Signing Room®</span>
                             </button>
-                    </div>
+                        </div>
                     </div>
                 </div>
             }
@@ -317,6 +344,11 @@ export class CreateComponent implements OnInit {
     readonly AlertTriangle = AlertTriangle;
     readonly Key = Key;
     readonly Users = Users;
+    readonly Eye = Eye;
+    readonly EyeOff = EyeOff;
+    
+    showManualRoomId = false;
+    showManualKey = false;
 
     private socket = inject(SocketService);
     private encryption = inject(EncryptionService);

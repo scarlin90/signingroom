@@ -40,6 +40,7 @@ import { filter } from 'rxjs/operators';
   template: `
 <body class="min-h-screen flex flex-col">
 
+  @if (!isEmbedded) {
     <nav class="w-full border-b border-slate-800/60 backdrop-blur-md fixed top-0 z-50 bg-slate-950/50">
         <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
             
@@ -64,10 +65,13 @@ import { filter } from 'rxjs/operators';
             </div>
         </div>
     </nav>
+    }
     
     <div class="flex-grow pt-20">
         <router-outlet></router-outlet>
     </div>
+
+    @if (!isEmbedded) {
 
     <footer class="border-t border-slate-800 bg-slate-950 py-12 mt-auto relative z-20">
       <div class="max-w-5xl mx-auto px-6">
@@ -154,11 +158,14 @@ import { filter } from 'rxjs/operators';
 
       </div>
     </footer>
+  }
 
   </body>
   `
 })
 export class App implements OnInit {
+
+  isEmbedded = false;
 
   readonly icons = {
     Shield,
@@ -194,16 +201,22 @@ export class App implements OnInit {
   }
 
   ngOnInit() {
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
-          document.body.innerHTML = `
-              <div style="background:#020617; color:#f43f5e; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:sans-serif; text-align:center; padding:20px;">
-                  <h1 style="margin-bottom:10px;">Security Error</h1>
-                  <p>SigningRoom requires a Secure Context (HTTPS).</p>
-                  <p style="color:#94a3b8; font-size:14px;">The Web Cryptography API is disabled in insecure environments.</p>
-              </div>
-          `;
-          throw new Error("Insecure Context - Crypto API disabled");
-      }
+    if (typeof window !== 'undefined') {
+        // Detect if the app is embedded in an iframe or web component
+        this.isEmbedded = window !== window.parent || window !== window.top;
+
+        // Security check for secure context
+        if (!window.isSecureContext) {
+            document.body.innerHTML = `
+                <div style="background:#020617; color:#f43f5e; height:100vh; display:flex; flex-direction:column; items-center; justify-content:center; font-family:sans-serif; text-align:center; padding:20px;">
+                    <h1 style="margin-bottom:10px;">Security Error</h1>
+                    <p>SigningRoom requires a Secure Context (HTTPS).</p>
+                    <p style="color:#94a3b8; font-size:14px;">The Web Cryptography API is disabled in insecure environments.</p>
+                </div>
+            `;
+            throw new Error("Insecure Context - Crypto API disabled");
+        }
+    }
   }
 
   readonly features = [
