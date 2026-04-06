@@ -21,13 +21,10 @@ describe('SocketService', () => {
   let encryptionMock: any;
 
   beforeEach(() => {
-    // Reset vi mocks properly
-    vi.restoreAllMocks();
-
     encryptionMock = {
       encrypt: vi.fn().mockResolvedValue('encrypted_data'),
       decrypt: vi.fn().mockResolvedValue('decrypted_data'),
-      blindData: vi.fn().mockImplementation(async (data: string) => `blinded_${data}`)
+      blindData: vi.fn().mockImplementation(async (data) => `blinded_${data}`)
     };
 
     TestBed.configureTestingModule({
@@ -76,7 +73,7 @@ describe('SocketService', () => {
     });
 
     it('should send AUTH token if present in sessionStorage on connect', async () => {
-      vi.spyOn(sessionStorage, 'getItem').mockReturnValue('secret-token');
+      (sessionStorage.getItem as any).mockReturnValue('secret-token');
       
       await service.connect('room-1', 'key');
       
@@ -484,7 +481,7 @@ describe('SocketService', () => {
 
   describe('Address Book Logic', () => {
     it('should get local label', () => {
-      vi.spyOn(localStorage, 'getItem').mockReturnValue('Saved Wallet');
+      (localStorage.getItem as any).mockReturnValue('Saved Wallet');
       const res = service.getLocalLabel('fp123');
       expect(res).toBe('Saved Wallet');
       expect(localStorage.getItem).toHaveBeenCalledWith('addr_book_fp123');
@@ -505,7 +502,7 @@ describe('SocketService', () => {
       service.roomState.set({ signerLabels: {} } as any);
       
       vi.spyOn(service as any, 'signers').mockReturnValue([{ fingerprint: 'fp123', signed: false }]);
-      vi.spyOn(localStorage, 'getItem').mockReturnValue('Local Device Name');
+      (localStorage.getItem as any).mockReturnValue('Local Device Name');
       
       const updateLabelSpy = vi.spyOn(service, 'updateSignerLabel').mockImplementation(async () => {});
 
@@ -567,13 +564,8 @@ describe('Getters & Crypto Helpers', () => {
   });
 
   describe('PSBT Merging', () => {
-    it('should merge two PSBTs', () => {
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        combine: vi.fn(),
-        toPSBT: vi.fn().mockReturnValue(new Uint8Array([1, 2, 3]))
-      } as any);
-      
-      const psbt = 'AAAA'; 
+    it('should merge two PSBTs using scure/btc-signer', () => {
+      const psbt = 'cHNidXf0AAA...'; 
       const result = service.mergePsbts(psbt, psbt);
       expect(result).toBeDefined();
     });
@@ -649,15 +641,13 @@ describe('Getters & Crypto Helpers', () => {
           getInput: () => ({
             partialSig: isUploadedFile ? [[mockPubkey, new Uint8Array([3])]] : undefined,
             bip32Derivation: [[mockPubkey, { fingerprint: 0xaabbccdd }]]
-          }),
-          combine: vi.fn(),
-          toPSBT: vi.fn().mockReturnValue(new Uint8Array([1, 2, 3]))
+          })
         } as any;
       });
 
       service.roomState.set({ psbt: 'AAAA', roomId: 'room-1' } as any);
       
-      vi.spyOn(localStorage, 'getItem').mockImplementation((key: string) => {
+      (localStorage.getItem as any).mockImplementation((key: string) => {
         if (key.startsWith('addr_book_')) return 'Saved Label';
         return null;
       });
