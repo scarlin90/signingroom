@@ -228,4 +228,116 @@ it('should normalize input and generate encryption keys', () => {
   expect(key).toBeDefined();
   expect(key.length).toBeGreaterThan(40);
 });
+
+// ====================== POST MESSAGE / EMBED ======================
+  
+  it('should handle onMessage from allowed origin', () => {
+    const analyzeSpy = vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+    
+    // Disallowed origin should be ignored
+    component.onMessage({ origin: 'https://evil.com', data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: '123' } } as MessageEvent);
+    expect(analyzeSpy).not.toHaveBeenCalled();
+
+    // Allowed origin, but wrong action/type should be ignored
+    component.onMessage({ origin: 'http://localhost:4200', data: { type: 'OTHER' } } as MessageEvent);
+    expect(analyzeSpy).not.toHaveBeenCalled();
+
+    // Allowed origin, correct action should process the payload
+    component.isEmbedded = true;
+    component.onMessage({ origin: 'http://localhost:4200', data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: 'hex123' } } as MessageEvent);
+    
+    expect(component.rawHex).toBe('hex123');
+    expect(analyzeSpy).toHaveBeenCalledWith('hex123');
+    expect(component.showCreateModal()).toBe(true);
+  });
+
+  // ====================== UTILITIES & UX HELPERS ======================
+  
+  it('should clear psbt state on clearPsbt()', () => {
+    component.psbtFile.set(new File([], 'test.psbt'));
+    component.rawHex = '1234abcd';
+    component.psbtAnalysis.set({ valid: true } as any);
+
+    component.clearPsbt();
+
+    expect(component.psbtFile()).toBeNull();
+    expect(component.rawHex).toBe('');
+    expect(component.psbtAnalysis()).toBeNull();
+  });
+
+  it('should evaluate isNetworkMismatch correctly', () => {
+    expect(component.isNetworkMismatch()).toBe(false);
+
+    component.selectedNetwork.set('testnet');
+    component.psbtAnalysis.set({ detectedNetwork: 'bitcoin' } as any);
+    expect(component.isNetworkMismatch()).toBe(true);
+
+    component.selectedNetwork.set('bitcoin');
+    component.psbtAnalysis.set({ detectedNetwork: 'testnet' } as any);
+    expect(component.isNetworkMismatch()).toBe(true);
+
+    component.selectedNetwork.set('bitcoin');
+    component.psbtAnalysis.set({ detectedNetwork: 'bitcoin' } as any);
+    expect(component.isNetworkMismatch()).toBe(false);
+  });
+
+  it('should evaluate isHighFee correctly', () => {
+    expect(component.isHighFee()).toBe(false); 
+
+    // Normal fee rate and amount
+    component.psbtAnalysis.set({
+      networkFeeSat: 500,
+      signerCount: 2,
+      outputCount: 2,
+      amountBtc: 1
+    } as any);
+    expect(component.isHighFee()).toBe(false); 
+
+    // High fee rate (> 100 sat/vB)
+    component.psbtAnalysis.set({
+      networkFeeSat: 25000, 
+      signerCount: 2,
+      outputCount: 2,
+      amountBtc: 1
+    } as any);
+    expect(component.isHighFee()).toBe(true);
+
+    // High percentage (> 5% of total amount)
+    component.psbtAnalysis.set({
+      networkFeeSat: 600,
+      signerCount: 2,
+      outputCount: 2,
+      amountBtc: 0.0001
+    } as any);
+    expect(component.isHighFee()).toBe(true);
+  });
+
+  // ====================== JOIN ROOM ======================
+  
+  it('should join room with manual inputs and handle hash fragment', () => {
+    const navigateSpy = vi.spyOn((component as any).router, 'navigate');
+
+    // With hash - should clean it
+    component.manualRoomId = ' 12345 ';
+    component.manualKey = ' #secretkey ';
+    component.joinRoom();
+    expect(navigateSpy).toHaveBeenCalledWith(['/room', '12345'], { fragment: 'secretkey' });
+
+    // Without hash
+    component.manualRoomId = 'abc';
+    component.manualKey = 'plainkey';
+    component.joinRoom();
+    expect(navigateSpy).toHaveBeenCalledWith(['/room', 'abc'], { fragment: 'plainkey' });
+  });
+
+  // ====================== PRIVATE HELPERS ======================
+  
+  it('should normalize input and generate encryption keys deterministically', () => {
+    const normalized = (component as any).normalizeInput('  A B  C ');
+    expect(normalized).toBe('ABC');
+
+    const key = (component as any).generateEncryptionKey();
+    expect(key).toBeDefined();
+    expect(typeof key).toBe('string');
+  });
 });

@@ -17,8 +17,8 @@
       "outputs": ["{options.outputPath}"],
       "options": {
         "outputPath": "dist/embed",
-        "main": "embed/src/index.ts",
-        "tsConfig": "embed/tsconfig.lib.json",
+        "main": "apps/embed/src/index.ts",
+        "tsConfig": "apps/embed/tsconfig.lib.json",
         "assets": ["embed/*.md"],
         "format": ["cjs"],
         "generatePackageJson": true

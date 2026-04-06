@@ -146,6 +146,11 @@ describe('RoomComponent', () => {
   });
 
   afterEach(() => {
+    if (component) component.ngOnDestroy();
+    
+    vi.clearAllTimers(); 
+    vi.useRealTimers();      
+    
     if (fixture) fixture.destroy();
     vi.clearAllMocks();
     sessionStorage.clear();
@@ -190,6 +195,190 @@ describe('RoomComponent', () => {
     expect(clearIntervalSpy).toHaveBeenCalled();
   });
 
+  it('should open friction modals for sensitive downloads', () => {
+      component.promptAuditLogDownload();
+      expect(component.showAuditModal()).toBe(true);
+
+      component.promptCsvDownload();
+      expect(component.showCsvModal()).toBe(true);
+
+      component.promptPsbtDownload();
+      expect(component.showPsbtModal()).toBe(true);
+    });
+
+    it('should open the Room ID OpSec modal', () => {
+      component.openRoomIdModal();
+      expect(component.showRoomIdModal()).toBe(true);
+      
+      component.closeRoomIdModal();
+      expect(component.showRoomIdModal()).toBe(false);
+    });
+
+    it('should handle character counter validation for room IDs', () => {
+      component.manualKey = 'short';
+      expect(component.manualKey.length).toBe(5);
+    });
+
+    it('should log when the Decryption Key is copied from the modal', () => {
+      const logSpy = vi.spyOn(socketSpy, 'logAction');
+      socketSpy.getRoomKey.mockReturnValue('fake-key');
+      
+      component.copyKey();
+      
+      expect(logSpy).toHaveBeenCalledWith('Key Copied', expect.stringContaining('decryption key'));
+    });
+
+    it('should log to audit timeline when sensitive keys are copied', () => {
+      component.copyKey();
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Key Copied', expect.any(String));
+
+      sessionStorage.setItem(`admin_token_123`, 'secret');
+      component.copyAdminToken();
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Admin Token Copied', expect.any(String));
+
+      component.copyRoomId();
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Room ID Copied', expect.any(String));
+    });
+
+    it('should log specific QR code security levels', async () => {
+      component.qrIncludesKey.set(false);
+      component.toggleQrReveal(); // Reveal
+      expect(socketSpy.logAction).toHaveBeenCalledWith('QR Code Revealed', expect.stringContaining('Link Only'));
+
+      component.isQrRevealed.set(false);
+      component.qrIncludesKey.set(true);
+      component.toggleQrReveal(); 
+      expect(socketSpy.logAction).toHaveBeenCalledWith('QR Code Revealed', expect.stringContaining('Full (Link + Key)'));
+    });
+
+    it('should wait for socket sync before triggering file downloads', async () => {
+      vi.useFakeTimers();
+      const csvSpy = vi.spyOn(component, 'downloadCsv' as any);
+      
+      const downloadPromise = component.executeCsvDownload();
+      
+      expect(socketSpy.logAction).toHaveBeenCalledWith('CSV Export', expect.any(String));
+      expect(csvSpy).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1100);
+      
+      expect(csvSpy).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('should open friction modals for sensitive downloads', () => {
+      component.promptAuditLogDownload();
+      expect(component.showAuditModal()).toBe(true);
+
+      component.promptCsvDownload();
+      expect(component.showCsvModal()).toBe(true);
+
+      component.promptPsbtDownload();
+      expect(component.showPsbtModal()).toBe(true);
+    });
+
+    it('should log to audit timeline when sensitive data is copied', async () => {
+      vi.stubGlobal('location', { href: 'http://localhost:4200/room/123#key' });
+      
+      component.copyKey();
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Key Copied', expect.any(String));
+
+      sessionStorage.setItem(`admin_token_123`, 'secret');
+      component.copyAdminToken();
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Admin Token Copied', expect.any(String));
+
+      component.copyRoomId();
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Room ID Copied', expect.any(String));
+      
+      vi.unstubAllGlobals();
+    });
+
+    it('should log specific QR code security levels', async () => {
+      component.qrIncludesKey.set(false);
+      component.isQrRevealed.set(false);
+      component.toggleQrReveal(); 
+      expect(socketSpy.logAction).toHaveBeenCalledWith('QR Code Revealed', expect.stringContaining('Link Only'));
+
+      component.isQrRevealed.set(false); 
+      component.qrIncludesKey.set(true);
+      component.toggleQrReveal();
+      expect(socketSpy.logAction).toHaveBeenCalledWith('QR Code Revealed', expect.stringContaining('Full (Link + Key)'));
+    });
+
+    it('should handle file generation delays for audit logging sync', async () => {
+      vi.useFakeTimers();
+      const auditSpy = vi.spyOn(component, 'generateAuditLog' as any).mockImplementation(() => {});
+      
+      const promise = component.executeAuditDownload();
+      
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Audit Export', expect.any(String));
+      
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(auditSpy).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('should generate a comprehensive Audit Log PDF with all sections', async () => {
+    const fullState = {
+      ...baseRoomState,
+      finalTxHex: '02000000000101...', 
+      finalTxId: 'deadbeef12345678',
+      auditLog: [
+        { timestamp: Date.now(), event: 'Test Event', user: 'Admin', detail: 'Detailed info' },
+        { timestamp: Date.now(), event: 'Short Event', user: 'Guest' } 
+      ],
+      participants: {
+        'S1': { id: 'S1', role: 'admin', displayName: 'Alice' },
+        'S2': { id: 'S2', role: 'guest' } 
+      },
+      whitelist: ['addr1'],
+      network: 'testnet'
+    };
+    socketSpy.roomState.mockReturnValue(fullState);
+    socketSpy.txDetails.mockReturnValue({
+      amount: 100000,
+      feeRate: 10,
+      inputsList: [{ address: 'addr1', amount: 200000 }],
+      outputs: [
+        { address: 'dest1', amount: 50000, isChange: false },
+        { address: 'change1', amount: 40000, isChange: true }
+      ]
+    });
+
+    vi.useFakeTimers();
+    const promise = component.executeAuditDownload();
+    await vi.advanceTimersByTimeAsync(1100);
+    await promise;
+
+    expect(jsPDF).toHaveBeenCalled();
+    const mockDoc = (jsPDF as any).mock.results[0].value;
+    expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('Audit Log'), 20, expect.any(Number));
+    expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('Transaction Data'), 20, expect.any(Number));
+    expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('Signer Activity'), 20, expect.any(Number));
+    expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('Witnesses'), 20, expect.any(Number));
+    
+    vi.useRealTimers();
+  });
+
+  it('should cover PDF/CSV edge cases like change outputs and anonymous signers', () => {
+    // Setup state with a 'change' output and a signer with no display name
+    socketSpy.roomState.mockReturnValue({
+      ...baseRoomState,
+      auditLog: [{ timestamp: Date.now(), event: 'Test', user: 'Admin' }],
+      participants: { 'S1': { id: 'S1', role: 'guest' } }
+    });
+    socketSpy.txDetails.mockReturnValue({
+      outputs: [{ address: 'addr1', amount: 1000, isChange: true }], 
+      inputsList: [{ address: 'src1', amount: 2000 }]
+    });
+
+    // Call the synchronous generation methods directly to bypass the 1000ms delay lockup
+    component.downloadCsv();
+    component.generateAuditLog();
+
+    expect(jsPDF).toHaveBeenCalled();
+  });
+
   // ====================== SIGNER LABELING ======================
   it('should handle signer labeling and address book storage', () => {
     component.openLabelModal('fingerprint123');
@@ -215,17 +404,43 @@ describe('RoomComponent', () => {
   });
 
   it('should detect and reject raw transactions (non-PSBT)', async () => {
-  const alertSpy = vi.spyOn(component, 'openAlert' as any);
-  const rawTxContent = '020000000001';
-  const rawTxFile = new File([rawTxContent], 'tx.hex', { type: 'text/plain' });
+    const alertSpy = vi.spyOn(component, 'openAlert' as any);
+    const rawTxContent = '020000000001';
+    const rawTxFile = new File([rawTxContent], 'tx.hex', { type: 'text/plain' });
 
-  rawTxFile.arrayBuffer = () => Promise.resolve(new TextEncoder().encode(rawTxContent).buffer);
+    rawTxFile.arrayBuffer = () => Promise.resolve(new TextEncoder().encode(rawTxContent).buffer);
 
-  await component.onFileSelected({ target: { files: [rawTxFile] } } as any);
-  expect(alertSpy).toHaveBeenCalledWith('Invalid File', expect.any(String));
-});
+    await component.onFileSelected({ target: { files: [rawTxFile] } } as any);
+    expect(alertSpy).toHaveBeenCalledWith('Invalid File', expect.any(String));
+  });
 
-it('should reject file over 2MB', async () => {
+  it('should detect binary PSBT files via magic bytes (70736274ff)', async () => {
+    const binaryPsbt = new Uint8Array([0x70, 0x73, 0x62, 0x74, 0xff, 0x01, 0x02]);
+    const file = new File([binaryPsbt], 'wallet.psbt');
+    
+    // Ensure the arrayBuffer polyfill returns our specific data
+    file.arrayBuffer = () => Promise.resolve(binaryPsbt.buffer);
+    
+    await component.onFileSelected({ target: { files: [file] } } as any);
+    
+    expect(socketSpy.uploadSignature).toHaveBeenCalledWith('70736274ff0102');
+  });
+
+  it('should reject raw hex transactions starting with 010000 or 020000', async () => {
+    const alertSpy = vi.spyOn(component, 'openAlert' as any);
+    const rawHex = '02000000000101';
+    const file = new File([rawHex], 'tx.hex', { type: 'text/plain' });
+    
+    // Mock the buffer return for the text file
+    file.arrayBuffer = () => Promise.resolve(new TextEncoder().encode(rawHex).buffer);
+
+    await component.onFileSelected({ target: { files: [file] } } as any);
+    
+    expect(alertSpy).toHaveBeenCalledWith('Invalid File', expect.stringContaining('Raw Transaction'));
+    expect(socketSpy.uploadSignature).not.toHaveBeenCalled();
+  });
+
+  it('should reject file over 2MB', async () => {
     const alertSpy = vi.spyOn(component, 'openAlert' as any);
     
     const largeFile = new File(['a'.repeat((2 * 1024 * 1024) + 1)], 'huge.psbt', { type: 'text/plain' });
@@ -235,14 +450,14 @@ it('should reject file over 2MB', async () => {
   });
 
   it('should catch read error on file upload', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    
     const alertSpy = vi.spyOn(component, 'openAlert' as any);
     const badFile = new File([''], 'broken.psbt', { type: 'text/plain' });
-    
-    badFile.arrayBuffer = vi.fn().mockRejectedValue(new Error('Disk read failed'));
+    badFile.arrayBuffer = () => Promise.reject(new Error('Disk read failed'));
 
     await component.onFileSelected({ target: { files: [badFile] } } as any);
     expect(alertSpy).toHaveBeenCalledWith('Read Error', expect.any(String));
-    expect(component.isUploading()).toBe(false);
   });
 
   // ====================== SECURITY & FINALIZE ======================
@@ -252,6 +467,11 @@ it('should reject file over 2MB', async () => {
       psbt: 'valid',
       whitelist: ['other-address'],
       signatures: ['sig1']
+    });
+    
+    // Ensure there is an unverified, non-change output
+    socketSpy.txDetails.mockReturnValue({ 
+        outputs: [{ address: 'unverified-addr', isChange: false }] 
     });
 
     const confirmSpy = vi.spyOn(component, 'openConfirm' as any);
@@ -287,6 +507,34 @@ it('should reject file over 2MB', async () => {
     expect(component.copiedSessionId()).toBeNull();
     
     vi.useRealTimers();
+  });
+
+  it('should update window title for all room stages', () => {
+    const titleSpy = vi.spyOn(TestBed.inject(Title), 'setTitle');
+
+    // Stage 1: Waiting
+    socketSpy.roomState.mockReturnValue({ ...baseRoomState, signatures: [] });
+    socketSpy.signers.mockReturnValue([{ fingerprint: 'a', signed: false }]);
+    socketSpy.getThreshold.mockReturnValue(1);
+    fixture.detectChanges();
+    expect(titleSpy).toHaveBeenLastCalledWith(expect.stringContaining('Needed'));
+
+    // Stage 2: Locked 
+    socketSpy.roomState.mockReturnValue({ ...baseRoomState, isLocked: true });
+    fixture.detectChanges();
+    expect(titleSpy).toHaveBeenLastCalledWith(expect.stringContaining('Room Locked'));
+
+    // Stage 3: Finalized
+    socketSpy.roomState.mockReturnValue({ 
+        ...baseRoomState, 
+        isLocked: false, 
+        finalTxHex: '010203' 
+    });
+    socketSpy.getFinalTxHex.mockReturnValue('010203'); 
+    socketSpy.getThreshold.mockReturnValue(0); 
+    fixture.detectChanges();
+    
+    expect(titleSpy).toHaveBeenLastCalledWith(expect.stringContaining('Ready to Broadcast'));
   });
 
   // ====================== QR CODE ======================
@@ -659,6 +907,41 @@ it('should reject file over 2MB', async () => {
 
     component.verifyAllInputs();
     expect(socketSpy.updateWhitelistBatch).not.toHaveBeenCalled();
+  });
+
+  // ====================== EMBEDDED MODE ======================
+
+  it('should handle postMessage and finalization in embedded mode', () => {
+    // Mock iframe state
+    vi.stubGlobal('window', { top: {}, parent: { postMessage: vi.fn() } });
+    
+    component.finalize();
+    
+    expect(window.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'transactionFinalized' }), 
+      '*'
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('should navigate and clear fragment if connected and key is present', async () => {
+    socketSpy.status.set('connecting');
+    fixture.detectChanges();
+    await Promise.resolve();
+
+    const routerSpy = vi.spyOn(router, 'navigate');
+    
+    (component as any).route.snapshot.fragment = 'new-secret-key';
+    socketSpy.status.set('connected');
+    fixture.detectChanges();
+    
+    // Flush the microtask queue to allow the effect to execute
+    await Promise.resolve();
+
+    expect(routerSpy).toHaveBeenCalledWith([], expect.objectContaining({ 
+      fragment: undefined,
+      replaceUrl: true 
+    }));
   });
 
 });

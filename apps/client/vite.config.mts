@@ -26,7 +26,19 @@ export default defineConfig(() => ({
         functions: 90,
         branches: 69,
         statements: 88
-      }
+      },
+      exclude: [
+        'node_modules/**',
+        'dist/**',
+        '**/*.config.ts',
+        '**/*.routes.ts',
+        '**/*.server.ts',
+        '**/main.ts',
+        '**/environments/**',
+        'public/index.js',
+        'vite.config.mts',
+        'eslint.config.mjs'
+      ],
     },
     pool: 'threads',
     poolOptions: {
