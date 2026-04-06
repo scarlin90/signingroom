@@ -60,3 +60,9 @@ html, body {
 .custom-scrollbar::-webkit-scrollbar-thumb:active {
   background-color: #10b981; 
 }
+
+body.is-embedded {
+    background: transparent !important;
+    .pt-32 { padding-top: 1rem !important; }
+    .absolute-blurs { display: none; }
+}

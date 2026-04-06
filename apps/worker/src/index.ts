@@ -72,9 +72,10 @@ app.use('/*', async (c, next) => {
     "img-src 'self' data:; " + 
     "object-src 'none'; " +
     "base-uri 'self'; " +
-    "form-action 'self';"
+    "form-action 'self';" +
+    "frame-ancestors *;"
   );
-  c.header('X-Frame-Options', 'DENY');
+
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');

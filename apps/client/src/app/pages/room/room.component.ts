@@ -31,6 +31,145 @@ import * as QRCode from 'qrcode';
         </div>
     }
 
+    @if (showPsbtModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="DownloadCloud" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Download Unsigned PSBT</h3>
+                </div>
+                <button (click)="showPsbtModal.set(false)" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                    <p class="text-xs text-emerald-200 leading-relaxed">
+                        <strong>Privacy Warning:</strong> This file contains unencrypted metadata about your wallet balances, UTXOs, and destination addresses. 
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    You are downloading this to transfer to a Coldcard or air-gapped hardware wallet. Please delete the plaintext file from your computer after signing.
+                </p>
+                <div class="flex gap-3 mt-2">
+                    <button (click)="showPsbtModal.set(false)" class="flex-1 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition font-bold text-xs">
+                        Cancel
+                    </button>
+                    <button (click)="executePsbtDownload()" class="flex-1 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                        Download PSBT
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+  }
+
+    @if (showAuditModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="FileCheck" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Download Audit Log</h3>
+                </div>
+                <button (click)="showAuditModal.set(false)" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                    <p class="text-xs text-emerald-200 leading-relaxed">
+                        <strong>Confidential Data:</strong> This PDF contains a complete, unencrypted record of the ceremony, including transaction details, participant identities, and action timestamps.
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Please ensure it is stored securely and only shared with authorized participants or trusted third parties.
+                </p>
+                <div class="flex gap-3 mt-2">
+                    <button (click)="showAuditModal.set(false)" class="flex-1 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition font-bold text-xs">
+                        Cancel
+                    </button>
+                    <button (click)="executeAuditDownload()" class="flex-1 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                        Download PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+  }
+
+  @if (showCsvModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="Download" class="w-5 h-5 text-blue-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Download CSV Data</h3>
+                </div>
+                <button (click)="showCsvModal.set(false)" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div class="w-full bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-blue-400 shrink-0 mt-0.5"></lucide-icon>
+                    <p class="text-xs text-blue-200 leading-relaxed">
+                        <strong>Confidential Data:</strong> This spreadsheet contains unencrypted settlement data and participant metadata.
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Please ensure it is stored securely and only shared with authorized participants or trusted third parties.
+                </p>
+                <div class="flex gap-3 mt-2">
+                    <button (click)="showCsvModal.set(false)" class="flex-1 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition font-bold text-xs">
+                        Cancel
+                    </button>
+                    <button (click)="executeCsvDownload()" class="flex-1 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/20 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                        Download CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+  }
+
+    @if (showRoomIdModal()) {
+        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+                <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <lucide-icon [img]="Hash" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                        <h3 class="font-bold text-white">Room Identifier</h3>
+                    </div>
+                    <button (click)="closeRoomIdModal()" class="text-slate-400 hover:text-white transition">
+                        <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                    </button>
+                </div>
+                <div class="p-6 flex flex-col gap-4">
+                    <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
+                        <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <p class="text-xs text-emerald-200 leading-relaxed">
+                            <strong>Public Routing Data:</strong> This ID directs signers to the correct room, but it <em>cannot</em> decrypt the transaction data without the private Decryption Key.
+                        </p>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        If you are practicing strict Operational Security (OpSec), send this Room ID to your signers first. Send the Decryption Key later via a separate, secure channel (e.g., Signal vs Email).
+                    </p>
+                    <button (click)="copyRoomId()" class="mt-2 w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="roomIdCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                        {{ roomIdCopied() ? 'Room ID Copied!' : 'Copy Room ID' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
     @if (showLabelModal()) {
     <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-2xl max-w-sm w-full">
@@ -498,10 +637,22 @@ import * as QRCode from 'qrcode';
 
         <div class="flex items-center gap-4 text-sm text-slate-500 bg-slate-900/50 w-fit px-4 py-2 rounded-xl border border-slate-800/50 backdrop-blur-sm">
             
-            <div class="relative group cursor-help">
-                <div class="flex items-center gap-2">
-                    <lucide-icon [img]="Hash" class="w-4 h-4 text-slate-600"></lucide-icon>
-                    <span class="font-mono text-slate-300 select-all hover:text-white transition cursor-text font-bold">{{ roomId() }}</span>
+            <div class="relative group">
+                <button (click)="openRoomIdModal()" class="flex items-center gap-2 hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700 cursor-pointer">
+                    <lucide-icon [img]="roomIdCopied() ? Check : Hash" class="w-4 h-4 transition-colors" 
+                        [class.text-emerald-400]="roomIdCopied()" 
+                        [class.text-slate-600]="!roomIdCopied()">
+                    </lucide-icon>
+                    <span class="font-mono transition font-bold" 
+                        [class.text-emerald-400]="roomIdCopied()" 
+                        [class.text-slate-300]="!roomIdCopied()"
+                        [class.hover:text-white]="!roomIdCopied()">
+                        {{ roomId() }}
+                    </span>
+                </button>
+                
+                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl">
+                    {{ roomIdCopied() ? 'Copied!' : 'View Room ID' }}
                 </div>
             </div>
 
@@ -509,16 +660,20 @@ import * as QRCode from 'qrcode';
             
             <div class="relative group">
                 <button (click)="openSessionsModal()" class="relative group cursor-pointer hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700">
-                <div class="flex items-center gap-2">
-                    <lucide-icon [img]="Users" class="w-4 h-4" 
-                        [class.text-emerald-400]="(socket.roomState()?.connectedCount || 0) > 1"
-                        [class.text-slate-500]="(socket.roomState()?.connectedCount || 0) <= 1">
-                    </lucide-icon>
-                    <span class="font-bold" [class.text-white]="(socket.roomState()?.connectedCount || 0) > 1">
-                        {{ socket.roomState()?.connectedCount || 1 }} 
-                    </span>
+                    <div class="flex items-center gap-2">
+                        <lucide-icon [img]="Users" class="w-4 h-4" 
+                            [class.text-emerald-400]="(socket.roomState()?.connectedCount || 0) > 1"
+                            [class.text-slate-500]="(socket.roomState()?.connectedCount || 0) <= 1">
+                        </lucide-icon>
+                        <span class="font-bold" [class.text-white]="(socket.roomState()?.connectedCount || 0) > 1">
+                            {{ socket.roomState()?.connectedCount || 1 }} 
+                        </span>
+                    </div>
+                </button>
+                
+                <div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                    View Active Sessions
                 </div>
-            </button>
             </div>
 
             <div class="w-px h-4 bg-slate-800"></div>
@@ -532,6 +687,10 @@ import * as QRCode from 'qrcode';
                         <span class="font-mono font-bold">{{ timeRemaining() }}</span>
                     }
                 </div>
+                
+                <div class="absolute -top-10 right-0 md:left-1/2 md:-translate-x-1/2 md:right-auto bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                    Room auto-expires & securely wipes data
+                </div>
             </div>
         </div>
         
@@ -541,7 +700,7 @@ import * as QRCode from 'qrcode';
                 
                 @if (!isExpired() && !socket.isClosed()) {
                     <div class="relative group">
-                        <button (click)="generateAuditLog()" class="px-3 py-2 text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-emerald-500/20">
+                        <button (click)="promptAuditLogDownload()" class="px-3 py-2 text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-emerald-500/20">
                             <lucide-icon [img]="FileCheck" class="w-4 h-4"></lucide-icon>
                             Audit Log
                         </button>
@@ -550,7 +709,7 @@ import * as QRCode from 'qrcode';
                     <div class="w-px h-6 bg-slate-800 mx-1"></div> 
 
                     <div class="relative group">
-                        <button (click)="downloadCsv()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20">
+                        <button (click)="promptCsvDownload()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20">
                             <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
                             CSV
                         </button>
@@ -758,7 +917,7 @@ import * as QRCode from 'qrcode';
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
                 <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-4">Signer Actions</h3>
                 <div class="grid md:grid-cols-2 gap-4">
-                    <button (click)="downloadUnsignedPsbt()" class="flex items-center justify-between p-4 bg-slate-950 rounded-xl border border-slate-800 hover:border-slate-600 transition group text-left">
+                    <button (click)="promptPsbtDownload()" class="flex items-center justify-between p-4 bg-slate-950 rounded-xl border border-slate-800 hover:border-slate-600 transition group text-left">
                         <div>
                             <div class="text-white font-bold text-sm mb-1 group-hover:text-emerald-400 transition-colors">Download Unsigned PSBT</div>
                             <div class="text-slate-500 text-xs">For Coldcard / Offline Signing</div>
@@ -1042,13 +1201,16 @@ import * as QRCode from 'qrcode';
                             </div>
                             
                             @if (socket.isCoordinator()) {
-                                <div class="grid grid-cols-2 gap-3">
+                                <div class="grid gap-3" [class.grid-cols-2]="!isEmbedded" [class.grid-cols-1]="isEmbedded">
                                     <button (click)="copyHex()" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg border border-slate-700 transition flex items-center justify-center gap-2">
                                         <lucide-icon [img]="copied() ? Check : Copy" class="w-3 h-3"></lucide-icon> {{ copied() ? 'Copied' : 'Copy Hex' }}
                                     </button>
-                                    <button (click)="broadcastAndCopy()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 text-center decoration-0">
-                                        Broadcast <lucide-icon [img]="ExternalLink" class="w-3 h-3"></lucide-icon>
-                                    </button>
+                                    
+                                    @if (!isEmbedded) {
+                                        <button (click)="broadcastAndCopy()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 text-center decoration-0">
+                                            Broadcast <lucide-icon [img]="ExternalLink" class="w-3 h-3"></lucide-icon>
+                                        </button>
+                                    }
                                 </div>
                             }
                         </div>
@@ -1152,6 +1314,10 @@ export class RoomComponent implements OnInit, OnDestroy {
     public showSessionsModal = signal(false);
     public showKeyModal = signal(false);
     public showAdminModal = signal(false);
+    public showRoomIdModal = signal(false);
+    public showAuditModal = signal(false);
+    public showCsvModal = signal(false);
+    public showPsbtModal = signal(false);
     public personalDisplayName = signal('');
     public copiedSessionId = signal<string | null>(null);
     public isQrRevealed = signal(false);
@@ -1206,6 +1372,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     public fullLinkCopied = signal(false);
     public keyCopied = signal(false);
     public adminCopied = signal(false);
+    public roomIdCopied = signal(false);
     
     public claimPassword = '';
     public manualKey = '';
@@ -1334,6 +1501,10 @@ export class RoomComponent implements OnInit, OnDestroy {
         return threshold > 0 && signedCount >= threshold;
     }
 
+    get isEmbedded(): boolean {
+        return window !== window.top;
+    }
+
     isWhitelisted(address: string): boolean {
         return this.socket.roomState()?.whitelist?.includes(address) || false;
     }
@@ -1402,6 +1573,16 @@ export class RoomComponent implements OnInit, OnDestroy {
         } finally {
             this.isUploading.set(false);
         }
+    }
+
+    promptPsbtDownload() {
+        this.showPsbtModal.set(true);
+    }
+
+    async executePsbtDownload() {
+        this.showPsbtModal.set(false);
+        await this.socket.logAction('PSBT Downloaded', 'Unsigned file exported');
+        this.downloadUnsignedPsbt();
     }
 
     downloadUnsignedPsbt() {
@@ -1610,6 +1791,14 @@ export class RoomComponent implements OnInit, OnDestroy {
             if (hex && txId) { 
                 this.socket.broadcastFinalization(hex, txId);
                 this.triggerConfetti();
+
+                if (this.isEmbedded) {
+                    window.parent.postMessage({
+                        type: 'SIGNING_ROOM_EVENT',
+                        action: 'transactionFinalized',
+                        payload: { txHex: hex, txId: txId }
+                    }, '*');
+                }
             }
         };
 
@@ -1722,12 +1911,21 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     toggleQrReveal() {
+        const isRevealing = !this.isQrRevealed();
         this.isQrRevealed.update(v => !v);
+
+        if (isRevealing) {
+            const qrType = this.qrIncludesKey() ? 'Full (Link + Key)' : 'Link Only (No Key)';
+            this.socket.logAction('QR Code Revealed', `${qrType} QR Code on screen`);
+        }
     }
 
     downloadQr() {
         const url = this.qrDataUrl();
         if (!url) return;
+
+        const qrType = this.qrIncludesKey() ? 'Full (Link + Key)' : 'Link Only (No Key)';
+        this.socket.logAction('QR Code Downloaded', `${qrType} QR Code to their device`);
 
         const safeId = this.roomId() ?? 'unknown-room';
 
@@ -1755,8 +1953,41 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     // -------------------------------------------------------------------------
+    // Actions: Downloads & Exports
+    // -------------------------------------------------------------------------
+
+    promptAuditLogDownload() {
+        this.showAuditModal.set(true);
+    }
+
+    async executeAuditDownload() {
+        this.showAuditModal.set(false);
+        
+        await this.socket.logAction('Audit Export', 'Downloaded audit log');
+
+        await this.delay(1000);
+
+        this.generateAuditLog();
+    }
+
+    promptCsvDownload() {
+        this.showCsvModal.set(true);
+    }
+
+    async executeCsvDownload() {
+        this.showCsvModal.set(false);
+        await this.socket.logAction('CSV Export', 'Downloaded settlement data');
+        await this.delay(1000);
+        this.downloadCsv();
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
     generateAuditLog() {
         const state = this.socket.roomState();
@@ -2172,8 +2403,6 @@ export class RoomComponent implements OnInit, OnDestroy {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
-        this.socket.logAction('CSV Export', 'User downloaded settlement data');
     }
 
     private startTimer(expiryTime: number) {
@@ -2243,15 +2472,15 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     copySecureLink() {
-        // Gets the URL without the #key fragment
         const baseUrl = window.location.href.split('#')[0];
         this.doCopy(baseUrl, this.secureLinkCopied);
+        this.socket.logAction('Link Copied (No Key)', 'User copied room link');
         this.closeShareModal();
     }
 
     copyFullLink() {
-        // Gets the URL including the #key fragment
         this.doCopy(this.getFullShareLink(), this.fullLinkCopied);
+         this.socket.logAction('Link Copied (With Key)', 'User copied room link');
         this.closeShareModal();
     }
 
@@ -2265,16 +2494,27 @@ export class RoomComponent implements OnInit, OnDestroy {
     openAdminModal() { this.showAdminModal.set(true); }
     closeAdminModal() { this.showAdminModal.set(false); }
 
-    // Update your existing copyKey method
+    openRoomIdModal() { this.showRoomIdModal.set(true); }
+    closeRoomIdModal() { this.showRoomIdModal.set(false); }
+
     copyKey() { 
         this.doCopy(this.socket.getRoomKey() || '', this.keyCopied); 
+        this.socket.logAction('Key Copied', 'Copied room decryption key')
         this.closeKeyModal();
     }
 
-    // Update your existing copyAdminToken method
     copyAdminToken() { 
         const t = sessionStorage.getItem(`admin_token_${this.roomId()}`);
         if(t) this.doCopy(t, this.adminCopied);
+        this.socket.logAction('Admin Token Copied', 'Backed up the admin token');
         this.closeAdminModal();
+    }
+
+    copyRoomId() {
+        if (this.roomId()) {
+            this.doCopy(this.roomId()!, this.roomIdCopied);
+            this.socket.logAction('Room ID Copied', 'Copied the room identifier');
+            this.closeRoomIdModal();
+        }
     }
 }

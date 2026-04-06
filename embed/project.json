@@ -1,0 +1,33 @@
+{
+  "name": "embed",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "embed/src",
+  "projectType": "library",
+  "release": {
+    "version": {
+      "manifestRootsToUpdate": ["dist/{projectRoot}"],
+      "currentVersionResolver": "git-tag",
+      "fallbackCurrentVersionResolver": "disk"
+    }
+  },
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/embed",
+        "main": "embed/src/index.ts",
+        "tsConfig": "embed/tsconfig.lib.json",
+        "assets": ["embed/*.md"],
+        "format": ["cjs"],
+        "generatePackageJson": true
+      }
+    },
+    "nx-release-publish": {
+      "options": {
+        "packageRoot": "dist/{projectRoot}"
+      }
+    }
+  }
+}
