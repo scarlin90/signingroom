@@ -42,7 +42,14 @@ interface PsbtAnalysis {
   template: `
     <div class="min-h-screen bg-slate-950 text-white flex flex-col items-center p-6 relative"
         [class.pt-32]="!isEmbedded" [class.pt-6]="isEmbedded">
-    
+    @if (viewMode === 'inject') {
+          <div class="flex flex-col items-center justify-center h-full min-h-[400px] text-center relative z-10">
+              <lucide-icon [img]="Loader2" class="w-16 h-16 text-emerald-500 animate-spin mb-6"></lucide-icon>
+              <h2 class="text-3xl font-bold text-white mb-2 tracking-tight">Waiting for Wallet...</h2>
+              <p class="text-slate-400">Please generate and inject the PSBT from your wallet interface.</p>
+          </div>
+      } 
+      @else {
     @if (!isEmbedded) {
         <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
@@ -230,9 +237,10 @@ interface PsbtAnalysis {
             }
         </div>
     }
+}
     </div>
 
-    @if (showCreateModal() && !isEmbedded) {
+    @if (showCreateModal()) {
     <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-lg w-full relative">
             <button (click)="showCreateModal.set(false)" class="absolute top-4 right-4 text-slate-500 hover:text-white"><lucide-icon [img]="X" class="w-5 h-5"></lucide-icon></button>
@@ -347,6 +355,7 @@ export class CreateComponent implements OnInit {
     readonly Eye = Eye;
     readonly EyeOff = EyeOff;
     
+    viewMode: 'default' | 'inject' | 'join' = 'default';
     showManualRoomId = false;
     showManualKey = false;
 
@@ -357,7 +366,6 @@ export class CreateComponent implements OnInit {
     private titleService = inject(Title);
     private metaService = inject(Meta);
 
-    // 2. EXPOSE CONSTANTS TO TEMPLATE (Fixes your error)
     readonly networks = NETWORKS;
     
     public selectedNetwork = signal<Network>('bitcoin');
@@ -373,33 +381,49 @@ export class CreateComponent implements OnInit {
     public manualKey = '';
 
     @HostListener('window:message', ['$event'])
-    onMessage(event: MessageEvent) {
-        // 1. Define your trusted third-party wallet domains
-        const ALLOWED_ORIGINS = [
-            'http://localhost:4200',      // Local Angular Dev Server
-            'http://localhost:8787',      // Local HTML test file server
-            'http://127.0.0.1:5500',      // VS Code Live Server (common for local testing)
-            'https://trusted-wallet.com', // Example Production Partner
-            'https://dashboard.enterprise-corp.io'
-        ];
+    async onMessage(event: MessageEvent) {
+        if (event.data?.type === 'SIGNING_ROOM_COMMAND') {
+            if (event.data.action === 'LOAD_PSBT' && event.data.payload) {
 
-        if (!ALLOWED_ORIGINS.includes(event.origin)) return;
+                const hostNetwork = this.route.snapshot.queryParamMap.get('network');
+                if (hostNetwork) {
+                    this.selectedNetwork.set(hostNetwork as any);
+                }
 
-        const { type, action, payload } = event.data || {};
-        if (type === 'SIGNING_ROOM_COMMAND' && action === 'LOAD_PSBT') {
-            this.rawHex = payload;
-            this.analyzeRawHex(payload);
-            
-            // Auto-open config if we are in a dashboard
-            if (this.isEmbedded) {
-                this.showCreateModal.set(true); 
+                const payloadString = event.data.payload.trim();
+
+                const dummyFile = new File([payloadString], 'wallet_transaction.psbt.txt', { 
+                    type: 'text/plain' 
+                });
+
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(dummyFile);
+
+                const mockEvent = {
+                    target: { files: dataTransfer.files },
+                    preventDefault: () => {},
+                    stopPropagation: () => {}
+                };
+
+                await this.onFileSelected(mockEvent as any);
+                this.showCreateModal.set(true);
             }
         }
     }
 
     ngOnInit() {
-        this.isEmbedded = window !== window.top || 
-                          this.route.snapshot.queryParamMap.get('embedded') === 'true';
+        this.viewMode = (this.route.snapshot.queryParamMap.get('view') as any) || 'default';
+
+        if (typeof window !== 'undefined') {
+            this.isEmbedded = window !== window.parent || window !== window.top;
+            
+            if (this.isEmbedded) {
+                window.parent.postMessage({
+                    type: 'SIGNING_ROOM_EVENT',
+                    action: 'WIDGET_READY'
+                }, '*');
+            }
+        }
         this.titleService.setTitle('Signing Room | Free Stateless Multisig');
         this.metaService.updateTag({ name: 'description', content: 'Free, open-source multisig coordination.' });
     }
@@ -453,7 +477,11 @@ export class CreateComponent implements OnInit {
     }
 
     async onFileSelected(event: any) {
+        console.log('File:', event);
+        console.log('File selected:', event.target.files);
         const file = event.target.files[0];
+
+        console.log("!file", !file);
         if (!file) return;
         this.psbtFile.set(file);
         try {
@@ -467,17 +495,25 @@ export class CreateComponent implements OnInit {
                 : new TextDecoder().decode(bytes).trim();
 
             this.rawHex = content;
+
+            console.log("isBinary", isBinary);
+            console.log("this.rawHex", this.rawHex);
             this.analyzeRawHex(content);
         } catch (e) { console.error(e); }
     }
 
     analyzeRawHex(data: string) {
+        console.log('data', data);
         if (!data || data.length < 10) return;
         try {
             const clean = this.normalizeInput(data);
+            console.log('clean', clean);
             const psbtBytes = /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
+
+            console.log("psbtBytes", psbtBytes);
             const tx = Transaction.fromPSBT(psbtBytes);
-            
+            console.log("tx", tx);
+
             // Calculate Signers
             const fingerprints = new Set<string>();
             let totalInput = 0, totalOutput = 0, networkScore = 0;
@@ -500,6 +536,15 @@ export class CreateComponent implements OnInit {
 
             const fee = totalInput > 0 ? totalInput - totalOutput : 0;
 
+            console.log("psbtAnalysis", {
+                valid: true,
+                signerCount: fingerprints.size || 1,
+                amountBtc: totalOutput / 100000000,
+                networkFeeSat: fee,
+                outputCount: tx.outputsLength,
+                detectedNetwork: networkScore > 0 ? 'testnet' : 'bitcoin'
+            });
+
             this.psbtAnalysis.set({
                 valid: true,
                 signerCount: fingerprints.size || 1,
@@ -508,7 +553,7 @@ export class CreateComponent implements OnInit {
                 outputCount: tx.outputsLength,
                 detectedNetwork: networkScore > 0 ? 'testnet' : 'bitcoin'
             });
-        } catch (e) { this.psbtAnalysis.set(null); }
+        } catch (e) { this.psbtAnalysis.set(null); throw e; }
     }
 
     // UX Helpers

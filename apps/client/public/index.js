@@ -1,17 +1,17 @@
-// index.js (Browser-compatible version)
 "use strict";
 
 export class SigningRoomElement extends HTMLElement {
     iframe;
     targetOrigin;
+    messageListener;
+    
+    _isReady = false;
+    _queuedPsbt = null;
 
     constructor() {
         super();
         this.attachShadow({ mode: 'open' }); 
         
-        this.targetOrigin = this.getAttribute('relay-endpoint') || 'https://app.signingroom.io';
-
-        // 1. Create the iframe
         this.iframe = document.createElement('iframe');
         this.iframe.style.width = '100%';
         this.iframe.style.height = '100%';
@@ -22,11 +22,20 @@ export class SigningRoomElement extends HTMLElement {
     }
 
     connectedCallback() {
+        const rawOrigin = this.getAttribute('relay-endpoint') || 'https://app.signingroom.io';
+        this.targetOrigin = rawOrigin.replace(/\/$/, '');
+        
         const network = this.getAttribute('network') || 'bitcoin';
         const roomId = this.getAttribute('room-id');
         const key = this.getAttribute('decryption-key');
         
+        const view = this.getAttribute('view');
+        
         let src = `${this.targetOrigin}/create?embedded=true&network=${network}`;
+        
+        if (view) {
+            src += `&view=${view}`;
+        }
         
         if (roomId) {
             src = `${this.targetOrigin}/room/${roomId}?embedded=true`;
@@ -36,42 +45,52 @@ export class SigningRoomElement extends HTMLElement {
         this.iframe.src = src;
         this.shadowRoot?.appendChild(this.iframe);
 
-        window.addEventListener('message', this.handleMessage.bind(this));
+        this.messageListener = this.handleMessage.bind(this);
+        window.addEventListener('message', this.messageListener);
     }
 
     loadPsbt(psbtBase64) {
-        if (!this.iframe.contentWindow) return;
-        
-        // Inject the massive PSBT directly into the iframe's memory securely
-        this.iframe.contentWindow.postMessage({
-            type: 'SIGNING_ROOM_COMMAND',
-            action: 'LOAD_PSBT',
-            payload: psbtBase64
-        }, this.targetOrigin);
+        if (this._isReady && this.iframe.contentWindow) {
+            this.iframe.contentWindow.postMessage({
+                type: 'SIGNING_ROOM_COMMAND',
+                action: 'LOAD_PSBT',
+                payload: psbtBase64
+            }, this.targetOrigin);
+        } else {
+            this._queuedPsbt = psbtBase64;
+        }
     }
 
     disconnectedCallback() {
-        window.removeEventListener('message', this.handleMessage.bind(this));
+        if (this.messageListener) {
+            window.removeEventListener('message', this.messageListener);
+        }
     }
 
     handleMessage(event) {
-        // SECURITY: Only trust messages from your official Angular app's origin
         if (event.origin !== this.targetOrigin) return;
 
         const { type, action, payload } = event.data || {};
         
         if (type === 'SIGNING_ROOM_EVENT' && action) {
-            // Re-emit as a standard DOM Custom Event so the host app can listen to it
+            
+            if (action === 'WIDGET_READY') {
+                this._isReady = true;
+                if (this._queuedPsbt) {
+                    this.loadPsbt(this._queuedPsbt);
+                    this._queuedPsbt = null;
+                }
+            }
+
             this.dispatchEvent(new CustomEvent(action, { 
                 detail: payload,
                 bubbles: true,
-                composed: true // Allows event to pierce the shadow DOM boundary
+                composed: true 
             }));
         }
     }
 }
 
-// Register the custom element globally
 if (typeof customElements !== 'undefined' && !customElements.get('signing-room')) {
     customElements.define('signing-room', SigningRoomElement);
 }
