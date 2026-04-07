@@ -368,9 +368,10 @@ export class CreateComponent implements OnInit {
     readonly Eye = Eye;
     readonly EyeOff = EyeOff;
     
-    viewMode: 'default' | 'inject' | 'join' = 'default';
-    showManualRoomId = false;
-    showManualKey = false;
+    public viewMode: 'default' | 'inject' | 'join' = 'default';
+    public showManualRoomId = false;
+    public showManualKey = false;
+    public expectedHost = '';
 
     private socket = inject(SocketService);
     private encryption = inject(EncryptionService);
@@ -395,6 +396,12 @@ export class CreateComponent implements OnInit {
 
     @HostListener('window:message', ['$event'])
     async onMessage(event: MessageEvent) {
+
+        if (this.expectedHost && event.origin !== this.expectedHost) {
+            console.warn(`[Security] Blocked unauthorized postMessage from: ${event.origin}`);
+            return;
+        }
+
         if (event.data?.type === 'SIGNING_ROOM_COMMAND') {
             if (event.data.action === 'LOAD_PSBT' && event.data.payload) {
 
@@ -409,11 +416,15 @@ export class CreateComponent implements OnInit {
                     type: 'text/plain' 
                 });
 
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(dummyFile);
+                let files: any = [dummyFile];
+                if (typeof DataTransfer !== 'undefined') {
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(dummyFile);
+                    files = dataTransfer.files;
+                }
 
                 const mockEvent = {
-                    target: { files: dataTransfer.files },
+                    target: { files: files },
                     preventDefault: () => {},
                     stopPropagation: () => {}
                 };
@@ -426,6 +437,8 @@ export class CreateComponent implements OnInit {
 
     ngOnInit() {
         this.viewMode = (this.route.snapshot.queryParamMap.get('view') as any) || 'default';
+
+        this.expectedHost = this.route.snapshot.queryParamMap.get('host') || window.location.origin;
 
         if (typeof window !== 'undefined') {
             this.isEmbedded = window !== window.parent || window !== window.top;
@@ -490,11 +503,8 @@ export class CreateComponent implements OnInit {
     }
 
     async onFileSelected(event: any) {
-        console.log('File:', event);
-        console.log('File selected:', event.target.files);
         const file = event.target.files[0];
 
-        console.log("!file", !file);
         if (!file) return;
         this.psbtFile.set(file);
         try {
@@ -509,23 +519,17 @@ export class CreateComponent implements OnInit {
 
             this.rawHex = content;
 
-            console.log("isBinary", isBinary);
-            console.log("this.rawHex", this.rawHex);
             this.analyzeRawHex(content);
         } catch (e) { console.error(e); }
     }
 
     analyzeRawHex(data: string) {
-        console.log('data', data);
         if (!data || data.length < 10) return;
         try {
             const clean = this.normalizeInput(data);
-            console.log('clean', clean);
             const psbtBytes = /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
 
-            console.log("psbtBytes", psbtBytes);
             const tx = Transaction.fromPSBT(psbtBytes);
-            console.log("tx", tx);
 
             // Calculate Signers
             const fingerprints = new Set<string>();
@@ -548,15 +552,6 @@ export class CreateComponent implements OnInit {
             for(let i=0; i<tx.outputsLength; i++) totalOutput += Number(tx.getOutput(i).amount);
 
             const fee = totalInput > 0 ? totalInput - totalOutput : 0;
-
-            console.log("psbtAnalysis", {
-                valid: true,
-                signerCount: fingerprints.size || 1,
-                amountBtc: totalOutput / 100000000,
-                networkFeeSat: fee,
-                outputCount: tx.outputsLength,
-                detectedNetwork: networkScore > 0 ? 'testnet' : 'bitcoin'
-            });
 
             this.psbtAnalysis.set({
                 valid: true,

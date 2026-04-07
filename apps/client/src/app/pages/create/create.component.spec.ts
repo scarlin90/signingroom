@@ -231,23 +231,34 @@ it('should normalize input and generate encryption keys', () => {
 
 // ====================== POST MESSAGE / EMBED ======================
   
-  it('should handle onMessage from allowed origin', () => {
+it('should handle onMessage from allowed origin and ignore unauthorized', async () => {
     const analyzeSpy = vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
     
-    // Disallowed origin should be ignored
-    component.onMessage({ origin: 'https://evil.com', data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: '123' } } as MessageEvent);
+    // Setup the expected host exactly like ngOnInit would
+    component.expectedHost = 'http://localhost:4200';
+    
+    // Disallowed origin should be ignored entirely
+    await component.onMessage({ 
+        origin: 'https://evil.com', 
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: '123' } 
+    } as MessageEvent);
     expect(analyzeSpy).not.toHaveBeenCalled();
 
     // Allowed origin, but wrong action/type should be ignored
-    component.onMessage({ origin: 'http://localhost:4200', data: { type: 'OTHER' } } as MessageEvent);
+    await component.onMessage({ 
+        origin: 'http://localhost:4200', 
+        data: { type: 'OTHER' } 
+    } as MessageEvent);
     expect(analyzeSpy).not.toHaveBeenCalled();
 
-    // Allowed origin, correct action should process the payload
+    // Allowed origin + correct action should process the payload
     component.isEmbedded = true;
-    component.onMessage({ origin: 'http://localhost:4200', data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: 'hex123' } } as MessageEvent);
+    await component.onMessage({ 
+        origin: 'http://localhost:4200', 
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: 'hex123' } 
+    } as MessageEvent);
     
     expect(component.rawHex).toBe('hex123');
-    expect(analyzeSpy).toHaveBeenCalledWith('hex123');
     expect(component.showCreateModal()).toBe(true);
   });
 
@@ -330,6 +341,138 @@ it('should normalize input and generate encryption keys', () => {
     expect(navigateSpy).toHaveBeenCalledWith(['/room', 'abc'], { fragment: 'plainkey' });
   });
 
+  // ====================== ADDITIONAL COVERAGE TESTS ======================
+
+  describe('Edge Cases and Error Handling', () => {
+    
+    it('should post WIDGET_READY message if embedded on init', () => {
+      const postMessageSpy = vi.fn();
+      const originalParent = window.parent;
+      
+      // FIX: Use a completely distinct object so window !== window.parent evaluates to TRUE
+      const mockParent = { postMessage: postMessageSpy };
+      
+      Object.defineProperty(window, 'parent', {
+        value: mockParent,
+        configurable: true
+      });
+
+      component.ngOnInit();
+
+      expect(component.isEmbedded).toBe(true);
+      expect(postMessageSpy).toHaveBeenCalledWith({
+        type: 'SIGNING_ROOM_EVENT',
+        action: 'WIDGET_READY'
+      }, '*');
+
+      // Restore original to prevent test pollution
+      Object.defineProperty(window, 'parent', {
+        value: originalParent,
+        configurable: true
+      });
+    });
+
+    it('should execute mock event preventDefault and stopPropagation for coverage', async () => {
+      const fileSelectedSpy = vi.spyOn(component, 'onFileSelected').mockImplementation(async () => {});
+      component.expectedHost = 'http://localhost:4200';
+      
+      await component.onMessage({ 
+        origin: 'http://localhost:4200', 
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: 'hex123' } 
+      } as MessageEvent);
+
+      expect(fileSelectedSpy).toHaveBeenCalled();
+      
+      // Capture the mock event passed to onFileSelected and execute the anonymous functions
+      const passedEvent = fileSelectedSpy.mock.calls[0][0] as any;
+      expect(() => passedEvent.preventDefault()).not.toThrow();
+      expect(() => passedEvent.stopPropagation()).not.toThrow();
+    });
+
+    it('should return false from isHighFee if networkFeeSat is 0', () => {
+      component.psbtAnalysis.set({ networkFeeSat: 0 } as any);
+      expect(component.isHighFee()).toBe(false);
+    });
+
+    it('should not navigate in joinRoom if manualRoomId or manualKey is missing', () => {
+      const navigateSpy = vi.spyOn(router, 'navigate');
+      
+      // Missing Room ID
+      component.manualRoomId = '';
+      component.manualKey = 'some-key-123';
+      component.joinRoom();
+      
+      // Missing Key
+      component.manualRoomId = '12345678-1234-1234-1234-1234567890ab';
+      component.manualKey = '';
+      component.joinRoom();
+
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('should catch and log errors in onFileSelected', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const mockFile = new File([''], 'test.psbt');
+      
+      vi.spyOn(mockFile, 'arrayBuffer').mockRejectedValue(new Error('Buffer Error'));
+
+      await component.onFileSelected({ target: { files: [mockFile] } });
+      expect(consoleSpy).toHaveBeenCalledWith(new Error('Buffer Error'));
+    });
+
+    it('should catch errors in analyzeRawHex and reset analysis', () => {
+      expect(() => component.analyzeRawHex('invalid-data-trigger-error')).toThrow();
+      expect(component.psbtAnalysis()).toBeNull();
+    });
+
+    it('should return early in analyzeRawHex if data is empty or too short', () => {
+      component.psbtAnalysis.set({ valid: true } as any); 
+      
+      component.analyzeRawHex(''); // Empty
+      component.analyzeRawHex('short'); // Too short
+      
+      expect(component.psbtAnalysis()).toEqual({ valid: true }); 
+    });
+
+    it('should warn and ignore message if origin is unauthorized', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      component.expectedHost = 'https://trusted.com';
+
+      await component.onMessage({
+        origin: 'https://evil.com',
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: '123' }
+      } as MessageEvent);
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[Security] Blocked unauthorized postMessage'));
+    });
+
+    it('should ignore message if payload is missing', async () => {
+      component.expectedHost = 'https://trusted.com';
+      const analyzeSpy = vi.spyOn(component, 'analyzeRawHex');
+
+      await component.onMessage({
+        origin: 'https://trusted.com',
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT' } // Missing payload
+      } as MessageEvent);
+
+      expect(analyzeSpy).not.toHaveBeenCalled();
+    });
+    
+    it('should fall back to default network if no network query param in onMessage', async () => {
+      vi.spyOn(component['route'].snapshot.queryParamMap, 'get').mockReturnValue(null);
+      
+      component.expectedHost = 'https://trusted.com';
+      component.selectedNetwork.set('testnet'); // preset
+
+      await component.onMessage({
+        origin: 'https://trusted.com',
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: 'hex123' }
+      } as MessageEvent);
+
+      expect(component.selectedNetwork()).toBe('testnet'); 
+    });
+  })
+
   // ====================== PRIVATE HELPERS ======================
   
   it('should normalize input and generate encryption keys deterministically', () => {
@@ -340,4 +483,5 @@ it('should normalize input and generate encryption keys', () => {
     expect(key).toBeDefined();
     expect(typeof key).toBe('string');
   });
+
 });

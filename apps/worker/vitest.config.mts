@@ -11,13 +11,13 @@ export default defineWorkersConfig({
 		coverage: {
 			provider: 'istanbul',
 			reporter: ['text', 'html', 'clover', 'json', 'json-summary'],
-			// reportOnFailure: true,
-			// thresholds: {
-			// 	lines: 94,
-			// 	functions: 95,
-			// 	branches: 85,
-			// 	statements: 91
-			// }
+			reportOnFailure: true,
+			thresholds: {
+				lines: 94,
+				functions: 95,
+				branches: 85,
+				statements: 91
+			}
 		},
 		testTimeout: 10000,
   		hookTimeout: 10000,

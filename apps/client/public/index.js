@@ -28,17 +28,15 @@ export class SigningRoomElement extends HTMLElement {
         const network = this.getAttribute('network') || 'bitcoin';
         const roomId = this.getAttribute('room-id');
         const key = this.getAttribute('decryption-key');
-        
         const view = this.getAttribute('view');
         
-        let src = `${this.targetOrigin}/create?embedded=true&network=${network}`;
+        const hostOrigin = encodeURIComponent(window.location.origin);
         
-        if (view) {
-            src += `&view=${view}`;
-        }
+        let src = `${this.targetOrigin}/create?embedded=true&network=${network}&host=${hostOrigin}`;
         
+        if (view) src += `&view=${view}`;
         if (roomId) {
-            src = `${this.targetOrigin}/room/${roomId}?embedded=true`;
+            src = `${this.targetOrigin}/room/${roomId}?embedded=true&host=${hostOrigin}`;
             if (key) src += `#${key}`;
         }
         
