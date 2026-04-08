@@ -24,6 +24,15 @@
         .input-field:focus { border-color: var(--accent); }
         
         .widget-container { min-height: 650px; padding: 0; overflow: hidden; }
+        .input-wrapper { position: relative; margin-bottom: 10px; }
+        .input-wrapper .input-field { margin-bottom: 0; padding-right: 40px; } 
+        .toggle-btn { 
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%); 
+            background: none; border: none; color: #64748b; cursor: pointer; 
+            padding: 0; display: flex; align-items: center; justify-content: center; 
+        }
+        .toggle-btn:hover { color: #cbd5e1; }
+        .toggle-btn svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
     </style>
 </head>
 <body>
@@ -52,9 +61,24 @@
                 <div class="card">
                     <h2>Guest Flow</h2>
                     <p>Simulate a user clicking a deep-link from a co-signer to join an existing room.</p>
-                    <input type="text" id="guest-room-id" class="input-field" placeholder="Room ID" value="12345678-1234-1234-1234-1234567890ab">
-                    <input type="text" id="guest-key" class="input-field" placeholder="Decryption Key" value="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr">
-                    <button class="btn" id="load-guest-btn">Load Guest View</button>
+                    
+                    <div class="input-wrapper">
+                        <input type="password" id="guest-room-id" class="input-field" placeholder="Room ID" value="12345678-1234-1234-1234-1234567890ab" autocomplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true">
+                        <button type="button" class="toggle-btn" onclick="toggleInputVisibility('guest-room-id', this)">
+                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: block;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: none;"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+                        </button>
+                    </div>
+
+                    <div class="input-wrapper">
+                        <input type="password" id="guest-key" class="input-field" placeholder="Decryption Key" value="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr" autocomplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true">
+                        <button type="button" class="toggle-btn" onclick="toggleInputVisibility('guest-key', this)">
+                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: block;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: none;"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+                        </button>
+                    </div>
+
+                    <button class="btn" id="load-guest-btn" style="margin-top: 10px;">Load Guest View</button>
                 </div>
 
                 <div class="card" id="event-log" style="flex-grow: 1;">
@@ -72,7 +96,6 @@
     <script>
         const widgetWrapper = document.getElementById('widget-wrapper');
         const injectBtn = document.getElementById('inject-btn');
-        const resetCreateBtn = document.getElementById('reset-create-btn');
         const loadGuestBtn = document.getElementById('load-guest-btn');
         const logOutput = document.getElementById('log-output');
 
@@ -89,6 +112,7 @@
             const newWidget = document.createElement('signing-room');
             newWidget.id = 'multisig-widget';
             newWidget.setAttribute('network', 'signet');
+            newWidget.setAttribute('hide-header', false);
             newWidget.setAttribute('relay-endpoint', 'http://localhost:4200');
             
             if (viewMode) newWidget.setAttribute('view', viewMode);
@@ -99,9 +123,25 @@
             widgetWrapper.appendChild(newWidget);
 
             newWidget.addEventListener('transactionFinalized', (e) => {
+                const data = e.detail;
+                
                 log("SUCCESS: Transaction Finalized!");
-                log(`TXID: ${e.detail.txId.substring(0,24)}...`);
-                console.log("Full Hex:", e.detail.txHex);
+                log(`TXID: ${data.txId.substring(0,24)}...`);
+                
+                console.log("Full Hex:", data.txHex);
+                console.log("Room State:", data.roomState);
+                console.log("Audit Log CSV:\n", data.auditLogCsv);
+                console.log("Settlement CSV:\n", data.settlementCsv);
+
+                if (data.auditPdfUri) {
+                    log("Downloading Audit PDF...");
+                    const link = document.createElement("a");
+                    link.href = data.auditPdfUri;
+                    link.download = `SigningRoom_Audit_${data.txId.substring(0,8)}.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
             });
 
             return newWidget;
@@ -110,10 +150,9 @@
         let widget = mountWidget();
 
         injectBtn.addEventListener('click', () => {
-            log("Injecting 10MB PSBT directly to widget memory...");
+            log("Injecting PSBT directly to widget memory...");
             
             widget = mountWidget(null, null, 'inject'); 
-            
             widget.loadPsbt(massivePsbt);
         });
 
@@ -129,6 +168,22 @@
             log(`Joining Room as Guest: ${roomId.substring(0,8)}...`);
             widget = mountWidget(roomId, key);
         });
+
+        function toggleInputVisibility(inputId, btnElement) {
+            const input = document.getElementById(inputId);
+            const eyeIcon = btnElement.querySelector('.eye-icon');
+            const eyeOffIcon = btnElement.querySelector('.eye-off-icon');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                eyeIcon.style.display = 'none';
+                eyeOffIcon.style.display = 'block';
+            } else {
+                input.type = 'password';
+                eyeIcon.style.display = 'block';
+                eyeOffIcon.style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>

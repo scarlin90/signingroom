@@ -30,13 +30,15 @@ export class SigningRoomElement extends HTMLElement {
         const key = this.getAttribute('decryption-key');
         const view = this.getAttribute('view');
         
+        const hideHeader = this.getAttribute('hide-header') === 'true';
+        
         const hostOrigin = encodeURIComponent(window.location.origin);
         
-        let src = `${this.targetOrigin}/create?embedded=true&network=${network}&host=${hostOrigin}`;
+        let src = `${this.targetOrigin}/create?embedded=true&network=${network}&host=${hostOrigin}&hideHeader=${hideHeader}`;
         
         if (view) src += `&view=${view}`;
         if (roomId) {
-            src = `${this.targetOrigin}/room/${roomId}?embedded=true&host=${hostOrigin}`;
+            src = `${this.targetOrigin}/room/${roomId}?embedded=true&host=${hostOrigin}&hideHeader=${hideHeader}`;
             if (key) src += `#${key}`;
         }
         

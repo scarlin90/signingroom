@@ -1381,6 +1381,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     public editingLabel = signal('');
     public saveToBook = signal(true);
 
+    private hasEmittedFinalized = false;
+
     readonly icons = { Shield, Users, CheckCircle, Loader2, Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud, Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Key, RefreshCw, AlertOctagon, FileKey, FileCheck, Edit2, Tag, Lock, Unlock, Bell, Infinity, ArrowDown, Book };
 
     constructor(
@@ -1448,6 +1450,30 @@ export class RoomComponent implements OnInit, OnDestroy {
             } else {
                 // Stage 1: Waiting -> Red (Blocked)
                 this.titleService.setTitle(`🔴 ${remaining} Needed | Signing Room`);
+            }
+        });
+
+        effect(() => {
+            const state = this.socket.roomState();
+
+            if (state && state.finalTxId && state.finalTxHex && this.isEmbedded && !this.hasEmittedFinalized) {
+                this.hasEmittedFinalized = true;
+
+                const pdfData = this.getPdfDocument();
+                const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
+
+                window.parent.postMessage({
+                    type: 'SIGNING_ROOM_EVENT',
+                    action: 'transactionFinalized',
+                    payload: {
+                        txId: state.finalTxId,
+                        txHex: state.finalTxHex,
+                        roomState: state,
+                        auditLogCsv: this.getAuditLogCsvData(),
+                        settlementCsv: this.getSettlementCsvData(),
+                        auditPdfUri: pdfBase64 
+                    }
+                }, '*');
             }
         });
     }
@@ -1792,13 +1818,23 @@ export class RoomComponent implements OnInit, OnDestroy {
                 this.socket.broadcastFinalization(hex, txId);
                 this.triggerConfetti();
 
-                if (this.isEmbedded) {
-                    window.parent.postMessage({
-                        type: 'SIGNING_ROOM_EVENT',
-                        action: 'transactionFinalized',
-                        payload: { txHex: hex, txId: txId }
-                    }, '*');
-                }
+                // if (this.isEmbedded) {
+                //     const pdfData = this.getPdfDocument();
+                //     const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
+
+                //     window.parent.postMessage({
+                //         type: 'SIGNING_ROOM_EVENT',
+                //         action: 'transactionFinalized',
+                //         payload: {
+                //             txId: txId,
+                //             txHex: hex,
+                //             roomState: this.socket.roomState(),
+                //             auditLogCsv: this.getAuditLogCsvData(),
+                //             settlementCsv: this.getSettlementCsvData(),
+                //             auditPdfUri: pdfBase64 
+                //         }
+                //     }, '*');
+                // }
             }
         };
 
@@ -1989,11 +2025,75 @@ export class RoomComponent implements OnInit, OnDestroy {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    generateAuditLog() {
+    getSettlementCsvData() {
+        const state = this.socket.roomState();
+        const tx = this.socket.txDetails();
+        if (!state || !tx) return;
+
+        const headers = ["Date", "Room ID", "Network", "TXID", "Total Amount (BTC)", "Fee Rate (sats/vB)", "Inputs", "Outputs", "Signers", "Witnesses", "Status"];
+        
+        const signersList = this.socket.signers().map(s => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`).join("; ");
+        
+        const participantsObj = state.participants || {};
+        const witnessesList = Object.values(participantsObj).map((p: any) => {
+            const name = p.displayName || 'Anonymous';
+            const role = p.role === 'admin' ? 'Coordinator' : 'Guest';
+            return `${name} [${role}] (${p.id})`;
+        }).join("; ")
+        
+        const row = [
+            new Date().toISOString(),
+            state.roomId,
+            state.network,
+            this.socket.getFinalTxId() || "Pending",
+            (tx.amount / 100000000).toFixed(8),
+            tx.feeRate,
+            tx.inputsList?.length || 0,
+            tx.outputs?.length || 0,
+            `"${signersList}"`, 
+            `"${witnessesList}"`,
+            this.finalHex() ? "Signed & Ready" : "Pending Signatures"
+        ];
+
+        const csvContent = headers.join(",") + "\n" 
+            + row.join(",");
+
+        return csvContent;
+    }
+
+    getAuditLogCsvData(): string {
+        const logs = this.socket.roomState()?.auditLog || [];
+        const csvHeader = 'Timestamp,Event,User,Detail\n';
+        const csvRows = logs.map(l => {
+            const time = new Date(l.timestamp).toISOString();
+            const event = `"${l.event.replace(/"/g, '""')}"`;
+            const user = `"${l.user.replace(/"/g, '""')}"`;
+            const detail = `"${(l.detail || '').replace(/"/g, '""')}"`;
+            return `${time},${event},${user},${detail}`;
+        }).join('\n');
+        return csvHeader + csvRows;
+    }
+
+    downloadCsv() {
+        const state = this.socket.roomState();
+
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + this.getSettlementCsvData();
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `settlement_${state?.roomId}_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    getPdfDocument(): { doc: jsPDF, filename: string } | undefined {
+        const doc = new jsPDF();
         const state = this.socket.roomState();
         if (!state) return;
 
-        const doc = new jsPDF();
         let y = 20;
 
         // Helper to check page bounds and add new pages automatically
@@ -2359,51 +2459,17 @@ export class RoomComponent implements OnInit, OnDestroy {
             doc.text(`Final Tx Hash (SHA256 of Hex): Verified`, 20, y);
         }
 
-        doc.save(filename);
+        return { doc, filename };
     }
 
-    downloadCsv() {
-        const state = this.socket.roomState();
-        const tx = this.socket.txDetails();
-        if (!state || !tx) return;
-
-        const headers = ["Date", "Room ID", "Network", "TXID", "Total Amount (BTC)", "Fee Rate (sats/vB)", "Inputs", "Outputs", "Signers", "Witnesses", "Status"];
-        
-        const signersList = this.socket.signers().map(s => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`).join("; ");
-        
-        const participantsObj = state.participants || {};
-        const witnessesList = Object.values(participantsObj).map((p: any) => {
-            const name = p.displayName || 'Anonymous';
-            const role = p.role === 'admin' ? 'Coordinator' : 'Guest';
-            return `${name} [${role}] (${p.id})`;
-        }).join("; ")
-        
-        const row = [
-            new Date().toISOString(),
-            state.roomId,
-            state.network,
-            this.socket.getFinalTxId() || "Pending",
-            (tx.amount / 100000000).toFixed(8),
-            tx.feeRate,
-            tx.inputsList?.length || 0,
-            tx.outputs?.length || 0,
-            `"${signersList}"`, 
-            `"${witnessesList}"`,
-            this.finalHex() ? "Signed & Ready" : "Pending Signatures"
-        ];
-
-        const csvContent = "data:text/csv;charset=utf-8," 
-            + headers.join(",") + "\n" 
-            + row.join(",");
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `settlement_${state.roomId}_${new Date().toISOString().slice(0,10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    generateAuditLog() {
+        const pdfData = this.getPdfDocument();
+        if (pdfData) {
+            pdfData.doc.save(pdfData.filename);
+        }
     }
+
+  
 
     private startTimer(expiryTime: number) {
         if (this.timerInterval) clearInterval(this.timerInterval);

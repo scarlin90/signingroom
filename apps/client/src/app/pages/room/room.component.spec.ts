@@ -16,7 +16,8 @@ vi.mock('jspdf', () => ({
   jsPDF: vi.fn().mockImplementation(() => ({
     setFont: vi.fn(), setFontSize: vi.fn(), setTextColor: vi.fn(),
     text: vi.fn(), setDrawColor: vi.fn(), setLineWidth: vi.fn(),
-    line: vi.fn(), addPage: vi.fn(), save: vi.fn()
+    line: vi.fn(), addPage: vi.fn(), save: vi.fn(),
+    output: vi.fn().mockReturnValue('data:application/pdf;base64,FAKEPDF') // <-- Added this line!
   }))
 }));
 
@@ -911,17 +912,29 @@ describe('RoomComponent', () => {
 
   // ====================== EMBEDDED MODE ======================
 
-  it('should handle postMessage and finalization in embedded mode', () => {
-    // Mock iframe state
-    vi.stubGlobal('window', { top: {}, parent: { postMessage: vi.fn() } });
+  it('should handle postMessage and finalization in embedded mode', async () => {
+    const postMessageSpy = vi.spyOn(window.parent, 'postMessage').mockImplementation(() => {});
     
-    component.finalize();
+    socketSpy.roomState.mockReturnValue({ 
+      ...baseRoomState, 
+      finalTxId: 'mock-tx-id', 
+      finalTxHex: 'mock-hex' 
+    });
+
+    const localFixture = TestBed.createComponent(RoomComponent);
+    const localComponent = localFixture.componentInstance;
     
-    expect(window.parent.postMessage).toHaveBeenCalledWith(
+    Object.defineProperty(localComponent, 'isEmbedded', { value: true, writable: true });
+    
+    localFixture.detectChanges();
+    await Promise.resolve();
+    
+    expect(postMessageSpy).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'transactionFinalized' }), 
       '*'
     );
-    vi.unstubAllGlobals();
+
+    postMessageSpy.mockRestore();
   });
 
   it('should navigate and clear fragment if connected and key is present', async () => {

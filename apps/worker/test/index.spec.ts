@@ -12,7 +12,7 @@ import app from '../src/index';
 let TEST_ROOM_ID = '';
 
 describe('Worker Router & Rate Limiter', () => {
-  it.only('should return healthy on /api/health', async () => {
+  it('should return healthy on /api/health', async () => {
     const request = new Request('http://localhost/api/health');
     const ctx = createExecutionContext();
 
@@ -25,19 +25,21 @@ describe('Worker Router & Rate Limiter', () => {
     expect(data.version).toBeDefined();
   });
 
-  it.only('should enforce security headers', async () => {
+  it('should enforce security headers', async () => {
     const request = new Request('http://localhost/api/health');
     const ctx = createExecutionContext();
 
     const response = await app.fetch(request, env as any, ctx);
     await waitOnExecutionContext(ctx);
 
-    expect(response.headers.get('X-Frame-Options')).toBe('DENY');
+    const csp = response.headers.get('Content-Security-Policy');
+    
+    expect(csp).toContain("frame-ancestors *;"); 
+    expect(csp).toContain("default-src 'self'");
     expect(response.headers.get('X-XSS-Protection')).toBe('1; mode=block');
-    expect(response.headers.get('Content-Security-Policy')).toContain("default-src 'self'");
   });
 
-  it.only('should catch and log rate limiter errors gracefully', async () => {
+  it('should catch and log rate limiter errors gracefully', async () => {
     const request = new Request('http://localhost/api/health', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' }
     });
@@ -62,7 +64,7 @@ describe('Worker Router & Rate Limiter', () => {
     consoleSpy.mockRestore();
   });
 
-  it.only('should return 429 when rate limit is exceeded', async () => {
+  it('should return 429 when rate limit is exceeded', async () => {
     const request = new Request('http://localhost/api/health', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' }
     });
@@ -82,7 +84,7 @@ describe('Worker Router & Rate Limiter', () => {
     expect(response.status).toBe(429);
   });
 
-  it.only('should return 413 if encryptedPsbt exceeds MAX_PAYLOAD_SIZE_BYTES on POST /api/room', async () => {
+  it('should return 413 if encryptedPsbt exceeds MAX_PAYLOAD_SIZE_BYTES on POST /api/room', async () => {
     const request = new Request('http://localhost/api/room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -101,7 +103,7 @@ describe('Worker Router & Rate Limiter', () => {
     expect(data.error).toContain('Payload too large');
   });
 
-  it.only('should omit Access-Control-Allow-Origin for unauthorized CORS requests', async () => {
+  it('should omit Access-Control-Allow-Origin for unauthorized CORS requests', async () => {
     const request = new Request('http://localhost/api/health', {
       method: 'OPTIONS',
       headers: {
@@ -203,7 +205,7 @@ describe('SigningRoom Durable Object', () => {
     }
   }
 
-  it.only('should initialize a room via POST /api/room', async () => {
+  it('should initialize a room via POST /api/room', async () => {
     const request = new Request('http://localhost/api/room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -224,12 +226,12 @@ describe('SigningRoom Durable Object', () => {
     expect(data.socketUrl).toContain('/websocket');
   });
 
-  it.only('should reject non-websocket upgrade requests', async () => {
+  it('should reject non-websocket upgrade requests', async () => {
     const response = await roomStub.fetch(new Request('http://localhost/'));
     expect(response.status).toBe(426);
   });
 
-  it.only('should successfully upgrade to a WebSocket and send initial state', async () => {
+  it('should successfully upgrade to a WebSocket and send initial state', async () => {
     await initRoom({ encryptedLogBlob: 'initial-creation-log' });
     const { client, received } = await createWebSocketClient();
 
@@ -245,7 +247,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should maintain persistent participants state and broadcast updates', async () => {
+  it('should maintain persistent participants state and broadcast updates', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -277,7 +279,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should authenticate admin with correct token', async () => {
+  it('should authenticate admin with correct token', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -295,7 +297,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should reject invalid admin token and lock out after 5 failures', async () => {
+  it('should reject invalid admin token and lock out after 5 failures', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -312,7 +314,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should update signer labels (admin only)', async () => {
+  it('should update signer labels (admin only)', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -335,7 +337,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should close room and clean up on CLOSE_ROOM (admin)', async () => {
+  it('should close room and clean up on CLOSE_ROOM (admin)', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -356,7 +358,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should reject connection on protocol version mismatch', async () => {
+  it('should reject connection on protocol version mismatch', async () => {
     await initRoom({ protocolVersion: '2.0.0' });
     
     const wsResponse = await roomStub.fetch(new Request('http://localhost/?pass=pass123&v=1.0.0', {
@@ -380,7 +382,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should shift auditLog array if it exceeds 2000 entries', async () => {
+  it('should shift auditLog array if it exceeds 2000 entries', async () => {
     await initRoom();
     await runInDurableObject(roomStub, async (instance: any) => {
       // Artificially inflate the log array to exactly 2000 items
@@ -393,7 +395,7 @@ describe('SigningRoom Durable Object', () => {
     });
   });
 
-  it.only('should drop broken sockets during broadcast()', async () => {
+  it('should drop broken sockets during broadcast()', async () => {
     await initRoom();
     await runInDurableObject(roomStub, async (instance: any) => {
       // Create a mock socket that throws when send() is called
@@ -411,7 +413,7 @@ describe('SigningRoom Durable Object', () => {
     });
   });
 
-  it.only('alarm() should reset lockout and retain room if not expired', async () => {
+  it('alarm() should reset lockout and retain room if not expired', async () => {
     await initRoom();
     await runInDurableObject(roomStub, async (instance: any) => {
       instance.isLockedOut = true;
@@ -429,7 +431,7 @@ describe('SigningRoom Durable Object', () => {
     });
   });
 
-  it.only('alarm() should delete room and close sockets if expired', async () => {
+  it('alarm() should delete room and close sockets if expired', async () => {
     await initRoom();
     const { client } = await createWebSocketClient();
     
@@ -455,7 +457,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should ignore UPLOAD_PARTIAL if payload exceeds MAX_PAYLOAD_SIZE_BYTES', async () => {
+  it('should ignore UPLOAD_PARTIAL if payload exceeds MAX_PAYLOAD_SIZE_BYTES', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -477,7 +479,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should enforce message rate limiting', async () => {
+  it('should enforce message rate limiting', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -501,7 +503,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should reject more than 10 connections from the same IP', async () => {
+  it('should reject more than 10 connections from the same IP', async () => {
     await initRoom();
     const clients: WebSocket[] = [];
 
@@ -527,7 +529,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should set display name and broadcast connections', async () => {
+  it('should set display name and broadcast connections', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -548,7 +550,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should rename the room (admin only)', async () => {
+  it('should rename the room (admin only)', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -570,7 +572,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should accept partial uploads and enforce limit', async () => {
+  it('should accept partial uploads and enforce limit', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -590,7 +592,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should allow admin to update whitelist and lock room', async () => {
+  it('should allow admin to update whitelist and lock room', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -622,7 +624,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should finalize transaction (admin only)', async () => {
+  it('should finalize transaction (admin only)', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -645,7 +647,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should safely catch malformed JSON messages', async () => {
+  it('should safely catch malformed JSON messages', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
     
@@ -661,7 +663,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should reject connection with an invalid password', async () => {
+  it('should reject connection with an invalid password', async () => {
     await initRoom();
 
     const response = await roomStub.fetch(new Request('http://localhost/?pass=wrongpassword', {
@@ -672,7 +674,7 @@ describe('SigningRoom Durable Object', () => {
     expect(await response.text()).toBe("Unauthorized: Invalid Room Pass");
   });
 
-  it.only('should enforce the 100 signature upload limit safely via state injection', async () => {
+  it('should enforce the 100 signature upload limit safely via state injection', async () => {
     await initRoom();
 
     await runInDurableObject(roomStub, (instance: any) => {
@@ -695,7 +697,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should remove disconnected clients gracefully during broadcast', async () => {
+  it('should remove disconnected clients gracefully during broadcast', async () => {
     await initRoom();
     const { client: client1 } = await createWebSocketClient();
     const { client: client2 } = await createWebSocketClient();
@@ -714,7 +716,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should reject connection if room is not initialized', async () => {
+  it('should reject connection if room is not initialized', async () => {
     const wsResponse = await roomStub.fetch(new Request('http://localhost/?pass=pass123', {
       headers: { 'Upgrade': 'websocket' },
     }));
@@ -734,7 +736,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should enforce the room capacity limit (MAX_CONNECTIONS) via state injection', async () => {
+  it('should enforce the room capacity limit (MAX_CONNECTIONS) via state injection', async () => {
     await initRoom();
 
     await runInDurableObject(roomStub, (instance: any) => {
@@ -762,7 +764,7 @@ describe('SigningRoom Durable Object', () => {
     }
   });
 
-  it.only('should reject messages larger than MAX_PAYLOAD_SIZE_BYTES', async () => {
+  it('should reject messages larger than MAX_PAYLOAD_SIZE_BYTES', async () => {
     await initRoom();
     const { client, received } = await createWebSocketClient();
 
@@ -779,7 +781,7 @@ describe('SigningRoom Durable Object', () => {
   });
 
   describe('Deep Edge Cases and Catch Blocks', () => {
-    it.only('should ignore errors when closing sockets during CLOSE_ROOM', async () => {
+    it('should ignore errors when closing sockets during CLOSE_ROOM', async () => {
       await initRoom();
       await runInDurableObject(roomStub, async (instance: any) => {
         // Create a mock socket that intentionally throws an error when close() is called
@@ -799,7 +801,7 @@ describe('SigningRoom Durable Object', () => {
       });
     });
 
-    it.only('should ignore messages from unknown sockets', async () => {
+    it('should ignore messages from unknown sockets', async () => {
       await initRoom();
       await runInDurableObject(roomStub, async (instance: any) => {
         const mockSocket = { send: vi.fn(), close: vi.fn() };
@@ -810,7 +812,7 @@ describe('SigningRoom Durable Object', () => {
       });
     });
 
-    it.only('should catch global errors in handleMessage', async () => {
+    it('should catch global errors in handleMessage', async () => {
        await initRoom();
        await runInDurableObject(roomStub, async (instance: any) => {
           const mockSocket = { send: vi.fn(), close: vi.fn() };
@@ -826,7 +828,7 @@ describe('SigningRoom Durable Object', () => {
        });
     });
 
-    it.only('should gracefully handle missing IP during handleClose', async () => {
+    it('should gracefully handle missing IP during handleClose', async () => {
         await initRoom();
         await runInDurableObject(roomStub, async (instance: any) => {
           const mockSocket = {};
@@ -839,7 +841,7 @@ describe('SigningRoom Durable Object', () => {
         });
     });
 
-    it.only('should allow production CORS origin signingroom.io', async () => {
+    it('should allow production CORS origin signingroom.io', async () => {
       const req = new Request('http://localhost/api/health', {
         method: 'OPTIONS',
         headers: { 'Origin': 'https://app.signingroom.io', 'Access-Control-Request-Method': 'GET' }
@@ -851,7 +853,204 @@ describe('SigningRoom Durable Object', () => {
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://app.signingroom.io');
     });
 
-    it.only('should allow localhost CORS origin in development', async () => {
+    it('should allow localhost CORS origin in development', async () => {
+      const req = new Request('http://localhost/api/health', {
+        method: 'OPTIONS',
+        headers: { 'Origin': 'http://localhost:4200', 'Access-Control-Request-Method': 'GET' }
+      });
+      const ctx = createExecutionContext();
+      
+      // Force development environment
+      const devEnv = { ...env, ENVIRONMENT: 'development' };
+      const res = await app.fetch(req, devEnv as any, ctx);
+      await waitOnExecutionContext(ctx);
+      
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:4200');
+    });
+  });
+
+  it('should return early from log() if roomState is null', async () => {
+    await runInDurableObject(roomStub, async (instance: any) => {
+      instance.roomState = null;
+      // This should gracefully return without throwing an error
+      await instance.log('some-encrypted-log'); 
+      expect(instance.roomState).toBeNull();
+    });
+  });
+
+  it('should shift auditLog array if it exceeds 2000 entries', async () => {
+    await initRoom();
+    await runInDurableObject(roomStub, async (instance: any) => {
+      // Artificially inflate the log array to exactly 2000 items
+      instance.roomState.auditLog = new Array(2000).fill('old-log');
+      
+      await instance.log('new-log');
+      
+      expect(instance.roomState.auditLog.length).toBe(2000); // Should not exceed 2000
+      expect(instance.roomState.auditLog[1999]).toBe('new-log'); // New log is at the end
+    });
+  });
+
+  it('should drop broken sockets during broadcast()', async () => {
+    await initRoom();
+    await runInDurableObject(roomStub, async (instance: any) => {
+      // Create a mock socket that throws when send() is called
+      const mockBrokenSocket = { 
+        send: vi.fn().mockImplementation(() => { throw new Error('Broken pipe'); }),
+        close: vi.fn()
+      };
+      instance.sessions.set(mockBrokenSocket, { id: '123', role: 'guest' });
+      
+      expect(instance.sessions.has(mockBrokenSocket)).toBe(true);
+      
+      // Broadcast should catch the error and delete the socket
+      expect(() => instance.broadcast({ type: 'TEST' })).not.toThrow();
+      expect(instance.sessions.has(mockBrokenSocket)).toBe(false);
+    });
+  });
+
+  it('alarm() should reset lockout and retain room if not expired', async () => {
+    await initRoom();
+    await runInDurableObject(roomStub, async (instance: any) => {
+      instance.isLockedOut = true;
+      instance.authFailures = 5;
+      instance.roomState.expiresAt = Date.now() + 10000; // Room expires in the future
+      
+      const setAlarmSpy = vi.spyOn(instance.state.storage, 'setAlarm');
+      
+      await instance.alarm();
+      
+      expect(instance.isLockedOut).toBe(false);
+      expect(instance.authFailures).toBe(0);
+      expect(instance.roomState).not.toBeNull();
+      expect(setAlarmSpy).toHaveBeenCalledWith(instance.roomState.expiresAt);
+    });
+  });
+
+  it('alarm() should delete room and close sockets if expired', async () => {
+    await initRoom();
+    const { client } = await createWebSocketClient();
+    
+    try {
+      await runInDurableObject(roomStub, async (instance: any) => {
+        // Force the room into an expired state
+        instance.roomState.expiresAt = Date.now() - 10000; 
+        
+        await instance.alarm();
+        
+        expect(instance.roomState).toBeNull();
+      });
+      
+      // The connected client should receive a close event with code 1000 "Expired"
+      const closeEvent = await new Promise<CloseEvent>((resolve) => {
+        client.addEventListener('close', resolve);
+      });
+      
+      expect(closeEvent.code).toBe(1000);
+      expect(closeEvent.reason).toBe('Expired');
+    } finally {
+      await cleanupClient(client);
+    }
+  });
+
+  it('should ignore UPLOAD_PARTIAL if payload exceeds MAX_PAYLOAD_SIZE_BYTES', async () => {
+    await initRoom();
+    const { client, received } = await createWebSocketClient();
+
+    try {
+      const massiveData = 'a'.repeat((2 * 1024 * 1024) + 10);
+      client.send(JSON.stringify({
+        type: 'UPLOAD_PARTIAL',
+        fingerprint: '123456',
+        data: { encryptedData: massiveData },
+        encryptedLogBlob: 'upload-log'
+      }));
+
+      await new Promise(r => setTimeout(r, 100));
+
+      // It should silently return, meaning no NEW_PARTIAL_DATA is broadcasted
+      expect(received.some(m => m.type === 'NEW_PARTIAL_DATA')).toBe(false);
+    } finally {
+      await cleanupClient(client);
+    }
+  });
+
+  describe('Deep Edge Cases and Catch Blocks', () => {
+    it('should ignore errors when closing sockets during CLOSE_ROOM', async () => {
+      await initRoom();
+      await runInDurableObject(roomStub, async (instance: any) => {
+        // Create a mock socket that intentionally throws an error when close() is called
+        const mockSocket = { 
+          send: vi.fn(), 
+          close: vi.fn().mockImplementation(() => { throw new Error('Close failed'); }) 
+        };
+        instance.sessions.set(mockSocket, { id: 'admin1', role: 'admin' });
+        
+        // Trigger CLOSE_ROOM. The catch block should silently absorb the error.
+        await instance.handleMessage({ 
+          data: JSON.stringify({ type: 'CLOSE_ROOM', encryptedLogBlob: 'log' }) 
+        } as any, mockSocket);
+        
+        expect(instance.roomState).toBeNull(); // Room should still be successfully destroyed
+        expect(instance.sessions.size).toBe(0);
+      });
+    });
+
+    it('should ignore messages from unknown sockets', async () => {
+      await initRoom();
+      await runInDurableObject(roomStub, async (instance: any) => {
+        const mockSocket = { send: vi.fn(), close: vi.fn() };
+        
+        // Do not add the socket to instance.sessions!
+        // This hits the `if (!session) return;` early exit.
+        await instance.handleMessage({ data: '{"type":"AUTH"}' } as any, mockSocket);
+        
+        expect(instance.sessions.has(mockSocket)).toBe(false);
+      });
+    });
+
+    it('should catch global errors in handleMessage', async () => {
+       await initRoom();
+       await runInDurableObject(roomStub, async (instance: any) => {
+          const mockSocket = { send: vi.fn(), close: vi.fn() };
+          instance.sessions.set(mockSocket, { id: '123', role: 'guest' });
+          
+          const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+          
+          // Pass a null event to force a massive crash inside handleMessage
+          await instance.handleMessage(null as any, mockSocket);
+          
+          expect(consoleSpy).toHaveBeenCalled();
+          consoleSpy.mockRestore();
+       });
+    });
+
+    it('should gracefully handle missing IP during handleClose', async () => {
+        await initRoom();
+        await runInDurableObject(roomStub, async (instance: any) => {
+          const mockSocket = {};
+          
+          // Add a session but explicitly remove the IP
+          instance.sessions.set(mockSocket, { id: '123', role: 'guest', ip: undefined });
+          
+          await instance.handleClose(mockSocket as any);
+          expect(instance.sessions.has(mockSocket)).toBe(false);
+        });
+    });
+
+    it('should allow production CORS origin signingroom.io', async () => {
+      const req = new Request('http://localhost/api/health', {
+        method: 'OPTIONS',
+        headers: { 'Origin': 'https://app.signingroom.io', 'Access-Control-Request-Method': 'GET' }
+      });
+      const ctx = createExecutionContext();
+      const res = await app.fetch(req, env as any, ctx);
+      await waitOnExecutionContext(ctx);
+      
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://app.signingroom.io');
+    });
+
+    it('should allow localhost CORS origin in development', async () => {
       const req = new Request('http://localhost/api/health', {
         method: 'OPTIONS',
         headers: { 'Origin': 'http://localhost:4200', 'Access-Control-Request-Method': 'GET' }
@@ -867,3 +1066,4 @@ describe('SigningRoom Durable Object', () => {
     });
   });
 });
+
