@@ -220,23 +220,27 @@ import * as QRCode from 'qrcode';
                 This room does not exist or has expired.<br>
                 Please check the URL or create a new signing session.
             </p>
-            <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2">
-                <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Create New Room
-            </a>
+            @if (!isEmbedded) {
+                <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2">
+                    <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Create New Room
+                </a>
+            }
         </div>
     </div>
     } 
     @else if (socket.isRoomFull()) {
-        <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm rounded-3xl border border-slate-800 animate-fade-in-up">
-            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+        <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
                 <div class="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                     <lucide-icon [img]="Users" class="w-8 h-8 text-amber-500"></lucide-icon>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-2">Room Full</h2>
                 <p class="text-slate-400 mb-8">This room has reached its maximum connection limit.</p>
-                <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                    <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
-                </a>
+                @if (!isEmbedded) {
+                    <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
+                        <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
+                    </a>
+                }
             </div>
         </div>
       }
@@ -252,9 +256,11 @@ import * as QRCode from 'qrcode';
                 The Coordinator has locked this room.<br>
                 No new guests can join the session at this time.
             </p>
-            <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
-            </a>
+            @if (!isEmbedded) {
+                <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
+                    <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
+                </a>
+            }
         </div>
     </div>
     }
@@ -863,32 +869,35 @@ import * as QRCode from 'qrcode';
         }
 
       @if (socket.isClosed()) {
-        <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm rounded-3xl border border-slate-800 animate-fade-in-up">
-            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+        <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
                 <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
                     <lucide-icon [img]="Power" class="w-8 h-8 text-slate-400"></lucide-icon>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-2">Signing Room Closed</h2>
                 <p class="text-slate-400 mb-8">The coordinator has ended this signing session. All data has been securely wiped.</p>
-                <a routerLink="/create" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                    <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Start New Signing
-                </a>
+                @if (!isEmbedded) {
+                    <a routerLink="/create" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
+                        <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Start New Signing
+                    </a>
+                }
             </div>
         </div>
       }
 
       @if (isExpired() && !socket.isClosed()) {
-        <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm rounded-3xl border border-slate-800">
-            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+        <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
                 <div class="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                     <lucide-icon [img]="AlertTriangle" class="w-8 h-8 text-rose-500"></lucide-icon>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-2">Room Expired</h2>
                 <p class="text-slate-400 mb-8">This session has timed out. All ephemeral data has been wiped.</p>
-                <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2 decoration-0">
-                    <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> 
-                    Start New Signing
-                </a>
+                @if (!isEmbedded) {
+                    <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2 decoration-0">
+                        <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Start New Signing
+                    </a>
+                }
             </div>
         </div>
       }
@@ -1647,7 +1656,10 @@ export class RoomComponent implements OnInit, OnDestroy {
                 this.generateAuditLog();
                 setTimeout(() => {
                     this.socket.closeRoom();
-                    this.router.navigate(['/']); 
+                
+                    if (!this.isEmbedded) {
+                        this.router.navigate(['/']); 
+                    }
                 }, 300);
             },
             true 

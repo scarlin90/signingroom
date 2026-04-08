@@ -256,7 +256,11 @@ interface PsbtAnalysis {
     @if (showCreateModal()) {
     <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-lg w-full relative">
-            <button (click)="showCreateModal.set(false)" class="absolute top-4 right-4 text-slate-500 hover:text-white"><lucide-icon [img]="X" class="w-5 h-5"></lucide-icon></button>
+            @if (!isEmbedded) {
+                <button (click)="showCreateModal.set(false)" class="absolute top-4 right-4 text-slate-500 hover:text-white">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            }
             <h2 class="text-2xl font-bold text-white mb-6">Configure Signing Room®</h2>
 
             <div class="mb-6">
@@ -292,7 +296,11 @@ interface PsbtAnalysis {
                                     <div class="text-emerald-500 text-xs font-mono">{{ psbtAnalysis()?.outputCount }} Outputs</div>
                                 </div>
                             </div>
-                            <button (click)="clearPsbt()" class="text-slate-500 hover:text-rose-400"><lucide-icon [img]="X" class="w-4 h-4"></lucide-icon></button>
+                            @if (!isEmbedded) {
+                                <button (click)="clearPsbt()" class="text-slate-500 hover:text-rose-400">
+                                    <lucide-icon [img]="X" class="w-4 h-4"></lucide-icon>
+                                </button>
+                            }
                         </div>
 
                         <div class="grid grid-cols-3 gap-2 text-center">
@@ -412,7 +420,7 @@ export class CreateComponent implements OnInit {
 
                 const payloadString = event.data.payload.trim();
 
-                const dummyFile = new File([payloadString], 'wallet_transaction.psbt.txt', { 
+                const dummyFile = new File([payloadString], 'loaded_transaction.psbt.txt', { 
                     type: 'text/plain' 
                 });
 
