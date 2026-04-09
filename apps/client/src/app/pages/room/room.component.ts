@@ -732,7 +732,7 @@ import * as QRCode from 'qrcode';
                     </div>
 
                     <div class="w-px h-6 bg-slate-800 mx-1"></div>
-                    
+
                 @if (socket.isCoordinator()) {
                     <div class="relative group">
                         <button (click)="openAdminModal()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20">
@@ -1839,24 +1839,6 @@ export class RoomComponent implements OnInit, OnDestroy {
             if (hex && txId) { 
                 this.socket.broadcastFinalization(hex, txId);
                 this.triggerConfetti();
-
-                // if (this.isEmbedded) {
-                //     const pdfData = this.getPdfDocument();
-                //     const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
-
-                //     window.parent.postMessage({
-                //         type: 'SIGNING_ROOM_EVENT',
-                //         action: 'transactionFinalized',
-                //         payload: {
-                //             txId: txId,
-                //             txHex: hex,
-                //             roomState: this.socket.roomState(),
-                //             auditLogCsv: this.getAuditLogCsvData(),
-                //             settlementCsv: this.getSettlementCsvData(),
-                //             auditPdfUri: pdfBase64 
-                //         }
-                //     }, '*');
-                // }
             }
         };
 

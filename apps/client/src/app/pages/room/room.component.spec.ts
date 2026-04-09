@@ -17,7 +17,7 @@ vi.mock('jspdf', () => ({
     setFont: vi.fn(), setFontSize: vi.fn(), setTextColor: vi.fn(),
     text: vi.fn(), setDrawColor: vi.fn(), setLineWidth: vi.fn(),
     line: vi.fn(), addPage: vi.fn(), save: vi.fn(),
-    output: vi.fn().mockReturnValue('data:application/pdf;base64,FAKEPDF') // <-- Added this line!
+    output: vi.fn().mockReturnValue('data:application/pdf;base64,FAKEPDF')
   }))
 }));
 
