@@ -1,8 +1,8 @@
 -----BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
+Hash: SHA512
 
 SigningRoom.io Warrant Canary
-Date: 2026-03-21
+Date: 2026-04-09
 
 I, the administrator of SigningRoom.io, represent that:
 
@@ -12,16 +12,15 @@ I, the administrator of SigningRoom.io, represent that:
 4. I have NOT been forced to modify the system code to introduce backdoors.
 
 To prove this message was generated recently, here is the latest Bitcoin block hash:
-Block Hash: 0000000000000000000120bcc7d130ee28b75a71704cb70eb576de75b4f3f800
+Block Hash: 000000000000000000008d4526fc9297a53a00a65ee7109efef68626df8cee9c
 
-This statement is valid until: 2026-04-20
+This statement is valid until: 2026-05-09
 
 If this file is not updated by the expiry date, or if the PGP signature is invalid, please assume the service has been compromised or seized.
-
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQTGQutePrhRlJjPZTWXpLgPeXDdVgUCab5lKgAKCRCXpLgPeXDd
-VkFXAP92ORUIki1VIoxfDL4g7xkVW7n/Jj1TcJhpQtUowEYNBgD8DWq5rCaPWhMZ
-oBEndM+zKG8hyCcMxhFVfd9v0H/GpAk=
-=lEA4
+iHUEARYKAB0WIQTGQutePrhRlJjPZTWXpLgPeXDdVgUCadcMEAAKCRCXpLgPeXDd
+VnPSAQDWbf2FoLyMSzO9gXmr49VxRwqaF49gZcFpkkAMuvPfRgD+JKFsiKnWtjdg
+BMGmw+kE1izn9OgzZcWAUWDLQWpozwk=
+=kdAj
 -----END PGP SIGNATURE-----
