@@ -957,4 +957,37 @@ describe('RoomComponent', () => {
     }));
   });
 
+  describe('Embedded Mode (Web Component) Suppressions', () => {
+    
+    beforeEach(() => {
+      vi.useFakeTimers(); 
+    });
+
+    afterEach(() => {
+      vi.useRealTimers(); 
+    });
+
+    it('should suppress auto-download on closeRoom if embedded', () => {
+      const isEmbeddedSpy = vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(true);
+      const generateAuditLogSpy = vi.spyOn(component, 'generateAuditLog');
+      const closeRoomSpy = vi.spyOn(component.socket, 'closeRoom').mockImplementation(() => {});
+      
+      // Auto-execute the confirmation modal callback
+      vi.spyOn(component, 'openConfirm').mockImplementation((t, m, action) => action());
+      
+      component.closeRoom();
+      
+      // Fast-forward time to flush the setTimeout inside closeRoom
+      vi.advanceTimersByTime(300); 
+      
+      // It SHOULD have called socket.closeRoom()
+      expect(closeRoomSpy).toHaveBeenCalled();
+      
+      // But because it's embedded, it should NOT have tried to auto-generate the log
+      expect(generateAuditLogSpy).not.toHaveBeenCalled();
+      
+      isEmbeddedSpy.mockRestore();
+    });
+  });
+
 });

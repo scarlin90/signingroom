@@ -1,16 +1,15 @@
 {
-  "name": "embed",
+  "name": "@signing-room/embed",
   "$schema": "../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "embed/src",
+  "sourceRoot": "apps/embed/src",
   "projectType": "library",
   "release": {
     "version": {
-      "manifestRootsToUpdate": ["dist/{projectRoot}"],
+      "manifestRootsToUpdate": ["{projectRoot}", "dist/{projectRoot}"],
       "currentVersionResolver": "git-tag",
       "fallbackCurrentVersionResolver": "disk"
     }
   },
-  "tags": [],
   "targets": {
     "build": {
       "executor": "@nx/esbuild:esbuild",
@@ -19,14 +18,16 @@
         "outputPath": "dist/embed",
         "main": "apps/embed/src/index.ts",
         "tsConfig": "apps/embed/tsconfig.lib.json",
-        "assets": ["embed/*.md"],
-        "format": ["cjs"],
+        "esbuildConfig": "apps/embed/esbuild.config.cjs",
+        "assets": ["apps/embed/README.md", "apps/embed/LICENSE"],
+        "format": ["esm"],
         "generatePackageJson": true
       }
     },
     "nx-release-publish": {
       "options": {
-        "packageRoot": "dist/{projectRoot}"
+        "packageRoot": "dist/embed",
+        "access": "public"
       }
     }
   }

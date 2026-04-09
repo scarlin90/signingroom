@@ -421,8 +421,40 @@ it('should handle onMessage from allowed origin and ignore unauthorized', async 
     });
 
     it('should catch errors in analyzeRawHex and reset analysis', () => {
-      expect(() => component.analyzeRawHex('invalid-data-trigger-error')).toThrow();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Call the method with invalid data (it shouldn't throw anymore)
+      component.analyzeRawHex('invalid-data-trigger-error');
+      
+      // Assert that the state was reset and the error message was set
       expect(component.psbtAnalysis()).toBeNull();
+      expect(component.errorMessage()).toContain('Invalid PSBT format');
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should emit signingError via postMessage if isEmbedded is true and parsing fails', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const postMessageSpy = vi.spyOn(window.parent, 'postMessage').mockImplementation(() => {});
+      
+      // Setup embed mode and trigger failure
+      component.isEmbedded = true;
+      component.analyzeRawHex('invalid-data-trigger-error');
+      
+      // Assert that the webhook event was fired
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'SIGNING_ROOM_EVENT',
+          action: 'signingError',
+          payload: expect.objectContaining({
+            code: 'PSBT_INVALID'
+          })
+        }),
+        '*'
+      );
+      
+      consoleSpy.mockRestore();
+      postMessageSpy.mockRestore();
     });
 
     it('should return early in analyzeRawHex if data is empty or too short', () => {
@@ -472,6 +504,73 @@ it('should handle onMessage from allowed origin and ignore unauthorized', async 
       expect(component.selectedNetwork()).toBe('testnet'); 
     });
   })
+
+  // ====================== Embed Mode and UX Helpers ======================
+
+  describe('Embed Mode and UX Helpers', () => {
+    
+    it('should detect embedded mode in ngOnInit and emit WIDGET_READY', () => {
+      const originalParent = window.parent;
+      const mockPostMessage = vi.fn();
+      
+      try {
+        // Mock window.parent safely with the required method
+        Object.defineProperty(window, 'parent', { 
+          value: { postMessage: mockPostMessage }, 
+          writable: true 
+        });
+        
+        component.ngOnInit();
+        
+        expect(component.isEmbedded).toBe(true);
+        expect(mockPostMessage).toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'WIDGET_READY' }),
+          '*'
+        );
+      } finally {
+        // ALWAYS restore window.parent, even if the test fails
+        Object.defineProperty(window, 'parent', { value: originalParent, writable: true });
+      }
+    });
+
+    it('isNetworkMismatch should return true if detected network differs from selected', () => {
+      component.psbtAnalysis.set({ detectedNetwork: 'testnet' } as any);
+      component.selectedNetwork.set('bitcoin');
+      expect(component.isNetworkMismatch()).toBe(true);
+
+      component.psbtAnalysis.set({ detectedNetwork: 'bitcoin' } as any);
+      component.selectedNetwork.set('testnet');
+      expect(component.isNetworkMismatch()).toBe(true);
+      
+      component.selectedNetwork.set('bitcoin');
+      expect(component.isNetworkMismatch()).toBe(false);
+    });
+
+    it('isHighFee should calculate fee rate and flag expensive transactions', () => {
+      expect(component.isHighFee()).toBe(false);
+
+      // 2. Setup a very high fee scenario (30,000 sats / 208 vBytes = ~144 sats/vB)
+      component.psbtAnalysis.set({ 
+          networkFeeSat: 30000, 
+          signerCount: 2, 
+          outputCount: 2,
+          amountBtc: 0.1
+      } as any);
+      
+      expect(component.isHighFee()).toBe(true);
+
+      // 3. Setup a normal fee scenario (500 sats / 208 vBytes = ~2.4 sats/vB)
+      component.psbtAnalysis.set({ 
+          networkFeeSat: 500,
+          signerCount: 2, 
+          outputCount: 2,
+          amountBtc: 0.1
+      } as any);
+      
+      expect(component.isHighFee()).toBe(false);
+    });
+  });
+  
 
   // ====================== PRIVATE HELPERS ======================
   

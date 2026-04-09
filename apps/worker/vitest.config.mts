@@ -13,10 +13,10 @@ export default defineWorkersConfig({
 			reporter: ['text', 'html', 'clover', 'json', 'json-summary'],
 			reportOnFailure: true,
 			thresholds: {
-				lines: 90,
-				functions: 90,
+				lines: 96,
+				functions: 95,
 				branches: 90,
-				statements: 90
+				statements: 93
 			}
 		},
 		testTimeout: 10000,

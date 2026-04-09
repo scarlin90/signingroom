@@ -723,7 +723,7 @@ import * as QRCode from 'qrcode';
                     <div class="w-px h-6 bg-slate-800 mx-1"></div>
                 }
 
-                @if (socket.isCoordinator()) {
+                
                     <div class="relative group">
                         <button (click)="openKeyModal()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20">
                             <lucide-icon [img]="keyCopied() ? Check : Key" class="w-4 h-4"></lucide-icon>
@@ -732,7 +732,8 @@ import * as QRCode from 'qrcode';
                     </div>
 
                     <div class="w-px h-6 bg-slate-800 mx-1"></div>
-
+                    
+                @if (socket.isCoordinator()) {
                     <div class="relative group">
                         <button (click)="openAdminModal()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20">
                             <lucide-icon [img]="adminCopied() ? Check : FileKey" class="w-4 h-4"></lucide-icon>
@@ -1427,7 +1428,9 @@ export class RoomComponent implements OnInit, OnDestroy {
             }
 
             if (this.socket.isClosed()) {
-                this.generateAuditLog(); 
+                if (!this.isEmbedded) {
+                    this.generateAuditLog();
+                }
             }
         });
 
@@ -1465,9 +1468,14 @@ export class RoomComponent implements OnInit, OnDestroy {
         effect(() => {
             const state = this.socket.roomState();
 
-            if (state && state.finalTxId && state.finalTxHex && this.isEmbedded && !this.hasEmittedFinalized) {
+            if (state && state.finalTxId && state.finalTxHex && 
+                this.isEmbedded && this.socket.isCoordinator() && !this.hasEmittedFinalized) {
+                
                 this.hasEmittedFinalized = true;
 
+                const sanitizedState = { ...state } as any;
+                delete sanitizedState.expectedPass;
+                
                 const pdfData = this.getPdfDocument();
                 const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
 
@@ -1477,7 +1485,7 @@ export class RoomComponent implements OnInit, OnDestroy {
                     payload: {
                         txId: state.finalTxId,
                         txHex: state.finalTxHex,
-                        roomState: state,
+                        roomState: sanitizedState,
                         auditLogCsv: this.getAuditLogCsvData(),
                         settlementCsv: this.getSettlementCsvData(),
                         auditPdfUri: pdfBase64 
@@ -1653,7 +1661,9 @@ export class RoomComponent implements OnInit, OnDestroy {
             'Close Room',
             'Are you sure you want to close this room? This action cannot be undone and will delete all data immediately.',
             () => {
-                this.generateAuditLog();
+                if (!this.isEmbedded) {
+                    this.generateAuditLog();
+                }
                 setTimeout(() => {
                     this.socket.closeRoom();
                 

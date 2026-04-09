@@ -16,6 +16,15 @@
 
 ---
 
+### 📦 New: The Drop-In Web Component SDK
+
+Integrating non-custodial multisig coordination into your own application is now as easy as adding an HTML tag. We have released the official framework-agnostic **Signing Room Web Component**.
+
+* **Official NPM Package:** [`@signing-room/embed`](https://www.npmjs.com/package/@signing-room/embed)
+* **Interactive Demo & API Docs:** [SigningRoom SDK Sandbox](https://signingroom.io/webcomponent-demo.html)
+
+---
+
 ### ⚠️ Disclaimer
 
 **Trademark Notice:** **"Signing Room"** is a **registered trademark** of **Stateless Research Ltd** in the United Kingdom.
@@ -127,7 +136,7 @@ We are actively seeking funding and grants to evolve **SigningRoom** from a stan
 
 ### Phase 2: Ubiquity — 🔴 Active Grant Target (Q1 2026)
 - [x] **BIP Draft Submitted**: Standardizing Stateless Encrypted WebSocket Coordination for PSBTs
-- [ ] **Web Component (`<signing-room>`)**: Drop-in HTML element for easy third-party integration
+- [x] **Web Component (`<signing-room>`)**: Drop-in HTML element for easy third-party integration
 - [ ] **Public API**: Well-documented WebSocket API for automated agents and services
 
 ### Phase 3: The UX Upgrade (Q3 2026)

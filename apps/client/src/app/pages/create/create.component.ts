@@ -283,6 +283,16 @@ interface PsbtAnalysis {
 
             <div class="mb-8">
                 <label class="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-500">Transaction Data (Required)</label>
+
+                @if (errorMessage()) {
+                    <div class="mb-4 p-3 bg-rose-950/30 border border-rose-900/50 rounded-xl flex items-start gap-3 animate-in fade-in zoom-in-95">
+                        <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-rose-500 shrink-0 mt-0.5"></lucide-icon>
+                        <div>
+                            <div class="text-rose-200 text-xs font-bold mb-1">Parsing Error</div>
+                            <p class="text-rose-400 text-[10px]">{{ errorMessage() }}</p>
+                        </div>
+                    </div>
+                }
                 
                 @if (psbtAnalysis()) {
                     <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-3">
@@ -396,6 +406,7 @@ export class CreateComponent implements OnInit {
     public rawHex = '';
     public showCreateModal = signal(false);
     public isLoading = signal(false);
+    public errorMessage = signal<string | null>(null);
 
     // --- EMBED PROPERTIES ---
     public isEmbedded = false;
@@ -462,7 +473,12 @@ export class CreateComponent implements OnInit {
         this.metaService.updateTag({ name: 'description', content: 'Free, open-source multisig coordination.' });
     }
 
-    clearPsbt() { this.psbtFile.set(null); this.rawHex = ''; this.psbtAnalysis.set(null); }
+    clearPsbt() { 
+        this.psbtFile.set(null); 
+        this.rawHex = ''; 
+        this.psbtAnalysis.set(null); 
+        this.errorMessage.set(null); 
+    }
 
     async launchRoom() {
         this.isLoading.set(true);
@@ -514,7 +530,10 @@ export class CreateComponent implements OnInit {
         const file = event.target.files[0];
 
         if (!file) return;
+        
         this.psbtFile.set(file);
+        this.errorMessage.set(null);
+
         try {
             const buffer = await file.arrayBuffer();
             const bytes = new Uint8Array(buffer);
@@ -569,7 +588,22 @@ export class CreateComponent implements OnInit {
                 outputCount: tx.outputsLength,
                 detectedNetwork: networkScore > 0 ? 'testnet' : 'bitcoin'
             });
-        } catch (e) { this.psbtAnalysis.set(null); throw e; }
+        } catch (e: any) { 
+            console.error("PSBT Parse Error:", e);
+            this.psbtAnalysis.set(null); 
+            
+            this.errorMessage.set("Invalid PSBT format. Please ensure you are providing a valid Base64 or Hex encoded Partially Signed Bitcoin Transaction.");
+            
+            if (this.isEmbedded) {
+                window.parent.postMessage({
+                    type: 'SIGNING_ROOM_EVENT',
+                    action: 'signingError',
+                    payload: {
+                        code: 'PSBT_INVALID',
+                        message: e.message || 'Failed to parse PSBT data.'
+                    }
+                }, '*');
+            } }
     }
 
     // UX Helpers
