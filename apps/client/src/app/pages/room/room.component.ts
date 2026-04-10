@@ -51,7 +51,7 @@ import * as QRCode from 'qrcode';
                     </p>
                 </div>
                 <p class="text-xs text-slate-400 leading-relaxed">
-                    You are downloading this to transfer to a Coldcard or air-gapped hardware wallet. Please delete the plaintext file from your computer after signing.
+                    You are downloading this to transfer to a Coldcard or air-gapped hardware wallet. Because this file is plaintext, please ensure it is securely handled, archived, or wiped after use according to your security procedures.
                 </p>
                 <div class="flex gap-3 mt-2">
                     <button (click)="showPsbtModal.set(false)" class="flex-1 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition font-bold text-xs">
