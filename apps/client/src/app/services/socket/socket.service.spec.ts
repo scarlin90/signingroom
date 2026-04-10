@@ -126,6 +126,41 @@ describe('SocketService', () => {
       expect(service.isCoordinator()).toBe(true);
     });
 
+    it('should log "Role Claimed" when a guest successfully claims coordinator role', async () => {
+      // 1. Setup specific state (must be inside a connected session)
+      service.role.set('guest');
+      (service as any).hasAnnouncedJoin = true; 
+      service.currentSessionId.set('S123');
+      
+      const logSpy = vi.spyOn(service as any, 'createSecureLogBlob');
+      const sendSpy = vi.spyOn(service as any, 'send');
+
+      // 2. Action: Simulate the server message confirming admin role
+      const mockData = JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' });
+      
+      if (ws.onmessage) {
+          ws.onmessage({ data: mockData } as any);
+      }
+
+      // 3. Assertions: Wait for BOTH the signal update AND the async send call
+      await vi.waitFor(() => {
+        // Ensure role signal updated
+        expect(service.role()).toBe('admin');
+        
+        // Ensure the WebSocket message was actually sent after the async blob creation
+        expect(sendSpy).toHaveBeenCalledWith('LOG_ACTION', expect.objectContaining({
+            encryptedLogBlob: expect.any(String)
+        }));
+      }, { timeout: 2000 });
+
+      // Final verification of the log content
+      expect(logSpy).toHaveBeenCalledWith(
+        'Role Claimed Coordinator', 
+        expect.stringContaining('upgraded'), 
+        'Coordinator'
+      );
+    });
+
     it('should handle STATE_SYNC and decrypt PSBT', async () => {
       const stateSyncMsg = {
         data: JSON.stringify({
@@ -748,5 +783,4 @@ describe('Getters & Crypto Helpers', () => {
       expect(participants!['S3'].displayName).toBe('Bob Signer');
     });
   });
-
 });

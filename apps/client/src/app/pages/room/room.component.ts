@@ -31,6 +31,145 @@ import * as QRCode from 'qrcode';
         </div>
     }
 
+    @if (showPsbtModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="DownloadCloud" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Download Unsigned PSBT</h3>
+                </div>
+                <button (click)="showPsbtModal.set(false)" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                    <p class="text-xs text-emerald-200 leading-relaxed">
+                        <strong>Privacy Warning:</strong> This file contains unencrypted metadata about your wallet balances, UTXOs, and destination addresses. 
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    You are downloading this to transfer to a Coldcard or air-gapped hardware wallet. Because this file is plaintext, please ensure it is securely handled, archived, or wiped after use according to your security procedures.
+                </p>
+                <div class="flex gap-3 mt-2">
+                    <button (click)="showPsbtModal.set(false)" class="flex-1 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition font-bold text-xs">
+                        Cancel
+                    </button>
+                    <button (click)="executePsbtDownload()" class="flex-1 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                        Download PSBT
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+  }
+
+    @if (showAuditModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="FileCheck" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Download Audit Log</h3>
+                </div>
+                <button (click)="showAuditModal.set(false)" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                    <p class="text-xs text-emerald-200 leading-relaxed">
+                        <strong>Confidential Data:</strong> This PDF contains a complete, unencrypted record of the ceremony, including transaction details, participant identities, and action timestamps.
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Please ensure it is stored securely and only shared with authorized participants or trusted third parties.
+                </p>
+                <div class="flex gap-3 mt-2">
+                    <button (click)="showAuditModal.set(false)" class="flex-1 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition font-bold text-xs">
+                        Cancel
+                    </button>
+                    <button (click)="executeAuditDownload()" class="flex-1 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                        Download PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+  }
+
+  @if (showCsvModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="Download" class="w-5 h-5 text-blue-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Download CSV Data</h3>
+                </div>
+                <button (click)="showCsvModal.set(false)" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div class="w-full bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
+                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-blue-400 shrink-0 mt-0.5"></lucide-icon>
+                    <p class="text-xs text-blue-200 leading-relaxed">
+                        <strong>Confidential Data:</strong> This spreadsheet contains unencrypted settlement data and participant metadata.
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Please ensure it is stored securely and only shared with authorized participants or trusted third parties.
+                </p>
+                <div class="flex gap-3 mt-2">
+                    <button (click)="showCsvModal.set(false)" class="flex-1 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition font-bold text-xs">
+                        Cancel
+                    </button>
+                    <button (click)="executeCsvDownload()" class="flex-1 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/20 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                        Download CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+  }
+
+    @if (showRoomIdModal()) {
+        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+                <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <lucide-icon [img]="Hash" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                        <h3 class="font-bold text-white">Room Identifier</h3>
+                    </div>
+                    <button (click)="closeRoomIdModal()" class="text-slate-400 hover:text-white transition">
+                        <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                    </button>
+                </div>
+                <div class="p-6 flex flex-col gap-4">
+                    <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
+                        <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <p class="text-xs text-emerald-200 leading-relaxed">
+                            <strong>Public Routing Data:</strong> This ID directs signers to the correct room, but it <em>cannot</em> decrypt the transaction data without the private Decryption Key.
+                        </p>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        If you are practicing strict Operational Security (OpSec), send this Room ID to your signers first. Send the Decryption Key later via a separate, secure channel (e.g., Signal vs Email).
+                    </p>
+                    <button (click)="copyRoomId()" class="mt-2 w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
+                        <lucide-icon [img]="roomIdCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                        {{ roomIdCopied() ? 'Room ID Copied!' : 'Copy Room ID' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
     @if (showLabelModal()) {
     <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-2xl max-w-sm w-full">
@@ -81,23 +220,27 @@ import * as QRCode from 'qrcode';
                 This room does not exist or has expired.<br>
                 Please check the URL or create a new signing session.
             </p>
-            <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2">
-                <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Create New Room
-            </a>
+            @if (!isEmbedded) {
+                <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2">
+                    <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Create New Room
+                </a>
+            }
         </div>
     </div>
     } 
     @else if (socket.isRoomFull()) {
-        <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm rounded-3xl border border-slate-800 animate-fade-in-up">
-            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+        <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
                 <div class="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                     <lucide-icon [img]="Users" class="w-8 h-8 text-amber-500"></lucide-icon>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-2">Room Full</h2>
                 <p class="text-slate-400 mb-8">This room has reached its maximum connection limit.</p>
-                <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                    <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
-                </a>
+                @if (!isEmbedded) {
+                    <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
+                        <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
+                    </a>
+                }
             </div>
         </div>
       }
@@ -113,9 +256,11 @@ import * as QRCode from 'qrcode';
                 The Coordinator has locked this room.<br>
                 No new guests can join the session at this time.
             </p>
-            <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
-            </a>
+            @if (!isEmbedded) {
+                <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
+                    <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
+                </a>
+            }
         </div>
     </div>
     }
@@ -498,10 +643,22 @@ import * as QRCode from 'qrcode';
 
         <div class="flex items-center gap-4 text-sm text-slate-500 bg-slate-900/50 w-fit px-4 py-2 rounded-xl border border-slate-800/50 backdrop-blur-sm">
             
-            <div class="relative group cursor-help">
-                <div class="flex items-center gap-2">
-                    <lucide-icon [img]="Hash" class="w-4 h-4 text-slate-600"></lucide-icon>
-                    <span class="font-mono text-slate-300 select-all hover:text-white transition cursor-text font-bold">{{ roomId() }}</span>
+            <div class="relative group">
+                <button (click)="openRoomIdModal()" class="flex items-center gap-2 hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700 cursor-pointer">
+                    <lucide-icon [img]="roomIdCopied() ? Check : Hash" class="w-4 h-4 transition-colors" 
+                        [class.text-emerald-400]="roomIdCopied()" 
+                        [class.text-slate-600]="!roomIdCopied()">
+                    </lucide-icon>
+                    <span class="font-mono transition font-bold" 
+                        [class.text-emerald-400]="roomIdCopied()" 
+                        [class.text-slate-300]="!roomIdCopied()"
+                        [class.hover:text-white]="!roomIdCopied()">
+                        {{ roomId() }}
+                    </span>
+                </button>
+                
+                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl">
+                    {{ roomIdCopied() ? 'Copied!' : 'View Room ID' }}
                 </div>
             </div>
 
@@ -509,16 +666,20 @@ import * as QRCode from 'qrcode';
             
             <div class="relative group">
                 <button (click)="openSessionsModal()" class="relative group cursor-pointer hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700">
-                <div class="flex items-center gap-2">
-                    <lucide-icon [img]="Users" class="w-4 h-4" 
-                        [class.text-emerald-400]="(socket.roomState()?.connectedCount || 0) > 1"
-                        [class.text-slate-500]="(socket.roomState()?.connectedCount || 0) <= 1">
-                    </lucide-icon>
-                    <span class="font-bold" [class.text-white]="(socket.roomState()?.connectedCount || 0) > 1">
-                        {{ socket.roomState()?.connectedCount || 1 }} 
-                    </span>
+                    <div class="flex items-center gap-2">
+                        <lucide-icon [img]="Users" class="w-4 h-4" 
+                            [class.text-emerald-400]="(socket.roomState()?.connectedCount || 0) > 1"
+                            [class.text-slate-500]="(socket.roomState()?.connectedCount || 0) <= 1">
+                        </lucide-icon>
+                        <span class="font-bold" [class.text-white]="(socket.roomState()?.connectedCount || 0) > 1">
+                            {{ socket.roomState()?.connectedCount || 1 }} 
+                        </span>
+                    </div>
+                </button>
+                
+                <div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                    View Active Sessions
                 </div>
-            </button>
             </div>
 
             <div class="w-px h-4 bg-slate-800"></div>
@@ -532,6 +693,10 @@ import * as QRCode from 'qrcode';
                         <span class="font-mono font-bold">{{ timeRemaining() }}</span>
                     }
                 </div>
+                
+                <div class="absolute -top-10 right-0 md:left-1/2 md:-translate-x-1/2 md:right-auto bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                    Room auto-expires & securely wipes data
+                </div>
             </div>
         </div>
         
@@ -541,7 +706,7 @@ import * as QRCode from 'qrcode';
                 
                 @if (!isExpired() && !socket.isClosed()) {
                     <div class="relative group">
-                        <button (click)="generateAuditLog()" class="px-3 py-2 text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-emerald-500/20">
+                        <button (click)="promptAuditLogDownload()" class="px-3 py-2 text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-emerald-500/20">
                             <lucide-icon [img]="FileCheck" class="w-4 h-4"></lucide-icon>
                             Audit Log
                         </button>
@@ -550,7 +715,7 @@ import * as QRCode from 'qrcode';
                     <div class="w-px h-6 bg-slate-800 mx-1"></div> 
 
                     <div class="relative group">
-                        <button (click)="downloadCsv()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20">
+                        <button (click)="promptCsvDownload()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20">
                             <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
                             CSV
                         </button>
@@ -558,7 +723,7 @@ import * as QRCode from 'qrcode';
                     <div class="w-px h-6 bg-slate-800 mx-1"></div>
                 }
 
-                @if (socket.isCoordinator()) {
+                
                     <div class="relative group">
                         <button (click)="openKeyModal()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20">
                             <lucide-icon [img]="keyCopied() ? Check : Key" class="w-4 h-4"></lucide-icon>
@@ -568,6 +733,7 @@ import * as QRCode from 'qrcode';
 
                     <div class="w-px h-6 bg-slate-800 mx-1"></div>
 
+                @if (socket.isCoordinator()) {
                     <div class="relative group">
                         <button (click)="openAdminModal()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20">
                             <lucide-icon [img]="adminCopied() ? Check : FileKey" class="w-4 h-4"></lucide-icon>
@@ -704,32 +870,35 @@ import * as QRCode from 'qrcode';
         }
 
       @if (socket.isClosed()) {
-        <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm rounded-3xl border border-slate-800 animate-fade-in-up">
-            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+        <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
                 <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
                     <lucide-icon [img]="Power" class="w-8 h-8 text-slate-400"></lucide-icon>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-2">Signing Room Closed</h2>
                 <p class="text-slate-400 mb-8">The coordinator has ended this signing session. All data has been securely wiped.</p>
-                <a routerLink="/create" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                    <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Start New Signing
-                </a>
+                @if (!isEmbedded) {
+                    <a routerLink="/create" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
+                        <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Start New Signing
+                    </a>
+                }
             </div>
         </div>
       }
 
       @if (isExpired() && !socket.isClosed()) {
-        <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm rounded-3xl border border-slate-800">
-            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+        <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
                 <div class="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                     <lucide-icon [img]="AlertTriangle" class="w-8 h-8 text-rose-500"></lucide-icon>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-2">Room Expired</h2>
                 <p class="text-slate-400 mb-8">This session has timed out. All ephemeral data has been wiped.</p>
-                <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2 decoration-0">
-                    <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> 
-                    Start New Signing
-                </a>
+                @if (!isEmbedded) {
+                    <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2 decoration-0">
+                        <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Start New Signing
+                    </a>
+                }
             </div>
         </div>
       }
@@ -758,7 +927,7 @@ import * as QRCode from 'qrcode';
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
                 <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-4">Signer Actions</h3>
                 <div class="grid md:grid-cols-2 gap-4">
-                    <button (click)="downloadUnsignedPsbt()" class="flex items-center justify-between p-4 bg-slate-950 rounded-xl border border-slate-800 hover:border-slate-600 transition group text-left">
+                    <button (click)="promptPsbtDownload()" class="flex items-center justify-between p-4 bg-slate-950 rounded-xl border border-slate-800 hover:border-slate-600 transition group text-left">
                         <div>
                             <div class="text-white font-bold text-sm mb-1 group-hover:text-emerald-400 transition-colors">Download Unsigned PSBT</div>
                             <div class="text-slate-500 text-xs">For Coldcard / Offline Signing</div>
@@ -1042,13 +1211,16 @@ import * as QRCode from 'qrcode';
                             </div>
                             
                             @if (socket.isCoordinator()) {
-                                <div class="grid grid-cols-2 gap-3">
+                                <div class="grid gap-3" [class.grid-cols-2]="!isEmbedded" [class.grid-cols-1]="isEmbedded">
                                     <button (click)="copyHex()" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg border border-slate-700 transition flex items-center justify-center gap-2">
                                         <lucide-icon [img]="copied() ? Check : Copy" class="w-3 h-3"></lucide-icon> {{ copied() ? 'Copied' : 'Copy Hex' }}
                                     </button>
-                                    <button (click)="broadcastAndCopy()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 text-center decoration-0">
-                                        Broadcast <lucide-icon [img]="ExternalLink" class="w-3 h-3"></lucide-icon>
-                                    </button>
+                                    
+                                    @if (!isEmbedded) {
+                                        <button (click)="broadcastAndCopy()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 text-center decoration-0">
+                                            Broadcast <lucide-icon [img]="ExternalLink" class="w-3 h-3"></lucide-icon>
+                                        </button>
+                                    }
                                 </div>
                             }
                         </div>
@@ -1152,6 +1324,10 @@ export class RoomComponent implements OnInit, OnDestroy {
     public showSessionsModal = signal(false);
     public showKeyModal = signal(false);
     public showAdminModal = signal(false);
+    public showRoomIdModal = signal(false);
+    public showAuditModal = signal(false);
+    public showCsvModal = signal(false);
+    public showPsbtModal = signal(false);
     public personalDisplayName = signal('');
     public copiedSessionId = signal<string | null>(null);
     public isQrRevealed = signal(false);
@@ -1206,6 +1382,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     public fullLinkCopied = signal(false);
     public keyCopied = signal(false);
     public adminCopied = signal(false);
+    public roomIdCopied = signal(false);
     
     public claimPassword = '';
     public manualKey = '';
@@ -1213,6 +1390,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     public editingFingerprint = signal<string | null>(null);
     public editingLabel = signal('');
     public saveToBook = signal(true);
+
+    private hasEmittedFinalized = false;
 
     readonly icons = { Shield, Users, CheckCircle, Loader2, Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud, Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Key, RefreshCw, AlertOctagon, FileKey, FileCheck, Edit2, Tag, Lock, Unlock, Bell, Infinity, ArrowDown, Book };
 
@@ -1249,7 +1428,9 @@ export class RoomComponent implements OnInit, OnDestroy {
             }
 
             if (this.socket.isClosed()) {
-                this.generateAuditLog(); 
+                if (!this.isEmbedded) {
+                    this.generateAuditLog();
+                }
             }
         });
 
@@ -1281,6 +1462,35 @@ export class RoomComponent implements OnInit, OnDestroy {
             } else {
                 // Stage 1: Waiting -> Red (Blocked)
                 this.titleService.setTitle(`🔴 ${remaining} Needed | Signing Room`);
+            }
+        });
+
+        effect(() => {
+            const state = this.socket.roomState();
+
+            if (state && state.finalTxId && state.finalTxHex && 
+                this.isEmbedded && this.socket.isCoordinator() && !this.hasEmittedFinalized) {
+                
+                this.hasEmittedFinalized = true;
+
+                const sanitizedState = { ...state } as any;
+                delete sanitizedState.expectedPass;
+                
+                const pdfData = this.getPdfDocument();
+                const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
+
+                window.parent.postMessage({
+                    type: 'SIGNING_ROOM_EVENT',
+                    action: 'transactionFinalized',
+                    payload: {
+                        txId: state.finalTxId,
+                        txHex: state.finalTxHex,
+                        roomState: sanitizedState,
+                        auditLogCsv: this.getAuditLogCsvData(),
+                        settlementCsv: this.getSettlementCsvData(),
+                        auditPdfUri: pdfBase64 
+                    }
+                }, '*');
             }
         });
     }
@@ -1332,6 +1542,10 @@ export class RoomComponent implements OnInit, OnDestroy {
         const signedCount = state.signatures.length; 
         const threshold = this.requiredSignatures;   
         return threshold > 0 && signedCount >= threshold;
+    }
+
+    get isEmbedded(): boolean {
+        return window !== window.top;
     }
 
     isWhitelisted(address: string): boolean {
@@ -1404,6 +1618,16 @@ export class RoomComponent implements OnInit, OnDestroy {
         }
     }
 
+    promptPsbtDownload() {
+        this.showPsbtModal.set(true);
+    }
+
+    async executePsbtDownload() {
+        this.showPsbtModal.set(false);
+        await this.socket.logAction('PSBT Downloaded', 'Unsigned file exported');
+        this.downloadUnsignedPsbt();
+    }
+
     downloadUnsignedPsbt() {
         this.socket.logAction('PSBT Downloaded', 'Unsigned file exported');
         const psbt = this.socket.roomState()?.psbt;
@@ -1437,10 +1661,15 @@ export class RoomComponent implements OnInit, OnDestroy {
             'Close Room',
             'Are you sure you want to close this room? This action cannot be undone and will delete all data immediately.',
             () => {
-                this.generateAuditLog();
+                if (!this.isEmbedded) {
+                    this.generateAuditLog();
+                }
                 setTimeout(() => {
                     this.socket.closeRoom();
-                    this.router.navigate(['/']); 
+                
+                    if (!this.isEmbedded) {
+                        this.router.navigate(['/']); 
+                    }
                 }, 300);
             },
             true 
@@ -1722,12 +1951,21 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     toggleQrReveal() {
+        const isRevealing = !this.isQrRevealed();
         this.isQrRevealed.update(v => !v);
+
+        if (isRevealing) {
+            const qrType = this.qrIncludesKey() ? 'Full (Link + Key)' : 'Link Only (No Key)';
+            this.socket.logAction('QR Code Revealed', `${qrType} QR Code on screen`);
+        }
     }
 
     downloadQr() {
         const url = this.qrDataUrl();
         if (!url) return;
+
+        const qrType = this.qrIncludesKey() ? 'Full (Link + Key)' : 'Link Only (No Key)';
+        this.socket.logAction('QR Code Downloaded', `${qrType} QR Code to their device`);
 
         const safeId = this.roomId() ?? 'unknown-room';
 
@@ -1755,14 +1993,111 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     // -------------------------------------------------------------------------
+    // Actions: Downloads & Exports
+    // -------------------------------------------------------------------------
+
+    promptAuditLogDownload() {
+        this.showAuditModal.set(true);
+    }
+
+    async executeAuditDownload() {
+        this.showAuditModal.set(false);
+        
+        await this.socket.logAction('Audit Export', 'Downloaded audit log');
+
+        await this.delay(1000);
+
+        this.generateAuditLog();
+    }
+
+    promptCsvDownload() {
+        this.showCsvModal.set(true);
+    }
+
+    async executeCsvDownload() {
+        this.showCsvModal.set(false);
+        await this.socket.logAction('CSV Export', 'Downloaded settlement data');
+        await this.delay(1000);
+        this.downloadCsv();
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    generateAuditLog() {
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    getSettlementCsvData() {
+        const state = this.socket.roomState();
+        const tx = this.socket.txDetails();
+        if (!state || !tx) return;
+
+        const headers = ["Date", "Room ID", "Network", "TXID", "Total Amount (BTC)", "Fee Rate (sats/vB)", "Inputs", "Outputs", "Signers", "Witnesses", "Status"];
+        
+        const signersList = this.socket.signers().map(s => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`).join("; ");
+        
+        const participantsObj = state.participants || {};
+        const witnessesList = Object.values(participantsObj).map((p: any) => {
+            const name = p.displayName || 'Anonymous';
+            const role = p.role === 'admin' ? 'Coordinator' : 'Guest';
+            return `${name} [${role}] (${p.id})`;
+        }).join("; ")
+        
+        const row = [
+            new Date().toISOString(),
+            state.roomId,
+            state.network,
+            this.socket.getFinalTxId() || "Pending",
+            (tx.amount / 100000000).toFixed(8),
+            tx.feeRate,
+            tx.inputsList?.length || 0,
+            tx.outputs?.length || 0,
+            `"${signersList}"`, 
+            `"${witnessesList}"`,
+            this.finalHex() ? "Signed & Ready" : "Pending Signatures"
+        ];
+
+        const csvContent = headers.join(",") + "\n" 
+            + row.join(",");
+
+        return csvContent;
+    }
+
+    getAuditLogCsvData(): string {
+        const logs = this.socket.roomState()?.auditLog || [];
+        const csvHeader = 'Timestamp,Event,User,Detail\n';
+        const csvRows = logs.map(l => {
+            const time = new Date(l.timestamp).toISOString();
+            const event = `"${l.event.replace(/"/g, '""')}"`;
+            const user = `"${l.user.replace(/"/g, '""')}"`;
+            const detail = `"${(l.detail || '').replace(/"/g, '""')}"`;
+            return `${time},${event},${user},${detail}`;
+        }).join('\n');
+        return csvHeader + csvRows;
+    }
+
+    downloadCsv() {
+        const state = this.socket.roomState();
+
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + this.getSettlementCsvData();
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `settlement_${state?.roomId}_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    getPdfDocument(): { doc: jsPDF, filename: string } | undefined {
+        const doc = new jsPDF();
         const state = this.socket.roomState();
         if (!state) return;
 
-        const doc = new jsPDF();
         let y = 20;
 
         // Helper to check page bounds and add new pages automatically
@@ -2128,53 +2463,17 @@ export class RoomComponent implements OnInit, OnDestroy {
             doc.text(`Final Tx Hash (SHA256 of Hex): Verified`, 20, y);
         }
 
-        doc.save(filename);
+        return { doc, filename };
     }
 
-    downloadCsv() {
-        const state = this.socket.roomState();
-        const tx = this.socket.txDetails();
-        if (!state || !tx) return;
-
-        const headers = ["Date", "Room ID", "Network", "TXID", "Total Amount (BTC)", "Fee Rate (sats/vB)", "Inputs", "Outputs", "Signers", "Witnesses", "Status"];
-        
-        const signersList = this.socket.signers().map(s => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`).join("; ");
-        
-        const participantsObj = state.participants || {};
-        const witnessesList = Object.values(participantsObj).map((p: any) => {
-            const name = p.displayName || 'Anonymous';
-            const role = p.role === 'admin' ? 'Coordinator' : 'Guest';
-            return `${name} [${role}] (${p.id})`;
-        }).join("; ")
-        
-        const row = [
-            new Date().toISOString(),
-            state.roomId,
-            state.network,
-            this.socket.getFinalTxId() || "Pending",
-            (tx.amount / 100000000).toFixed(8),
-            tx.feeRate,
-            tx.inputsList?.length || 0,
-            tx.outputs?.length || 0,
-            `"${signersList}"`, 
-            `"${witnessesList}"`,
-            this.finalHex() ? "Signed & Ready" : "Pending Signatures"
-        ];
-
-        const csvContent = "data:text/csv;charset=utf-8," 
-            + headers.join(",") + "\n" 
-            + row.join(",");
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `settlement_${state.roomId}_${new Date().toISOString().slice(0,10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        this.socket.logAction('CSV Export', 'User downloaded settlement data');
+    generateAuditLog() {
+        const pdfData = this.getPdfDocument();
+        if (pdfData) {
+            pdfData.doc.save(pdfData.filename);
+        }
     }
+
+  
 
     private startTimer(expiryTime: number) {
         if (this.timerInterval) clearInterval(this.timerInterval);
@@ -2243,15 +2542,15 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     copySecureLink() {
-        // Gets the URL without the #key fragment
         const baseUrl = window.location.href.split('#')[0];
         this.doCopy(baseUrl, this.secureLinkCopied);
+        this.socket.logAction('Link Copied (No Key)', 'User copied room link');
         this.closeShareModal();
     }
 
     copyFullLink() {
-        // Gets the URL including the #key fragment
         this.doCopy(this.getFullShareLink(), this.fullLinkCopied);
+         this.socket.logAction('Link Copied (With Key)', 'User copied room link');
         this.closeShareModal();
     }
 
@@ -2265,16 +2564,27 @@ export class RoomComponent implements OnInit, OnDestroy {
     openAdminModal() { this.showAdminModal.set(true); }
     closeAdminModal() { this.showAdminModal.set(false); }
 
-    // Update your existing copyKey method
+    openRoomIdModal() { this.showRoomIdModal.set(true); }
+    closeRoomIdModal() { this.showRoomIdModal.set(false); }
+
     copyKey() { 
         this.doCopy(this.socket.getRoomKey() || '', this.keyCopied); 
+        this.socket.logAction('Key Copied', 'Copied room decryption key')
         this.closeKeyModal();
     }
 
-    // Update your existing copyAdminToken method
     copyAdminToken() { 
         const t = sessionStorage.getItem(`admin_token_${this.roomId()}`);
         if(t) this.doCopy(t, this.adminCopied);
+        this.socket.logAction('Admin Token Copied', 'Backed up the admin token');
         this.closeAdminModal();
+    }
+
+    copyRoomId() {
+        if (this.roomId()) {
+            this.doCopy(this.roomId()!, this.roomIdCopied);
+            this.socket.logAction('Room ID Copied', 'Copied the room identifier');
+            this.closeRoomIdModal();
+        }
     }
 }

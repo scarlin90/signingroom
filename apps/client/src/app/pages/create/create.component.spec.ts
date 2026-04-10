@@ -228,4 +228,359 @@ it('should normalize input and generate encryption keys', () => {
   expect(key).toBeDefined();
   expect(key.length).toBeGreaterThan(40);
 });
+
+// ====================== POST MESSAGE / EMBED ======================
+  
+it('should handle onMessage from allowed origin and ignore unauthorized', async () => {
+    const analyzeSpy = vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+    
+    // Setup the expected host exactly like ngOnInit would
+    component.expectedHost = 'http://localhost:4200';
+    
+    // Disallowed origin should be ignored entirely
+    await component.onMessage({ 
+        origin: 'https://evil.com', 
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: '123' } 
+    } as MessageEvent);
+    expect(analyzeSpy).not.toHaveBeenCalled();
+
+    // Allowed origin, but wrong action/type should be ignored
+    await component.onMessage({ 
+        origin: 'http://localhost:4200', 
+        data: { type: 'OTHER' } 
+    } as MessageEvent);
+    expect(analyzeSpy).not.toHaveBeenCalled();
+
+    // Allowed origin + correct action should process the payload
+    component.isEmbedded = true;
+    await component.onMessage({ 
+        origin: 'http://localhost:4200', 
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: 'hex123' } 
+    } as MessageEvent);
+    
+    expect(component.rawHex).toBe('hex123');
+    expect(component.showCreateModal()).toBe(true);
+  });
+
+  // ====================== UTILITIES & UX HELPERS ======================
+  
+  it('should clear psbt state on clearPsbt()', () => {
+    component.psbtFile.set(new File([], 'test.psbt'));
+    component.rawHex = '1234abcd';
+    component.psbtAnalysis.set({ valid: true } as any);
+
+    component.clearPsbt();
+
+    expect(component.psbtFile()).toBeNull();
+    expect(component.rawHex).toBe('');
+    expect(component.psbtAnalysis()).toBeNull();
+  });
+
+  it('should evaluate isNetworkMismatch correctly', () => {
+    expect(component.isNetworkMismatch()).toBe(false);
+
+    component.selectedNetwork.set('testnet');
+    component.psbtAnalysis.set({ detectedNetwork: 'bitcoin' } as any);
+    expect(component.isNetworkMismatch()).toBe(true);
+
+    component.selectedNetwork.set('bitcoin');
+    component.psbtAnalysis.set({ detectedNetwork: 'testnet' } as any);
+    expect(component.isNetworkMismatch()).toBe(true);
+
+    component.selectedNetwork.set('bitcoin');
+    component.psbtAnalysis.set({ detectedNetwork: 'bitcoin' } as any);
+    expect(component.isNetworkMismatch()).toBe(false);
+  });
+
+  it('should evaluate isHighFee correctly', () => {
+    expect(component.isHighFee()).toBe(false); 
+
+    // Normal fee rate and amount
+    component.psbtAnalysis.set({
+      networkFeeSat: 500,
+      signerCount: 2,
+      outputCount: 2,
+      amountBtc: 1
+    } as any);
+    expect(component.isHighFee()).toBe(false); 
+
+    // High fee rate (> 100 sat/vB)
+    component.psbtAnalysis.set({
+      networkFeeSat: 25000, 
+      signerCount: 2,
+      outputCount: 2,
+      amountBtc: 1
+    } as any);
+    expect(component.isHighFee()).toBe(true);
+
+    // High percentage (> 5% of total amount)
+    component.psbtAnalysis.set({
+      networkFeeSat: 600,
+      signerCount: 2,
+      outputCount: 2,
+      amountBtc: 0.0001
+    } as any);
+    expect(component.isHighFee()).toBe(true);
+  });
+
+  // ====================== JOIN ROOM ======================
+  
+  it('should join room with manual inputs and handle hash fragment', () => {
+    const navigateSpy = vi.spyOn((component as any).router, 'navigate');
+
+    // With hash - should clean it
+    component.manualRoomId = ' 12345 ';
+    component.manualKey = ' #secretkey ';
+    component.joinRoom();
+    expect(navigateSpy).toHaveBeenCalledWith(['/room', '12345'], { fragment: 'secretkey' });
+
+    // Without hash
+    component.manualRoomId = 'abc';
+    component.manualKey = 'plainkey';
+    component.joinRoom();
+    expect(navigateSpy).toHaveBeenCalledWith(['/room', 'abc'], { fragment: 'plainkey' });
+  });
+
+  // ====================== ADDITIONAL COVERAGE TESTS ======================
+
+  describe('Edge Cases and Error Handling', () => {
+    
+    it('should post WIDGET_READY message if embedded on init', () => {
+      const postMessageSpy = vi.fn();
+      const originalParent = window.parent;
+      
+      // FIX: Use a completely distinct object so window !== window.parent evaluates to TRUE
+      const mockParent = { postMessage: postMessageSpy };
+      
+      Object.defineProperty(window, 'parent', {
+        value: mockParent,
+        configurable: true
+      });
+
+      component.ngOnInit();
+
+      expect(component.isEmbedded).toBe(true);
+      expect(postMessageSpy).toHaveBeenCalledWith({
+        type: 'SIGNING_ROOM_EVENT',
+        action: 'WIDGET_READY'
+      }, '*');
+
+      // Restore original to prevent test pollution
+      Object.defineProperty(window, 'parent', {
+        value: originalParent,
+        configurable: true
+      });
+    });
+
+    it('should execute mock event preventDefault and stopPropagation for coverage', async () => {
+      const fileSelectedSpy = vi.spyOn(component, 'onFileSelected').mockImplementation(async () => {});
+      component.expectedHost = 'http://localhost:4200';
+      
+      await component.onMessage({ 
+        origin: 'http://localhost:4200', 
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: 'hex123' } 
+      } as MessageEvent);
+
+      expect(fileSelectedSpy).toHaveBeenCalled();
+      
+      // Capture the mock event passed to onFileSelected and execute the anonymous functions
+      const passedEvent = fileSelectedSpy.mock.calls[0][0] as any;
+      expect(() => passedEvent.preventDefault()).not.toThrow();
+      expect(() => passedEvent.stopPropagation()).not.toThrow();
+    });
+
+    it('should return false from isHighFee if networkFeeSat is 0', () => {
+      component.psbtAnalysis.set({ networkFeeSat: 0 } as any);
+      expect(component.isHighFee()).toBe(false);
+    });
+
+    it('should not navigate in joinRoom if manualRoomId or manualKey is missing', () => {
+      const navigateSpy = vi.spyOn(router, 'navigate');
+      
+      // Missing Room ID
+      component.manualRoomId = '';
+      component.manualKey = 'some-key-123';
+      component.joinRoom();
+      
+      // Missing Key
+      component.manualRoomId = '12345678-1234-1234-1234-1234567890ab';
+      component.manualKey = '';
+      component.joinRoom();
+
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('should catch and log errors in onFileSelected', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const mockFile = new File([''], 'test.psbt');
+      
+      vi.spyOn(mockFile, 'arrayBuffer').mockRejectedValue(new Error('Buffer Error'));
+
+      await component.onFileSelected({ target: { files: [mockFile] } });
+      expect(consoleSpy).toHaveBeenCalledWith(new Error('Buffer Error'));
+    });
+
+    it('should catch errors in analyzeRawHex and reset analysis', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Call the method with invalid data (it shouldn't throw anymore)
+      component.analyzeRawHex('invalid-data-trigger-error');
+      
+      // Assert that the state was reset and the error message was set
+      expect(component.psbtAnalysis()).toBeNull();
+      expect(component.errorMessage()).toContain('Invalid PSBT format');
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should emit signingError via postMessage if isEmbedded is true and parsing fails', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const postMessageSpy = vi.spyOn(window.parent, 'postMessage').mockImplementation(() => {});
+      
+      // Setup embed mode and trigger failure
+      component.isEmbedded = true;
+      component.analyzeRawHex('invalid-data-trigger-error');
+      
+      // Assert that the webhook event was fired
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'SIGNING_ROOM_EVENT',
+          action: 'signingError',
+          payload: expect.objectContaining({
+            code: 'PSBT_INVALID'
+          })
+        }),
+        '*'
+      );
+      
+      consoleSpy.mockRestore();
+      postMessageSpy.mockRestore();
+    });
+
+    it('should return early in analyzeRawHex if data is empty or too short', () => {
+      component.psbtAnalysis.set({ valid: true } as any); 
+      
+      component.analyzeRawHex(''); // Empty
+      component.analyzeRawHex('short'); // Too short
+      
+      expect(component.psbtAnalysis()).toEqual({ valid: true }); 
+    });
+
+    it('should warn and ignore message if origin is unauthorized', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      component.expectedHost = 'https://trusted.com';
+
+      await component.onMessage({
+        origin: 'https://evil.com',
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: '123' }
+      } as MessageEvent);
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[Security] Blocked unauthorized postMessage'));
+    });
+
+    it('should ignore message if payload is missing', async () => {
+      component.expectedHost = 'https://trusted.com';
+      const analyzeSpy = vi.spyOn(component, 'analyzeRawHex');
+
+      await component.onMessage({
+        origin: 'https://trusted.com',
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT' } // Missing payload
+      } as MessageEvent);
+
+      expect(analyzeSpy).not.toHaveBeenCalled();
+    });
+    
+    it('should fall back to default network if no network query param in onMessage', async () => {
+      vi.spyOn(component['route'].snapshot.queryParamMap, 'get').mockReturnValue(null);
+      
+      component.expectedHost = 'https://trusted.com';
+      component.selectedNetwork.set('testnet'); // preset
+
+      await component.onMessage({
+        origin: 'https://trusted.com',
+        data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: 'hex123' }
+      } as MessageEvent);
+
+      expect(component.selectedNetwork()).toBe('testnet'); 
+    });
+  })
+
+  // ====================== Embed Mode and UX Helpers ======================
+
+  describe('Embed Mode and UX Helpers', () => {
+    
+    it('should detect embedded mode in ngOnInit and emit WIDGET_READY', () => {
+      const originalParent = window.parent;
+      const mockPostMessage = vi.fn();
+      
+      try {
+        // Mock window.parent safely with the required method
+        Object.defineProperty(window, 'parent', { 
+          value: { postMessage: mockPostMessage }, 
+          writable: true 
+        });
+        
+        component.ngOnInit();
+        
+        expect(component.isEmbedded).toBe(true);
+        expect(mockPostMessage).toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'WIDGET_READY' }),
+          '*'
+        );
+      } finally {
+        // ALWAYS restore window.parent, even if the test fails
+        Object.defineProperty(window, 'parent', { value: originalParent, writable: true });
+      }
+    });
+
+    it('isNetworkMismatch should return true if detected network differs from selected', () => {
+      component.psbtAnalysis.set({ detectedNetwork: 'testnet' } as any);
+      component.selectedNetwork.set('bitcoin');
+      expect(component.isNetworkMismatch()).toBe(true);
+
+      component.psbtAnalysis.set({ detectedNetwork: 'bitcoin' } as any);
+      component.selectedNetwork.set('testnet');
+      expect(component.isNetworkMismatch()).toBe(true);
+      
+      component.selectedNetwork.set('bitcoin');
+      expect(component.isNetworkMismatch()).toBe(false);
+    });
+
+    it('isHighFee should calculate fee rate and flag expensive transactions', () => {
+      expect(component.isHighFee()).toBe(false);
+
+      // 2. Setup a very high fee scenario (30,000 sats / 208 vBytes = ~144 sats/vB)
+      component.psbtAnalysis.set({ 
+          networkFeeSat: 30000, 
+          signerCount: 2, 
+          outputCount: 2,
+          amountBtc: 0.1
+      } as any);
+      
+      expect(component.isHighFee()).toBe(true);
+
+      // 3. Setup a normal fee scenario (500 sats / 208 vBytes = ~2.4 sats/vB)
+      component.psbtAnalysis.set({ 
+          networkFeeSat: 500,
+          signerCount: 2, 
+          outputCount: 2,
+          amountBtc: 0.1
+      } as any);
+      
+      expect(component.isHighFee()).toBe(false);
+    });
+  });
+  
+
+  // ====================== PRIVATE HELPERS ======================
+  
+  it('should normalize input and generate encryption keys deterministically', () => {
+    const normalized = (component as any).normalizeInput('  A B  C ');
+    expect(normalized).toBe('ABC');
+
+    const key = (component as any).generateEncryptionKey();
+    expect(key).toBeDefined();
+    expect(typeof key).toBe('string');
+  });
+
 });

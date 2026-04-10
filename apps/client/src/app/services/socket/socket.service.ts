@@ -692,12 +692,23 @@ async updateSignerLabel(fingerprint: string, label: string) {
                 break;
             case 'ROLE_UPDATE':
                 {
+                    const previousRole = this.role();
+                    console.log(`[Test Debug] Processing ROLE_UPDATE. Previous: ${previousRole}, New: ${msg.role}, Announced: ${this.hasAnnouncedJoin}`);
+                    
                     this.role.set(msg.role); 
         
                     if (!this.hasAnnouncedJoin && msg.role === 'admin') {
+                        console.log('[Test Debug] Logic Path: Initial Admin Join');
                         this.hasAnnouncedJoin = true;
                         this.createSecureLogBlob('User Joined', `Session: ${this.currentSessionId()}`, 'Coordinator')
                             .then(blob => this.send('LOG_ACTION', { encryptedLogBlob: blob }));
+                            
+                    } else if (this.hasAnnouncedJoin && previousRole === 'guest' && msg.role === 'admin') {
+                        console.log('[Test Debug] Logic Path: Role Claimed Upgrade');
+                        this.createSecureLogBlob('Role Claimed Coordinator', `Session ID: ${this.currentSessionId()} upgraded`, 'Coordinator')
+                            .then(blob => this.send('LOG_ACTION', { encryptedLogBlob: blob }));
+                    } else {
+                        console.log('[Test Debug] Logic Path: No log action taken');
                     }
                 }
                 break;
