@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-02_Apr_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-15_Apr_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -53,30 +53,31 @@ You are solely responsible for verifying the details of any transaction (address
 
 The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
 
-**Live Mainnet Traffic Analysis (Apr 02, 2026):**
+**Live Traffic Analysis (Apr 15, 2026):**
 
 | Metric | Value | Implication |
 | :--- | :--- | :--- |
-| **Total Requests (30d)** | **42,129** | **High Velocity:** Sustained interest and recurring protocol usage globally. |
-| **Data Served (30d)** | **2.66 GB** | **Blind Relay Proven:** Over 2.6GB of encrypted data relayed with 0 bytes stored on disk. |
-| **Peak Throughput** | **23.69 MB (1h)** | **The v1.7.0 Launch:** Significant traffic surge during trademark rollout and witness upgrade. |
-| **User State Retained** | **0.00 B** | **Proof of Blind Relay.** Despite massive throughput, the database footprint remains at 0 bytes. |
+| **Total 30d Throughput** | **3.51 GB** | **Blind Relay Proven:** Over 3.5GB of encrypted data relayed with 0 bytes stored on disk. |
+| **Unique Visitors (30d)** | **2,010** | **High Retention:** Strong de-duplicated user base with significant repeat coordination activity. |
+| **Cache Ratio (Avg 30d)** | **58.5%** | **Healthy Equilibrium:** Balancing static UI delivery with active coordination. |
+| **Peak Dynamic Event** | **11.64 MB (1h)** | **The "Stateless Vacuum":** Massive metadata relay handled with 0% cache utilization. |
+| **User State Retained** | **0.00 B** | **Proof of Blind Relay.** Despite growing throughput, the database footprint remains at 0 bytes. |
 
-### 🔍 Forensic Highlight: The "Triple Vacuum" (Apr 02, 2026)
-Our latest audit reveals a sophisticated usage pattern following the deployment of v1.7.0 (Trademark and Witness Persistence update):
+### 🔍 Forensic Highlight: The "Stateless Vacuum" (Apr 15, 2026)
+Our latest audit following the **v2.0.0 UI Launch** confirms a significant "Zero-Cache" event:
 
-* **Metric:** Three distinct, high-density uncached events moved a cumulative **35.17 MB** of dynamic data in just three hours (1 PM, 6 AM, 7 AM).
-* **Analysis:** These events occurred with near **0% cache ratios**, confirming they were purely WebSocket-based coordination ceremonies. This validates that the new `PARTICIPANTS_UPDATE` payload is successfully synchronizing complex multisig sets in real-time.
-* **The Proof:** Over the last 30 days, the server acted as a **2.66 GB "Vacuum."** It moved enough data to fill a standard database thousands of times over, yet the persistent storage size remained exactly **0KB**.
+* **The Event:** At **8:00 PM** on April 15th, the relay moved **11.64 MB** of dynamic coordination data in a single hour.
+* **The Signature:** This event occurred with **0.00% cache utilization**. Unlike static assets (HTML/JS), this data was never "cached" at the edge or written to a disk. It existed only as a transient pulse in volatile RAM.
+* **The Conclusion:** Over the last 30 days, the server acted as a **3.51 GB "Vacuum."** It moved enough data to fill a standard database thousands of times over, yet because we use the Stateless Pattern, the persistent storage size remains exactly **0 KB**.
 
 ---
 
 ### 🛡️ Transparency & Audits
 We don't just claim to be stateless; we prove it. We publish our raw traffic logs so you can verify our "Zero-Knowledge" architecture yourself.
 
-* **Latest Audit:** [Apr 02, 2026](./site_metric_logs/MANIFEST.md#-2026-04-02_audit)
+* **Latest Audit:** [Apr 15, 2026](./site_metric_logs/MANIFEST.md#-2026-04-15_audit)
 * **Traffic Volume:** 42,129 Monthly Requests / 3,704 Unique Visitors (30d)
-* **Key Finding:** Healthy equilibrium between PWA asset delivery (44% cache) and active "Vacuum" relaying, confirming the robustness of the v1.7.0 "Signing Room®" trademarked release.
+* **Key Finding:** Successfully re-established a stability baseline of **58.5% cache efficiency**, ensuring v2.0.0 UI assets are delivered at the edge while preserving the core "Vacuum" for coordination.
 
 > 📂 **[View the full Data Manifest](./site_metric_logs/MANIFEST.md)** to inspect the raw CSV logs.
 
