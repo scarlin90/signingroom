@@ -1,23 +1,48 @@
+// {
+//   "extends": "../../tsconfig.base.json",
+//   "compilerOptions": {
+//     "module": "commonjs",
+//     "forceConsistentCasingInFileNames": true,
+//     "strict": true,
+//     "importHelpers": true,
+//     "noImplicitOverride": true,
+//     "noImplicitReturns": true,
+//     "noFallthroughCasesInSwitch": true,
+//     "noPropertyAccessFromIndexSignature": true
+//   },
+//   "files": [],
+//   "include": [],
+//   "references": [
+//     {
+//       "path": "./tsconfig.lib.json"
+//     },
+//     {
+//       "path": "./tsconfig.spec.json"
+//     }
+//   ]
+// }
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "allowJs": true,
+    "outDir": "../../dist/out-tsc",
+    "sourceMap": false,
     "module": "commonjs",
-    "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "importHelpers": true,
     "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noPropertyAccessFromIndexSignature": true
+    "types": ["node"]
   },
-  "files": [],
-  "include": [],
-  "references": [
-    {
-      "path": "./tsconfig.lib.json"
-    },
-    {
-      "path": "./tsconfig.spec.json"
-    }
+  "include": [
+    "**/*.ts",
+    "**/*.js",
+    "playwright.config.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.js",
+    "src/**/*.test.ts",
+    "src/**/*.test.js",
+    "src/**/*.d.ts"
   ]
 }

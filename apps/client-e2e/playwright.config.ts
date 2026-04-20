@@ -23,12 +23,24 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npx nx run client:serve',
-    url: 'http://localhost:4200',
-    reuseExistingServer: true,
-    cwd: workspaceRoot,
-  },
+  webServer: [
+    {
+      command: 'npx nx run client:serve',
+      url: 'http://localhost:4200', // <--- localhost to match Angular's IPv6
+      reuseExistingServer: true,
+      cwd: workspaceRoot,
+      timeout: 20 * 1000,
+    },
+    {
+      command: 'npx wrangler dev apps/worker/src/index.ts',
+      url: 'http://127.0.0.1:8787/api/health', // <--- 127.0.0.1 to match Wrangler's IPv4
+      reuseExistingServer: true,
+      cwd: workspaceRoot,
+      timeout: 20 * 1000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }
+  ],
   projects: [
     {
       name: 'chromium',
