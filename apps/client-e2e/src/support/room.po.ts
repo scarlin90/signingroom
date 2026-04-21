@@ -27,6 +27,21 @@ export class RoomPage {
   readonly csvActionButton: Locator;
   readonly connectionLostBanner: Locator;
   readonly signerList: Locator;
+  readonly roomIdButton: Locator;
+  readonly roomIdModalCopyButton: Locator;
+  readonly sessionsModal: Locator;
+  readonly sessionNameInput: Locator;
+  readonly sessionSaveButton: Locator;
+  readonly decryptionKeyInput: Locator;
+  readonly decryptRoomButton: Locator;
+  readonly keyActionButton: Locator;    
+  readonly copyKeyButton: Locator;
+  readonly closeSessionsModalButton: Locator;
+  readonly sessionList: Locator;
+  readonly finalizeButton: Locator;
+  readonly broadcastButton: Locator;
+  readonly copyHexButton: Locator;
+  
 
   constructor(page: Page) {
     this.page = page;
@@ -64,6 +79,21 @@ export class RoomPage {
     this.connectionLostBanner = page.getByText(/Connection lost... Reconnecting/i);
     this.signerList = page.locator('div.space-y-4.flex-grow');
     this.signedCountBadge = page.locator('h3').filter({ hasText: 'Signers' }).locator('span.text-white');
+    this.roomIdButton = page.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('button');
+    this.roomIdModalCopyButton = page.getByRole('button', { name: /Copy Room ID/i });
+    this.sessionsModal = page.locator('div.max-w-md').filter({ has: page.getByRole('heading', { name: 'Active Sessions' }) });
+    this.sessionNameInput = page.getByPlaceholder(/e.g. Auditor Bob/i);
+    this.sessionSaveButton = page.getByRole('button', { name: 'Save', exact: true });
+    this.decryptionKeyInput = page.getByPlaceholder('Enter decryption key...');
+    this.decryptRoomButton = page.getByRole('button', { name: 'Decrypt Room' });
+    this.keyActionButton = page.getByRole('button', { name: /Link Key/i });
+    this.copyKeyButton = page.getByRole('button', { name: 'Copy Decryption Key' });
+    this.closeSessionsModalButton = this.sessionsModal.locator('button').first();
+    this.sessionList = this.sessionsModal.locator('div.overflow-y-auto');
+    this.finalizeButton = page.getByRole('button', { name: /Finalize Transaction/i });
+    this.broadcastButton = page.getByRole('button', { name: 'Broadcast' });
+    this.copyHexButton = page.getByRole('button', { name: 'Copy Hex' });
+    
   }
 
   async getRoomId(): Promise<string> {
@@ -121,5 +151,21 @@ export class RoomPage {
    */
   async uploadSignature(fileName: string) {
     await this.signatureFileInput.setInputFiles(getFixturePath(fileName));
+  }
+
+  /**
+   * Targets the "Copy Link Only" button in the Share modal
+   */
+  get copySecureLinkButton() {
+    return this.page.getByRole('button', { name: 'Copy Link Only (No Key)' });
+  }
+
+  /**
+   * Targets a specific session row in the scrollable list.
+   * Scoping to 'this.sessionList' prevents accidental matches with the input field.
+   */
+  getSessionRow(displayName: string) {
+    return this.sessionList.locator('div.flex.items-center.justify-between.p-3')
+      .filter({ has: this.page.locator('span', { hasText: displayName }) });
   }
 }
