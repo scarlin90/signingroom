@@ -457,9 +457,13 @@ export class CreateComponent implements OnInit {
     ngOnInit() {
         this.viewMode = (this.route.snapshot.queryParamMap.get('view') as any) || 'default';
 
-        this.expectedHost = this.route.snapshot.queryParamMap.get('host') || window.location.origin;
+        this.expectedHost = this.route.snapshot.queryParamMap.get('host') || '';
 
         if (typeof window !== 'undefined') {
+            if (!this.expectedHost) {
+                this.expectedHost = window.location.origin;
+            }
+
             this.isEmbedded = window !== window.parent || window !== window.top;
             
             if (this.isEmbedded) {
@@ -469,6 +473,7 @@ export class CreateComponent implements OnInit {
                 }, '*');
             }
         }
+
         this.titleService.setTitle('Signing Room | Free Stateless Multisig');
         this.metaService.updateTag({ name: 'description', content: 'Free, open-source multisig coordination.' });
     }

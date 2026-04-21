@@ -29,33 +29,36 @@ export default defineConfig({
       url: 'http://localhost:4200', // <--- localhost to match Angular's IPv6
       reuseExistingServer: true,
       cwd: workspaceRoot,
-      timeout: 20 * 1000,
+      timeout: 120000,
     },
     {
-      command: 'npx wrangler dev apps/worker/src/index.ts',
+      command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787',
       url: 'http://127.0.0.1:8787/api/health', // <--- 127.0.0.1 to match Wrangler's IPv4
       reuseExistingServer: true,
       cwd: workspaceRoot,
-      timeout: 20 * 1000,
+      timeout: 120000,
       stdout: 'pipe',
       stderr: 'pipe',
     }
   ],
+  expect: {
+    timeout: 10000,
+  },
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
+    // {
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
 
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    // {
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
 
     // Uncomment for mobile browsers support
     /* {

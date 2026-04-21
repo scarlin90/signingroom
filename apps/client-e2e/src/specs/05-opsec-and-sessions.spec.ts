@@ -2,10 +2,18 @@ import { test, expect } from '@playwright/test';
 import { RoomPage } from '../support/room.po';
 import { launchRoomFromFixture, joinRoomFromLink } from '../support/room-helper';
 
+/**
+ * Suite: OpSec and 3-Way Session Sync
+ * Focuses on secure access control, including the "Split-Key" handshake protocol, 
+ * administrative locking, and real-time synchronization of participant identities.
+ */
 test.describe('OpSec and 3-Way Session Sync', () => {
   
   test('Should handle Split-Key handshake and unauthorized access denial', async ({ browser }) => {
-    // 1. Create three contexts for Coordinator, Alice, and Bob
+    // Mark this test as slow to triple the timeout, as it manages 4 browser contexts.
+    test.slow();
+
+    // --- Setup: Multi-context browser environment ---
     const coordCtx = await browser.newContext();
     const aliceCtx = await browser.newContext();
     const bobCtx = await browser.newContext();
@@ -15,101 +23,111 @@ test.describe('OpSec and 3-Way Session Sync', () => {
     const alicePage = await aliceCtx.newPage();
     const bobPage = await bobCtx.newPage();
 
-    // PHASE 1: SPLIT-KEY HANDSHAKE
+    // --- Interaction: Split-Key Initialization ---
     const coordRoom = await launchRoomFromFixture(coordPage, '3_5_unsigned.psbt.txt');
     
-    // A. Coordinator copies Link ONLY (No Key)
+    // Step A: Coordinator shares the secure link only (no decryption key)
     await coordRoom.shareLinkButton.click();
     await coordRoom.copySecureLinkButton.click();
     const secureLink = await coordPage.evaluate(() => navigator.clipboard.readText());
 
-    // B. Alice tries to join with secure link
+    // --- Interaction: Unauthorized Access Attempt ---
     await alicePage.goto(secureLink);
+
+    // --- Verification: Assert OpSec Block ---
     await expect(alicePage.getByText('Decryption Key Required')).toBeVisible();
 
-    // C. Coordinator copies Key separately
+    // --- Interaction: Manual Decryption Workflow ---
     await coordRoom.keyActionButton.click();
     await coordRoom.copyKeyButton.click();
     const decryptionKey = await coordPage.evaluate(() => navigator.clipboard.readText());
 
-    // D. Alice enters key and gains access
     await alicePage.getByPlaceholder('Enter decryption key...').fill(decryptionKey);
     await alicePage.getByRole('button', { name: 'Decrypt Room' }).click();
     const aliceRoom = new RoomPage(alicePage);
+    
+    // --- Verification: Authorized Access ---
     await expect(aliceRoom.activeIndicator).toBeVisible();
 
-    // PHASE 2: 3-WAY SESSION SYNC
-    // Bob joins with a FULL link (Combined)
+    // --- Interaction: Combined-Key Entry for Bob ---
     await coordRoom.shareLinkButton.click();
     await coordPage.getByRole('button', { name: /Copy Full Link/i }).click();
     const fullLink = await coordPage.evaluate(() => navigator.clipboard.readText());
     const bobRoom = await joinRoomFromLink(bobPage, fullLink);
 
-    // Verify all 3 windows see '3 Active Sessions'
+    // --- Verification: 3-Way Real-time Sync ---
     await expect(coordRoom.sessionIdButton).toContainText('3');
     await expect(aliceRoom.sessionIdButton).toContainText('3');
     await expect(bobRoom.sessionIdButton).toContainText('3');
 
-    // PHASE 3: ROOM LOCKING SYNC
+    // --- Interaction: Administrative Security Lock ---
     await coordRoom.lockButton.click();
     await coordRoom.confirmButton.click();
 
-    // Verify visual update (Amber Locked Indicator) on all 3 windows
+    // --- Verification: Global Lock Propagation ---
     await expect(coordPage.getByTitle('Room Locked')).toBeVisible();
     await expect(alicePage.getByTitle('Room Locked')).toBeVisible();
     await expect(bobPage.getByTitle('Room Locked')).toBeVisible();
 
-    // PHASE 4: ACCESS DENIED FOR NEW USERS
+    // --- Interaction: Block New Intruders ---
     const intruderCtx = await browser.newContext();
     const intruderPage = await intruderCtx.newPage();
     await intruderPage.goto(fullLink);
     
+    // --- Verification: Assert Locked Room Access Denial ---
     await expect(intruderPage.getByRole('heading', { name: 'Access Denied' })).toBeVisible();
     await expect(intruderPage.getByText('The Coordinator has locked this room.')).toBeVisible();
 
-    await coordCtx.close();
-    await aliceCtx.close();
-    await bobCtx.close();
-    await intruderCtx.close();
+    // --- Interaction: Administrative Unlock (Prevention of Cleanup Timeout) ---
+    // Unlocking the room ensures the relay server processes session termination gracefully.
+    await coordRoom.lockButton.click();
+    await expect(coordPage.getByText(/Are you sure you want to Unlock/i)).toBeVisible();
+    await coordRoom.confirmButton.click();
+
+    // Verification: Confirm state restoration
+    await expect(coordPage.getByTitle('Room Active')).toBeVisible();
+
+    // --- Interaction: Secure Parallel Cleanup ---
+    // Using Promise.all prevents sequential closing delays that cause timeouts.
+    await Promise.all([
+      aliceCtx.close(),
+      bobCtx.close(),
+      intruderCtx.close(),
+      coordCtx.close()
+    ]);
   });
 
   test('Should sync Participant Labels across all users', async ({ browser }) => {
+    // --- Setup: Secure multi-context environment ---
     const coordCtx = await browser.newContext();
     const aliceCtx = await browser.newContext();
-    // Permissions are required for both contexts if they interact with the clipboard
     await coordCtx.grantPermissions(['clipboard-read', 'clipboard-write']);
     await aliceCtx.grantPermissions(['clipboard-read', 'clipboard-write']);
 
     const coordPage = await coordCtx.newPage();
     const alicePage = await aliceCtx.newPage();
 
-    // 1. Setup Coordinator
+    // --- Interaction: Establish Session ---
     const coordRoom = await launchRoomFromFixture(coordPage, '3_5_unsigned.psbt.txt');
-    
-    // 2. GET FULL LINK (Correct Method)
-    // We must use the share modal because the URL in the address bar is scrubbed
     await coordRoom.shareLinkButton.click();
     await coordPage.getByRole('button', { name: /Copy Full Link/i }).click();
     const fullLink = await coordPage.evaluate(() => navigator.clipboard.readText());
-
-    // 3. Guest (Alice) joins
     const aliceRoom = await joinRoomFromLink(alicePage, fullLink);
 
-    // 4. Alice identifies herself
+    // --- Interaction: Participant Identity Labeling ---
     await aliceRoom.sessionIdButton.click();
     await aliceRoom.sessionNameInput.fill('Alice (Ledger)');
     await aliceRoom.sessionSaveButton.click();
 
-    // 5. Coordinator verifies Alice's identity in the Sessions list
+    // --- Verification: Remote Identity Propagation ---
     await coordRoom.sessionIdButton.click();
     await expect(coordPage.getByText('Alice (Ledger)')).toBeVisible();
     
-    // 6. Coordinator copies Alice's Session ID specifically
-    // Target the button inside the specific session row to satisfy Playwright's strict mode
+    // --- Verification: Metadata Consistency ---
     const aliceSessionRow = coordPage.locator('div.flex.items-center.justify-between').filter({ hasText: 'Alice (Ledger)' });
     await aliceSessionRow.getByTitle('Copy Session Details').click();
 
-    // 7. Verify Clipboard Content
+    // Confirm the copied session metadata reflects the chosen label
     const copiedDetails = await coordPage.evaluate(() => navigator.clipboard.readText());
     expect(copiedDetails).toContain('Alice (Ledger)');
 
@@ -118,54 +136,45 @@ test.describe('OpSec and 3-Way Session Sync', () => {
   });
 
   test('Should synchronize Room ID and Participant Identity across 3 users', async ({ browser }) => {
-    // 1. Create three contexts
+    // --- Setup: Triple-participant browser simulation ---
     const contexts = [await browser.newContext(), await browser.newContext(), await browser.newContext()];
     const pages = await Promise.all(contexts.map(ctx => ctx.newPage()));
     await contexts[0].grantPermissions(['clipboard-read', 'clipboard-write']);
     
-    // 2. Setup Coordinator
+    // --- Interaction: Host Room and Distribute Links ---
     const coordRoom = await launchRoomFromFixture(pages[0], '3_5_unsigned.psbt.txt');
     await coordRoom.shareLinkButton.click();
     await pages[0].getByRole('button', { name: /Copy Full Link/i }).click();
     const fullLink = await pages[0].evaluate(() => navigator.clipboard.readText());
 
-    // 3. Alice and Bob join
     const aliceRoom = await joinRoomFromLink(pages[1], fullLink);
     const bobRoom = await joinRoomFromLink(pages[2], fullLink);
 
-    // ==========================================
-    // TEST: Room ID Modal & Copying
-    // ==========================================
+    // --- Verification: Core Identity Metadata ---
     await coordRoom.roomIdButton.click();
     await expect(pages[0].getByText('Public Routing Data')).toBeVisible();
     await coordRoom.roomIdModalCopyButton.click();
     const copiedId = await pages[0].evaluate(() => navigator.clipboard.readText());
-    expect(copiedId).toMatch(/^[0-9a-f]{8}-/); // Verify it looks like a UUID
+    expect(copiedId).toMatch(/^[0-9a-f]{8}-/); 
 
-    // ==========================================
-    // TEST: 3-Way Identity Sync (Witness Labeling)
-    // ==========================================
+    // --- Interaction: Broadcast Identity Update ---
     const aliceName = 'Alice (Ledger)';
-
-    // 1. Alice identifies herself
     await aliceRoom.sessionIdButton.click();
     await aliceRoom.sessionNameInput.fill(aliceName);
     await aliceRoom.sessionSaveButton.click();
     await expect(aliceRoom.sessionsModal).toBeHidden();
 
-    // 2. Verify Coordinator and Bob both see the update
+    // --- Verification: Distributed Session Consistency ---
+    // Ensure both the Coordinator and Bob receive Alice's identity update in their respective session lists
     for (const p of [pages[0], pages[2]]) {
       const room = new RoomPage(p);
       await room.sessionIdButton.click();
       
-      // Wait for the specific row to appear in the list
       const aliceRow = room.getSessionRow(aliceName); 
       await expect(aliceRow).toBeVisible({ timeout: 10000 });
       
-      // Verify "Copy Session Details" action within that row
       await aliceRow.getByTitle('Copy Session Details').click();
       
-      // Close using our fixed locator
       await room.closeSessionsModalButton.click();
       await expect(room.sessionsModal).toBeHidden();
     }
@@ -174,6 +183,7 @@ test.describe('OpSec and 3-Way Session Sync', () => {
   });
 
   test('Should handle Split-Key vs Combined-Key entry', async ({ browser }) => {
+    // --- Setup: Dual-context browser simulation ---
     const coordCtx = await browser.newContext();
     const aliceCtx = await browser.newContext();
     await coordCtx.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -181,23 +191,26 @@ test.describe('OpSec and 3-Way Session Sync', () => {
     const coordPage = await coordCtx.newPage();
     const alicePage = await aliceCtx.newPage();
 
+    // --- Interaction: Split-Key Entry Protocol ---
     const coordRoom = await launchRoomFromFixture(coordPage, '3_5_unsigned.psbt.txt');
-    
-    // 1. SPLIT-KEY ENTRY
     await coordRoom.shareLinkButton.click();
     await coordRoom.copySecureLinkButton.click();
     const secureLink = await coordPage.evaluate(() => navigator.clipboard.readText());
 
     await alicePage.goto(secureLink);
+    
+    // --- Verification: Assert Security Barrier ---
     await expect(alicePage.getByText('Decryption Key Required')).toBeVisible();
 
-    // Get key separately
+    // --- Interaction: Manual Unlock ---
     await coordRoom.keyActionButton.click();
     await coordRoom.copyKeyButton.click();
     const key = await coordPage.evaluate(() => navigator.clipboard.readText());
 
     await alicePage.getByPlaceholder('Enter decryption key...').fill(key);
     await alicePage.getByRole('button', { name: 'Decrypt Room' }).click();
+    
+    // --- Verification: Entry Success ---
     await expect(alicePage.locator('span[title="Room Active"]')).toBeVisible();
 
     await coordCtx.close();

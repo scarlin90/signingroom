@@ -38,9 +38,39 @@ export class RoomPage {
   readonly copyKeyButton: Locator;
   readonly closeSessionsModalButton: Locator;
   readonly sessionList: Locator;
-  readonly finalizeButton: Locator;
   readonly broadcastButton: Locator;
   readonly copyHexButton: Locator;
+
+  // File Downloads
+  readonly psbtDownloadAction: Locator;
+  readonly psbtModalDownloadButton: Locator;
+
+  // Search Filters
+  readonly inputSearchInput: Locator;
+  readonly outputSearchInput: Locator;
+
+  // QR Code
+  readonly qrCodeActionButton: Locator;
+  readonly qrLinkOnlyButton: Locator;
+  readonly qrFullLinkButton: Locator;
+  readonly qrRevealButton: Locator;
+  readonly qrDownloadButton: Locator;
+
+  // Admin Claiming
+  readonly backupAdminActionButton: Locator;
+  readonly copyAdminTokenButton: Locator;
+  readonly claimCoordinatorLink: Locator;
+  readonly claimPasswordInput: Locator;
+  readonly claimRoleButton: Locator;
+
+  // Batch Verification
+  readonly verifyAllOutputsButton: Locator;
+
+  // Signer Labeling
+  readonly labelNameInput: Locator;
+  readonly saveLabelButton: Locator;
+
+  readonly okButton: Locator; // <-- ADD THIS
   
 
   constructor(page: Page) {
@@ -64,8 +94,6 @@ export class RoomPage {
     this.signatureFileInput = page.locator('label')
       .filter({ hasText: /Upload Signed PSBT/i })
       .locator('input[type="file"]');
-    this.signedCountBadge = page.locator('div').filter({ hasText: /Signed$/i }).first();
-    this.finalizeButton = page.getByRole('button', { name: /Finalize Transaction/i });
     this.broadcastLink = page.getByRole('link', { name: /Broadcast/i });
     this.successMessage = page.getByText(/Transaction Finalized Successfully/i);
     this.lockButton = page.getByRole('button', { name: /Lock Room|Locked/i });
@@ -93,6 +121,36 @@ export class RoomPage {
     this.finalizeButton = page.getByRole('button', { name: /Finalize Transaction/i });
     this.broadcastButton = page.getByRole('button', { name: 'Broadcast' });
     this.copyHexButton = page.getByRole('button', { name: 'Copy Hex' });
+
+    // PSBT Locators
+    this.psbtDownloadAction = page.getByRole('button', { name: 'Download Unsigned PSBT' });
+    this.psbtModalDownloadButton = page.getByRole('button', { name: 'Download PSBT', exact: true });
+
+    // Search Locators
+    this.inputSearchInput = page.getByPlaceholder('Search input address...');
+    this.outputSearchInput = page.getByPlaceholder('Search output address...');
+
+    // QR Code Locators
+    this.qrCodeActionButton = page.getByRole('button', { name: 'QR Code' });
+    this.qrLinkOnlyButton = page.getByRole('button', { name: 'Link Only' });
+    this.qrFullLinkButton = page.getByRole('button', { name: 'Full (Link + Key)' });
+    this.qrRevealButton = page.getByText('Click to Reveal');
+    this.qrDownloadButton = page.getByRole('button', { name: 'Download Image' });
+
+    // Admin Locators
+    this.backupAdminActionButton = page.getByRole('button', { name: 'Backup Admin' });
+    this.copyAdminTokenButton = page.getByRole('button', { name: 'Copy Admin Token' });
+    this.claimCoordinatorLink = page.getByRole('button', { name: 'Have the Admin Key? Claim Coordinator Role' });
+    this.claimPasswordInput = page.getByPlaceholder('Paste Admin Key here...');
+    this.claimRoleButton = page.getByRole('button', { name: 'Claim' });
+
+    this.verifyAllOutputsButton = page.getByRole('button', { name: /Verify All Outputs/i });
+    
+    // Labeling Modals
+    this.labelNameInput = page.getByPlaceholder('e.g. Alice (Ledger)');
+    this.saveLabelButton = page.getByRole('button', { name: 'Save Label' });
+
+    this.okButton = page.getByRole('button', { name: 'OK', exact: true });
     
   }
 
@@ -124,12 +182,10 @@ export class RoomPage {
   async expectSignerStatus(fingerprint: string, status: 'Signed' | 'Waiting...') {
     const row = this.getSignerRow(fingerprint);
     if (status === 'Signed') {
-      // Use the specific bg and border variants from your HTML
       await expect(row).toHaveClass(/bg-emerald-900_30/);
       await expect(row).toHaveClass(/border-emerald-500_30/);
       await expect(row.getByText('Signed')).toBeVisible();
       
-      // Target only the lucide-icon to avoid strict mode violations
       await expect(row.locator('lucide-icon.animate-spin')).toBeHidden();
     } else {
       await expect(row).toHaveClass(/bg-slate-950/);
@@ -167,5 +223,19 @@ export class RoomPage {
   getSessionRow(displayName: string) {
     return this.sessionList.locator('div.flex.items-center.justify-between.p-3')
       .filter({ has: this.page.locator('span', { hasText: displayName }) });
+  }
+
+  /**
+   * Helper for the Nudge Bell
+   */
+  getNudgeButton(fingerprint: string): Locator {
+    return this.getSignerRow(fingerprint).locator('button[title="Copy Nudge Message"]');
+  }
+
+  /**
+   * Helper for the Add/Edit Label button on a signer row
+   */
+  getEditLabelButton(fingerprint: string): Locator {
+    return this.getSignerRow(fingerprint).locator('button').first();
   }
 }

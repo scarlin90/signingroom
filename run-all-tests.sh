@@ -20,7 +20,7 @@ echo "✅ All test suites passed coverage requirements."
 echo "------------------------------------------------------"
 echo "🚀 RUNNING END-TO-END TESTS (PLAYWRIGHT)"
 echo "------------------------------------------------------"
-# This will spin up the web server on localhost:4200 and run the tests in headless mode
+
 npx nx e2e client-e2e
 
 echo ""

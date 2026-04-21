@@ -1,4 +1,5 @@
-FROM node:20-bookworm
+# Use the official Playwright image which has all system dependencies pre-installed
+FROM mcr.microsoft.com/playwright:v1.44.0-jammy
 
 WORKDIR /app
 
@@ -6,14 +7,15 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+# Install Playwright browsers (specifically Chromium for your suite)
+RUN npx playwright install chromium --with-deps
+
 # Copy source code
 COPY . .
 
-# Strip Windows CRLF line endings
+# Strip Windows CRLF line endings and set permissions
 RUN sed -i 's/\r$//' run-all-tests.sh
-
-# Setup the test script
 RUN chmod +x run-all-tests.sh
 
-# Run the script
+# Run the consolidated test script
 CMD ["./run-all-tests.sh"]
