@@ -1,4 +1,3 @@
-# Use the latest Playwright image (Includes Node 22+ which resolves ESM require errors)
 FROM mcr.microsoft.com/playwright:v1.50.0-jammy
 
 WORKDIR /app
@@ -12,6 +11,11 @@ RUN npx playwright install chromium --with-deps
 
 # Copy source code
 COPY . .
+
+RUN mkdir -p apps/worker && \
+    echo "ALLOWED_ORIGIN=http://localhost:4200" > apps/worker/.dev.vars && \
+    echo "ENVIRONMENT=development" >> apps/worker/.dev.vars && \
+    echo "API_PUBLIC_URL=http://127.0.0.1:8787" >> apps/worker/.dev.vars
 
 # Strip Windows CRLF line endings and set permissions
 RUN sed -i 's/\r$//' run-all-tests.sh
