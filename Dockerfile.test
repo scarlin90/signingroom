@@ -1,5 +1,5 @@
-# Use the official Playwright image which has all system dependencies pre-installed
-FROM mcr.microsoft.com/playwright:v1.44.0-jammy
+# Use the latest Playwright image (Includes Node 22+ which resolves ESM require errors)
+FROM mcr.microsoft.com/playwright:v1.50.0-jammy
 
 WORKDIR /app
 
