@@ -238,6 +238,18 @@ npx nx run worker:test
 ```
 
 #### Interactive E2E (Playwright UI): 
+> Note : To run the UI you need to remove the docker configuration from the playwright.config.ts
+
+In playwright.config.ts remove --ip 0.0.0.0 --port 8787 before running the e2e command
+```
+Before - With Docker configuration
+command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787'
+
+After - After withoutt Docker configuration - ready for playwright UI
+command: 'npx wrangler dev apps/worker/src/index.ts'
+```
+
+Run the e2e command after config change
 ```Bash
 npx nx e2e client-e2e --ui
 ```
