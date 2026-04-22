@@ -12,11 +12,13 @@ import {
     LucideAngularModule, Shield, Users, CheckCircle, Loader2, 
     Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud,
     Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Lock, Unlock, Key, RefreshCw, AlertOctagon, FileKey, FileCheck,
-    Edit2, Tag, Bell, Infinity, ArrowDown, Book, QrCode, Eye, EyeOff, Search
+    Edit2, Tag, Bell, Infinity, ArrowDown, Book, QrCode, Eye, EyeOff, Search, FileText, Network
 } from 'lucide-angular';
 import { SocketService } from '../../services/socket/socket.service';
 import { jsPDF } from 'jspdf';
 import * as QRCode from 'qrcode';
+
+export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
 
 @Component({
   selector: 'app-room',
@@ -593,200 +595,243 @@ import * as QRCode from 'qrcode';
       
       <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div class="flex flex-col gap-6 mb-8 relative z-10">
-        
-        <div class="flex flex-wrap items-center gap-3">
+      <div class="bg-slate-900/80 backdrop-blur-sm border border-slate-800/50 rounded-xl p-6 mb-8 relative z-10 shadow-xl flex flex-col gap-6">
             
-            @if (isExpired()) {
-                <span class="w-3 h-3 rounded-full bg-rose-600 shrink-0 shadow-[0_0_10px_#e11d48]" title="Room Expired"></span>
-            } @else if (socket.roomState()?.isLocked) {
-                <span class="w-3 h-3 rounded-full bg-amber-500 animate-pulse shadow-[0_0_10px_#f59e0b] shrink-0" title="Room Locked"></span>
-            } @else {
-                <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_#10b981] shrink-0" title="Room Active"></span>
-            }
-            
-            <h1 class="text-2xl font-bold text-white truncate">
-                {{ socket.roomState()?.roomName || 'Signing Room' }}
-            </h1>
-
-            @if (socket.isCoordinator()) {
+            <div class="flex justify-between items-center relative z-20">
+                <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                    Room Overview
+                </h2>
+                
                 <button 
-                    (click)="openRenameModal()" 
-                    class="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
-                    title="Rename Room">
-                    <lucide-icon [img]="Edit2" class="w-4 h-4"></lucide-icon>
+                    (click)="togglePrivacyBlur('header')" 
+                    class="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+                    [class.text-amber-500]="!blurStates().header"
+                    [class.text-slate-400]="blurStates().header"
+                    [title]="blurStates().header ? 'Reveal Header' : 'Hide Header'">
+                    <lucide-icon [img]="blurStates().header ? EyeOff : Eye" [size]="20"></lucide-icon>
                 </button>
-            }
-
-            <div class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ml-1 flex items-center gap-1.5"
-                 [class.bg-emerald-500\/10]="!socket.roomState()?.network || socket.roomState()?.network === 'bitcoin'"
-                 [class.text-emerald-500]="!socket.roomState()?.network || socket.roomState()?.network === 'bitcoin'"
-                 [class.border-emerald-500\/20]="!socket.roomState()?.network || socket.roomState()?.network === 'bitcoin'"
-
-                 [class.bg-amber-500\/10]="socket.roomState()?.network === 'testnet'"
-                 [class.text-amber-500]="socket.roomState()?.network === 'testnet'"
-                 [class.border-amber-500\/20]="socket.roomState()?.network === 'testnet'"
-                 
-                 [class.bg-purple-500\/10]="socket.roomState()?.network === 'signet'"
-                 [class.text-purple-500]="socket.roomState()?.network === 'signet'"
-                 [class.border-purple-500\/20]="socket.roomState()?.network === 'signet'">
-                <span class="opacity-70 font-medium">Network:</span>
-                {{ socket.roomState()?.network === 'bitcoin' ? 'Mainnet' : (socket.roomState()?.network || 'Mainnet') }}
             </div>
 
-            @if (socket.isCoordinator()) {
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-bold border border-indigo-500/20 ml-2">
-                    <lucide-icon [img]="Crown" class="w-3 h-3"></lucide-icon> Coordinator
-                </span>
-            }
-        </div>
+            <div class="relative overflow-hidden rounded-lg">
+                <div class="transition-all duration-300 relative z-10 flex flex-col gap-6"
+                     [class.blur-md]="blurStates().header"
+                     [class.opacity-30]="blurStates().header"
+                     [class.select-none]="blurStates().header"
+                     [class.pointer-events-none]="blurStates().header">
+                    
+                    <div class="flex items-center gap-3">
+                        @if (isExpired()) {
+                            <span class="w-3 h-3 rounded-full bg-rose-600 shrink-0 shadow-[0_0_10px_#e11d48]" title="Room Expired"></span>
+                        } @else if (socket.roomState()?.isLocked) {
+                            <span class="w-3 h-3 rounded-full bg-amber-500 animate-pulse shadow-[0_0_10px_#f59e0b] shrink-0" title="Room Locked"></span>
+                        } @else {
+                            <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_#10b981] shrink-0" title="Room Active"></span>
+                        }
+                        
+                        <h1 class="text-2xl font-bold text-white truncate">
+                            {{ socket.roomState()?.roomName || 'Signing Room' }}
+                        </h1>
 
-        <div class="flex items-center gap-4 text-sm text-slate-500 bg-slate-900/50 w-fit px-4 py-2 rounded-xl border border-slate-800/50 backdrop-blur-sm">
-            
-            <div class="relative group">
-                <button (click)="openRoomIdModal()" class="flex items-center gap-2 hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700 cursor-pointer">
-                    <lucide-icon [img]="roomIdCopied() ? Check : Hash" class="w-4 h-4 transition-colors" 
-                        [class.text-emerald-400]="roomIdCopied()" 
-                        [class.text-slate-600]="!roomIdCopied()">
-                    </lucide-icon>
-                    <span class="font-mono transition font-bold" 
-                        [class.text-emerald-400]="roomIdCopied()" 
-                        [class.text-slate-300]="!roomIdCopied()"
-                        [class.hover:text-white]="!roomIdCopied()">
-                        {{ roomId() }}
-                    </span>
-                </button>
-                
-                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl">
-                    {{ roomIdCopied() ? 'Copied!' : 'View Room ID' }}
-                </div>
-            </div>
-
-            <div class="w-px h-4 bg-slate-800"></div>
-            
-            <div class="relative group">
-                <button (click)="openSessionsModal()" class="relative group cursor-pointer hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700">
-                    <div class="flex items-center gap-2">
-                        <lucide-icon [img]="Users" class="w-4 h-4" 
-                            [class.text-emerald-400]="(socket.roomState()?.connectedCount || 0) > 1"
-                            [class.text-slate-500]="(socket.roomState()?.connectedCount || 0) <= 1">
-                        </lucide-icon>
-                        <span class="font-bold" [class.text-white]="(socket.roomState()?.connectedCount || 0) > 1">
-                            {{ socket.roomState()?.connectedCount || 1 }} 
-                        </span>
+                        @if (socket.isCoordinator()) {
+                            <button 
+                                (click)="openRenameModal()" 
+                                class="p-2 -ml-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+                                title="Rename Room">
+                                <lucide-icon [img]="Edit2" class="w-4 h-4"></lucide-icon>
+                            </button>
+                        }
                     </div>
-                </button>
-                
-                <div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
-                    View Active Sessions
-                </div>
-            </div>
 
-            <div class="w-px h-4 bg-slate-800"></div>
+                    <div class="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-slate-500 bg-slate-950 w-fit px-4 py-2 rounded-xl border border-slate-800">
+                        
+                        <div class="relative group">
+                            <button (click)="openRoomIdModal()" class="flex items-center gap-2 hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700 cursor-pointer">
+                                <lucide-icon [img]="roomIdCopied() ? Check : Hash" class="w-4 h-4 transition-colors" 
+                                    [class.text-emerald-400]="roomIdCopied()" 
+                                    [class.text-slate-600]="!roomIdCopied()">
+                                </lucide-icon>
+                                <span class="font-mono transition font-bold" 
+                                    [class.text-emerald-400]="roomIdCopied()" 
+                                    [class.text-slate-300]="!roomIdCopied()"
+                                    [class.hover:text-white]="!roomIdCopied()">
+                                    {{ roomId() }}
+                                </span>
+                            </button>
+                            
+                            <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                                {{ roomIdCopied() ? 'Copied!' : 'View Room ID' }}
+                            </div>
+                        </div>
 
-            <div class="relative group cursor-help">
-                <div class="flex items-center gap-2" [class.text-rose-400]="isLowTime() || isExpired()" [class.text-slate-500]="!isLowTime() && !isExpired()">
-                    <lucide-icon [img]="Clock" class="w-4 h-4"></lucide-icon>
-                    @if (isExpired()) {
-                        <span class="font-bold text-xs uppercase">Expired</span>
-                    } @else {
-                        <span class="font-mono font-bold">{{ timeRemaining() }}</span>
-                    }
+                        <div class="w-px h-4 bg-slate-800"></div>
+
+                        <div class="relative group">
+                            <div class="flex items-center gap-1.5 cursor-help"
+                                 [class.text-emerald-400]="!socket.roomState()?.network || socket.roomState()?.network === 'bitcoin'"
+                                 [class.text-amber-500]="socket.roomState()?.network === 'testnet'"
+                                 [class.text-purple-400]="socket.roomState()?.network === 'signet'">
+                                <lucide-icon [img]="Network" class="w-4 h-4"></lucide-icon>
+                                <span class="font-bold text-xs uppercase tracking-wide">
+                                    {{ socket.roomState()?.network === 'bitcoin' ? 'Mainnet' : (socket.roomState()?.network || 'Mainnet') }}
+                                </span>
+                            </div>
+                            
+                            <div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                                {{ (!socket.roomState()?.network || socket.roomState()?.network === 'bitcoin') ? 'Real Bitcoin Network (Exercise Caution)' : 'Test Network (No real value)' }}
+                            </div>
+                        </div>
+
+                        @if (socket.isCoordinator()) {
+                            <div class="w-px h-4 bg-slate-800"></div>
+
+                            <div class="relative group">
+                                <div class="flex items-center gap-1.5 text-indigo-400 cursor-help">
+                                    <lucide-icon [img]="Crown" class="w-4 h-4"></lucide-icon>
+                                    <span class="font-bold text-xs uppercase tracking-wide">Coordinator</span>
+                                </div>
+                                
+                                <div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                                    You have admin privileges
+                                </div>
+                            </div>
+                        }
+
+                        <div class="w-px h-4 bg-slate-800"></div>
+                        
+                        <div class="relative group">
+                            <button (click)="openSessionsModal()" class="relative group cursor-pointer hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700">
+                                <div class="flex items-center gap-2">
+                                    <lucide-icon [img]="Users" class="w-4 h-4" 
+                                        [class.text-emerald-400]="(socket.roomState()?.connectedCount || 0) > 1"
+                                        [class.text-slate-500]="(socket.roomState()?.connectedCount || 0) <= 1">
+                                    </lucide-icon>
+                                    <span class="font-bold" [class.text-white]="(socket.roomState()?.connectedCount || 0) > 1">
+                                        {{ socket.roomState()?.connectedCount || 1 }} 
+                                    </span>
+                                </div>
+                            </button>
+                            
+                            <div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                                View Active Sessions
+                            </div>
+                        </div>
+
+                        <div class="w-px h-4 bg-slate-800"></div>
+
+                        <div class="relative group cursor-help">
+                            <div class="flex items-center gap-2" [class.text-rose-400]="isLowTime() || isExpired()" [class.text-slate-500]="!isLowTime() && !isExpired()">
+                                <lucide-icon [img]="Clock" class="w-4 h-4"></lucide-icon>
+                                @if (isExpired()) {
+                                    <span class="font-bold text-xs uppercase">Expired</span>
+                                } @else {
+                                    <span class="font-mono font-bold">{{ timeRemaining() }}</span>
+                                }
+                            </div>
+                            
+                            <div class="absolute -top-10 right-0 md:left-1/2 md:-translate-x-1/2 md:right-auto bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                                Room auto-expires & securely wipes data
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="absolute -top-10 right-0 md:left-1/2 md:-translate-x-1/2 md:right-auto bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
-                    Room auto-expires & securely wipes data
-                </div>
-            </div>
-        </div>
-        
-        <div class="flex flex-col items-start gap-1">
-            <div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold ml-1">Room Actions</div>
-            <div class="flex flex-wrap items-center p-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-xl gap-2 shadow-xl">
-                
-                @if (!isExpired() && !socket.isClosed()) {
-                    <div class="relative group">
-                        <button (click)="promptAuditLogDownload()" class="px-3 py-2 text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-emerald-500/20">
-                            <lucide-icon [img]="FileCheck" class="w-4 h-4"></lucide-icon>
-                            Audit Log
+                @if (blurStates().header) {
+                    <div class="absolute inset-0 flex items-center justify-center z-20">
+                        <button (click)="togglePrivacyBlur('header')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm transition-colors cursor-pointer">
+                            <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
+                            Hidden for Privacy
                         </button>
                     </div>
-
-                    <div class="w-px h-6 bg-slate-800 mx-1"></div> 
-
-                    <div class="relative group">
-                        <button (click)="promptCsvDownload()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20">
-                            <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
-                            CSV
-                        </button>
-                    </div>
-                    <div class="w-px h-6 bg-slate-800 mx-1"></div>
                 }
+            </div>
 
-                
+            <div class="pt-4 border-t border-slate-800/50 flex flex-col items-start gap-2 relative z-30">
+                <div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold ml-1">Room Actions</div>
+                <div class="flex flex-wrap items-center p-1.5 bg-slate-950 border border-slate-800 rounded-xl gap-2 shadow-sm w-full sm:w-auto">
+                    
+                    @if (!isExpired() && !socket.isClosed()) {
+                        <div class="relative group">
+                            <button (click)="promptAuditLogDownload()" class="px-3 py-2 text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-emerald-500/20 cursor-pointer">
+                                <lucide-icon [img]="FileCheck" class="w-4 h-4"></lucide-icon>
+                                Audit Log
+                            </button>
+                        </div>
+
+                        <div class="hidden sm:block w-px h-6 bg-slate-800 mx-1"></div> 
+
+                        <div class="relative group">
+                            <button (click)="promptCsvDownload()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20 cursor-pointer">
+                                <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                                CSV
+                            </button>
+                        </div>
+                        <div class="hidden sm:block w-px h-6 bg-slate-800 mx-1"></div>
+                    }
+
                     <div class="relative group">
-                        <button (click)="openKeyModal()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20">
+                        <button (click)="openKeyModal()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20 cursor-pointer">
                             <lucide-icon [img]="keyCopied() ? Check : Key" class="w-4 h-4"></lucide-icon>
                             {{ keyCopied() ? 'Copied' : 'Link Key' }}
                         </button>
                     </div>
 
-                    <div class="w-px h-6 bg-slate-800 mx-1"></div>
+                    <div class="hidden sm:block w-px h-6 bg-slate-800 mx-1"></div>
 
-                @if (socket.isCoordinator()) {
+                    @if (socket.isCoordinator()) {
+                        <div class="relative group">
+                            <button (click)="openAdminModal()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20 cursor-pointer">
+                                <lucide-icon [img]="adminCopied() ? Check : FileKey" class="w-4 h-4"></lucide-icon>
+                                {{ adminCopied() ? 'Copied' : 'Backup Admin' }}
+                            </button>
+                        </div>
+                        
+                        <div class="hidden sm:block w-px h-6 bg-slate-800 mx-1"></div>
+                    }
+
                     <div class="relative group">
-                        <button (click)="openAdminModal()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20">
-                            <lucide-icon [img]="adminCopied() ? Check : FileKey" class="w-4 h-4"></lucide-icon>
-                            {{ adminCopied() ? 'Copied' : 'Backup Admin' }}
+                        <button (click)="openShareModal()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700 cursor-pointer">
+                            <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
+                            Share Link
                         </button>
                     </div>
-                    
-                    <div class="w-px h-6 bg-slate-800 mx-1"></div>
-                }
 
-                <div class="relative group">
-                    <button (click)="openShareModal()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700">
-                        <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
-                        Share Link
-                    </button>
+                    <div class="hidden sm:block w-px h-6 bg-slate-800 mx-1"></div>
+
+                    <div class="relative group">
+                        <button (click)="openQr()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700 cursor-pointer">
+                            <lucide-icon [img]="QrCode" class="w-4 h-4"></lucide-icon>
+                            <span class="hidden sm:inline">QR Code</span>
+                        </button>
+                    </div>
+
+                    @if (socket.isCoordinator()) {
+                        <div class="hidden sm:block w-px h-6 bg-slate-800 mx-1"></div>
+                        <div class="relative group">
+                            <button (click)="toggleLock()" 
+                                    class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent cursor-pointer"
+                                    [class.text-rose-400]="socket.roomState()?.isLocked"
+                                    [class.bg-rose-950\/30]="socket.roomState()?.isLocked"
+                                    [class.text-slate-400]="!socket.roomState()?.isLocked"
+                                    [class.hover:bg-slate-800]="!socket.roomState()?.isLocked">
+                                <lucide-icon [img]="socket.roomState()?.isLocked ? Lock : Unlock" class="w-4 h-4"></lucide-icon>
+                                {{ socket.roomState()?.isLocked ? 'Locked' : 'Lock Room' }}
+                            </button>
+                        </div>
+                    }
+
+                    @if (socket.isCoordinator() && !isExpired() && !socket.isClosed()) {
+                        <div class="hidden sm:block w-px h-6 bg-slate-800 mx-1"></div> 
+                        <div class="relative group">
+                            <button (click)="closeRoom()" class="px-3 py-2 bg-rose-950/30 text-rose-400 border border-rose-900/50 hover:bg-rose-900/50 hover:border-rose-500 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 cursor-pointer">
+                                <lucide-icon [img]="Power" class="w-4 h-4"></lucide-icon>
+                                Close
+                            </button>
+                        </div>
+                    }
                 </div>
-
-                <div class="w-px h-6 bg-slate-800 mx-1"></div>
-
-                <div class="relative group">
-                    <button (click)="openQr()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700">
-                        <lucide-icon [img]="QrCode" class="w-4 h-4"></lucide-icon>
-                        <span class="hidden sm:inline">QR Code</span>
-                    </button>
-                </div>
-
-                @if (socket.isCoordinator()) {
-                    <div class="w-px h-6 bg-slate-800 mx-1"></div>
-                    <div class="relative group">
-                        <button (click)="toggleLock()" 
-                                class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent"
-                                [class.text-rose-400]="socket.roomState()?.isLocked"
-                                [class.bg-rose-950\/30]="socket.roomState()?.isLocked"
-                                [class.text-slate-400]="!socket.roomState()?.isLocked"
-                                [class.hover:bg-slate-800]="!socket.roomState()?.isLocked">
-                            <lucide-icon [img]="socket.roomState()?.isLocked ? Lock : Unlock" class="w-4 h-4"></lucide-icon>
-                            {{ socket.roomState()?.isLocked ? 'Locked' : 'Lock Room' }}
-                        </button>
-                    </div>
-                }
-
-                @if (socket.isCoordinator() && !isExpired() && !socket.isClosed()) {
-                    <div class="w-px h-6 bg-slate-800 mx-1"></div> 
-                    <div class="relative group">
-                        <button (click)="closeRoom()" class="px-3 py-2 bg-rose-950/30 text-rose-400 border border-rose-900/50 hover:bg-rose-900/50 hover:border-rose-500 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2">
-                            <lucide-icon [img]="Power" class="w-4 h-4"></lucide-icon>
-                            Close
-                        </button>
-                    </div>
-                }
             </div>
+
         </div>
-      </div>
 
       @if (showSessionsModal()) {
         <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-fade-in p-4">
@@ -903,6 +948,54 @@ import * as QRCode from 'qrcode';
         </div>
       }
 
+      @if (showPrivacyWarning()) {
+      <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all">
+        <div class="bg-slate-900 border border-amber-500/30 rounded-xl max-w-xl w-full p-6 shadow-2xl relative overflow-hidden">
+          
+          <div class="absolute top-0 left-0 w-full h-1 bg-amber-500"></div>
+
+          <div class="flex items-center gap-3 text-amber-500 mb-4">
+            <lucide-icon [img]="Eye" [size]="28" class="animate-pulse"></lucide-icon>
+            <h3 class="text-xl font-bold text-white">OpSec Warning</h3>
+          </div>
+          
+          <p class="text-slate-300 mb-6 leading-relaxed">
+            You are about to reveal sensitive transaction details. Before proceeding, please ensure:
+            <br><br>
+            <span class="flex items-center gap-2 text-sm text-slate-400">
+              <lucide-icon [img]="CheckCircle" [size]="16" class="text-emerald-500"></lucide-icon> No one is looking over your shoulder.
+            </span>
+            <span class="flex items-center gap-2 text-sm text-slate-400 mt-2">
+              <lucide-icon [img]="CheckCircle" [size]="16" class="text-emerald-500"></lucide-icon> You are not sharing your screen.
+            </span>
+            <span class="flex items-center gap-2 text-sm text-slate-400 mt-2">
+              <lucide-icon [img]="CheckCircle" [size]="16" class="text-emerald-500"></lucide-icon> There are no cameras recording your screen.
+            </span>
+          </p>
+
+          <div class="flex flex-wrap sm:flex-nowrap gap-3 justify-end mt-8">
+            <button 
+              (click)="closePrivacyWarning()" 
+              class="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors font-medium">
+              Keep Blurred
+            </button>
+            <button 
+              (click)="confirmUnblurAll()" 
+              class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-amber-500/10 text-amber-500 font-bold hover:bg-amber-500/20 border border-amber-500/30 transition-colors flex items-center justify-center gap-2">
+              <lucide-icon [img]="Eye" [size]="18"></lucide-icon>
+              Reveal All
+            </button>
+            <button 
+              (click)="confirmUnblur()" 
+              class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20">
+              <lucide-icon [img]="Eye" [size]="18"></lucide-icon>
+              Reveal Section
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
       <div class="grid lg:grid-cols-3 gap-8 transition-all duration-500 relative z-10" 
            [class.opacity-20]="isExpired() || socket.isClosed()" 
            [class.pointer-events-none]="isExpired() || socket.isClosed()">
@@ -910,18 +1003,49 @@ import * as QRCode from 'qrcode';
         <div class="lg:col-span-2 space-y-6">
             
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden">
-                <div class="absolute top-0 right-0 p-4 opacity-10"><lucide-icon [img]="Shield" class="w-24 h-24 text-emerald-500"></lucide-icon></div>
-                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-4">Transaction Proposal</h3>
-                <div class="flex justify-between items-end relative z-10">
-                    <div>
-                        <div class="text-4xl font-bold text-white mb-1">{{ (socket.txDetails()?.amount || 0) / 100000000 | number:'1.8-8' }} <span class="text-slate-500 text-xl">BTC</span></div>
-                        <div class="text-emerald-400 text-sm">~{{ ((socket.txDetails()?.amount || 0) / 100000000 * 95000) | currency:'USD' }}</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-slate-400 text-sm">Network Fee</div>
-                        <div class="text-white font-mono">{{ socket.txDetails()?.feeRate ?? '--' }} sats/vB</div>
+                <div class="absolute top-10 right-0 p-4 opacity-10"><lucide-icon [img]="Shield" class="w-24 h-24 text-emerald-500"></lucide-icon></div>
+                
+                <div class="flex justify-between items-center mb-4 relative z-20">
+                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                        Transaction Proposal
+                    </h2>
+                    
+                    <button 
+                      (click)="togglePrivacyBlur('proposal')" 
+                      class="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+                      [class.text-amber-500]="!blurStates().proposal"
+                      [class.text-slate-400]="blurStates().proposal"
+                      [title]="blurStates().proposal ? 'Reveal Proposal' : 'Hide Proposal'">
+                      <lucide-icon [img]="blurStates().proposal ? EyeOff : Eye" [size]="20"></lucide-icon>
+                    </button>
+                </div>
+
+                <div class="transition-all duration-300 relative z-10"
+                     [class.blur-md]="blurStates().proposal"
+                     [class.opacity-30]="blurStates().proposal"
+                     [class.select-none]="blurStates().proposal"
+                     [class.pointer-events-none]="blurStates().proposal">
+                    
+                    <div class="flex justify-between items-end">
+                        <div>
+                            <div class="text-4xl font-bold text-white mb-1">{{ (socket.txDetails()?.amount || 0) / 100000000 | number:'1.8-8' }} <span class="text-slate-500 text-xl">BTC</span></div>
+                            <div class="text-emerald-400 text-sm">~{{ ((socket.txDetails()?.amount || 0) / 100000000 * 95000) | currency:'USD' }}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-slate-400 text-sm">Network Fee</div>
+                            <div class="text-white font-mono">{{ socket.txDetails()?.feeRate ?? '--' }} sats/vB</div>
+                        </div>
                     </div>
                 </div>
+
+                @if (blurStates().proposal) {
+                    <div class="absolute inset-0 flex items-center justify-center z-10">
+                        <button (click)="togglePrivacyBlur('proposal')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm mt-8 transition-colors cursor-pointer">
+                            <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
+                            Hidden for Privacy
+                        </button>
+                    </div>
+                }
             </div>
 
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
@@ -945,257 +1069,283 @@ import * as QRCode from 'qrcode';
                 </div>
             </div>
 
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 min-h-[400px] flex flex-col">
-          <div class="flex items-center justify-between mb-4">
-              <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider">Transaction Details</h3>
-              
-              <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
-                  <button (click)="viewMode.set('inputs')" 
-                          class="px-3 py-1 text-xs font-bold rounded-md transition-all"
-                          [class.bg-slate-800]="viewMode() === 'inputs'"
-                          [class.text-white]="viewMode() === 'inputs'"
-                          [class.text-slate-500]="viewMode() !== 'inputs'">
-                      Inputs ({{ socket.txDetails()?.inputs || 0 }})
-                  </button>
-                  <button (click)="viewMode.set('outputs')" 
-                          class="px-3 py-1 text-xs font-bold rounded-md transition-all"
-                          [class.bg-slate-800]="viewMode() === 'outputs'"
-                          [class.text-white]="viewMode() === 'outputs'"
-                          [class.text-slate-500]="viewMode() !== 'outputs'">
-                      Outputs ({{ socket.txDetails()?.outputs?.length || 0 }})
+            <div class="relative bg-slate-900 border border-slate-800 rounded-xl p-5 min-h-[400px] overflow-hidden">
+  
+              <div class="flex justify-between items-center mb-4 relative z-20">
+                  <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                  Transaction Details
+                  </h2>
+                  
+                  <button 
+                  (click)="togglePrivacyBlur('details')" 
+                  class="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+                  [class.text-amber-500]="!blurStates().details"
+                  [class.text-slate-400]="blurStates().details"
+                  [title]="blurStates().details ? 'Reveal Details' : 'Hide Details'">
+                  <lucide-icon [img]="blurStates().details ? EyeOff : Eye" [size]="20"></lucide-icon>
                   </button>
               </div>
-          </div>
 
-          <div class="mb-4 relative">
-              @if (viewMode() === 'inputs') {
-                  <div class="relative flex items-center">
-                      <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
-                      
-                      <input type="text" [(ngModel)]="inputSearchQuery" placeholder="Search input address..."
-                             class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
-                      
-                      <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none"
-                           title="Filtered Results">
-                          {{ filteredInputs().length }}
-                      </div>
+              <div class="transition-all duration-300"
+                  [class.blur-md]="blurStates().details"
+                  [class.opacity-30]="blurStates().details"
+                  [class.select-none]="blurStates().details"
+                  [class.pointer-events-none]="blurStates().details">
+                  
+                  <div class="w-full flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-4">
+                      <button (click)="viewMode.set('inputs')" 
+                              class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                              [class.bg-slate-800]="viewMode() === 'inputs'"
+                              [class.text-emerald-400]="viewMode() === 'inputs'"
+                              [class.text-slate-500]="viewMode() !== 'inputs'">
+                          Inputs ({{ socket.txDetails()?.inputs || 0 }})
+                      </button>
+                      <button (click)="viewMode.set('outputs')" 
+                              class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                              [class.bg-slate-800]="viewMode() === 'outputs'"
+                              [class.text-emerald-400]="viewMode() === 'outputs'"
+                              [class.text-slate-500]="viewMode() !== 'outputs'">
+                          Outputs ({{ socket.txDetails()?.outputs?.length || 0 }})
+                      </button>
                   </div>
-              } @else {
-                  <div class="relative flex items-center">
-                      <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
-                      
-                      <input type="text" [(ngModel)]="outputSearchQuery" placeholder="Search output address..."
-                             class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
-                      
-                      <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none"
-                           title="Filtered Results">
-                          {{ filteredOutputs().length }}
-                      </div>
-                  </div>
-              }
-          </div>
-
-          @if (socket.isCoordinator()) {
-            <div class="flex justify-end mb-2">
-                @if (viewMode() === 'inputs' && (socket.txDetails()?.inputsList?.length || 0) > 3) {
-                    <button (click)="verifyAllInputs()" class="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-2 py-1 rounded transition border border-transparent hover:border-emerald-500/20 flex items-center gap-1">
-                        <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Inputs
-                    </button>
-                }
-                @if (viewMode() === 'outputs' && (socket.txDetails()?.outputs?.length || 0) > 3) {
-                    <button (click)="verifyAllOutputs()" class="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 px-2 py-1 rounded transition border border-transparent hover:border-cyan-500/20 flex items-center gap-1">
-                        <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Outputs
-                    </button>
-                }
-            </div>
-          }
-
-          <div class="space-y-3 flex-grow overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-              
-              @if (viewMode() === 'inputs') {
-                  @for (input of filteredInputs(); track $index) {
-                      <div class="p-3 bg-slate-950 rounded border transition-all"
-                           [class.border-emerald-500]="isWhitelisted(input.address)"
-                           [class.border-slate-800]="!isWhitelisted(input.address)">
-                          
-                          <div class="flex justify-between items-start mb-2">
-                              <div class="flex items-center gap-2 text-slate-400 text-xs">
-                                <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
-                                @if (input.txId && input.txId !== '????') {
-                                    <span class="font-mono text-[10px] text-slate-600 truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
-                                }
-                            </div>
-                            <div class="text-white font-bold text-sm">{{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
-                          </div>
-                          
-                          <div class="flex items-start gap-2">
-                              <lucide-icon [img]="ArrowDown" class="w-4 h-4 text-slate-600 mt-0.5 shrink-0"></lucide-icon>
-                              <div class="flex-grow">
-                                  <div class="font-mono text-xs text-slate-400 break-all leading-relaxed select-all">
-                                      {{ input.address }}
-                                  </div>
-                                  
-                                  @if (socket.isCoordinator()) {
-                                      <div class="mt-2 flex items-center gap-2">
-                                          @if (isWhitelisted(input.address)) {
-                                              <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                                                  <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Source
-                                              </span>
-                                              <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">Revoke</button>
-                                          } @else {
-                                              <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
-                                                  <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Source
-                                              </button>
-                                          }
-                                      </div>
-                                  }
+                  <div class="mb-4 relative">
+                      @if (viewMode() === 'inputs') {
+                          <div class="relative flex items-center">
+                              <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
+                              <input type="text" [(ngModel)]="inputSearchQuery" placeholder="Search input address..."
+                                     class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
+                              <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
+                                  {{ filteredInputs().length }}
                               </div>
                           </div>
-                      </div>
-                  }
-                  
-                  @if ((socket.txDetails()?.inputsList?.length || 0) === 0) { 
-                      <div class="text-center py-8 text-slate-600 text-sm">No input data available.</div> 
-                  } @else if (filteredInputs().length === 0) {
-                      <div class="text-center py-8 text-slate-500 text-sm">No inputs match your search.</div>
-                  }
-             }
-
-             @if (viewMode() === 'outputs') {
-                 @for (out of filteredOutputs(); track $index) {
-                  <div class="p-3 bg-slate-950 rounded border transition-all"
-                       [class.border-emerald-500]="isWhitelisted(out.address)"
-                       [class.border-amber-500]="out.isChange" 
-                       [class.border-rose-900]="!out.isChange && !isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0"
-                       [class.border-slate-800]="!out.isChange && !isWhitelisted(out.address) && (!socket.roomState()?.whitelist || socket.roomState()?.whitelist?.length === 0)">
-                      
-                      <div class="flex justify-between items-start mb-2">
-                          <div class="flex items-center gap-2 text-slate-400 text-xs">
-                              <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
-                              @if (out.isChange) {
-                                  <span class="flex items-center gap-1 text-[10px] text-amber-500 font-bold uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                                      <lucide-icon [img]="RefreshCw" class="w-3 h-3"></lucide-icon> Change
-                                  </span>
-                              } 
-                              @else if (!isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0) {
-                                  <span class="flex items-center gap-1 text-[10px] text-rose-500 font-bold uppercase tracking-wider">
-                                      <lucide-icon [img]="AlertTriangle" class="w-3 h-3"></lucide-icon> Unverified
-                                  </span>
-                              }
+                      } @else {
+                          <div class="relative flex items-center">
+                              <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
+                              <input type="text" [(ngModel)]="outputSearchQuery" placeholder="Search output address..."
+                                     class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
+                              <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
+                                  {{ filteredOutputs().length }}
+                              </div>
                           </div>
-                          <div class="text-white font-bold text-sm">{{ out.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
-                      </div>
+                      }
+                  </div>
 
-                      <div class="flex items-start gap-2">
-                          <lucide-icon [img]="out.isChange ? RefreshCw : ArrowRight" 
-                                       class="w-4 h-4 mt-0.5 shrink-0"
-                                       [class.text-amber-500]="out.isChange"
-                                       [class.text-emerald-500]="!out.isChange">
-                          </lucide-icon>
-                          
-                          <div class="flex-grow">
-                              <div class="font-mono text-xs text-slate-300 break-all leading-relaxed select-all">{{ out.address }}</div>
+                  @if (socket.isCoordinator()) {
+                    <div class="flex justify-end mb-2">
+                        @if (viewMode() === 'inputs' && (socket.txDetails()?.inputsList?.length || 0) > 3) {
+                            <button (click)="verifyAllInputs()" class="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-2 py-1 rounded transition border border-transparent hover:border-emerald-500/20 flex items-center gap-1">
+                                <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Inputs
+                            </button>
+                        }
+                        @if (viewMode() === 'outputs' && (socket.txDetails()?.outputs?.length || 0) > 3) {
+                            <button (click)="verifyAllOutputs()" class="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 px-2 py-1 rounded transition border border-transparent hover:border-cyan-500/20 flex items-center gap-1">
+                                <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Outputs
+                            </button>
+                        }
+                    </div>
+                  }
 
-                              @if (socket.isCoordinator()) {
-                                  <div class="mt-2 flex items-center gap-2">
-                                      @if (isWhitelisted(out.address)) {
-                                          <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                                              <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Destination
+                  <div class="space-y-3 flex-grow overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
+                      @if (viewMode() === 'inputs') {
+                          @for (input of filteredInputs(); track $index) {
+                              <div class="p-3 bg-slate-950 rounded border transition-all" [class.border-emerald-500]="isWhitelisted(input.address)" [class.border-slate-800]="!isWhitelisted(input.address)">
+                                  <div class="flex justify-between items-start mb-2">
+                                      <div class="flex items-center gap-2 text-slate-400 text-xs">
+                                        <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
+                                        @if (input.txId && input.txId !== '????') {
+                                            <span class="font-mono text-[10px] text-slate-600 truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
+                                        }
+                                    </div>
+                                    <div class="text-white font-bold text-sm">{{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
+                                  </div>
+                                  <div class="flex items-start gap-2">
+                                      <lucide-icon [img]="ArrowDown" class="w-4 h-4 text-slate-600 mt-0.5 shrink-0"></lucide-icon>
+                                      <div class="flex-grow">
+                                          <div class="font-mono text-xs text-slate-400 break-all leading-relaxed select-all">{{ input.address }}</div>
+                                          @if (socket.isCoordinator()) {
+                                              <div class="mt-2 flex items-center gap-2">
+                                                  @if (isWhitelisted(input.address)) {
+                                                      <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
+                                                          <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Source
+                                                      </span>
+                                                      <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">Revoke</button>
+                                                  } @else {
+                                                      <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
+                                                          <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Source
+                                                      </button>
+                                                  }
+                                              </div>
+                                          }
+                                      </div>
+                                  </div>
+                              </div>
+                          }
+                          @if ((socket.txDetails()?.inputsList?.length || 0) === 0) { 
+                              <div class="text-center py-8 text-slate-600 text-sm">No input data available.</div> 
+                          } @else if (filteredInputs().length === 0) {
+                              <div class="text-center py-8 text-slate-500 text-sm">No inputs match your search.</div>
+                          }
+                     }
+
+                     @if (viewMode() === 'outputs') {
+                         @for (out of filteredOutputs(); track $index) {
+                          <div class="p-3 bg-slate-950 rounded border transition-all" [class.border-emerald-500]="isWhitelisted(out.address)" [class.border-amber-500]="out.isChange" [class.border-rose-900]="!out.isChange && !isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0" [class.border-slate-800]="!out.isChange && !isWhitelisted(out.address) && (!socket.roomState()?.whitelist || socket.roomState()?.whitelist?.length === 0)">
+                              <div class="flex justify-between items-start mb-2">
+                                  <div class="flex items-center gap-2 text-slate-400 text-xs">
+                                      <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
+                                      @if (out.isChange) {
+                                          <span class="flex items-center gap-1 text-[10px] text-amber-500 font-bold uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                              <lucide-icon [img]="RefreshCw" class="w-3 h-3"></lucide-icon> Change
                                           </span>
-                                          <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">Revoke</button>
-                                      } @else {
-                                          <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
-                                              <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Destination
-                                          </button>
+                                      } @else if (!isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0) {
+                                          <span class="flex items-center gap-1 text-[10px] text-rose-500 font-bold uppercase tracking-wider">
+                                              <lucide-icon [img]="AlertTriangle" class="w-3 h-3"></lucide-icon> Unverified
+                                          </span>
                                       }
                                   </div>
-                              }
+                                  <div class="text-white font-bold text-sm">{{ out.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
+                              </div>
+                              <div class="flex items-start gap-2">
+                                  <lucide-icon [img]="out.isChange ? RefreshCw : ArrowRight" class="w-4 h-4 mt-0.5 shrink-0" [class.text-amber-500]="out.isChange" [class.text-emerald-500]="!out.isChange"></lucide-icon>
+                                  <div class="flex-grow">
+                                      <div class="font-mono text-xs text-slate-300 break-all leading-relaxed select-all">{{ out.address }}</div>
+                                      @if (socket.isCoordinator()) {
+                                          <div class="mt-2 flex items-center gap-2">
+                                              @if (isWhitelisted(out.address)) {
+                                                  <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
+                                                      <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Destination
+                                                  </span>
+                                                  <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">Revoke</button>
+                                              } @else {
+                                                  <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
+                                                      <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Destination
+                                                  </button>
+                                              }
+                                          </div>
+                                      }
+                                  </div>
+                              </div>
                           </div>
-                      </div>
+                         }
+                         @if (!socket.txDetails()) { 
+                             <div class="text-slate-500 text-sm text-center">Parsing transaction data...</div> 
+                         } @else if (filteredOutputs().length === 0 && (socket.txDetails()?.outputs?.length || 0) > 0) {
+                             <div class="text-center py-8 text-slate-500 text-sm">No outputs match your search.</div>
+                         }
+                     }
                   </div>
-                 }
-                 
-                 @if (!socket.txDetails()) { 
-                     <div class="text-slate-500 text-sm text-center">Parsing transaction data...</div> 
-                 } @else if (filteredOutputs().length === 0 && (socket.txDetails()?.outputs?.length || 0) > 0) {
-                     <div class="text-center py-8 text-slate-500 text-sm">No outputs match your search.</div>
-                 }
-             }
-
-          </div>
+              </div> 
+              @if (blurStates().details) {
+                  <div class="absolute inset-0 flex items-center justify-center z-10 mt-10">
+                  <button (click)="togglePrivacyBlur('details')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm transition-colors cursor-pointer">
+                      <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
+                      Hidden for Privacy
+                  </button>
+                  </div>
+              }
             </div>
         </div>
 
         <div class="lg:col-span-1">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 h-full flex flex-col">
-                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-6 flex justify-between">
-                    <span>Signers</span>
-                    <span class="text-white">{{ socket.signerCount() }} Signed</span>
-                </h3>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 h-full flex flex-col relative overflow-hidden">
+                
+                <div class="flex justify-between items-center mb-4 relative z-20">
+                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                        <lucide-icon [img]="Users" [size]="20" class="text-slate-400"></lucide-icon>
+                        Signers <span class="text-slate-500 text-sm font-medium">({{ socket.signerCount() }} Signed)</span>
+                    </h2>
+                    
+                    <button 
+                      (click)="togglePrivacyBlur('signers')" 
+                      class="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+                      [class.text-amber-500]="!blurStates().signers"
+                      [class.text-slate-400]="blurStates().signers"
+                      [title]="blurStates().signers ? 'Reveal Signers' : 'Hide Signers'">
+                      <lucide-icon [img]="blurStates().signers ? EyeOff : Eye" [size]="20"></lucide-icon>
+                    </button>
+                </div>
 
-                <div class="space-y-4 flex-grow">
-                    @for (signer of socket.signers(); track signer.fingerprint) {
-                        <div class="p-4 rounded-xl flex items-center justify-between border transition-all"
-                             [class.bg-emerald-900_30]="signer.signed"
-                             [class.border-emerald-500_30]="signer.signed"
-                             [class.bg-slate-950]="!signer.signed"
-                             [class.border-slate-800]="!signer.signed">
-                             
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-full flex items-center justify-center"
-                                     [class.bg-emerald-500_20]="signer.signed"
-                                     [class.text-emerald-400]="signer.signed"
-                                     [class.bg-slate-800]="!signer.signed"
-                                     [class.text-slate-500]="!signer.signed">
-                                    <lucide-icon [img]="signer.signed ? CheckCircle : Users" class="w-5 h-5"></lucide-icon>
-                                </div>
-                                <div>
-                                    @if (socket.isCoordinator()) {
-                                        <button (click)="openLabelModal(signer.fingerprint)" 
-                                                class="text-sm font-mono flex items-center gap-2 hover:bg-slate-800/50 -ml-1 px-1 py-0.5 rounded transition group/label text-left">
-                                            
-                                            @if (getLabel(signer.fingerprint); as label) {
-                                                <span class="text-white font-bold">{{ label }}</span>
-                                                <span class="text-slate-500 text-xs">({{ signer.fingerprint }})</span>
-                                                <lucide-icon [img]="Edit2" class="w-3 h-3 text-slate-600 group-hover/label:text-emerald-400 opacity-0 group-hover/label:opacity-100 transition"></lucide-icon>
-                                            } @else {
-                                                <span class="text-emerald-400/90 italic">Add Label</span>
-                                                <span class="text-slate-500 text-xs">({{ signer.fingerprint }})</span>
-                                                <lucide-icon [img]="Tag" class="w-3 h-3 text-emerald-400/50 group-hover/label:text-emerald-400"></lucide-icon>
-                                            }
-                                        </button>
-                                    } @else {
-                                        <div class="text-white font-medium text-sm font-mono">
-                                            {{ getSignerLabel(signer.fingerprint) }}
-                                        </div>
-                                    }
-
+                <div class="relative flex-grow flex flex-col">
+                    <div class="transition-all duration-300 flex-grow"
+                         [class.blur-md]="blurStates().signers"
+                         [class.opacity-30]="blurStates().signers"
+                         [class.select-none]="blurStates().signers"
+                         [class.pointer-events-none]="blurStates().signers">
+                         
+                        <div class="space-y-4">
+                            @for (signer of socket.signers(); track signer.fingerprint) {
+                                <div class="p-4 rounded-xl flex items-center justify-between border transition-all"
+                                     [class.bg-emerald-900_30]="signer.signed"
+                                     [class.border-emerald-500_30]="signer.signed"
+                                     [class.bg-slate-950]="!signer.signed"
+                                     [class.border-slate-800]="!signer.signed">
+                                     
                                     <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-full flex items-center justify-center"
+                                             [class.bg-emerald-500_20]="signer.signed"
+                                             [class.text-emerald-400]="signer.signed"
+                                             [class.bg-slate-800]="!signer.signed"
+                                             [class.text-slate-500]="!signer.signed">
+                                            <lucide-icon [img]="signer.signed ? CheckCircle : Users" class="w-5 h-5"></lucide-icon>
+                                        </div>
                                         <div>
-                                        <div class="flex items-center gap-2">
-                                                <div class="text-xs" [class.text-emerald-400]="signer.signed" [class.text-slate-500]="!signer.signed">
-                                                    {{ signer.signed ? 'Signed' : 'Waiting...' }}
+                                            @if (socket.isCoordinator()) {
+                                                <button (click)="openLabelModal(signer.fingerprint)" 
+                                                        class="text-sm font-mono flex items-center gap-2 hover:bg-slate-800/50 -ml-1 px-1 py-0.5 rounded transition group/label text-left">
+                                                    
+                                                    @if (getLabel(signer.fingerprint); as label) {
+                                                        <span class="text-white font-bold">{{ label }}</span>
+                                                        <span class="text-slate-500 text-xs">({{ signer.fingerprint }})</span>
+                                                        <lucide-icon [img]="Edit2" class="w-3 h-3 text-slate-600 group-hover/label:text-emerald-400 opacity-0 group-hover/label:opacity-100 transition"></lucide-icon>
+                                                    } @else {
+                                                        <span class="text-emerald-400/90 italic">Add Label</span>
+                                                        <span class="text-slate-500 text-xs">({{ signer.fingerprint }})</span>
+                                                        <lucide-icon [img]="Tag" class="w-3 h-3 text-emerald-400/50 group-hover/label:text-emerald-400"></lucide-icon>
+                                                    }
+                                                </button>
+                                            } @else {
+                                                <div class="text-white font-medium text-sm font-mono">
+                                                    {{ getSignerLabel(signer.fingerprint) }}
                                                 </div>
+                                            }
 
-                                                @if (socket.isCoordinator() && !signer.signed) {
-                                                    <button (click)="nudgeSigner(signer.fingerprint)" 
-                                                            class="p-1 text-slate-600 hover:text-amber-400 transition cursor-pointer" 
-                                                            title="Copy Nudge Message">
-                                                        <lucide-icon [img]="Bell" class="w-3 h-3"></lucide-icon>
-                                                    </button>
-                                                }
+                                            <div class="flex items-center gap-3">
+                                                <div>
+                                                <div class="flex items-center gap-2">
+                                                        <div class="text-xs" [class.text-emerald-400]="signer.signed" [class.text-slate-500]="!signer.signed">
+                                                            {{ signer.signed ? 'Signed' : 'Waiting...' }}
+                                                        </div>
+
+                                                        @if (socket.isCoordinator() && !signer.signed) {
+                                                            <button (click)="nudgeSigner(signer.fingerprint)" 
+                                                                    class="p-1 text-slate-600 hover:text-amber-400 transition cursor-pointer" 
+                                                                    title="Copy Nudge Message">
+                                                                <lucide-icon [img]="Bell" class="w-3 h-3"></lucide-icon>
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
+                                    @if (!signer.signed) { <lucide-icon [img]="Loader2" class="w-4 h-4 text-slate-600 animate-spin"></lucide-icon> }
                                 </div>
-                            </div>
-                            @if (!signer.signed) { <lucide-icon [img]="Loader2" class="w-4 h-4 text-slate-600 animate-spin"></lucide-icon> }
+                            }
+                            @if (socket.signers().length === 0) { <div class="text-center p-4 text-slate-500 text-sm">Loading Signers...</div> }
+                        </div>
+                    </div>
+
+                    @if (blurStates().signers) {
+                        <div class="absolute inset-0 flex items-center justify-center z-10">
+                            <button (click)="togglePrivacyBlur('signers')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm -mt-10 transition-colors cursor-pointer">
+                                <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
+                                Hidden for Privacy
+                            </button>
                         </div>
                     }
-                    @if (socket.signers().length === 0) { <div class="text-center p-4 text-slate-500 text-sm">Loading Signers...</div> }
                 </div>
 
-                <div class="mt-8 pt-6 border-t border-slate-800">
+                <div class="mt-8 pt-6 border-t border-slate-800 relative z-20">
                     @if (finalHex()) {
                         <div class="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-4 animate-fade-in-up">
                             <div class="flex items-center gap-3 mb-4">
@@ -1224,13 +1374,13 @@ import * as QRCode from 'qrcode';
                                 </div>
                             }
                         </div>
-                    } @else if (canFinalize) {  @if (socket.isCoordinator()) {
-                        <button (click)="finalize()" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer">
-                            <lucide-icon [img]="Shield" class="w-4 h-4"></lucide-icon> 
-                            Finalize Transaction ({{ socket.signerCount() }}/{{ requiredSignatures }})
-                        </button>
-                        
-                    } @else { <p class="text-xs text-center text-slate-500">Only the Coordinator can finalize.</p> }
+                    } @else if (canFinalize) {  
+                        @if (socket.isCoordinator()) {
+                            <button (click)="finalize()" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer">
+                                <lucide-icon [img]="Shield" class="w-4 h-4"></lucide-icon> 
+                                Finalize Transaction ({{ socket.signerCount() }}/{{ requiredSignatures }})
+                            </button>
+                        } @else { <p class="text-xs text-center text-slate-500">Only the Coordinator can finalize.</p> }
                     } @else if (socket.isCoordinator()) {
                          <button disabled class="w-full py-3.5 bg-slate-800 text-slate-500 font-bold rounded-xl border border-slate-700 cursor-not-allowed flex items-center justify-center gap-2">
                              <lucide-icon [img]="Loader2" class="w-4 h-4 animate-spin"></lucide-icon> <span>Waiting for Signatures ({{ socket.signerCount() }} / {{ socket.signers().length }})</span>
@@ -1309,6 +1459,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     readonly Eye = Eye;
     readonly EyeOff = EyeOff;
     readonly Search = Search;
+    readonly FileText = FileText;
+    readonly Network = Network;
     
     // -------------------------------------------------------------------------
     // Signals & UI State
@@ -2586,5 +2738,69 @@ export class RoomComponent implements OnInit, OnDestroy {
             this.socket.logAction('Room ID Copied', 'Copied the room identifier');
             this.closeRoomIdModal();
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // OpSec: Privacy Screen (Blur Protection)
+    // -------------------------------------------------------------------------
+    // All sections start blurred by default
+
+    blurStates = signal<Record<PrivacySection, boolean>>({
+        header: true,
+        proposal: true,
+        details: true,
+        signers: true
+    });
+
+    showPrivacyWarning = signal(false);
+    pendingUnblurSection = signal<PrivacySection | null>(null);
+
+    /**
+     * Handles the click of the Eye icon for any section.
+     * If blurred -> Prompts the warning modal.
+     * If unblurred -> Instantly re-blurs and logs it.
+     */
+    togglePrivacyBlur(section: PrivacySection) {
+        if (this.blurStates()[section]) {
+            this.pendingUnblurSection.set(section);
+            this.showPrivacyWarning.set(true);
+        } else {
+            this.blurStates.update(s => ({ ...s, [section]: true }));
+            this.socket.logAction('Privacy Toggle', `Re-blurred ${section} section`);
+        }
+    }
+
+    /**
+     * Called when the user clicks "Acknowledge & Reveal" on the modal.
+     */
+    confirmUnblur() {
+        const section = this.pendingUnblurSection();
+        if (section) {
+            this.blurStates.update(s => ({ ...s, [section]: false }));
+            this.socket.logAction('Privacy Toggle', `Revealed ${section} section`);
+        }
+        this.closePrivacyWarning();
+    }
+
+    /**
+     * Called when the user clicks "Reveal All" on the modal.
+     */
+    confirmUnblurAll() {
+        this.blurStates.set({
+            header: false,
+            proposal: false,
+            details: false,
+            signers: false
+        });
+        this.socket.logAction('Privacy Toggle', `Revealed all sections`);
+        this.closePrivacyWarning();
+    }
+
+    /**
+     * Closes the privacy warning modal without revealing.
+     */
+    closePrivacyWarning() {
+        this.showPrivacyWarning.set(false);
+        this.pendingUnblurSection.set(null);
     }
 }
