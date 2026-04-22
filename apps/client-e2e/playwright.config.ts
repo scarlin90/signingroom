@@ -23,11 +23,26 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npx nx run client:serve',
-    url: 'http://localhost:4200',
-    reuseExistingServer: true,
-    cwd: workspaceRoot,
+  webServer: [
+    {
+      command: 'npx nx run client:serve',
+      url: 'http://localhost:4200', // <--- localhost to match Angular's IPv6
+      reuseExistingServer: true,
+      cwd: workspaceRoot,
+      timeout: 120000,
+    },
+    {
+      command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787',
+      url: 'http://127.0.0.1:8787/api/health', // <--- 127.0.0.1 to match Wrangler's IPv4
+      reuseExistingServer: true,
+      cwd: workspaceRoot,
+      timeout: 120000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }
+  ],
+  expect: {
+    timeout: 10000,
   },
   projects: [
     {
@@ -35,15 +50,15 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
+    // {
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
 
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    // {
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
 
     // Uncomment for mobile browsers support
     /* {

@@ -1,4 +1,4 @@
-FROM node:20-bookworm
+FROM mcr.microsoft.com/playwright:v1.50.0-jammy
 
 WORKDIR /app
 
@@ -6,14 +6,20 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+# Install Playwright browsers (specifically Chromium for your suite)
+RUN npx playwright install chromium --with-deps
+
 # Copy source code
 COPY . .
 
-# Strip Windows CRLF line endings
-RUN sed -i 's/\r$//' run-all-tests.sh
+RUN mkdir -p apps/worker && \
+    echo "ALLOWED_ORIGIN=http://localhost:4200" > apps/worker/.dev.vars && \
+    echo "ENVIRONMENT=development" >> apps/worker/.dev.vars && \
+    echo "API_PUBLIC_URL=http://127.0.0.1:8787" >> apps/worker/.dev.vars
 
-# Setup the test script
+# Strip Windows CRLF line endings and set permissions
+RUN sed -i 's/\r$//' run-all-tests.sh
 RUN chmod +x run-all-tests.sh
 
-# Run the script
+# Run the consolidated test script
 CMD ["./run-all-tests.sh"]

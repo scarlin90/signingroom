@@ -362,7 +362,9 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
             newWidget.id = 'multisig-widget';
             newWidget.setAttribute('network', 'signet');
             newWidget.setAttribute('hide-header', false);
-            newWidget.setAttribute('relay-endpoint', 'https://signingroom.io');
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const relayUrl = isLocalhost ? 'http://localhost:4200' : 'https://signingroom.io'
+            newWidget.setAttribute('relay-endpoint', relayUrl);
             
             if (viewMode) newWidget.setAttribute('view', viewMode);
             

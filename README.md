@@ -135,12 +135,13 @@ We are actively seeking funding and grants to evolve **SigningRoom** from a stan
 - [x] Launch `signingroom-core` on Mainnet, Testnet, and Signet (v1.0)
 - [x] Deploy censorship-resistant Progressive Web App (PWA) that bypasses app stores
 
-### Phase 2: Ubiquity — 🔴 Active Grant Target (Q1 2026)
+### Phase 2: Ubiquity — 🔴 Active Grant Target (Q2 2026)
 - [x] **BIP Draft Submitted**: Standardizing Stateless Encrypted WebSocket Coordination for PSBTs
 - [x] **Web Component (`<signing-room>`)**: Drop-in HTML element for easy third-party integration
-- [ ] **Public API**: Well-documented WebSocket API for automated agents and services
+- [ ] **Stealth Room**: Prototype OHTTP with Web Transport and MASQUE
 
-### Phase 3: The UX Upgrade (Q3 2026)
+### Phase 3: The UX Upgrade (Q3/Q4 2026)
+- [ ] **Public API**: Well-documented WebSocket API for automated agents and services
 - [ ] Native iOS & Android Apps with NFC support for direct tapping of hardware wallets (Coldcard, Tapsigner, etc.)
 - [ ] Third-party security audit of all cryptographic primitives and implementation
 
@@ -205,6 +206,54 @@ Environment Variables Set these in your wrangler.jsonc or Cloudflare Dashboard:
 ALLOWED_ORIGIN: Your frontend URL (e.g., https://my-signing-room.com).
 
 ```
+
+## 🧪 Testing & Quality Assurance
+The most reliable way to run these tests—including Unit, Worker, and Playwright E2E flows—is via Docker to ensure environment isolation.
+
+### Run All Tests (Unit + E2E)
+Execute these two commands to build the test environment and run the full suite:
+
+
+#### 1. Build the test image
+```Bash
+docker build -t signing-room-tests -f Dockerfile.test .
+```
+
+#### 2. Run the suite (Unit + E2E)
+```Bash
+docker run --rm signing-room-tests
+```
+
+### Local Development Commands
+If you prefer running specific layers during active development:
+
+#### Unit Tests (Client): 
+```Bash
+npx nx run client:test
+```
+
+#### Worker Tests (Server): 
+```Bash
+npx nx run worker:test
+```
+
+#### Interactive E2E (Playwright UI): 
+> Note : To run the UI you need to remove the docker configuration from the playwright.config.ts
+
+In playwright.config.ts remove --ip 0.0.0.0 --port 8787 before running the e2e command
+```
+Before - With Docker configuration
+command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787'
+
+After - After withoutt Docker configuration - ready for playwright UI
+command: 'npx wrangler dev apps/worker/src/index.ts'
+```
+
+Run the e2e command after config change
+```Bash
+npx nx e2e client-e2e --ui
+```
+
 ## 🤝 Contributing
 We need your help. SigningRoom is a community-run project. We welcome code, documentation, translations, and security audits.
 

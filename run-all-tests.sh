@@ -16,3 +16,12 @@ npx nx run worker:test --ci --code-coverage=true --watch=false -- --max-workers=
 
 echo ""
 echo "✅ All test suites passed coverage requirements."
+
+echo "------------------------------------------------------"
+echo "🚀 RUNNING END-TO-END TESTS (PLAYWRIGHT)"
+echo "------------------------------------------------------"
+
+npx nx e2e client-e2e
+
+echo ""
+echo "✅ All test suites passed requirements."
