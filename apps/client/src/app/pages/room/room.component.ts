@@ -189,9 +189,9 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
 
             <div class="mb-4">
                 <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Label Name</label>
-                <input type="text" [(ngModel)]="editingLabel" (keyup.enter)="saveLabel()" 
-                       placeholder="e.g. Alice (Ledger)" autofocus
-                       class="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-xl block p-3 outline-none focus:border-emerald-500 transition"/>
+                <input type="text" [ngModel]="editingLabel()" (ngModelChange)="editingLabel.set($event)" (keyup.enter)="saveLabel()" 
+                    placeholder="e.g. Alice (Ledger)" autofocus
+                    class="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded-xl block p-3 outline-none focus:border-emerald-500 transition"/>
             </div>
 
             <div class="mb-6 flex items-center gap-3 cursor-pointer select-none" (click)="saveToBook.set(!saveToBook())">
@@ -314,14 +314,9 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                         </span>
                     </div>
                     
-                    <input 
-                        type="text" 
-                        [(ngModel)]="newRoomName" 
-                        (keyup.enter)="saveRoomName()"
-                        maxlength="64"  placeholder="e.g. Q1 Treasury Board Vote"
-                        class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 transition"
-                        autofocus
-                    />
+                    <input type="text" [ngModel]="newRoomName()" (ngModelChange)="newRoomName.set($event)" (keyup.enter)="saveRoomName()"
+                        maxlength="64" placeholder="e.g. Q1 Treasury Board Vote"
+                        class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 transition" autofocus />
                     
                     @if (newRoomName().length >= 64) {
                         <p class="text-xs text-red-400 animate-pulse">
@@ -850,7 +845,7 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                 <div class="p-4 border-b border-slate-800 bg-slate-950 shrink-0">
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">My Display Name</label>
                     <div class="flex gap-2">
-                        <input type="text" [(ngModel)]="personalDisplayName" (keyup.enter)="savePersonalName()"
+                        <input type="text" [ngModel]="personalDisplayName()" (ngModelChange)="personalDisplayName.set($event)" (keyup.enter)="savePersonalName()"
                             placeholder="e.g. Auditor Bob" maxlength="32"
                             class="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-lg block p-2.5 outline-none focus:border-emerald-500 transition"/>
                         <button (click)="savePersonalName()" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg transition text-sm">
@@ -1112,8 +1107,8 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                       @if (viewMode() === 'inputs') {
                           <div class="relative flex items-center">
                               <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
-                              <input type="text" [(ngModel)]="inputSearchQuery" placeholder="Search input address..."
-                                     class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
+                              <input type="text" [ngModel]="inputSearchQuery()" (ngModelChange)="inputSearchQuery.set($event)" placeholder="Search input address..."
+                                class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
                               <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
                                   {{ filteredInputs().length }}
                               </div>
@@ -1121,8 +1116,8 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                       } @else {
                           <div class="relative flex items-center">
                               <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
-                              <input type="text" [(ngModel)]="outputSearchQuery" placeholder="Search output address..."
-                                     class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
+                              <input type="text" [ngModel]="outputSearchQuery()" (ngModelChange)="outputSearchQuery.set($event)" placeholder="Search output address..."
+                                class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
                               <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
                                   {{ filteredOutputs().length }}
                               </div>

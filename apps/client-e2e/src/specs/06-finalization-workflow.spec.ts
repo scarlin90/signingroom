@@ -86,8 +86,10 @@ test.describe('Threshold Finalization and Broadcast', () => {
     expect(clipboardHex).toEqual(expectedHex);
 
     // --- Cleanup: Release resources ---
-    await coordCtx.close();
-    await aliceCtx.close();
-    await bobCtx.close();
+     await Promise.all([
+      aliceCtx.close(),
+      bobCtx.close(),
+      coordCtx.close()
+    ]);
   });
 });

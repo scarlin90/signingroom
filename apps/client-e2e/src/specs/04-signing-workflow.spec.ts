@@ -63,7 +63,9 @@ test.describe('Multi-User Signing Workflow', () => {
     await expect(guestRoom.signedCountBadge).toContainText('1 Signed');
 
     // Cleanup: Close contexts to release browser resources
-    await coordinatorContext.close();
-    await guestContext.close();
+    await Promise.all([
+      guestContext.close(),
+      coordinatorContext.close()
+    ]);
   });
 });

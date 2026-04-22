@@ -990,4 +990,72 @@ describe('RoomComponent', () => {
     });
   });
 
+  // ====================== PRIVACY & OPSEC BLUR ======================
+  
+  describe('Privacy & OpSec Blur Controls', () => {
+    it('should initialize with all sections blurred and modal hidden', () => {
+      const states = component.blurStates();
+      expect(states.header).toBe(true);
+      expect(states.proposal).toBe(true);
+      expect(states.details).toBe(true);
+      expect(states.signers).toBe(true);
+      
+      expect(component.showPrivacyWarning()).toBe(false);
+      expect(component.pendingUnblurSection()).toBeNull();
+    });
+
+    it('should open the warning modal and set pending section when clicking a blurred section', () => {
+      component.togglePrivacyBlur('details');
+      
+      expect(component.pendingUnblurSection()).toBe('details');
+      expect(component.showPrivacyWarning()).toBe(true);
+      expect(component.blurStates().details).toBe(true); 
+    });
+
+    it('should instantly re-blur an unblurred section without showing the modal', () => {
+      // Setup: manually unblur a section
+      component.blurStates.update(s => ({ ...s, header: false }));
+      
+      // Interaction: Toggle it back
+      component.togglePrivacyBlur('header');
+      
+      // Verification: Should instantly re-blur, skip modal, and log
+      expect(component.showPrivacyWarning()).toBe(false);
+      expect(component.blurStates().header).toBe(true);
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Re-blurred header section');
+    });
+
+    it('should unblur the pending section when the user confirms', () => {
+      component.togglePrivacyBlur('proposal');
+      component.confirmUnblur();
+      
+      expect(component.blurStates().proposal).toBe(false);
+      expect(component.showPrivacyWarning()).toBe(false);
+      expect(component.pendingUnblurSection()).toBeNull();
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Revealed proposal section');
+    });
+
+    it('should unblur all sections when the user selects Reveal All', () => {
+      component.confirmUnblurAll();
+      
+      const states = component.blurStates();
+      expect(states.header).toBe(false);
+      expect(states.proposal).toBe(false);
+      expect(states.details).toBe(false);
+      expect(states.signers).toBe(false);
+      
+      expect(component.showPrivacyWarning()).toBe(false);
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Revealed all sections');
+    });
+
+    it('should discard pending unblur if the modal is closed via Cancel', () => {
+      component.togglePrivacyBlur('signers');
+      component.closePrivacyWarning();
+      
+      expect(component.showPrivacyWarning()).toBe(false);
+      expect(component.pendingUnblurSection()).toBeNull();
+      expect(component.blurStates().signers).toBe(true); // Should remain safely blurred
+    });
+  });
+
 });

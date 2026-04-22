@@ -53,17 +53,23 @@ test.describe('Web Component / Embedded Integration', () => {
     await expect(hostHeaderBadge).toBeHidden({ timeout: 10000 });
 
     // --- Interaction: Credential Extraction ---
-    // Retrieve Room ID from the widget UI
-    await hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('button').click({ force: true });
-    await hostFrame.getByRole('button', { name: /Copy Room ID/i }).click({ force: true });
-    const roomId = await hostPage.evaluate(() => navigator.clipboard.readText());
-    await hostPage.keyboard.press('Escape'); 
+    // Retrieve Room ID directly from the unblurred DOM (bypasses clipboard flakiness)
+    const roomIdLocator = hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('span.font-mono');
+    await expect(roomIdLocator).not.toBeEmpty();
+    const roomId = (await roomIdLocator.innerText()).trim();
 
-    // Retrieve Decryption Key from the widget UI
+    // Retrieve Decryption Key via Clipboard with polling to prevent stale test data
+    await hostPage.evaluate(() => navigator.clipboard.writeText('')); 
     await hostFrame.getByRole('button', { name: /Link Key/i }).click({ force: true });
     await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click({ force: true });
-    const roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
-    await hostPage.keyboard.press('Escape');
+    
+    let roomKey = '';
+    await expect(async () => {
+        roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
+        expect(roomKey.length).toBeGreaterThan(10);
+    }).toPass({ timeout: 5000 });
+    
+    await hostPage.keyboard.press('Escape'); 
     
     // --- Interaction: Guest Entry via Widget Home Screen ---
     await guestPage.goto('/webcomponent-demo.html');
@@ -207,16 +213,22 @@ test.describe('Web Component / Embedded Integration', () => {
     await expect(hostHeaderBadge).toBeHidden({ timeout: 10000 });
 
     // --- Interaction: Credential Extraction ---
-    // Copy Room ID from widget to the host clipboard
-    await hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('button').click({ force: true });
-    await hostFrame.getByRole('button', { name: /Copy Room ID/i }).click({ force: true });
-    const roomId = await hostPage.evaluate(() => navigator.clipboard.readText());
-    await hostPage.keyboard.press('Escape'); 
+    // Retrieve Room ID directly from the unblurred DOM (bypasses clipboard flakiness)
+    const roomIdLocator = hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('span.font-mono');
+    await expect(roomIdLocator).not.toBeEmpty();
+    const roomId = (await roomIdLocator.innerText()).trim();
 
-    // Copy Decryption Key from widget to the host clipboard
+    // Retrieve Decryption Key via Clipboard with polling to prevent stale test data
+    await hostPage.evaluate(() => navigator.clipboard.writeText('')); 
     await hostFrame.getByRole('button', { name: /Link Key/i }).click({ force: true });
     await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click({ force: true });
-    const roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
+    
+    let roomKey = '';
+    await expect(async () => {
+        roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
+        expect(roomKey.length).toBeGreaterThan(10);
+    }).toPass({ timeout: 5000 });
+    
     await hostPage.keyboard.press('Escape');
 
     // --- Interaction: External Guest Flow (Host-side inputs) ---

@@ -89,10 +89,7 @@ test.describe('Room Management and OpSec', () => {
   });
 
   test('should record actions in the Audit Log and trigger download', async () => {
-    // --- Interaction: Generate room activity for the log ---
-    await roomPage.renameButton.click({ force: true });
-    await roomPage.renameInput.fill('Audited Room');
-    await roomPage.saveNameButton.click();
+    // --- Interaction: room activity already generated with unveal for the log ---
 
     // --- Interaction: Open audit modal and prepare download listener ---
     await roomPage.auditLogButton.click({ force: true });
