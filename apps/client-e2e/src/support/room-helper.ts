@@ -18,7 +18,7 @@ export function getFixtureContent(fileName: string) {
   return fs.readFileSync(getFixturePath(fileName), 'utf-8');
 }
 
-export async function launchRoomFromFixture(page: Page, fileName: string, network: 'bitcoin' | 'testnet' | 'signet' = 'signet') {
+export async function launchRoomFromFixture(page: Page, fileName: string, network: 'bitcoin' | 'testnet' | 'signet' = 'signet', autoReveal = true) {
   const createPage = new CreatePage(page);
   await createPage.navigate();
   await createPage.launchButton.click();
@@ -29,17 +29,34 @@ export async function launchRoomFromFixture(page: Page, fileName: string, networ
   await createPage.startCeremonyButton.click();
   
   const roomPage = new RoomPage(page);
+
+  if (autoReveal) {
+      await expect(roomPage.headerHiddenBadge).toBeVisible();
+      await roomPage.headerHiddenBadge.click();
+      await expect(roomPage.privacyModalRevealAll).toBeVisible();
+      await roomPage.privacyModalRevealAll.click();
+      await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
+  }
+
   await expect(roomPage.activeIndicator).toBeVisible();
   await expect(roomPage.connectionLostBanner).toBeHidden();
   return roomPage;
 }
 
-export async function joinRoomFromLink(page: Page, link: string) {
+export async function joinRoomFromLink(page: Page, link: string, autoReveal = true) {
   const roomPage = new RoomPage(page);
   await page.goto(link);
+  
+  if (autoReveal) {
+      await expect(roomPage.headerHiddenBadge).toBeVisible();
+      await roomPage.headerHiddenBadge.click();
+      await expect(roomPage.privacyModalRevealAll).toBeVisible();
+      await roomPage.privacyModalRevealAll.click();
+      await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
+  }
+
   await expect(roomPage.activeIndicator).toBeVisible();
   await expect(roomPage.page.getByText('Transaction Proposal')).toBeVisible();
-
   await expect(roomPage.connectionLostBanner).toBeHidden();
 
   return roomPage;

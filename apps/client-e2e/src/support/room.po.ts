@@ -70,7 +70,21 @@ export class RoomPage {
   readonly labelNameInput: Locator;
   readonly saveLabelButton: Locator;
 
-  readonly okButton: Locator; // <-- ADD THIS
+  readonly okButton: Locator;
+
+  // Privacy & OpSec Controls
+  readonly privacyModalRevealSection: Locator;
+  readonly privacyModalRevealAll: Locator;
+  
+  readonly headerHiddenBadge: Locator;
+  readonly headerEyeToggle: Locator;
+  readonly proposalHiddenBadge: Locator;
+  readonly proposalEyeToggle: Locator;
+  readonly proposalContainer: Locator;
+  readonly detailsHiddenBadge: Locator;
+  readonly detailsEyeToggle: Locator;
+  readonly signersHiddenBadge: Locator;
+  readonly signersEyeToggle: Locator;
   
 
   constructor(page: Page) {
@@ -105,8 +119,8 @@ export class RoomPage {
     this.csvActionButton = page.getByRole('button', { name: 'CSV', exact: true });
     this.csvDownloadButton = page.getByRole('button', { name: 'Download CSV', exact: true });
     this.connectionLostBanner = page.getByText(/Connection lost... Reconnecting/i);
-    this.signerList = page.locator('div.space-y-4.flex-grow');
-    this.signedCountBadge = page.locator('h3').filter({ hasText: 'Signers' }).locator('span.text-white');
+    this.signerList = page.locator('div.space-y-4');
+    this.signedCountBadge = page.locator('h2').filter({ hasText: 'Signers' }).locator('span.text-slate-500');
     this.roomIdButton = page.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('button');
     this.roomIdModalCopyButton = page.getByRole('button', { name: /Copy Room ID/i });
     this.sessionsModal = page.locator('div.max-w-md').filter({ has: page.getByRole('heading', { name: 'Active Sessions' }) });
@@ -151,6 +165,23 @@ export class RoomPage {
     this.saveLabelButton = page.getByRole('button', { name: 'Save Label' });
 
     this.okButton = page.getByRole('button', { name: 'OK', exact: true });
+
+    // Modal Buttons
+    this.privacyModalRevealSection = this.page.getByRole('button', { name: 'Reveal Section' });
+    this.privacyModalRevealAll = this.page.getByRole('button', { name: 'Reveal All' });
+
+    // The large center badges (Located sequentially top-to-bottom)
+    this.proposalContainer = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: 'Transaction Proposal' }) }).first();
+    this.headerHiddenBadge = this.page.getByRole('button', { name: 'Hidden for Privacy' }).nth(0);
+    this.proposalHiddenBadge = this.page.getByRole('button', { name: 'Hidden for Privacy' }).nth(1);
+    this.detailsHiddenBadge = this.page.getByRole('button', { name: 'Hidden for Privacy' }).nth(2);
+    this.signersHiddenBadge = this.page.getByRole('button', { name: 'Hidden for Privacy' }).nth(3);
+
+    // The Eye Toggles
+    this.headerEyeToggle = this.page.locator('button[title="Reveal Header"], button[title="Hide Header"]');
+    this.proposalEyeToggle = this.page.locator('button[title="Reveal Proposal"], button[title="Hide Proposal"]');
+    this.detailsEyeToggle = this.page.locator('button[title="Reveal Details"], button[title="Hide Details"]');
+    this.signersEyeToggle = this.page.locator('button[title="Reveal Signers"], button[title="Hide Signers"]');
     
   }
 
