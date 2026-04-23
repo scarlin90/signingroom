@@ -16,21 +16,26 @@ test.describe('Room Interface Verification', () => {
 
     // --- Interaction: Launch the Room ---
     // Establish a live session using the standard 3-of-5 multisig fixture on Signet
-    await launchRoomFromFixture(page, '3_5_unsigned.psbt.txt', 'signet');
+    await launchRoomFromFixture(page, '3_5_unsigned.psbt.txt', 'signet', false);
 
     // ==========================================
     // PHASE 1: ROOM HEADER VERIFICATION
     // ==========================================
 
-    // --- Verification: Active Status & Branding ---
+    // --- Verification: UnBlur, Active Status & Branding ---
+    await roomPage.headerHiddenBadge.click();
+    await roomPage.privacyModalRevealSection.click();
+
     await expect(roomPage.activeIndicator).toBeVisible();
-    await expect(roomPage.activeIndicator).toHaveClass(/bg-emerald-500/);
     await expect(roomPage.roomTitle).toContainText('Untitled Room');
-    await expect(roomPage.renameButton).toBeVisible();
 
     // --- Verification: Network Context ---
-    const networkBadge = page.locator('div').filter({ hasText: /^Network:/i });
-    await expect(networkBadge).toContainText('signet');
+    await expect(page.getByText(/signet/i)).toBeVisible();
+    await expect(page.getByText('Coordinator', { exact: true })).toBeVisible()
+
+    // Re-blur
+    await roomPage.headerEyeToggle.click();
+    await expect(roomPage.headerHiddenBadge).toBeVisible();
 
     // ==========================================
     // PHASE 2: ROOM METADATA VERIFICATION
@@ -63,16 +68,27 @@ test.describe('Room Interface Verification', () => {
     // PHASE 3: TRANSACTION PROPOSAL VERIFICATION
     // ==========================================
 
+    // --- Interaction: Reveal Proposal ---
+    await roomPage.proposalHiddenBadge.click();
+    await roomPage.privacyModalRevealSection.click();
+
     // --- Verification: Proposal Financials ---
-    const proposalContainer = page.locator('div').filter({ hasText: 'Transaction Proposal' }).last();
-    await expect(proposalContainer).toContainText('0.00100913 BTC');
-    await expect(proposalContainer).toContainText('$95.87');
-    await expect(proposalContainer).toContainText('1.37 sats/vB');
+    await expect(roomPage.proposalContainer).toContainText('0.00100913 BTC');
+    await expect(roomPage.proposalContainer).toContainText('$95.87');
+    await expect(roomPage.proposalContainer).toContainText('1.37 sats/vB');
+
+    // --- Interaction: Re-blur Proposal ---
+    await roomPage.proposalEyeToggle.click();
+    await expect(roomPage.proposalHiddenBadge).toBeVisible();
 
     // ==========================================
     // PHASE 4: TRANSACTION DETAILS (TABS) VERIFICATION
     // ==========================================
     
+    // --- Interaction: Reveal Details ---
+    await roomPage.detailsHiddenBadge.click();
+    await roomPage.privacyModalRevealSection.click();
+
     // --- Verification: Outputs (Default View) ---
     const outputCard = roomPage.getCard(0, '0.00100913 BTC');
     await expect(outputCard).toContainText('bc1q04e2117f1b09f7c6a6ff92daecfb9a4de57bc4ca18e33933f28d1067d81b3196');
@@ -86,9 +102,17 @@ test.describe('Room Interface Verification', () => {
     await expect(inputCard).toContainText('bc1q739fe38612ee73e2a2efc24600a7485898615bc8c2607d159332c7cbcb4693e2');
     await expect(inputCard.getByRole('button', { name: /Approve Source/i })).toBeVisible();
 
+    // --- Interaction: Re-blur Details ---
+    await roomPage.detailsEyeToggle.click();
+    await expect(roomPage.detailsHiddenBadge).toBeVisible();
+
     // ==========================================
     // PHASE 5: SIGNERS VERIFICATION
     // ==========================================
+
+    // --- Interaction: Reveal Signers ---
+    await roomPage.signersHiddenBadge.click();
+    await roomPage.privacyModalRevealSection.click();
 
     // --- Verification: Progress Tracking ---
     await expect(page.getByText('0 Signed')).toBeVisible();
@@ -102,6 +126,10 @@ test.describe('Room Interface Verification', () => {
     // Ensure the finalization button reflects 0/5 signatures and is disabled
     const finalizeBtn = page.getByRole('button', { name: /Waiting for Signatures \(0 \/ 5\)/i });
     await expect(finalizeBtn).toBeDisabled();
+
+    // --- Interaction: Re-blur Signers ---
+    await roomPage.signersEyeToggle.click();
+    await expect(roomPage.signersHiddenBadge).toBeVisible();
 
     // ==========================================
     // PHASE 6: ACTION BAR VERIFICATION

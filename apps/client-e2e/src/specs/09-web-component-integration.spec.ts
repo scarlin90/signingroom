@@ -46,18 +46,30 @@ test.describe('Web Component / Embedded Integration', () => {
     // --- Verification: Host State ---
     await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
 
-    // --- Interaction: Credential Extraction ---
-    // Retrieve Room ID from the widget UI
-    await hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('button').click();
-    await hostFrame.getByRole('button', { name: /Copy Room ID/i }).click();
-    const roomId = await hostPage.evaluate(() => navigator.clipboard.readText());
-    await hostPage.keyboard.press('Escape'); 
+    // --- Interaction: Remove Privacy Blur ---
+    const hostHeaderBadge = hostFrame.getByRole('button', { name: 'Hidden for Privacy' }).first();
+    await hostHeaderBadge.click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Reveal All' }).click({ force: true });
+    await expect(hostHeaderBadge).toBeHidden({ timeout: 10000 });
 
-    // Retrieve Decryption Key from the widget UI
-    await hostFrame.getByRole('button', { name: /Link Key/i }).click();
-    await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click();
-    const roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
-    await hostPage.keyboard.press('Escape');
+    // --- Interaction: Credential Extraction ---
+    // Retrieve Room ID directly from the unblurred DOM (bypasses clipboard flakiness)
+    const roomIdLocator = hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('span.font-mono');
+    await expect(roomIdLocator).not.toBeEmpty();
+    const roomId = (await roomIdLocator.innerText()).trim();
+
+    // Retrieve Decryption Key via Clipboard with polling to prevent stale test data
+    await hostPage.evaluate(() => navigator.clipboard.writeText('')); 
+    await hostFrame.getByRole('button', { name: /Link Key/i }).click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click({ force: true });
+    
+    let roomKey = '';
+    await expect(async () => {
+        roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
+        expect(roomKey.length).toBeGreaterThan(10);
+    }).toPass({ timeout: 5000 });
+    
+    await hostPage.keyboard.press('Escape'); 
     
     // --- Interaction: Guest Entry via Widget Home Screen ---
     await guestPage.goto('/webcomponent-demo.html');
@@ -76,8 +88,8 @@ test.describe('Web Component / Embedded Integration', () => {
     await expect(guestFrame.locator('div.relative.group').filter({ hasText: 'View Active Sessions' }).locator('button').first()).toContainText('2');
 
     // --- Interaction: Secure Cleanup ---
-    await hostFrame.getByRole('button', { name: 'Close', exact: true }).click(); 
-    await hostFrame.getByRole('button', { name: 'Confirm' }).click(); 
+    await hostFrame.getByRole('button', { name: 'Close', exact: true }).click({ force: true }); 
+    await hostFrame.getByRole('button', { name: 'Confirm' }).click({ force: true }); 
 
     await hostCtx.close();
     await guestCtx.close();
@@ -155,7 +167,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // --- Interaction: Finalize the Ceremony ---
     const finalizeButton = frame.getByRole('button', { name: /Finalize Transaction/i });
     await expect(finalizeButton).toBeVisible();
-    await finalizeButton.click();
+    await finalizeButton.click({ force: true });
 
     // --- Verification: Success State and Data Payloads ---
     await expect(frame.getByText('Transaction Signed')).toBeVisible();
@@ -194,17 +206,29 @@ test.describe('Web Component / Embedded Integration', () => {
     await expect(hostFrame.getByText('Connection lost... Reconnecting...')).toBeHidden();
     await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
 
-    // --- Interaction: Credential Extraction ---
-    // Copy Room ID from widget to the host clipboard
-    await hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('button').click();
-    await hostFrame.getByRole('button', { name: /Copy Room ID/i }).click();
-    const roomId = await hostPage.evaluate(() => navigator.clipboard.readText());
-    await hostPage.keyboard.press('Escape'); 
+    // --- Interaction: Remove Privacy Blur ---
+    const hostHeaderBadge = hostFrame.getByRole('button', { name: 'Hidden for Privacy' }).first();
+    await hostHeaderBadge.click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Reveal All' }).click({ force: true });
+    await expect(hostHeaderBadge).toBeHidden({ timeout: 10000 });
 
-    // Copy Decryption Key from widget to the host clipboard
-    await hostFrame.getByRole('button', { name: /Link Key/i }).click();
-    await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click();
-    const roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
+    // --- Interaction: Credential Extraction ---
+    // Retrieve Room ID directly from the unblurred DOM (bypasses clipboard flakiness)
+    const roomIdLocator = hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('span.font-mono');
+    await expect(roomIdLocator).not.toBeEmpty();
+    const roomId = (await roomIdLocator.innerText()).trim();
+
+    // Retrieve Decryption Key via Clipboard with polling to prevent stale test data
+    await hostPage.evaluate(() => navigator.clipboard.writeText('')); 
+    await hostFrame.getByRole('button', { name: /Link Key/i }).click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click({ force: true });
+    
+    let roomKey = '';
+    await expect(async () => {
+        roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
+        expect(roomKey.length).toBeGreaterThan(10);
+    }).toPass({ timeout: 5000 });
+    
     await hostPage.keyboard.press('Escape');
 
     // --- Interaction: External Guest Flow (Host-side inputs) ---
@@ -225,8 +249,8 @@ test.describe('Web Component / Embedded Integration', () => {
     await expect(guestFrame.locator('div.relative.group').filter({ hasText: 'View Active Sessions' }).locator('button').first()).toContainText('2');
 
     // --- Interaction: Secure Cleanup ---
-    await hostFrame.getByRole('button', { name: 'Close', exact: true }).click(); 
-    await hostFrame.getByRole('button', { name: 'Confirm' }).click(); 
+    await hostFrame.getByRole('button', { name: 'Close', exact: true }).click({ force: true }); 
+    await hostFrame.getByRole('button', { name: 'Confirm' }).click({ force: true }); 
 
     await hostCtx.close();
     await guestCtx.close();

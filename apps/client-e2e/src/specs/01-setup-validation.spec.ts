@@ -50,4 +50,28 @@ test.describe('Create Room Validation', () => {
     // Verify that a valid parse enables the next stage of the workflow
     await expect(createPage.startCeremonyButton).toBeEnabled();
   });
+
+  test('should parse v0 P2WPKH PSBT and display High Fee warning without blocking creation', async () => {
+    // --- Interaction: Upload single-sig v0 PSBT with a high fee ---
+    await createPage.selectNetwork('bitcoin');
+    await createPage.fileInput.setInputFiles(getFixturePath('v0_P2WPKH_high_fee.txt'));
+
+    // --- Verification: Warnings and non-blocking behavior ---
+    await expect(createPage.page.getByText(/High Fee Detected/i)).toBeVisible();
+    
+    // Ensure the parser handled the P2WPKH non-multisig format and allows continuation
+    await expect(createPage.startCeremonyButton).toBeEnabled();
+  });
+
+  test('should parse v2 P2WPKH PSBT and display High Fee warning without blocking creation', async () => {
+    // --- Interaction: Upload single-sig v2 PSBT with a high fee ---
+    await createPage.selectNetwork('bitcoin');
+    await createPage.fileInput.setInputFiles(getFixturePath('v2_P2WPKH_high_fee.txt'));
+
+    // --- Verification: Warnings and non-blocking behavior ---
+    await expect(createPage.page.getByText(/High Fee Detected/i)).toBeVisible();
+    
+    // Ensure the parser handled the v2 P2WPKH non-multisig format and allows continuation
+    await expect(createPage.startCeremonyButton).toBeEnabled();
+  });
 });
