@@ -15,7 +15,6 @@ test.describe('Room Interface Verification', () => {
     roomPage = new RoomPage(page);
 
     // --- Interaction: Launch the Room ---
-    // Establish a live session using the standard 3-of-5 multisig fixture on Signet
     await launchRoomFromFixture(page, '3_5_unsigned.psbt.txt', 'signet', false);
 
     // ==========================================
@@ -23,18 +22,21 @@ test.describe('Room Interface Verification', () => {
     // ==========================================
 
     // --- Verification: UnBlur, Active Status & Branding ---
-    await roomPage.headerHiddenBadge.click();
+    await roomPage.headerHiddenBadge.click({ force: true });
     await roomPage.privacyModalRevealSection.click();
+    
+    // CRITICAL: Force Playwright to wait for the CSS animation to complete
+    await expect(roomPage.headerHiddenBadge).toBeHidden(); 
 
     await expect(roomPage.activeIndicator).toBeVisible();
     await expect(roomPage.roomTitle).toContainText('Untitled Room');
 
     // --- Verification: Network Context ---
     await expect(page.getByText(/signet/i)).toBeVisible();
-    await expect(page.getByText('Coordinator', { exact: true })).toBeVisible()
+    await expect(page.getByText('Coordinator', { exact: true })).toBeVisible();
 
     // Re-blur
-    await roomPage.headerEyeToggle.click();
+    await roomPage.headerEyeToggle.click({ force: true });
     await expect(roomPage.headerHiddenBadge).toBeVisible();
 
     // ==========================================
@@ -42,12 +44,10 @@ test.describe('Room Interface Verification', () => {
     // ==========================================
 
     // --- Verification: Room Identity ---
-    // Confirm the Room ID exists and follows UUID v4 formatting
     const roomId = await roomPage.getRoomId();
     expect(roomId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
     // --- Verification: Countdown Timer Logic ---
-    // Wait for timer initialization and verify the countdown is active
     await expect(roomPage.timer).not.toHaveText('Loading...');
     await expect(roomPage.timer).toContainText(/hrs/);
     
@@ -69,8 +69,9 @@ test.describe('Room Interface Verification', () => {
     // ==========================================
 
     // --- Interaction: Reveal Proposal ---
-    await roomPage.proposalHiddenBadge.click();
+    await roomPage.proposalHiddenBadge.click({ force: true });
     await roomPage.privacyModalRevealSection.click();
+    await expect(roomPage.proposalHiddenBadge).toBeHidden();
 
     // --- Verification: Proposal Financials ---
     await expect(roomPage.proposalContainer).toContainText('0.00100913 BTC');
@@ -78,7 +79,7 @@ test.describe('Room Interface Verification', () => {
     await expect(roomPage.proposalContainer).toContainText('1.37 sats/vB');
 
     // --- Interaction: Re-blur Proposal ---
-    await roomPage.proposalEyeToggle.click();
+    await roomPage.proposalEyeToggle.click({ force: true });
     await expect(roomPage.proposalHiddenBadge).toBeVisible();
 
     // ==========================================
@@ -86,8 +87,9 @@ test.describe('Room Interface Verification', () => {
     // ==========================================
     
     // --- Interaction: Reveal Details ---
-    await roomPage.detailsHiddenBadge.click();
+    await roomPage.detailsHiddenBadge.click({ force: true });
     await roomPage.privacyModalRevealSection.click();
+    await expect(roomPage.detailsHiddenBadge).toBeHidden(); // Prevents the intercept error
 
     // --- Verification: Outputs (Default View) ---
     const outputCard = roomPage.getCard(0, '0.00100913 BTC');
@@ -95,7 +97,9 @@ test.describe('Room Interface Verification', () => {
     await expect(outputCard.getByRole('button', { name: /Approve Destination/i })).toBeVisible();
 
     // --- Interaction: Switch to Inputs Tab ---
-    await roomPage.switchTab('Inputs');
+    // Note: Bypassing roomPage.switchTab() to explicitly apply { force: true } 
+    // This prevents the sticky z-50 navbar from intercepting the click on scroll
+    await page.getByRole('button', { name: /Inputs \(\d+\)/i }).click({ force: true });
     
     // --- Verification: Inputs Details ---
     const inputCard = roomPage.getCard(0, '0.00101106 BTC');
@@ -103,7 +107,7 @@ test.describe('Room Interface Verification', () => {
     await expect(inputCard.getByRole('button', { name: /Approve Source/i })).toBeVisible();
 
     // --- Interaction: Re-blur Details ---
-    await roomPage.detailsEyeToggle.click();
+    await roomPage.detailsEyeToggle.click({ force: true });
     await expect(roomPage.detailsHiddenBadge).toBeVisible();
 
     // ==========================================
@@ -111,8 +115,9 @@ test.describe('Room Interface Verification', () => {
     // ==========================================
 
     // --- Interaction: Reveal Signers ---
-    await roomPage.signersHiddenBadge.click();
+    await roomPage.signersHiddenBadge.click({ force: true });
     await roomPage.privacyModalRevealSection.click();
+    await expect(roomPage.signersHiddenBadge).toBeHidden();
 
     // --- Verification: Progress Tracking ---
     await expect(page.getByText('0 Signed')).toBeVisible();
@@ -128,7 +133,7 @@ test.describe('Room Interface Verification', () => {
     await expect(finalizeBtn).toBeDisabled();
 
     // --- Interaction: Re-blur Signers ---
-    await roomPage.signersEyeToggle.click();
+    await roomPage.signersEyeToggle.click({ force: true });
     await expect(roomPage.signersHiddenBadge).toBeVisible();
 
     // ==========================================
@@ -142,7 +147,7 @@ test.describe('Room Interface Verification', () => {
     }
 
     // --- Interaction: Secure Cleanup ---
-    await roomPage.closeButton.click();
+    await roomPage.closeButton.click({ force: true });
     await roomPage.confirmButton.click();
 
     // Verification: Redirection

@@ -170,18 +170,27 @@ export class RoomPage {
     this.privacyModalRevealSection = this.page.getByRole('button', { name: 'Reveal Section' });
     this.privacyModalRevealAll = this.page.getByRole('button', { name: 'Reveal All' });
 
-    // The large center badges (Located sequentially top-to-bottom)
-    this.proposalContainer = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: 'Transaction Proposal' }) }).first();
-    this.headerHiddenBadge = this.page.getByRole('button', { name: 'Hidden for Privacy' }).nth(0);
-    this.proposalHiddenBadge = this.page.getByRole('button', { name: 'Hidden for Privacy' }).nth(1);
-    this.detailsHiddenBadge = this.page.getByRole('button', { name: 'Hidden for Privacy' }).nth(2);
-    this.signersHiddenBadge = this.page.getByRole('button', { name: 'Hidden for Privacy' }).nth(3);
+    // Header: Scoped to the first rounded card that contains the Room Overview
+    const headerContainer = page.locator('div.bg-slate-900\\/80').filter({ hasText: 'Room Overview' }).first();
+    this.headerHiddenBadge = headerContainer.getByRole('button', { name: 'Hidden for Privacy' });
 
-    // The Eye Toggles
-    this.headerEyeToggle = this.page.locator('button[title="Reveal Header"], button[title="Hide Header"]');
-    this.proposalEyeToggle = this.page.locator('button[title="Reveal Proposal"], button[title="Hide Proposal"]');
-    this.detailsEyeToggle = this.page.locator('button[title="Reveal Details"], button[title="Hide Details"]');
-    this.signersEyeToggle = this.page.locator('button[title="Reveal Signers"], button[title="Hide Signers"]');
+    // Proposal: Scoped to the specific Proposal container card
+    this.proposalContainer = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: 'Transaction Proposal' }) }).first();
+    this.proposalHiddenBadge = this.proposalContainer.getByRole('button', { name: 'Hidden for Privacy' });
+
+    // Details: Scoped to the Details container card
+    const detailsContainer = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: 'Transaction Details' }) }).first();
+    this.detailsHiddenBadge = detailsContainer.getByRole('button', { name: 'Hidden for Privacy' });
+
+    // Signers: Scoped to the Signers container card
+    const signersContainer = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: /Signers/i }) }).first();
+    this.signersHiddenBadge = signersContainer.getByRole('button', { name: 'Hidden for Privacy' });
+
+    // The Eye Toggles (Also scoped to their specific containers for maximum resilience)
+    this.headerEyeToggle = headerContainer.locator('button[title="Reveal Header"], button[title="Hide Header"]');
+    this.proposalEyeToggle = this.proposalContainer.locator('button[title="Reveal Proposal"], button[title="Hide Proposal"]');
+    this.detailsEyeToggle = detailsContainer.locator('button[title="Reveal Details"], button[title="Hide Details"]');
+    this.signersEyeToggle = signersContainer.locator('button[title="Reveal Signers"], button[title="Hide Signers"]');
     
   }
 
