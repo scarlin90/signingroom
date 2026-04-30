@@ -11,6 +11,7 @@ permissions:
 jobs:
   deploy-dev-environment:
     runs-on: ubuntu-latest
+    environment: development
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -34,7 +35,8 @@ jobs:
           projectName: 'signingroom-web-dev' 
           directory: 'dist/apps/client/browser'
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'development'
+          branch: 'main'
+          gitHubEnvironment: 'development'
 
       - name: Deploy Backend to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
