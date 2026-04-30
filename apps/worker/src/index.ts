@@ -512,7 +512,7 @@ export class SigningRoom implements DurableObject {
           this.roomState.signatures.push(msg.data.encryptedData); 
           await this.state.storage.put('data', this.roomState);
           
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint });
         }
 
