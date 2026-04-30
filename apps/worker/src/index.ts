@@ -229,10 +229,48 @@ export class SigningRoom implements DurableObject {
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
-    // Load state from disk (if any exists from a previous hibernation)
+
     this.state.blockConcurrencyWhile(async () => {
-      this.roomState = await this.state.storage.get('data');
+      this.roomState = await this.loadRoomState();
     });
+  }
+
+  async saveRoomState() {
+    if (!this.roomState) return;
+    const json = JSON.stringify(this.roomState);
+    const chunkSize = 100 * 1024;
+
+    if (json.length < chunkSize) {
+      await this.state.storage.put('data', json);
+      await this.state.storage.delete('data_chunks');
+      return;
+    }
+
+    const chunks = Math.ceil(json.length / chunkSize);
+    const storageObj: Record<string, any> = { 'data_chunks': chunks };
+    
+    for (let i = 0; i < chunks; i++) {
+      storageObj[`data_${i}`] = json.slice(i * chunkSize, (i + 1) * chunkSize);
+    }
+    
+    await this.state.storage.put(storageObj);
+    await this.state.storage.delete('data');
+  }
+
+  async loadRoomState() {
+    const chunkCount = await this.state.storage.get<number>('data_chunks');
+    
+    if (chunkCount) {
+      let json = '';
+      for (let i = 0; i < chunkCount; i++) {
+        const chunk = await this.state.storage.get<string>(`data_${i}`);
+        if (chunk) json += chunk;
+      }
+      return JSON.parse(json);
+    }
+    
+    const legacyData = await this.state.storage.get<any>('data');
+    return typeof legacyData === 'string' ? JSON.parse(legacyData) : legacyData;
   }
 
   async log(encryptedLogBlob: string) {
@@ -243,7 +281,7 @@ export class SigningRoom implements DurableObject {
     
     this.roomState.auditLog.push(encryptedLogBlob);
     
-    await this.state.storage.put('data', this.roomState);
+    await this.saveRoomState();
     this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
   }
 
@@ -284,7 +322,7 @@ export class SigningRoom implements DurableObject {
           this.roomState.auditLog.push(encryptedLogBlob);
       }
 
-      await this.state.storage.put('data', this.roomState);
+      await this.saveRoomState();
       await this.state.storage.setAlarm(now + (ttlSeconds * 1000));
       return new Response('OK');
     }
@@ -333,7 +371,7 @@ export class SigningRoom implements DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  handleSession(webSocket: WebSocket, ip: string) {
+  async handleSession(webSocket: WebSocket, ip: string) {
     if (!this.roomState) {
       webSocket.accept();
       webSocket.send(JSON.stringify({ type: 'ERROR_NOT_FOUND' }));
@@ -373,7 +411,7 @@ export class SigningRoom implements DurableObject {
 
     if (!this.roomState.participants) this.roomState.participants = {};
     this.roomState.participants[sessionId] = { id: sessionId, role: 'guest' };
-    this.state.storage.put('data', this.roomState);
+    await this.saveRoomState();
     this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
 
     webSocket.send(JSON.stringify({ type: 'SESSION_CONNECTED', sessionId: sessionId }));
@@ -442,7 +480,7 @@ export class SigningRoom implements DurableObject {
 
               if (this.roomState.participants && this.roomState.participants[session.id]) {
                   this.roomState.participants[session.id].role = 'admin';
-                  await this.state.storage.put('data', this.roomState);
+                  await this.saveRoomState();
                   this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
               }
 
@@ -465,7 +503,7 @@ export class SigningRoom implements DurableObject {
             // msg.label is now a secure Base64 blob, so no need to sanitize!
             this.roomState.signerLabels[msg.fingerprint] = msg.label;
             
-            await this.state.storage.put('data', this.roomState);
+            await this.saveRoomState();
             
             this.log(msg.encryptedLogBlob);
             this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
@@ -479,7 +517,7 @@ export class SigningRoom implements DurableObject {
 
             if (this.roomState.participants && this.roomState.participants[session.id]) {
                 this.roomState.participants[session.id].encryptedDisplayName = safeName;
-                await this.state.storage.put('data', this.roomState);
+                await this.saveRoomState();
                 this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
             }
             
@@ -489,7 +527,7 @@ export class SigningRoom implements DurableObject {
         // Rename Room (Admin Only)
         if (msg.type === 'RENAME_ROOM' && session?.role === 'admin') {
           this.roomState.roomName = msg.encryptedName; 
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           
           await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'ROOM_RENAMED', encryptedName: msg.encryptedName });
@@ -510,7 +548,7 @@ export class SigningRoom implements DurableObject {
           }
           
           this.roomState.signatures.push(msg.data.encryptedData); 
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           
           await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint });
@@ -535,7 +573,7 @@ export class SigningRoom implements DurableObject {
         // Whitelist Management (Admin Only)
         if (msg.type === 'UPDATE_WHITELIST' && session?.role === 'admin') {
           this.roomState.whitelist = msg.encryptedWhitelist; 
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           
           await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
@@ -545,7 +583,7 @@ export class SigningRoom implements DurableObject {
         // Room Lock (Admin Only)
         if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {
           this.roomState.isLocked = msg.locked;
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'LOCK_UPDATED', isLocked: this.roomState.isLocked });
         }
@@ -554,7 +592,7 @@ export class SigningRoom implements DurableObject {
         if (msg.type === 'TX_FINALIZED' && session?.role === 'admin') {
           this.roomState.encryptedFinalTxHex = msg.encryptedFinalTxHex;
           this.roomState.encryptedFinalTxId = msg.encryptedFinalTxId;
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           
           await this.log(msg.encryptedLogBlob);
           
