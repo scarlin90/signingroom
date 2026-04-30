@@ -25,7 +25,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Build Angular Client (Nx)
-        run: npx nx build client --configuration=development
+        run: npx nx build client --configuration=hosted-dev
 
       - name: Deploy Frontend to Cloudflare Pages
         uses: cloudflare/pages-action@v1
@@ -36,7 +36,6 @@ jobs:
           directory: 'dist/apps/client/browser'
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           branch: 'main'
-          gitHubEnvironment: 'development'
 
       - name: Deploy Backend to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
