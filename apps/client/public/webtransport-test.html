@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signing Room - WebTransport Spike</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            background: #0f172a; 
+            color: #cbd5e1; 
+            padding: 2rem; 
+            max-width: 800px; 
+            margin: 0 auto; 
+        }
+        h1 { color: #f8fafc; font-size: 1.5rem; }
+        .panel { 
+            background: #1e293b; 
+            padding: 1.5rem; 
+            border-radius: 8px; 
+            border: 1px solid #334155; 
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .input-group {
+            display: flex; 
+            margin-bottom: 1.5rem; 
+            gap: 1rem;
+        }
+        input { 
+            padding: 0.75rem; 
+            border-radius: 6px; 
+            border: 1px solid #475569; 
+            background: #0f172a; 
+            color: white; 
+            flex-grow: 1; 
+            font-family: monospace;
+        }
+        button { 
+            padding: 0.75rem 1.5rem; 
+            border-radius: 6px; 
+            border: none; 
+            background: #3b82f6; 
+            color: white; 
+            cursor: pointer; 
+            font-weight: 600; 
+            transition: background 0.2s;
+        }
+        button:hover { background: #2563eb; }
+        .terminal { 
+            background: #020617; 
+            padding: 1rem; 
+            border-radius: 6px; 
+            overflow-x: auto; 
+            min-height: 250px; 
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            border: 1px solid #1e293b;
+        }
+        .error { color: #ef4444; }
+        .info { color: #94a3b8; }
+        .success { color: #10b981; }
+        .action { color: #38bdf8; }
+    </style>
+</head>
+<body>
+    <h1>Blind Relay: WebTransport (HTTP/3) Proxy Spike</h1>
+    
+    <div class="panel">
+        <p>Ensure your PR preview URL is correct.</p>
+        
+        <div class="input-group" style="flex-wrap: wrap;">
+            <input type="text" id="roomIdInput" style="flex: 2; min-width: 250px;" placeholder="Enter Room UUID">
+            <input type="text" id="passInput" style="flex: 1; min-width: 150px;" placeholder="Enter Blind Pass">
+            <button id="connectBtn">Test Connection</button>
+        </div>
+        
+        <div class="terminal" id="consoleOutput">
+            <span class="info">Ready to test. Waiting for input...</span><br>
+        </div>
+    </div>
+
+    <script>
+        const PROTOCOL_VERSION = '1.0.0'; 
+        
+        const connectBtn = document.getElementById('connectBtn');
+        const roomIdInput = document.getElementById('roomIdInput');
+        const passInput = document.getElementById('passInput'); 
+        const consoleOutput = document.getElementById('consoleOutput');
+
+        function logMessage(msg, type = 'info') {
+            const span = document.createElement('span');
+            span.className = type;
+            const time = new Date().toISOString().split('T')[1].slice(0, 12);
+            span.innerText = `[${time}] ${msg}\n`;
+            consoleOutput.appendChild(span);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        async function testWebTransportBridge() {
+            const roomId = roomIdInput.value.trim();
+            const pass = passInput.value.trim();
+
+            if (!roomId || !pass) {
+                logMessage("Error: Please enter both a Room ID and a Blind Pass", "error");
+                return;
+            }
+
+            if (!('WebTransport' in window)) {
+                logMessage("Error: WebTransport is NOT supported by this browser.", "error");
+                return;
+            }
+
+            consoleOutput.innerHTML = ''; 
+            logMessage(`Initializing WebTransport connection to room: ${roomId}...`, "info");
+
+            try {
+                const url = `https://localhost:8787/api/room/${roomId}/webtransport?v=${PROTOCOL_VERSION}&pass=${pass}`;
+                logMessage(`Connecting to: ${url}`, "info");
+                
+                const transport = new WebTransport(url);
+                
+                await transport.ready;
+                logMessage("✅ WebTransport Connected to Edge Proxy!", "success");
+
+                // ... (The rest of the reader/writer logic remains exactly the same)
+                const writer = transport.datagrams.writable.getWriter();
+                const reader = transport.datagrams.readable.getReader();
+
+                const testMessage = JSON.stringify({
+                    type: "LOG_ACTION",
+                    encryptedLogBlob: "SPIKE_TEST_BLOB_VIA_WEBTRANSPORT"
+                });
+                
+                const encoder = new TextEncoder();
+                await writer.write(encoder.encode(testMessage));
+                logMessage(`📤 Sent UDP Datagram: ${testMessage}`, "action");
+
+                logMessage("Listening for Durable Object response...", "info");
+                
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    if (value) {
+                        const decoder = new TextDecoder();
+                        logMessage(`📥 Received from Durable Object:`, "success");
+                        logMessage(decoder.decode(value), "success");
+                        break; 
+                    }
+                }
+                
+                transport.close();
+
+            } catch (e) {
+                logMessage(`❌ WebTransport Spike Failed: ${e.message}`, "error");
+                console.error(e);
+            }
+        }
+
+        connectBtn.addEventListener('click', testWebTransportBridge);
+    </script>
+</body>
+</html>

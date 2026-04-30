@@ -27,14 +27,14 @@ export default defineConfig({
   webServer: [
     {
       command: 'npx nx run client:serve',
-      url: 'http://localhost:4200', // <--- localhost to match Angular's IPv6
+      url: 'http://localhost:4200',
       reuseExistingServer: true,
       cwd: workspaceRoot,
       timeout: 120000,
     },
     {
       command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787',
-      url: 'http://127.0.0.1:8787/api/health', // <--- 127.0.0.1 to match Wrangler's IPv4
+      url: 'http://127.0.0.1:8787/api/health',
       reuseExistingServer: true,
       cwd: workspaceRoot,
       timeout: 120000,

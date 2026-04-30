@@ -42,15 +42,16 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use('/*', cors({
   origin: (origin, c) => {
-    if (origin.endsWith('signingroom.io')) {
+    const isOfficialDomain = origin === 'https://signingroom.io' || origin.endsWith('.signingroom.io');
+    if (isOfficialDomain) {
       return origin;
     }
 
-    const isLocalhost = /^https?:\/\/localhost(:\d+)?$/.test(origin);
-    const isDevelopment = c.env.ENVIRONMENT === 'development';
-
-    if (isLocalhost && isDevelopment) {
-      return origin;
+    if (c.env.ENVIRONMENT === 'development') {
+      const isLocalhost = /^https?:\/\/localhost(:\d+)?$/.test(origin);
+      if (isLocalhost) {
+        return origin;
+      }
     }
 
     return null; 
@@ -141,6 +142,73 @@ app.get('/api/room/:id/websocket', async (c) => {
   const id = c.env.SIGNING_ROOM.idFromName(roomId);
   const room = c.env.SIGNING_ROOM.get(id);
   return room.fetch(c.req.raw);
+});
+
+// SPIKE: WebTransport Edge Proxy
+app.all('/api/room/:id/webtransport', async (c) => {
+  // Note: Cloudflare exposes WebTransport via the Request object in Workers
+  // @ts-ignore - Bypassing strict TS for the experimental spike
+  const webTransport = c.req.raw.webTransport;
+  if (!webTransport) {
+    return c.json({ error: "WebTransport not supported or requested" }, 400);
+  }
+
+  //  Accept the WebTransport connection at the Edge
+  webTransport.accept();
+
+  // Connect to the Durable Object using a standard internal WebSocket
+  const roomId = c.req.param('id');
+  
+  const pass = c.req.query('pass') || ''; 
+  const version = c.req.query('v') || '1.0.0';
+  
+  const id = c.env.SIGNING_ROOM.idFromName(roomId);
+  const room = c.env.SIGNING_ROOM.get(id);
+
+  const wsRequest = new Request(`http://internal/api/room/${roomId}/websocket?v=${version}&pass=${pass}`, {
+    headers: { 'Upgrade': 'websocket' }
+  });
+  
+  const doResponse = await room.fetch(wsRequest);
+  const internalSocket = doResponse.webSocket;
+  
+  if (!internalSocket) {
+    return c.json({ error: "Failed to connect to DO" }, 500);
+  }
+  
+  internalSocket.accept();
+
+  // 3. The Piping Logic (Bridge WebTransport Datagrams <--> Internal WebSocket)
+  
+  // A. Listen to the internal DO WebSocket and write to the WebTransport Client
+  const writer = webTransport.datagrams.writable.getWriter();
+  internalSocket.addEventListener('message', async (event) => {
+    const encoder = new TextEncoder();
+    // Convert the DO's JSON string to a Uint8Array for WebTransport
+    await writer.write(encoder.encode(event.data as string));
+  });
+
+  // B. Listen to the WebTransport Client and write to the internal DO WebSocket
+  const reader = webTransport.datagrams.readable.getReader();
+  // Run the reader in a non-blocking loop
+  (async () => {
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        // Convert the WebTransport Uint8Array back to a string for the DO
+        const decoder = new TextDecoder();
+        internalSocket.send(decoder.decode(value));
+      }
+    } catch (e) {
+      console.log("WebTransport client disconnected");
+      internalSocket.close();
+    }
+  })();
+
+  // Keep the edge worker alive for this connection
+  return new Response(null, { status: 200 });
 });
 
 export default app;
