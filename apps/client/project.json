@@ -57,9 +57,10 @@
           "serviceWorker": "apps/client/ngsw-config.json"
         },
         "hosted-dev": {
-          "optimization": false,
+          "optimization": true,
           "extractLicenses": false,
           "sourceMap": true,
+          "outputHashing": "all",
           "fileReplacements": [
             {
               "replace": "apps/client/src/environments/environment.ts",

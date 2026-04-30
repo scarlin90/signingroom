@@ -491,7 +491,7 @@ export class SigningRoom implements DurableObject {
           this.roomState.roomName = msg.encryptedName; 
           await this.state.storage.put('data', this.roomState);
           
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'ROOM_RENAMED', encryptedName: msg.encryptedName });
         }
 
@@ -537,7 +537,7 @@ export class SigningRoom implements DurableObject {
           this.roomState.whitelist = msg.encryptedWhitelist; 
           await this.state.storage.put('data', this.roomState);
           
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
         }
 
@@ -546,7 +546,7 @@ export class SigningRoom implements DurableObject {
         if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {
           this.roomState.isLocked = msg.locked;
           await this.state.storage.put('data', this.roomState);
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'LOCK_UPDATED', isLocked: this.roomState.isLocked });
         }
 
@@ -556,7 +556,7 @@ export class SigningRoom implements DurableObject {
           this.roomState.encryptedFinalTxId = msg.encryptedFinalTxId;
           await this.state.storage.put('data', this.roomState);
           
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           
           this.broadcast({ 
               type: 'TX_FINALIZED_BROADCAST', 
