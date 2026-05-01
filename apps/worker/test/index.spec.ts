@@ -877,5 +877,87 @@ describe('SigningRoom Durable Object', () => {
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:4200');
     });
   });
+
+  describe('SigningRoom Data Chunking & Storage', () => {
+  it.only('should save and load small state without chunking', async () => {
+    const id = env.SIGNING_ROOM.idFromName('chunk-test-small');
+    const stub = env.SIGNING_ROOM.get(id);
+
+    await runInDurableObject(stub, async (instance: any) => {
+      // Create a small payload
+      instance.roomState = { roomId: 'small-room', signatures: ['sig1'] };
+      
+      // Save using the new wrapper
+      await instance.saveRoomState();
+
+      // Verify underlying storage keys directly
+      const dataChunks = await instance.state.storage.get('data_chunks');
+      const dataKey = await instance.state.storage.get('data');
+
+      // It should NOT create chunks, and should save directly to 'data'
+      expect(dataChunks).toBeUndefined();
+      expect(typeof dataKey).toBe('string');
+      expect(JSON.parse(dataKey as string)).toEqual({ roomId: 'small-room', signatures: ['sig1'] });
+
+      // 4. Verify loadRoomState reassembles it correctly
+      const loaded = await instance.loadRoomState();
+      expect(loaded).toEqual({ roomId: 'small-room', signatures: ['sig1'] });
+    });
+  });
+
+  it.only('should automatically chunk large state over 100KB', async () => {
+    const id = env.SIGNING_ROOM.idFromName('chunk-test-large');
+    const stub = env.SIGNING_ROOM.get(id);
+
+    await runInDurableObject(stub, async (instance: any) => {
+      // Generate a massive string (150KB) to force chunking
+      const massivePayload = 'a'.repeat(150 * 1024);
+      instance.roomState = { roomId: 'large-room', data: massivePayload };
+      
+      // Save using the new wrapper
+      await instance.saveRoomState();
+
+      // Verify underlying storage keys directly
+      const dataChunks = await instance.state.storage.get('data_chunks');
+      const dataKey = await instance.state.storage.get('data');
+      const chunk0 = await instance.state.storage.get('data_0');
+      const chunk1 = await instance.state.storage.get('data_1');
+
+      // The old single key should be deleted, and replaced with chunks
+      expect(dataKey).toBeUndefined(); 
+      expect(dataChunks).toBe(2); // ~150KB splits into two 100KB chunks
+      expect(chunk0).toBeDefined();
+      expect(chunk1).toBeDefined();
+
+      // Verify loadRoomState perfectly reassembles the chunks
+      const loaded = await instance.loadRoomState();
+      expect(loaded.roomId).toBe('large-room');
+      expect(loaded.data.length).toBe(150 * 1024);
+      expect(loaded.data).toBe(massivePayload);
+    });
+  });
+
+  it.only('should gracefully load legacy un-stringified production data', async () => {
+    const id = env.SIGNING_ROOM.idFromName('chunk-test-legacy');
+    const stub = env.SIGNING_ROOM.get(id);
+
+    await runInDurableObject(stub, async (instance: any) => {
+      // Manually insert data exactly how the old code used to do it
+      // (as a raw Javascript object, NOT a JSON string, with no chunk keys)
+      await instance.state.storage.put('data', { roomId: 'legacy-room', oldFormat: true });
+
+      // Verify loadRoomState can still read it without crashing
+      const loaded = await instance.loadRoomState();
+      expect(loaded).toEqual({ roomId: 'legacy-room', oldFormat: true });
+      
+      // Verify that if we save it now, it upgrades to the new stringified format
+      instance.roomState = loaded;
+      await instance.saveRoomState();
+      
+      const upgradedData = await instance.state.storage.get('data');
+      expect(typeof upgradedData).toBe('string');
+    });
+  });
+});
 });
 

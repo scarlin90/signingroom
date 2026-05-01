@@ -424,11 +424,11 @@ export class SigningRoom implements DurableObject {
     webSocket.send(JSON.stringify({ type: 'STATE_SYNC', ...safeRoomState, connectedCount: this.sessions.size }));
 
     webSocket.addEventListener('message', (event) => {
-      void this.handleMessage(event, webSocket);
+      this.state.waitUntil(this.handleMessage(event, webSocket));
     });
 
     webSocket.addEventListener('close', () => {
-      void this.handleClose(webSocket);
+      this.state.waitUntil(this.handleClose(webSocket));
     });
   }
 
