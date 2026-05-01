@@ -144,74 +144,98 @@ app.get('/api/room/:id/websocket', async (c) => {
   return room.fetch(c.req.raw);
 });
 
-// SPIKE: WebTransport Edge Proxy
-app.all('/api/room/:id/webtransport', async (c) => {
-  // Note: Cloudflare exposes WebTransport via the Request object in Workers
-  // @ts-ignore - Bypassing strict TS for the experimental spike
-  const webTransport = c.req.raw.webTransport;
-  if (!webTransport) {
-    return c.json({ error: "WebTransport not supported or requested" }, 400);
-  }
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const url = new URL(request.url);
 
-  //  Accept the WebTransport connection at the Edge
-  webTransport.accept();
-
-  // Connect to the Durable Object using a standard internal WebSocket
-  const roomId = c.req.param('id');
-  
-  const pass = c.req.query('pass') || ''; 
-  const version = c.req.query('v') || '1.0.0';
-  
-  const id = c.env.SIGNING_ROOM.idFromName(roomId);
-  const room = c.env.SIGNING_ROOM.get(id);
-
-  const wsRequest = new Request(`http://internal/api/room/${roomId}/websocket?v=${version}&pass=${pass}`, {
-    headers: { 'Upgrade': 'websocket' }
-  });
-  
-  const doResponse = await room.fetch(wsRequest);
-  const internalSocket = doResponse.webSocket;
-  
-  if (!internalSocket) {
-    return c.json({ error: "Failed to connect to DO" }, 500);
-  }
-  
-  internalSocket.accept();
-
-  // 3. The Piping Logic (Bridge WebTransport Datagrams <--> Internal WebSocket)
-  
-  // A. Listen to the internal DO WebSocket and write to the WebTransport Client
-  const writer = webTransport.datagrams.writable.getWriter();
-  internalSocket.addEventListener('message', async (event) => {
-    const encoder = new TextEncoder();
-    // Convert the DO's JSON string to a Uint8Array for WebTransport
-    await writer.write(encoder.encode(event.data as string));
-  });
-
-  // B. Listen to the WebTransport Client and write to the internal DO WebSocket
-  const reader = webTransport.datagrams.readable.getReader();
-  // Run the reader in a non-blocking loop
-  (async () => {
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        
-        // Convert the WebTransport Uint8Array back to a string for the DO
-        const decoder = new TextDecoder();
-        internalSocket.send(decoder.decode(value));
+    // BYPASS HONO FOR WEBTRANSPORT SPIKE (Protocol Translation Bridge)
+    if (url.pathname.endsWith('/webtransport')) {
+      
+      // Manually handle the CORS Preflight
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          headers: {
+            'Access-Control-Allow-Origin': env.ENVIRONMENT === 'development' ? '*' : env.ALLOWED_ORIGIN,
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, CONNECT',
+            'Access-Control-Allow-Headers': 'Upgrade, Content-Type, Authorization, X-Requested-With'
+          }
+        });
       }
-    } catch (e) {
-      console.log("WebTransport client disconnected");
-      internalSocket.close();
+
+      // Extract WebTransport from the incoming client request
+      // @ts-ignore - Bypassing strict TS for the experimental spike
+      const webTransport = request.webTransport;
+      if (!webTransport) {
+        return new Response("WebTransport not supported", { status: 400 });
+      }
+
+      // 3. Connect to the Durable Object using an internal WebSocket
+      const pathParts = url.pathname.split('/');
+      const roomId = pathParts[3]; // Extracts 'id' from /api/room/<id>/webtransport
+      
+      const pass = url.searchParams.get('pass') || ''; 
+      const version = url.searchParams.get('v') || '1.0.0';
+      
+      const id = env.SIGNING_ROOM.idFromName(roomId);
+      const room = env.SIGNING_ROOM.get(id);
+
+      const wsRequest = new Request(`http://internal/api/room/${roomId}/websocket?v=${version}&pass=${pass}`, {
+        headers: { 'Upgrade': 'websocket' }
+      });
+      
+      // Establish the internal socket to the DO
+      const doResponse = await room.fetch(wsRequest);
+      const internalSocket = doResponse.webSocket;
+      
+      if (!internalSocket) {
+        return new Response("Failed to connect to internal DO", { status: 500 });
+      }
+      
+      internalSocket.accept();
+      webTransport.accept();
+
+      // The Piping Logic (Bridge WebTransport Datagrams <--> Internal WebSocket)
+      
+      // Listen to the internal DO WebSocket and write to the WebTransport Client
+      const writer = webTransport.datagrams.writable.getWriter();
+      internalSocket.addEventListener('message', async (event) => {
+        const encoder = new TextEncoder();
+        await writer.write(encoder.encode(event.data as string));
+      });
+
+      // Listen to the WebTransport Client and write to the internal DO WebSocket
+      const reader = webTransport.datagrams.readable.getReader();
+      
+      // Use ctx.waitUntil so the Edge Worker doesn't kill this background loop
+      ctx.waitUntil((async () => {
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const decoder = new TextDecoder();
+            internalSocket.send(decoder.decode(value));
+          }
+        } catch (e) {
+          console.log("WebTransport client disconnected");
+          internalSocket.close();
+        }
+      })());
+
+      // Return the pristine Response to the Edge so it upgrades the connection
+      return new Response(null, { 
+        status: 200, 
+        // @ts-ignore
+        webTransport: webTransport,
+        headers: {
+            'Access-Control-Allow-Origin': env.ENVIRONMENT === 'development' ? '*' : env.ALLOWED_ORIGIN
+        }
+      });
     }
-  })();
 
-  // Keep the edge worker alive for this connection
-  return new Response(null, { status: 200 });
-});
-
-export default app;
+    // Standard Hono routing for everything else (Health checks, HTTP, etc.)
+    return app.fetch(request, env, ctx);
+  }
+};
 
 // =============================================================================
 // DURABLE OBJECT: SIGNING ROOM (STATELESS RELAY)
