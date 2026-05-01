@@ -64,6 +64,26 @@ describe('Worker Router & Rate Limiter', () => {
     consoleSpy.mockRestore();
   });
 
+  it.only('should respect environment variable overrides for limits', async () => {
+    const request = new Request('http://localhost/api/room', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId: TEST_ROOM_ID, encryptedPsbt: 'abcd' }),
+    });
+    
+    const ctx = createExecutionContext();
+    
+    const customEnv = {
+      ...env,
+      MAX_PAYLOAD_SIZE_BYTES: '2' 
+    };
+
+    const response = await app.fetch(request, customEnv as any, ctx);
+    await waitOnExecutionContext(ctx);
+
+    expect(response.status).toBe(413);
+  });
+
   it.only('should return 429 when rate limit is exceeded', async () => {
     const request = new Request('http://localhost/api/health', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' }
@@ -790,6 +810,52 @@ describe('SigningRoom Durable Object', () => {
   });
 
   describe('Deep Edge Cases and Catch Blocks', () => {
+
+    // it.only('should gracefully handle a missing IP address during connection', async () => {
+    //   await initRoom();
+      
+    //   // Simulate a local environment request with NO cf-connecting-ip header
+    //   const wsResponse = await roomStub.fetch(new Request('http://localhost/?pass=pass123', {
+    //     headers: { 'Upgrade': 'websocket' }, 
+    //   }));
+
+    //   const client = wsResponse.webSocket!;
+    //   client.accept();
+
+    //   try {
+    //     // Just verify it connected successfully without throwing a null error
+    //     expect(wsResponse.status).toBe(101);
+    //   } finally {
+    //     await cleanupClient(client);
+    //   }
+    // });
+
+    // it.only('should cleanly exit handleMessage if session is untracked', async () => {
+
+    //   await runInDurableObject(roomStub, async (instance: any) => {
+    //     const fakeSocket = { send: vi.fn(), close: vi.fn() };
+    //     // We purposely DO NOT add fakeSocket to instance.sessions
+        
+    //     await instance.handleMessage({ data: '{"type":"AUTH"}' } as any, fakeSocket);
+        
+    //     // It should hit the `if (!session) return;` branch instantly
+    //     expect(fakeSocket.send).not.toHaveBeenCalled();
+    //   });
+    // });
+
+    // it('should safely shift auditLog when exceeding 2000 entries without network flakes', async () => {
+      
+    //   await runInDurableObject(roomStub, async (instance: any) => {
+    //     instance.roomState = { auditLog: new Array(2000).fill('old-log') };
+        
+    //     // Because there are no active sessions, this log() call won't trigger 
+    //     await instance.log('new-log');
+        
+    //     expect(instance.roomState.auditLog.length).toBe(2000);
+    //     expect(instance.roomState.auditLog[1999]).toBe('new-log');
+    //   });
+    // });
+
     it.only('should ignore errors when closing sockets during CLOSE_ROOM', async () => {
       await initRoom();
       await runInDurableObject(roomStub, async (instance: any) => {
@@ -809,6 +875,68 @@ describe('SigningRoom Durable Object', () => {
         expect(instance.sessions.size).toBe(0);
       });
     });
+
+    // it.only('should initialize auditLog and safely shift when exceeding the config limit', async () => {
+    //   await runInDurableObject(roomStub, async (instance: any) => {
+    //     instance.env = { ...instance.env, MAX_AUDIT_LOG_LENGTH: '5' };
+        
+    //     instance.roomState = { auditLog: undefined }; 
+        
+    //     await instance.log('first-log');
+    //     expect(instance.roomState.auditLog.length).toBe(1);
+
+    //     instance.roomState.auditLog = ['log1', 'log2', 'log3', 'log4', 'log5'];
+        
+    //     await instance.log('new-log');
+        
+    //     expect(instance.roomState.auditLog.length).toBe(5);
+    //     expect(instance.roomState.auditLog[4]).toBe('new-log');
+    //     expect(instance.roomState.auditLog[0]).toBe('log2'); // log1 was shifted out!
+    //   });
+    // });
+
+    // it.only('should trigger lockout and set alarm after 5 failed AUTH attempts', async () => {
+    //   await initRoom();
+    //   await runInDurableObject(roomStub, async (instance: any) => {
+    //     // Create a fake socket in memory to bypass network timing issues
+    //     const mockSocket = { send: vi.fn(), close: vi.fn() };
+    //     instance.sessions.set(mockSocket, { id: '123', role: 'guest', msgsInWindow: 0, lastMsgTime: 0 });
+
+    //     const alarmSpy = vi.spyOn(instance.state.storage, 'setAlarm');
+
+    //     // Fire 5 bad passwords instantly
+    //     for (let i = 0; i < 5; i++) {
+    //       await instance.handleMessage({ 
+    //         data: JSON.stringify({ type: 'AUTH', token: 'wrong' }) 
+    //       } as any, mockSocket);
+    //     }
+
+    //     // Verify lines 351-354 were executed
+    //     expect(instance.authFailures).toBe(5);
+    //     expect(instance.isLockedOut).toBe(true);
+    //     expect(alarmSpy).toHaveBeenCalled();
+    //   });
+    // });
+
+    // it.only('alarm() should reset lockout and retain room if not expired', async () => {
+    //   await initRoom();
+    //   await runInDurableObject(roomStub, async (instance: any) => {
+    //     // Force the DO into a locked out state with a future room expiration
+    //     instance.isLockedOut = true;
+    //     instance.authFailures = 5;
+    //     instance.roomState.expiresAt = Date.now() + 10000; 
+        
+    //     const alarmSpy = vi.spyOn(instance.state.storage, 'setAlarm');
+        
+    //     // Trigger the alarm manually
+    //     await instance.alarm();
+        
+    //     expect(instance.isLockedOut).toBe(false);
+    //     expect(instance.authFailures).toBe(0);
+    //     expect(instance.roomState).not.toBeNull();
+    //     expect(alarmSpy).toHaveBeenCalledWith(instance.roomState.expiresAt);
+    //   });
+    // });
 
     it.only('should ignore messages from unknown sockets', async () => {
       await initRoom();
@@ -856,7 +984,10 @@ describe('SigningRoom Durable Object', () => {
         headers: { 'Origin': 'https://app.signingroom.io', 'Access-Control-Request-Method': 'GET' }
       });
       const ctx = createExecutionContext();
-      const res = await app.fetch(req, env as any, ctx);
+      
+      const prodEnv = { ...env, ALLOWED_ORIGIN: 'signingroom.io' };
+      
+      const res = await app.fetch(req, prodEnv as any, ctx);
       await waitOnExecutionContext(ctx);
       
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://app.signingroom.io');

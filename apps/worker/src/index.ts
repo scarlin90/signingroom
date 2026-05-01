@@ -11,17 +11,50 @@ import { DurableObject } from 'cloudflare:workers';
 // CONFIGURATION & TYPES
 // =============================================================================
 
-const MAX_PAYLOAD_SIZE_BYTES = 2 * 1024 * 1024; // 2MB Hard Limit
-const MAX_CONNECTIONS = 40;                     // Room Capacity
-const RATE_LIMIT_WINDOW = 1000;                 // 1 Second
-const MAX_MSGS_PER_WINDOW = 10;                 // 10 messages per second per user
-const MAX_CONNECTIONS_PER_IP = 10;               // Maximum connections per IP address
-
 interface Env {
   SIGNING_ROOM: DurableObjectNamespace;
   ALLOWED_ORIGIN: string;
   ENVIRONMENT: 'development' | 'production';
   RATE_LIMITER: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
+
+  MAX_PAYLOAD_SIZE_BYTES?: string;
+  MAX_CONNECTIONS?: string;
+  RATE_LIMIT_WINDOW?: string;
+  MAX_MSGS_PER_WINDOW?: string;
+  MAX_CONNECTIONS_PER_IP?: string;
+  MAX_AUDIT_LOG_LENGTH?: string;
+  DEFAULT_ROOM_TTL_SECONDS?: string;
+  MAX_AUTH_FAILURES?: string;
+  MAX_SIGNATURES?: string;
+}
+
+export type ConfigKey = 
+  | 'MAX_PAYLOAD_SIZE_BYTES' 
+  | 'MAX_CONNECTIONS' 
+  | 'RATE_LIMIT_WINDOW' 
+  | 'MAX_MSGS_PER_WINDOW' 
+  | 'MAX_CONNECTIONS_PER_IP'
+  | 'MAX_AUDIT_LOG_LENGTH'
+  | 'DEFAULT_ROOM_TTL_SECONDS'
+  | 'MAX_AUTH_FAILURES'
+  | 'MAX_SIGNATURES';
+
+const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
+  MAX_PAYLOAD_SIZE_BYTES: 2 * 1024 * 1024, // 2MB
+  MAX_CONNECTIONS: 40,                     // Room Capacity
+  RATE_LIMIT_WINDOW: 1000,                 // 1 Second
+  MAX_MSGS_PER_WINDOW: 10,                 // 10 messages per second per user
+  MAX_CONNECTIONS_PER_IP: 10,              // Max connections per IP
+  MAX_AUDIT_LOG_LENGTH: 2000,          // Max entries in the audit log (oldest entries will be dropped when exceeded)
+  DEFAULT_ROOM_TTL_SECONDS: 86400, // 24 hours
+  MAX_AUTH_FAILURES: 5,            // Lockout threshold
+  MAX_SIGNATURES: 100,             // Max signatures per room
+};
+
+// Helper to safely fetch a specific config property
+function getConfig(env: Env, key: ConfigKey): number {
+  const value = env[key];
+  return value ? parseInt(value, 10) : CONFIG_DEFAULTS[key];
 }
 
 interface SessionData {
@@ -42,7 +75,15 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use('/*', cors({
   origin: (origin, c) => {
-    const isOfficialDomain = origin === 'https://signingroom.io' || origin.endsWith('.signingroom.io');
+    
+    const rawOrigin = c.env.ALLOWED_ORIGIN || 'signingroom.io';
+    const baseDomain = rawOrigin.replace(/^https?:\/\//, '');
+
+    const exactMatch = `https://${baseDomain}`;
+    const subDomainMatch = `.${baseDomain}`;
+
+    const isOfficialDomain = origin === exactMatch || origin.endsWith(subDomainMatch);
+    
     if (isOfficialDomain) {
       return origin;
     }
@@ -57,7 +98,7 @@ app.use('/*', cors({
     return null; 
   },
   allowHeaders: ['Upgrade', 'Content-Type', 'Authorization', 'X-Requested-With'],
-  allowMethods: ['GET', 'POST', 'OPTIONS', 'CONNECT'],
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
   maxAge: 86400,
   credentials: true,
 }));
@@ -118,7 +159,7 @@ app.post('/api/room', async (c) => {
   const body = await c.req.json();
   const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion } = body;
 
-  if (encryptedPsbt && encryptedPsbt.length > MAX_PAYLOAD_SIZE_BYTES) {
+  if (encryptedPsbt && encryptedPsbt.length > getConfig(c.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
     return c.json({ error: "Payload too large. Max 500KB." }, 413);
   }
 
@@ -144,98 +185,7 @@ app.get('/api/room/:id/websocket', async (c) => {
   return room.fetch(c.req.raw);
 });
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    const url = new URL(request.url);
-
-    // BYPASS HONO FOR WEBTRANSPORT SPIKE (Protocol Translation Bridge)
-    if (url.pathname.endsWith('/webtransport')) {
-      
-      // Manually handle the CORS Preflight
-      if (request.method === 'OPTIONS') {
-        return new Response(null, {
-          headers: {
-            'Access-Control-Allow-Origin': env.ENVIRONMENT === 'development' ? '*' : env.ALLOWED_ORIGIN,
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, CONNECT',
-            'Access-Control-Allow-Headers': 'Upgrade, Content-Type, Authorization, X-Requested-With'
-          }
-        });
-      }
-
-      // Extract WebTransport from the incoming client request
-      // @ts-ignore - Bypassing strict TS for the experimental spike
-      const webTransport = request.webTransport;
-      if (!webTransport) {
-        return new Response("WebTransport not supported", { status: 400 });
-      }
-
-      // 3. Connect to the Durable Object using an internal WebSocket
-      const pathParts = url.pathname.split('/');
-      const roomId = pathParts[3]; // Extracts 'id' from /api/room/<id>/webtransport
-      
-      const pass = url.searchParams.get('pass') || ''; 
-      const version = url.searchParams.get('v') || '1.0.0';
-      
-      const id = env.SIGNING_ROOM.idFromName(roomId);
-      const room = env.SIGNING_ROOM.get(id);
-
-      const wsRequest = new Request(`http://internal/api/room/${roomId}/websocket?v=${version}&pass=${pass}`, {
-        headers: { 'Upgrade': 'websocket' }
-      });
-      
-      // Establish the internal socket to the DO
-      const doResponse = await room.fetch(wsRequest);
-      const internalSocket = doResponse.webSocket;
-      
-      if (!internalSocket) {
-        return new Response("Failed to connect to internal DO", { status: 500 });
-      }
-      
-      internalSocket.accept();
-      webTransport.accept();
-
-      // The Piping Logic (Bridge WebTransport Datagrams <--> Internal WebSocket)
-      
-      // Listen to the internal DO WebSocket and write to the WebTransport Client
-      const writer = webTransport.datagrams.writable.getWriter();
-      internalSocket.addEventListener('message', async (event) => {
-        const encoder = new TextEncoder();
-        await writer.write(encoder.encode(event.data as string));
-      });
-
-      // Listen to the WebTransport Client and write to the internal DO WebSocket
-      const reader = webTransport.datagrams.readable.getReader();
-      
-      // Use ctx.waitUntil so the Edge Worker doesn't kill this background loop
-      ctx.waitUntil((async () => {
-        try {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            const decoder = new TextDecoder();
-            internalSocket.send(decoder.decode(value));
-          }
-        } catch (e) {
-          console.log("WebTransport client disconnected");
-          internalSocket.close();
-        }
-      })());
-
-      // Return the pristine Response to the Edge so it upgrades the connection
-      return new Response(null, { 
-        status: 200, 
-        // @ts-ignore
-        webTransport: webTransport,
-        headers: {
-            'Access-Control-Allow-Origin': env.ENVIRONMENT === 'development' ? '*' : env.ALLOWED_ORIGIN
-        }
-      });
-    }
-
-    // Standard Hono routing for everything else (Health checks, HTTP, etc.)
-    return app.fetch(request, env, ctx);
-  }
-};
+export default app;
 
 // =============================================================================
 // DURABLE OBJECT: SIGNING ROOM (STATELESS RELAY)
@@ -301,7 +251,9 @@ export class SigningRoom implements DurableObject {
     if (!this.roomState) return;
     if (!this.roomState.auditLog) this.roomState.auditLog = []; 
     
-    if (this.roomState.auditLog.length > 2000) this.roomState.auditLog.shift();
+    if (this.roomState.auditLog.length > getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH')) {
+      this.roomState.auditLog.shift();
+    }
     
     this.roomState.auditLog.push(encryptedLogBlob);
     
@@ -319,7 +271,7 @@ export class SigningRoom implements DurableObject {
       const now = Date.now();
       
       // Default to 24 hour (86400s)
-      const ttlSeconds = 86400; 
+      const ttlSeconds = getConfig(this.env, 'DEFAULT_ROOM_TTL_SECONDS');
 
       const tokenBuffer = new TextEncoder().encode(adminToken);
       const hashBuffer = await crypto.subtle.digest('SHA-256', tokenBuffer);
@@ -385,7 +337,7 @@ export class SigningRoom implements DurableObject {
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
 
         const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
-        if (currentIpCount >= MAX_CONNECTIONS_PER_IP) {
+        if (currentIpCount >= getConfig(this.env, 'MAX_CONNECTIONS_PER_IP')) {
             return new Response("Rate Limit Exceeded: Too many concurrent connections from this IP.", { status: 429 });
         }
     
@@ -403,7 +355,7 @@ export class SigningRoom implements DurableObject {
       return;
     }
 
-    if (this.sessions.size >= MAX_CONNECTIONS) {
+    if (this.sessions.size >= getConfig(this.env, 'MAX_CONNECTIONS')) {
       webSocket.accept();
       webSocket.close(4001, "Room Full");
       return;
@@ -452,7 +404,7 @@ export class SigningRoom implements DurableObject {
     });
 
     webSocket.addEventListener('close', () => {
-      this.state.waitUntil(this.handleClose(webSocket));
+      this.handleClose(webSocket);
     });
   }
 
@@ -465,19 +417,19 @@ export class SigningRoom implements DurableObject {
         const rawData = event.data;
         const size = typeof rawData === 'string' ? rawData.length : rawData.byteLength;
 
-        if (size > MAX_PAYLOAD_SIZE_BYTES) {
+        if (size > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
           webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Payload too large (Max 2MB)' }));
           return;
         }
 
         const now = Date.now();
-        if (now - session.lastMsgTime > RATE_LIMIT_WINDOW) {
+        if (now - session.lastMsgTime > getConfig(this.env, 'RATE_LIMIT_WINDOW')) {
             // Reset window
             session.msgsInWindow = 1;
             session.lastMsgTime = now;
         } else {
             session.msgsInWindow++;
-            if (session.msgsInWindow > MAX_MSGS_PER_WINDOW) {
+            if (session.msgsInWindow > getConfig(this.env, 'MAX_MSGS_PER_WINDOW')) {
                 // Too fast - ignore
                 return; 
             }
@@ -511,7 +463,7 @@ export class SigningRoom implements DurableObject {
               webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
             } else {
               this.authFailures++;
-              if (this.authFailures >= 5) {
+              if (this.authFailures >= getConfig(this.env, 'MAX_AUTH_FAILURES')) {
                   this.isLockedOut = true;
                   await this.state.storage.setAlarm(Date.now() + 30 * 60 * 1000);
               }
@@ -565,8 +517,8 @@ export class SigningRoom implements DurableObject {
 
         // PSBT Chunk Upload
         if (msg.type === 'UPLOAD_PARTIAL') {
-          if (msg.data?.encryptedData && msg.data.encryptedData.length > MAX_PAYLOAD_SIZE_BYTES) return;
-          if (this.roomState.signatures.length >= 100) { 
+          if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
+          if (this.roomState.signatures.length >= getConfig(this.env, 'MAX_SIGNATURES')) {
             webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
             return;
           }
@@ -630,7 +582,7 @@ export class SigningRoom implements DurableObject {
       } catch (e) { console.error(e); }
   }
 
-  private async handleClose(webSocket: WebSocket) {
+  private handleClose(webSocket: WebSocket) {
   const session = this.sessions.get(webSocket);
       
       if (session && session.ip) {
