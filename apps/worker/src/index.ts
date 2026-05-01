@@ -57,7 +57,7 @@ app.use('/*', cors({
     return null; 
   },
   allowHeaders: ['Upgrade', 'Content-Type', 'Authorization', 'X-Requested-With'],
-  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'OPTIONS', 'CONNECT'],
   maxAge: 86400,
   credentials: true,
 }));
