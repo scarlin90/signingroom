@@ -115,6 +115,9 @@
             logMessage(`Initializing WebTransport connection to room: ${roomId}...`, "info");
 
             try {
+                logMessage("Priming HTTP/3 network stack...", "info");
+                await fetch('https://api-dev.signingroom.io/api/health', { method: 'GET' });
+
                 const url = `https://api-dev.signingroom.io/api/room/${roomId}/webtransport?v=${PROTOCOL_VERSION}&pass=${pass}`;
                 logMessage(`Connecting to: ${url}`, "info");
                 
