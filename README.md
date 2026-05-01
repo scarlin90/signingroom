@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-15_Apr_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-01_May_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -51,35 +51,19 @@ You are solely responsible for verifying the details of any transaction (address
 
 ## 📊 Forensic Verification (Data)
 
-The "Stateless Pattern" is not just a theory; it is verified in production. We publish our raw Cloudflare traffic logs to prove the "Blind Relay" architecture handles volume without retaining user state.
+As a privacy-focused public good, we believe in complete operational transparency. Rather than asking for blind trust, we regularly publish verifiable site metrics to demonstrate the scale, efficiency, and real-world usage of the relay infrastructure.
 
-**Live Traffic Analysis (Apr 15, 2026):**
+Based on our latest 30-day forensic audit (May 1, 2026):
+- **Total Requests Handled:** 48,241
+- **Total Network Bandwidth:** 2.94 GB
+- **Community Adoption:** 3,866 aggregated monthly unique visitors.
 
-| Metric | Value | Implication |
-| :--- | :--- | :--- |
-| **Total 30d Throughput** | **3.51 GB** | **Blind Relay Proven:** Over 3.5GB of encrypted data relayed with 0 bytes stored on disk. |
-| **Unique Visitors (30d)** | **2,010** | **High Retention:** Strong de-duplicated user base with significant repeat coordination activity. |
-| **Cache Ratio (Avg 30d)** | **58.5%** | **Healthy Equilibrium:** Balancing static UI delivery with active coordination. |
-| **Peak Dynamic Event** | **11.64 MB (1h)** | **The "Stateless Vacuum":** Massive metadata relay handled with 0% cache utilization. |
-| **User State Retained** | **0.00 B** | **Proof of Blind Relay.** Despite growing throughput, the database footprint remains at 0 bytes. |
-
-### 🔍 Forensic Highlight: The "Stateless Vacuum" (Apr 15, 2026)
-Our latest audit following the **v2.0.0 UI Launch** confirms a significant "Zero-Cache" event:
-
-* **The Event:** At **8:00 PM** on April 15th, the relay moved **11.64 MB** of dynamic coordination data in a single hour.
-* **The Signature:** This event occurred with **0.00% cache utilization**. Unlike static assets (HTML/JS), this data was never "cached" at the edge or written to a disk. It existed only as a transient pulse in volatile RAM.
-* **The Conclusion:** Over the last 30 days, the server acted as a **3.51 GB "Vacuum."** It moved enough data to fill a standard database thousands of times over, yet because we use the Stateless Pattern, the persistent storage size remains exactly **0 KB**.
-
----
+### 🔍 Forensic Highlight
+**Edge Caching Efficiency:** In the last 30 days, over **1.52 GB (51% of total bandwidth)** was served directly from the edge cache, maintaining an average cache hit rate of 38.44%, with 24-hour efficiency spikes hitting up to **98.8%**. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency for users worldwide.
 
 ### 🛡️ Transparency & Audits
-We don't just claim to be stateless; we prove it. We publish our raw traffic logs so you can verify our "Zero-Knowledge" architecture yourself.
-
-* **Latest Audit:** [Apr 15, 2026](./site_metric_logs/MANIFEST.md#-2026-04-15_audit)
-* **Traffic Volume:** 42,129 Monthly Requests / 3,704 Unique Visitors (30d)
-* **Key Finding:** Successfully re-established a stability baseline of **58.5% cache efficiency**, ensuring v2.0.0 UI assets are delivered at the edge while preserving the core "Vacuum" for coordination.
-
-> 📂 **[View the full Data Manifest](./site_metric_logs/MANIFEST.md)** to inspect the raw CSV logs.
+To maintain transparency, raw exported logs and previous traffic audits are preserved in our public manifest. You can verify our historical infrastructure performance here: 
+👉 [View the Site Metrics Manifest](./site_metric_logs/MANIFEST.md)
 
 ## 🔬 Research & Standards
 
