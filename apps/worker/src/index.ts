@@ -11,17 +11,50 @@ import { DurableObject } from 'cloudflare:workers';
 // CONFIGURATION & TYPES
 // =============================================================================
 
-const MAX_PAYLOAD_SIZE_BYTES = 2 * 1024 * 1024; // 2MB Hard Limit
-const MAX_CONNECTIONS = 40;                     // Room Capacity
-const RATE_LIMIT_WINDOW = 1000;                 // 1 Second
-const MAX_MSGS_PER_WINDOW = 10;                 // 10 messages per second per user
-const MAX_CONNECTIONS_PER_IP = 10;               // Maximum connections per IP address
-
 interface Env {
   SIGNING_ROOM: DurableObjectNamespace;
   ALLOWED_ORIGIN: string;
   ENVIRONMENT: 'development' | 'production';
   RATE_LIMITER: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
+
+  MAX_PAYLOAD_SIZE_BYTES?: string;
+  MAX_CONNECTIONS?: string;
+  RATE_LIMIT_WINDOW?: string;
+  MAX_MSGS_PER_WINDOW?: string;
+  MAX_CONNECTIONS_PER_IP?: string;
+  MAX_AUDIT_LOG_LENGTH?: string;
+  DEFAULT_ROOM_TTL_SECONDS?: string;
+  MAX_AUTH_FAILURES?: string;
+  MAX_SIGNATURES?: string;
+}
+
+export type ConfigKey = 
+  | 'MAX_PAYLOAD_SIZE_BYTES' 
+  | 'MAX_CONNECTIONS' 
+  | 'RATE_LIMIT_WINDOW' 
+  | 'MAX_MSGS_PER_WINDOW' 
+  | 'MAX_CONNECTIONS_PER_IP'
+  | 'MAX_AUDIT_LOG_LENGTH'
+  | 'DEFAULT_ROOM_TTL_SECONDS'
+  | 'MAX_AUTH_FAILURES'
+  | 'MAX_SIGNATURES';
+
+const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
+  MAX_PAYLOAD_SIZE_BYTES: 2 * 1024 * 1024, // 2MB
+  MAX_CONNECTIONS: 40,                     // Room Capacity
+  RATE_LIMIT_WINDOW: 1000,                 // 1 Second
+  MAX_MSGS_PER_WINDOW: 10,                 // 10 messages per second per user
+  MAX_CONNECTIONS_PER_IP: 10,              // Max connections per IP
+  MAX_AUDIT_LOG_LENGTH: 2000,          // Max entries in the audit log (oldest entries will be dropped when exceeded)
+  DEFAULT_ROOM_TTL_SECONDS: 86400, // 24 hours
+  MAX_AUTH_FAILURES: 5,            // Lockout threshold
+  MAX_SIGNATURES: 100,             // Max signatures per room
+};
+
+// Helper to safely fetch a specific config property
+function getConfig(env: Env, key: ConfigKey): number {
+  const value = env[key];
+  return value ? parseInt(value, 10) : CONFIG_DEFAULTS[key];
 }
 
 interface SessionData {
@@ -42,15 +75,24 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use('/*', cors({
   origin: (origin, c) => {
-    if (origin.endsWith('signingroom.io')) {
+    
+    const rawOrigin = c.env.ALLOWED_ORIGIN || 'signingroom.io';
+    const baseDomain = rawOrigin.replace(/^https?:\/\//, '');
+
+    const exactMatch = `https://${baseDomain}`;
+    const subDomainMatch = `.${baseDomain}`;
+
+    const isOfficialDomain = origin === exactMatch || origin.endsWith(subDomainMatch);
+    
+    if (isOfficialDomain) {
       return origin;
     }
 
-    const isLocalhost = /^https?:\/\/localhost(:\d+)?$/.test(origin);
-    const isDevelopment = c.env.ENVIRONMENT === 'development';
-
-    if (isLocalhost && isDevelopment) {
-      return origin;
+    if (c.env.ENVIRONMENT === 'development') {
+      const isLocalhost = /^https?:\/\/localhost(:\d+)?$/.test(origin);
+      if (isLocalhost) {
+        return origin;
+      }
     }
 
     return null; 
@@ -104,7 +146,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '2.1.0', 
+    version: '2.2.0', 
     timestamp: Date.now() 
   });
 });
@@ -117,7 +159,7 @@ app.post('/api/room', async (c) => {
   const body = await c.req.json();
   const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion } = body;
 
-  if (encryptedPsbt && encryptedPsbt.length > MAX_PAYLOAD_SIZE_BYTES) {
+  if (encryptedPsbt && encryptedPsbt.length > getConfig(c.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
     return c.json({ error: "Payload too large. Max 500KB." }, 413);
   }
 
@@ -161,21 +203,61 @@ export class SigningRoom implements DurableObject {
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
-    // Load state from disk (if any exists from a previous hibernation)
+
     this.state.blockConcurrencyWhile(async () => {
-      this.roomState = await this.state.storage.get('data');
+      this.roomState = await this.loadRoomState();
     });
+  }
+
+  async saveRoomState() {
+    if (!this.roomState) return;
+    const json = JSON.stringify(this.roomState);
+    const chunkSize = 100 * 1024;
+
+    if (json.length < chunkSize) {
+      await this.state.storage.put('data', json);
+      await this.state.storage.delete('data_chunks');
+      return;
+    }
+
+    const chunks = Math.ceil(json.length / chunkSize);
+    const storageObj: Record<string, any> = { 'data_chunks': chunks };
+    
+    for (let i = 0; i < chunks; i++) {
+      storageObj[`data_${i}`] = json.slice(i * chunkSize, (i + 1) * chunkSize);
+    }
+    
+    await this.state.storage.put(storageObj);
+    await this.state.storage.delete('data');
+  }
+
+  async loadRoomState() {
+    const chunkCount = await this.state.storage.get<number>('data_chunks');
+    
+    if (chunkCount) {
+      let json = '';
+      for (let i = 0; i < chunkCount; i++) {
+        const chunk = await this.state.storage.get<string>(`data_${i}`);
+        if (chunk) json += chunk;
+      }
+      return JSON.parse(json);
+    }
+    
+    const legacyData = await this.state.storage.get<any>('data');
+    return typeof legacyData === 'string' ? JSON.parse(legacyData) : legacyData;
   }
 
   async log(encryptedLogBlob: string) {
     if (!this.roomState) return;
     if (!this.roomState.auditLog) this.roomState.auditLog = []; 
     
-    if (this.roomState.auditLog.length > 2000) this.roomState.auditLog.shift();
+    if (this.roomState.auditLog.length > getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH')) {
+      this.roomState.auditLog.shift();
+    }
     
     this.roomState.auditLog.push(encryptedLogBlob);
     
-    await this.state.storage.put('data', this.roomState);
+    await this.saveRoomState();
     this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
   }
 
@@ -189,7 +271,7 @@ export class SigningRoom implements DurableObject {
       const now = Date.now();
       
       // Default to 24 hour (86400s)
-      const ttlSeconds = 86400; 
+      const ttlSeconds = getConfig(this.env, 'DEFAULT_ROOM_TTL_SECONDS');
 
       const tokenBuffer = new TextEncoder().encode(adminToken);
       const hashBuffer = await crypto.subtle.digest('SHA-256', tokenBuffer);
@@ -216,7 +298,7 @@ export class SigningRoom implements DurableObject {
           this.roomState.auditLog.push(encryptedLogBlob);
       }
 
-      await this.state.storage.put('data', this.roomState);
+      await this.saveRoomState();
       await this.state.storage.setAlarm(now + (ttlSeconds * 1000));
       return new Response('OK');
     }
@@ -255,7 +337,7 @@ export class SigningRoom implements DurableObject {
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
 
         const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
-        if (currentIpCount >= MAX_CONNECTIONS_PER_IP) {
+        if (currentIpCount >= getConfig(this.env, 'MAX_CONNECTIONS_PER_IP')) {
             return new Response("Rate Limit Exceeded: Too many concurrent connections from this IP.", { status: 429 });
         }
     
@@ -265,7 +347,7 @@ export class SigningRoom implements DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  handleSession(webSocket: WebSocket, ip: string) {
+  async handleSession(webSocket: WebSocket, ip: string) {
     if (!this.roomState) {
       webSocket.accept();
       webSocket.send(JSON.stringify({ type: 'ERROR_NOT_FOUND' }));
@@ -273,7 +355,7 @@ export class SigningRoom implements DurableObject {
       return;
     }
 
-    if (this.sessions.size >= MAX_CONNECTIONS) {
+    if (this.sessions.size >= getConfig(this.env, 'MAX_CONNECTIONS')) {
       webSocket.accept();
       webSocket.close(4001, "Room Full");
       return;
@@ -305,7 +387,7 @@ export class SigningRoom implements DurableObject {
 
     if (!this.roomState.participants) this.roomState.participants = {};
     this.roomState.participants[sessionId] = { id: sessionId, role: 'guest' };
-    this.state.storage.put('data', this.roomState);
+    await this.saveRoomState();
     this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
 
     webSocket.send(JSON.stringify({ type: 'SESSION_CONNECTED', sessionId: sessionId }));
@@ -318,11 +400,11 @@ export class SigningRoom implements DurableObject {
     webSocket.send(JSON.stringify({ type: 'STATE_SYNC', ...safeRoomState, connectedCount: this.sessions.size }));
 
     webSocket.addEventListener('message', (event) => {
-      void this.handleMessage(event, webSocket);
+      this.state.waitUntil(this.handleMessage(event, webSocket));
     });
 
     webSocket.addEventListener('close', () => {
-      void this.handleClose(webSocket);
+      this.handleClose(webSocket);
     });
   }
 
@@ -335,19 +417,19 @@ export class SigningRoom implements DurableObject {
         const rawData = event.data;
         const size = typeof rawData === 'string' ? rawData.length : rawData.byteLength;
 
-        if (size > MAX_PAYLOAD_SIZE_BYTES) {
+        if (size > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
           webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Payload too large (Max 2MB)' }));
           return;
         }
 
         const now = Date.now();
-        if (now - session.lastMsgTime > RATE_LIMIT_WINDOW) {
+        if (now - session.lastMsgTime > getConfig(this.env, 'RATE_LIMIT_WINDOW')) {
             // Reset window
             session.msgsInWindow = 1;
             session.lastMsgTime = now;
         } else {
             session.msgsInWindow++;
-            if (session.msgsInWindow > MAX_MSGS_PER_WINDOW) {
+            if (session.msgsInWindow > getConfig(this.env, 'MAX_MSGS_PER_WINDOW')) {
                 // Too fast - ignore
                 return; 
             }
@@ -374,14 +456,14 @@ export class SigningRoom implements DurableObject {
 
               if (this.roomState.participants && this.roomState.participants[session.id]) {
                   this.roomState.participants[session.id].role = 'admin';
-                  await this.state.storage.put('data', this.roomState);
+                  await this.saveRoomState();
                   this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
               }
 
               webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
             } else {
               this.authFailures++;
-              if (this.authFailures >= 5) {
+              if (this.authFailures >= getConfig(this.env, 'MAX_AUTH_FAILURES')) {
                   this.isLockedOut = true;
                   await this.state.storage.setAlarm(Date.now() + 30 * 60 * 1000);
               }
@@ -397,7 +479,7 @@ export class SigningRoom implements DurableObject {
             // msg.label is now a secure Base64 blob, so no need to sanitize!
             this.roomState.signerLabels[msg.fingerprint] = msg.label;
             
-            await this.state.storage.put('data', this.roomState);
+            await this.saveRoomState();
             
             this.log(msg.encryptedLogBlob);
             this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
@@ -411,7 +493,7 @@ export class SigningRoom implements DurableObject {
 
             if (this.roomState.participants && this.roomState.participants[session.id]) {
                 this.roomState.participants[session.id].encryptedDisplayName = safeName;
-                await this.state.storage.put('data', this.roomState);
+                await this.saveRoomState();
                 this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
             }
             
@@ -421,9 +503,9 @@ export class SigningRoom implements DurableObject {
         // Rename Room (Admin Only)
         if (msg.type === 'RENAME_ROOM' && session?.role === 'admin') {
           this.roomState.roomName = msg.encryptedName; 
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'ROOM_RENAMED', encryptedName: msg.encryptedName });
         }
 
@@ -435,16 +517,16 @@ export class SigningRoom implements DurableObject {
 
         // PSBT Chunk Upload
         if (msg.type === 'UPLOAD_PARTIAL') {
-          if (msg.data?.encryptedData && msg.data.encryptedData.length > MAX_PAYLOAD_SIZE_BYTES) return;
-          if (this.roomState.signatures.length >= 100) { 
+          if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
+          if (this.roomState.signatures.length >= getConfig(this.env, 'MAX_SIGNATURES')) {
             webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
             return;
           }
           
           this.roomState.signatures.push(msg.data.encryptedData); 
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint });
         }
 
@@ -467,9 +549,9 @@ export class SigningRoom implements DurableObject {
         // Whitelist Management (Admin Only)
         if (msg.type === 'UPDATE_WHITELIST' && session?.role === 'admin') {
           this.roomState.whitelist = msg.encryptedWhitelist; 
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
         }
 
@@ -477,8 +559,8 @@ export class SigningRoom implements DurableObject {
         // Room Lock (Admin Only)
         if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {
           this.roomState.isLocked = msg.locked;
-          await this.state.storage.put('data', this.roomState);
-          this.log(msg.encryptedLogBlob);
+          await this.saveRoomState();
+          await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'LOCK_UPDATED', isLocked: this.roomState.isLocked });
         }
 
@@ -486,9 +568,9 @@ export class SigningRoom implements DurableObject {
         if (msg.type === 'TX_FINALIZED' && session?.role === 'admin') {
           this.roomState.encryptedFinalTxHex = msg.encryptedFinalTxHex;
           this.roomState.encryptedFinalTxId = msg.encryptedFinalTxId;
-          await this.state.storage.put('data', this.roomState);
+          await this.saveRoomState();
           
-          this.log(msg.encryptedLogBlob);
+          await this.log(msg.encryptedLogBlob);
           
           this.broadcast({ 
               type: 'TX_FINALIZED_BROADCAST', 
@@ -500,7 +582,7 @@ export class SigningRoom implements DurableObject {
       } catch (e) { console.error(e); }
   }
 
-  private async handleClose(webSocket: WebSocket) {
+  private handleClose(webSocket: WebSocket) {
   const session = this.sessions.get(webSocket);
       
       if (session && session.ip) {

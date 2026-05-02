@@ -27,7 +27,7 @@
   ],
   "durable_objects": {
     "bindings": [
-      { "name": "SIGNING_ROOM", "class_name": "SigningRoom" },
+      { "name": "SIGNING_ROOM", "class_name": "SigningRoom" }
     ]
   },
   "migrations": [
@@ -43,6 +43,35 @@
       "deleted_classes": ["SalesCounter"]
     }
   ],
+  "env": {
+    "development": {
+      "name": "signingroom-dev",
+      
+      "routes": [
+        { 
+          "pattern": "api-dev.signingroom.io", 
+          "custom_domain": true 
+        }
+      ],
+      
+      "vars": {
+        "ALLOWED_ORIGIN": "https://dev.signingroom.io", 
+        "API_PUBLIC_URL": "https://api-dev.signingroom.io",
+        "ENVIRONMENT": "development"
+      },
+      "durable_objects": {
+        "bindings": [ { "name": "SIGNING_ROOM", "class_name": "SigningRoom" } ]
+      },
+      "ratelimits": [
+        {
+          "name": "RATE_LIMITER",
+          "namespace_id": "1001",
+          "simple": { "limit": 60, "period": 60 }
+        }
+      ],
+      "kv_namespaces": []
+    }
+  },
   "kv_namespaces": [],
   "observability": { "enabled": true }
 }

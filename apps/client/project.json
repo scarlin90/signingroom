@@ -56,6 +56,19 @@
           "outputHashing": "all",
           "serviceWorker": "apps/client/ngsw-config.json"
         },
+        "hosted-dev": {
+          "optimization": true,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "outputHashing": "all",
+          "serviceWorker": "apps/client/ngsw-config.json",
+          "fileReplacements": [
+            {
+              "replace": "apps/client/src/environments/environment.ts",
+              "with": "apps/client/src/environments/environment.hosted-dev.ts"
+            }
+          ]
+        },
         "development": {
           "optimization": false,
           "extractLicenses": false,

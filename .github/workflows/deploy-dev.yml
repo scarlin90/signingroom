@@ -1,0 +1,46 @@
+name: Deploy Development Environment
+
+on:
+  push:
+    branches: [ "development" ]
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy-dev-environment:
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Angular Client (Nx)
+        run: npx nx build client --configuration=hosted-dev
+
+      - name: Deploy Frontend to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: 'signingroom-web-dev' 
+          directory: 'dist/apps/client/browser'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: 'main'
+
+      - name: Deploy Backend to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env development
+          workingDirectory: 'apps/worker'
