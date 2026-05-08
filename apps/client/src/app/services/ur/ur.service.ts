@@ -83,19 +83,25 @@ export class UrService {
    * INHALE (OMNI-DECODER): Automatically detects and decodes UR, BBQr, or Static QRs.
    */
   processFragment(fragment: string): string | null {
+    console.log(`\n--- 🔍 OPTICAL FRAGMENT RECEIVED ---`);
+    console.log(`Length: ${fragment.length} chars`);
+    console.log(`Prefix: ${fragment.substring(0, 15)}...`);
+
     try {
       const upper = fragment.toUpperCase();
       
-      // Update the X-Ray with the first 40 characters of whatever the camera just saw
+      // Update the X-Ray UI
       this.lastScannedText.set(upper.length > 40 ? upper.substring(0, 40) + '...' : upper);
-      this.scanError.set(null); // Clear previous errors
+      this.scanError.set(null); 
 
       // --- PROTOCOL 1: BC-UR ---
       if (upper.startsWith('UR:')) {
+        console.log(`Detected Protocol: Universal Resource (UR)`);
         this.decoder.receivePart(fragment);
         this.scanProgress.set(this.decoder.estimatedPercentComplete());
         
         if (this.decoder.isComplete() && this.decoder.isSuccess()) {
+          console.log(`[UR] Sequence Complete! Unpacking CBOR...`);
           const hex = this.decoder.resultUR().decodeCBOR().toString('hex');
           this.resetDecoder();
           return hex;
@@ -105,10 +111,14 @@ export class UrService {
 
       // --- PROTOCOL 2: BBQr ---
       if (upper.startsWith('B$')) {
-        const encoding = upper[2]; 
+        const encoding = upper[2]; // e.g., 'H', '2', 'Z'
+        const fileType = upper[3]; // e.g., 'P', 'T'
+        console.log(`Detected Protocol: BBQr | Encoding: ${encoding} | Type: ${fileType}`);
+
         if (encoding !== 'H') {
-            // Surface the silent failure to the UI
-            this.scanError.set(`Coldcard is using Zlib/Base32 ('${encoding}'). Please export as HEX.`);
+            const errorMsg = `Coldcard is using Zlib/Base32 ('${encoding}'). Please export as HEX.`;
+            console.warn(`[BBQr Error] ${errorMsg}`);
+            this.scanError.set(errorMsg);
             return null;
         }
         
@@ -119,14 +129,21 @@ export class UrService {
         const total = parseInt(totalStr, 36);
         const index = parseInt(indexStr, 36);
 
+        console.log(`[BBQr] Extracted Chunk ${index + 1} of ${total} (Payload size: ${payload.length})`);
+
         if (this.bbqrTotal === 0) this.bbqrTotal = total;
 
         if (!this.bbqrState.has(index)) {
             this.bbqrState.set(index, payload);
-            this.scanProgress.set(this.bbqrState.size / this.bbqrTotal);
+            const progress = this.bbqrState.size / this.bbqrTotal;
+            this.scanProgress.set(progress);
+            console.log(`[BBQr] Saved new chunk. Progress: ${(progress * 100).toFixed(0)}%`);
+        } else {
+            console.log(`[BBQr] Ignored duplicate chunk ${index + 1}.`);
         }
 
         if (this.bbqrState.size === this.bbqrTotal) {
+            console.log(`[BBQr] Sequence Complete! Concatenating hex...`);
             let fullHex = '';
             for (let i = 0; i < this.bbqrTotal; i++) {
                 fullHex += this.bbqrState.get(i);
@@ -138,11 +155,12 @@ export class UrService {
       }
 
       // --- PROTOCOL 3: Static QR Fallback ---
+      console.log(`Detected Protocol: Static Unknown (Likely raw hex)`);
       this.resetDecoder();
       return fragment;
 
     } catch (e) {
-      console.error("Omni-Decoder Error:", e);
+      console.error("Omni-Decoder Crash:", e);
       this.scanError.set("Malformed QR data detected.");
     }
     return null;

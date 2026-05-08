@@ -3120,7 +3120,10 @@ export class RoomComponent implements OnInit, OnDestroy {
         setTimeout(async () => {
             this.html5QrCode = new Html5Qrcode("signer-reader", {
                 formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-                verbose: false 
+                verbose: false,
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
             });
             
             let frameCount = 0;
@@ -3129,20 +3132,36 @@ export class RoomComponent implements OnInit, OnDestroy {
                 await this.html5QrCode.start(
                     { facingMode: "environment" },
                     { 
-                        fps: 15,
-                        disableFlip: false
+                        fps: 30, 
+                        disableFlip: false,
+                        qrbox: { width: 350, height: 350 },
+                        videoConstraints: {
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 }
+                        }
                     },
                     (decodedText) => this.handleScanResult(decodedText),
                     (errorMessage) => { 
                         frameCount++;
-                        if (frameCount % 30 === 0) {
-                            console.warn(`[Optical Debug] Frame ${frameCount} - Camera trying to resolve. Reason:`, errorMessage.split('\n')[0]);
+                        if (frameCount % 60 === 0) {
+                            console.warn(`[Optical Debug] Frame ${frameCount} - Engine failing to lock:`, errorMessage.split('\n')[0]);
                         }
                     } 
                 );
             } catch (err) {
-                console.error("Camera start failed", err);
-                this.stopScanner();
+                console.warn("High-res camera start failed. Falling back to standard resolution...", err);
+                
+                try {
+                     await this.html5QrCode.start(
+                        { facingMode: "environment" },
+                        { fps: 10, disableFlip: false },
+                        (decodedText) => this.handleScanResult(decodedText),
+                        () => {}
+                    );
+                } catch (fallbackErr) {
+                    console.error("Fallback camera start also failed:", fallbackErr);
+                    this.stopScanner();
+                }
             }
         }, 100);
     }
@@ -3157,11 +3176,27 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     stopScanner() {
         if (this.html5QrCode) {
-            this.html5QrCode.stop().then(() => {
-                this.html5QrCode?.clear();
+            try {
+                if (this.html5QrCode.getState() === 2) {
+                    this.html5QrCode.stop().then(() => {
+                        this.html5QrCode?.clear();
+                        this.isScanningSigned.set(false);
+                        this.showScannerModal.set(false);
+                    }).catch(() => {
+                        this.html5QrCode?.clear();
+                        this.isScanningSigned.set(false);
+                        this.showScannerModal.set(false);
+                    });
+                } else {
+                    this.html5QrCode.clear();
+                    this.isScanningSigned.set(false);
+                    this.showScannerModal.set(false);
+                }
+            } catch (e) {
+                this.html5QrCode.clear();
                 this.isScanningSigned.set(false);
                 this.showScannerModal.set(false);
-            });
+            }
         } else {
             this.isScanningSigned.set(false);
             this.showScannerModal.set(false);
