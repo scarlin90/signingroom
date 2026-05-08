@@ -15,12 +15,14 @@ import { base64, hex } from '@scure/base';
 import { 
   LucideAngularModule, Zap, Check, Loader2, 
   X, UploadCloud, FileJson, AlertTriangle, Shield, Key, Users,
-  Eye, EyeOff,
+  Eye, EyeOff, QrCode, Edit2
 } from 'lucide-angular';
+import { Html5Qrcode } from 'html5-qrcode';
 
 import { PROTOCOL_VERSION, SocketService } from '../../services/socket/socket.service';
 import { EncryptionService } from '../../services/encryption/encryption.service';
 import { environment } from '../../../environments/environment';
+import { UrService } from '../../services/ur/ur.service';
 
 // 1. CONSTANTS MUST BE OUTSIDE THE CLASS
 const NETWORKS = ['bitcoin', 'testnet', 'signet'] as const;
@@ -281,64 +283,132 @@ interface PsbtAnalysis {
                 </div>
             </div>
 
-            <div class="mb-8">
-                <label class="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-500">Transaction Data (Required)</label>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6">
+    <h2 class="text-xl font-medium text-white mb-6 flex items-center">
+        Transaction Data
+    </h2>
 
-                @if (errorMessage()) {
-                    <div class="mb-4 p-3 bg-rose-950/30 border border-rose-900/50 rounded-xl flex items-start gap-3 animate-in fade-in zoom-in-95">
-                        <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-rose-500 shrink-0 mt-0.5"></lucide-icon>
-                        <div>
-                            <div class="text-rose-200 text-xs font-bold mb-1">Parsing Error</div>
-                            <p class="text-rose-400 text-[10px]">{{ errorMessage() }}</p>
+    @if (!psbtAnalysis()) {
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2 animate-in fade-in duration-300">
+            
+            <div class="relative group flex flex-col items-center justify-center p-8 bg-slate-950 border-2 border-dashed border-slate-800 rounded-xl hover:border-purple-500/50 hover:bg-purple-500/5 transition-all cursor-pointer" [class.opacity-50]="isScanning()">
+                <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" class="absolute inset-0 opacity-0 cursor-pointer z-10" [disabled]="isScanning()">
+                <div class="bg-slate-800 p-3 rounded-full mb-3 group-hover:bg-purple-500/20 transition-colors">
+                    <lucide-icon [img]="UploadCloud" class="text-slate-400 group-hover:text-purple-400 transition-colors"></lucide-icon>
+                </div>
+                <span class="text-sm font-medium text-slate-200">Upload PSBT File</span>
+                <span class="text-xs text-slate-500 mt-1">.psbt, .txt, or .hex</span>
+            </div>
+
+            <button (click)="startScanner()" [disabled]="isScanning()" class="flex flex-col items-center justify-center p-8 bg-slate-950 border-2 border-slate-800 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group disabled:opacity-50 disabled:cursor-not-allowed">
+                <div class="bg-slate-800 p-3 rounded-full mb-3 group-hover:bg-emerald-500/20 transition-colors">
+                    <lucide-icon [img]="QrCode" class="text-slate-400 group-hover:text-emerald-400 transition-colors"></lucide-icon>
+                </div>
+                <span class="text-sm font-medium text-slate-200">Scan QR Code</span>
+                <span class="text-xs text-slate-500 mt-1">Air-gapped hardware optics</span>
+            </button>
+        </div>
+
+        @if (isScanning()) {
+            <div class="relative bg-black rounded-xl overflow-hidden border border-emerald-500/30 mb-4 mt-4 shadow-[0_0_15px_rgba(16,185,129,0.1)] animate-in fade-in slide-in-from-top-4 duration-300">
+                <div id="reader" class="w-full object-cover"></div>
+                
+                <div class="absolute inset-0 pointer-events-none z-10 flex flex-col items-center justify-center overflow-hidden">
+                    <div class="absolute top-8 left-1/2 -translate-x-1/2 z-20 bg-slate-950/80 border border-emerald-500/20 backdrop-blur-md px-4 py-1.5 rounded-full">
+                        <span class="text-xs font-medium text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                            Align QR within frame
+                        </span>
+                    </div>
+
+                    <div class="relative w-56 h-56 rounded-xl shadow-[0_0_0_9999px_rgba(2,6,23,0.7)] border border-emerald-500/30">
+                        <div class="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-emerald-500 rounded-tl-xl"></div>
+                        <div class="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-emerald-500 rounded-tr-xl"></div>
+                        <div class="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-emerald-500 rounded-bl-xl"></div>
+                        <div class="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-emerald-500 rounded-br-xl"></div>
+                        <div class="absolute left-0 right-0 h-[2px] bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] scanner-laser"></div>
+                    </div>
+                </div>
+
+                @if (urService.scanProgress() > 0) {
+                    <div class="absolute bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm p-3 border-t border-slate-800 z-20">
+                        <div class="flex justify-between text-xs text-slate-400 mb-2">
+                            <span>Reconstructing PSBT...</span>
+                            <span>{{ (urService.scanProgress() * 100).toFixed(0) }}%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-200 ease-out" 
+                                [style.width.%]="urService.scanProgress() * 100"></div>
                         </div>
                     </div>
                 }
                 
-                @if (psbtAnalysis()) {
-                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-3">
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400">
-                                    <lucide-icon [img]="FileJson" class="w-5 h-5"></lucide-icon>
-                                </div>
-                                <div>
-                                    <div class="text-white text-sm font-bold truncate max-w-[150px]">{{ psbtFile()?.name || 'Raw PSBT' }}</div>
-                                    <div class="text-emerald-500 text-xs font-mono">{{ psbtAnalysis()?.outputCount }} Outputs</div>
-                                </div>
-                            </div>
-                            @if (!isEmbedded) {
-                                <button (click)="clearPsbt()" class="text-slate-500 hover:text-rose-400">
-                                    <lucide-icon [img]="X" class="w-4 h-4"></lucide-icon>
-                                </button>
-                            }
-                        </div>
-
-                        <div class="grid grid-cols-3 gap-2 text-center">
-                            <div class="bg-slate-900 rounded p-2 border border-slate-800">
-                                <div class="text-[10px] text-slate-500 uppercase">Amount</div>
-                                <div class="text-white text-xs font-bold">{{ psbtAnalysis()?.amountBtc | number:'1.4-4' }} <span class="text-slate-600">BTC</span></div>
-                            </div>
-                            <div class="bg-slate-900 rounded p-2 border border-slate-800">
-                                <div class="text-[10px] text-slate-500 uppercase">Network Fee</div>
-                                <div class="text-white text-xs font-bold">{{ psbtAnalysis()?.networkFeeSat | number }} <span class="text-slate-600">sats</span></div>
-                            </div>
-                            <div class="bg-slate-900 rounded p-2 border border-slate-800">
-                                <div class="text-[10px] text-slate-500 uppercase">Signers</div>
-                                <div class="text-white text-xs font-bold">{{ psbtAnalysis()?.signerCount }}</div>
-                            </div>
-                        </div>
-                    </div>
-                } @else {
-                    <div class="grid grid-cols-1 gap-3">
-                        <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-800 border-dashed rounded-xl cursor-pointer bg-slate-900/50 hover:bg-slate-900 hover:border-emerald-500/50 transition group">
-                            <lucide-icon [img]="UploadCloud" class="w-8 h-8 text-slate-600 group-hover:text-emerald-400 mb-2 transition"></lucide-icon>
-                            <p class="text-sm text-slate-400">Upload PSBT</p>
-                            <input type="file" class="hidden" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex">
-                        </label>
-                        <input type="text" [(ngModel)]="rawHex" (ngModelChange)="analyzeRawHex($event)" placeholder="Or paste hex..." class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg p-3 outline-none focus:border-emerald-500 font-mono"/>
-                    </div>
-                }
+                <button (click)="stopScanner()" class="absolute top-4 right-4 z-20 text-slate-400 bg-slate-900/80 hover:text-white hover:bg-red-500/90 p-2.5 rounded-full transition-all backdrop-blur-sm border border-slate-700 hover:border-red-500">
+                    <lucide-icon [img]="X" [size]="20"></lucide-icon>
+                </button>
             </div>
+        }
+
+        <div class="relative flex items-center py-6">
+            <div class="flex-grow border-t border-slate-800"></div>
+            <span class="flex-shrink-0 mx-4 text-slate-500 text-xs font-medium uppercase tracking-wider">Or paste directly</span>
+            <div class="flex-grow border-t border-slate-800"></div>
+        </div>
+
+        <div class="relative">
+            <textarea 
+                class="w-full bg-slate-950/50 border border-slate-800 text-slate-300 rounded-lg p-4 font-mono text-xs focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-colors resize-none placeholder-slate-600" 
+                rows="4" 
+                placeholder="Paste raw PSBT Base64 or Hex string here..."
+                [(ngModel)]="rawHex" (ngModelChange)="analyzeRawHex($event)"
+                [disabled]="isScanning()"></textarea>
+            <lucide-icon [img]="Edit2" class="absolute top-4 right-4 text-slate-600 pointer-events-none" [size]="16"></lucide-icon>
+        </div>
+
+    } @else {
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 animate-in zoom-in-95 duration-300">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400">
+                        <lucide-icon [img]="FileJson" class="w-5 h-5"></lucide-icon>
+                    </div>
+                    <div>
+                        <div class="text-white text-sm font-bold truncate max-w-[150px]">
+                            {{ psbtFile()?.name || 'Handled via Optics' }}
+                        </div>
+                        <div class="text-emerald-500 text-xs font-mono">
+                            {{ psbtAnalysis()?.outputCount }} Outputs detected
+                        </div>
+                    </div>
+                </div>
+                <button (click)="clearPsbt()" class="text-slate-500 hover:text-rose-400 p-1 rounded-md hover:bg-rose-400/10 transition-colors">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="bg-slate-900 rounded p-2 border border-slate-800">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-tight">Amount</div>
+                    <div class="text-white text-xs font-bold">
+                        {{ psbtAnalysis()?.amountBtc | number:'1.4-4' }} <span class="text-slate-600">BTC</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900 rounded p-2 border border-slate-800">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-tight">Network Fee</div>
+                    <div class="text-white text-xs font-bold">
+                        {{ psbtAnalysis()?.networkFeeSat | number }} <span class="text-slate-600">sats</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900 rounded p-2 border border-slate-800">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-tight">Signers</div>
+                    <div class="text-white text-xs font-bold">
+                        {{ psbtAnalysis()?.signerCount }} Required
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
 
             @if (isNetworkMismatch()) {
                 <div class="mb-4 p-3 bg-rose-950/30 border border-rose-900/50 rounded-xl flex items-start gap-3">
@@ -385,6 +455,8 @@ export class CreateComponent implements OnInit {
     readonly Users = Users;
     readonly Eye = Eye;
     readonly EyeOff = EyeOff;
+    readonly QrCode = QrCode;
+    readonly Edit2 = Edit2;
     
     public viewMode: 'default' | 'inject' | 'join' = 'default';
     public showManualRoomId = false;
@@ -397,6 +469,7 @@ export class CreateComponent implements OnInit {
     private route = inject(ActivatedRoute);
     private titleService = inject(Title);
     private metaService = inject(Meta);
+    public urService = inject(UrService);
 
     readonly networks = NETWORKS;
     
@@ -412,6 +485,9 @@ export class CreateComponent implements OnInit {
     public isEmbedded = false;
     public manualRoomId = '';
     public manualKey = '';
+
+    isScanning = signal<boolean>(false);
+    public html5QrCode: Html5Qrcode | null = null;
 
     @HostListener('window:message', ['$event'])
     async onMessage(event: MessageEvent) {
@@ -561,6 +637,8 @@ export class CreateComponent implements OnInit {
             const clean = this.normalizeInput(data);
             const psbtBytes = /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
 
+            this.rawHex = base64.encode(psbtBytes);
+
             const tx = Transaction.fromPSBT(psbtBytes);
 
             // Calculate Signers
@@ -632,5 +710,53 @@ export class CreateComponent implements OnInit {
     private generateEncryptionKey(): string {
         const bytes = new Uint8Array(32); crypto.getRandomValues(bytes);
         return base64.encode(bytes); 
+    }
+
+    async startScanner() {
+        this.isScanning.set(true);
+        this.urService.resetDecoder();
+        
+        // Ensure the DOM element exists before starting
+        setTimeout(async () => {
+            this.html5QrCode = new Html5Qrcode("reader");
+            try {
+                await this.html5QrCode.start(
+                    { facingMode: "environment" }, // Prefer back camera if on mobile
+                    { fps: 10, qrbox: { width: 300, height: 300 } },
+                    (decodedText) => this.handleScanResult(decodedText),
+                    (errorMessage) => { /* Ignore standard frame errors */ }
+                );
+            } catch (err) {
+                console.error("Camera start failed", err);
+                this.stopScanner();
+            }
+        }, 100);
+    }
+
+    handleScanResult(decodedText: string) {
+        // Check if it's a Fountain Code stream
+        if (decodedText.toUpperCase().startsWith('UR:')) {
+            const fullHex = this.urService.processFragment(decodedText);
+            if (fullHex) {
+                this.stopScanner();
+                this.analyzeRawHex(fullHex); // Hooks into your existing logic perfectly
+            }
+        } 
+        // Fallback for standard single-frame QR
+        else {
+            this.stopScanner();
+            this.analyzeRawHex(decodedText);
+        }
+    }
+
+    stopScanner() {
+        if (this.html5QrCode) {
+            this.html5QrCode.stop().then(() => {
+                this.html5QrCode?.clear();
+                this.isScanning.set(false);
+            });
+        } else {
+            this.isScanning.set(false);
+        }
     }
 }

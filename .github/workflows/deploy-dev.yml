@@ -2,7 +2,7 @@ name: Deploy Development Environment
 
 on:
   push:
-    branches: [ "development" ]
+    branches: [ "development", "feature/fountain-codes" ]
 
 permissions:
   contents: read
