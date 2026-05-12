@@ -3074,7 +3074,6 @@ export class RoomComponent implements OnInit, OnDestroy {
     startFountainAnimation() {
         if (this.fountainInterval) clearInterval(this.fountainInterval);
         
-        // DYNAMIC SPEED: Coldcard 250ms. Standard UR ~400ms.
         const speed = this.exportFormat() === 'bbqr' ? 250 : 400;
         
         this.fountainInterval = setInterval(() => {
@@ -3102,7 +3101,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             const frame = this.activeFountainFrames[this.currentFrameIndex()];
             
             await QRCode.toCanvas(canvas, frame, {
-                width: 320, // Slightly larger canvas for crisp module rendering
+                width: 320,
                 margin: 2,
                 color: { dark: '#000000', light: '#ffffff' } 
             });
@@ -3167,10 +3166,16 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     handleScanResult(decodedText: string) {
+        console.log("Scanned fragment:", decodedText.substring(0, 80) + "...");
+        
         const fullHex = this.urService.processFragment(decodedText);
+        
         if (fullHex) {
+            console.log("✅ Full PSBT decoded, length:", fullHex.length);
             this.stopScanner();
             this.processScannedSignature(fullHex);
+        } else if (this.urService.scanProgress() >= 95) {
+            console.warn("Progress high but no result yet — forcing check");
         }
     }
 

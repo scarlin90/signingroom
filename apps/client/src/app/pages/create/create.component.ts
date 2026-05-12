@@ -716,13 +716,20 @@ export class CreateComponent implements OnInit {
         this.isScanning.set(true);
         this.urService.resetDecoder();
         
-        // Ensure the DOM element exists before starting
         setTimeout(async () => {
             this.html5QrCode = new Html5Qrcode("reader");
             try {
                 await this.html5QrCode.start(
-                    { facingMode: "environment" }, // Prefer back camera if on mobile
-                    { fps: 10, qrbox: { width: 300, height: 300 } },
+                    { facingMode: "environment" },
+                    { 
+                        fps: 30, 
+                        disableFlip: false,
+                        qrbox: { width: 350, height: 350 },
+                        videoConstraints: {
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 }
+                        }
+                    },
                     (decodedText) => this.handleScanResult(decodedText),
                     (errorMessage) => { /* Ignore standard frame errors */ }
                 );
@@ -734,15 +741,43 @@ export class CreateComponent implements OnInit {
     }
 
     handleScanResult(decodedText: string) {
-        // Check if it's a Fountain Code stream
-        if (decodedText.toUpperCase().startsWith('UR:')) {
+        const upper = decodedText.toUpperCase();
+        
+        // Route BOTH Fountain Codes (UR) and Coldcard BBQr codes (B$) to the Omni-Decoder
+        if (upper.startsWith('UR:') || upper.startsWith('B$')) {
             const fullHex = this.urService.processFragment(decodedText);
+            
             if (fullHex) {
                 this.stopScanner();
-                this.analyzeRawHex(fullHex); // Hooks into your existing logic perfectly
+                this.analyzeRawHex(fullHex);
+            }
+            // Optional Safety Net for stuck UR streams 
+            else if (this.urService.scanProgress() >= 0.99) {
+                try {
+                    const decoder = (this.urService as any)['decoder'];
+                    if (decoder?.isComplete?.() && decoder?.isSuccess?.()) {
+                        const resultUR = decoder.resultUR();
+                        const cbor = resultUR.decodeCBOR();
+                        let hexStr = hex.encode(new Uint8Array(cbor)).toLowerCase();
+                        
+                        // Strip CBOR wrapper if present
+                        const magicIndex = hexStr.indexOf('70736274ff');
+                        if (magicIndex !== -1) {
+                            hexStr = hexStr.substring(magicIndex);
+                        }
+
+                        if (hexStr) {
+                            this.stopScanner();
+                            this.analyzeRawHex(hexStr);
+                        }
+                    } else if (decoder?.isComplete?.() && !decoder?.isSuccess?.()) {
+                        this.urService.resetDecoder();
+                    }
+                } catch (e) {
+                    console.error("Force extraction failed", e);
+                }
             }
         } 
-        // Fallback for standard single-frame QR
         else {
             this.stopScanner();
             this.analyzeRawHex(decodedText);

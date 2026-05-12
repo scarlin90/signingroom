@@ -5,7 +5,8 @@
 
 import { Injectable, signal } from '@angular/core';
 import { UR, URDecoder, UREncoder } from '@ngraveio/bc-ur';
-import { Buffer } from 'buffer';
+import * as fflate from 'fflate';
+import { hex, base64 } from '@scure/base';
 
 @Injectable({ providedIn: 'root' })
 export class UrService {
@@ -24,10 +25,10 @@ export class UrService {
    */
   generateFrames(psbtBase64: string, maxFragmentLength = 150): string[] {
     const cleanBase64 = psbtBase64.replace(/\s+/g, '');
-    const psbtBytes = Buffer.from(cleanBase64, 'base64');
+    const psbtBytes = base64.decode(cleanBase64); // Using @scure/base
     
     // generate the CBOR Byte String
-    const genericUr = UR.fromBuffer(psbtBytes);
+    const genericUr = UR.fromBuffer(Buffer.from(psbtBytes)); // @ngraveio still expects Node Buffer here
     
     const cborPayload = genericUr.cbor || (genericUr as any)._cbor || (genericUr as any).cborMessage;
     
@@ -37,11 +38,9 @@ export class UrService {
     }
 
     const ur = new UR(cborPayload, 'crypto-psbt');
-    
     const encoder = new UREncoder(ur, maxFragmentLength);
     const frames: string[] = [];
     
-
     for (let i = 0; i < encoder.fragmentsLength * 2; i++) { 
       frames.push(encoder.nextPart().toUpperCase());
     }
@@ -50,29 +49,20 @@ export class UrService {
   }
 
   generateBBQrFrames(psbtBase64: string, charsPerFrame = 1000): string[] {
-  
-    const psbtBuffer = Buffer.from(psbtBase64.replace(/\s+/g, ''), 'base64');
-    const psbtHex = psbtBuffer.toString('hex').toUpperCase();
-
+    const psbtBytes = base64.decode(psbtBase64.replace(/\s+/g, ''));
+    const psbtHex = hex.encode(psbtBytes).toUpperCase();
    
     const totalChunks = Math.ceil(psbtHex.length / charsPerFrame);
     
-    // Safety check: BBQr uses Base36 (0-9, A-Z) for chunk counting, max 1295 parts
     if (totalChunks > 1295) throw new Error("PSBT too large for BBQr");
 
-    // Convert total chunks to a 2-character Base36 string (e.g., 5 -> "05", 10 -> "0A")
     const totalBase36 = totalChunks.toString(36).toUpperCase().padStart(2, '0');
-
     const frames: string[] = [];
 
-    // 3. Generate the frames
     for (let i = 0; i < totalChunks; i++) {
       const currentBase36 = i.toString(36).toUpperCase().padStart(2, '0');
-      
-      // Header: B$ (Protocol) + H (Hex) + P (PSBT) + Total + Current
       const header = `B$HP${totalBase36}${currentBase36}`;
       const chunk = psbtHex.substring(i * charsPerFrame, (i + 1) * charsPerFrame);
-      
       frames.push(header + chunk);
     }
 
@@ -83,87 +73,102 @@ export class UrService {
    * INHALE (OMNI-DECODER): Automatically detects and decodes UR, BBQr, or Static QRs.
    */
   processFragment(fragment: string): string | null {
-    console.log(`\n--- 🔍 OPTICAL FRAGMENT RECEIVED ---`);
-    console.log(`Length: ${fragment.length} chars`);
-    console.log(`Prefix: ${fragment.substring(0, 15)}...`);
-
     try {
       const upper = fragment.toUpperCase();
-      
-      // Update the X-Ray UI
       this.lastScannedText.set(upper.length > 40 ? upper.substring(0, 40) + '...' : upper);
-      this.scanError.set(null); 
+      this.scanError.set(null);
 
       // --- PROTOCOL 1: BC-UR ---
       if (upper.startsWith('UR:')) {
-        console.log(`Detected Protocol: Universal Resource (UR)`);
         this.decoder.receivePart(fragment);
-        this.scanProgress.set(this.decoder.estimatedPercentComplete());
-        
-        if (this.decoder.isComplete() && this.decoder.isSuccess()) {
-          console.log(`[UR] Sequence Complete! Unpacking CBOR...`);
-          const hex = this.decoder.resultUR().decodeCBOR().toString('hex');
-          this.resetDecoder();
-          return hex;
+
+        const progress = this.decoder.estimatedPercentComplete();
+        this.scanProgress.set(Math.max(progress, this.scanProgress()));
+
+        if (this.decoder.isComplete()) {
+          if (this.decoder.isSuccess()) {
+            try {
+              const resultUR = this.decoder.resultUR();
+              const cborPayload = resultUR.decodeCBOR();
+
+              if (cborPayload) {
+                // FIX: Use @scure/base to guarantee a clean hex string
+                const hexData = hex.encode(new Uint8Array(cborPayload));
+                this.resetDecoder();
+                return hexData;
+              }
+            } catch (e) {
+              console.error("Failed to decode CBOR", e);
+              this.scanError.set("UR decoded but CBOR extraction failed");
+            }
+          }
         }
         return null;
       }
 
-      // --- PROTOCOL 2: BBQr ---
+      // --- PROTOCOL 2: BBQr (Coldcard / Compressed Relay) ---
       if (upper.startsWith('B$')) {
-        const encoding = upper[2]; // e.g., 'H', '2', 'Z'
-        const fileType = upper[3]; // e.g., 'P', 'T'
-        console.log(`Detected Protocol: BBQr | Encoding: ${encoding} | Type: ${fileType}`);
-
-        if (encoding !== 'H') {
-            const errorMsg = `Coldcard is using Zlib/Base32 ('${encoding}'). Please export as HEX.`;
-            console.warn(`[BBQr Error] ${errorMsg}`);
-            this.scanError.set(errorMsg);
-            return null;
-        }
-        
+        const encoding = upper[2]; // 'H' (Hex) or 'Z' (Zlib)
         const totalStr = upper.substring(4, 6);
         const indexStr = upper.substring(6, 8);
         const payload = upper.substring(8);
 
         const total = parseInt(totalStr, 36);
         const index = parseInt(indexStr, 36);
-
-        console.log(`[BBQr] Extracted Chunk ${index + 1} of ${total} (Payload size: ${payload.length})`);
-
+        
         if (this.bbqrTotal === 0) this.bbqrTotal = total;
 
         if (!this.bbqrState.has(index)) {
             this.bbqrState.set(index, payload);
-            const progress = this.bbqrState.size / this.bbqrTotal;
-            this.scanProgress.set(progress);
-            console.log(`[BBQr] Saved new chunk. Progress: ${(progress * 100).toFixed(0)}%`);
-        } else {
-            console.log(`[BBQr] Ignored duplicate chunk ${index + 1}.`);
+            this.scanProgress.set(this.bbqrState.size / this.bbqrTotal);
         }
 
         if (this.bbqrState.size === this.bbqrTotal) {
-            console.log(`[BBQr] Sequence Complete! Concatenating hex...`);
-            let fullHex = '';
-            for (let i = 0; i < this.bbqrTotal; i++) {
-                fullHex += this.bbqrState.get(i);
-            }
+          let fullPayload = '';
+          for (let i = 0; i < this.bbqrTotal; i++) {
+            fullPayload += this.bbqrState.get(i);
+          }
+
+          if (encoding === 'Z') {
+            // SPEC: Decode Base32 -> Decompress Zlib -> Result
+            const compressed = this.decodeBase32(fullPayload);
+            const decompressed = fflate.inflateSync(compressed);
             this.resetDecoder();
-            return fullHex;
+            
+            return hex.encode(decompressed);
+          } else {
+            this.resetDecoder();
+            return fullPayload; 
+          }
         }
         return null;
       }
 
-      // --- PROTOCOL 3: Static QR Fallback ---
-      console.log(`Detected Protocol: Static Unknown (Likely raw hex)`);
       this.resetDecoder();
       return fragment;
-
     } catch (e) {
-      console.error("Omni-Decoder Crash:", e);
-      this.scanError.set("Malformed QR data detected.");
+      console.error("Omni-Decoder error:", e);
+      this.scanError.set("Decoding failure. Check wallet settings.");
+      return null;
     }
-    return null;
+  }
+
+  // --- Helper: Base32 Decoding (RFC 4648) for BBQr ---
+  private decodeBase32(s: string): Uint8Array {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    const lookup = new Map([...alphabet].map((char, i) => [char, i]));
+    const bits = s.split('').map(c => lookup.get(c.toUpperCase()) ?? 0);
+    const bytes = new Uint8Array(Math.floor(bits.length * 5 / 8));
+    let bitBuffer = 0, bitCount = 0, byteIndex = 0;
+    for (const b of bits) {
+      bitBuffer = (bitBuffer << 5) | b;
+      bitCount += 5;
+      if (bitCount >= 8) {
+        bytes[byteIndex++] = (bitBuffer >> (bitCount - 8)) & 0xff;
+        bitCount -= 8;
+      }
+    }
+    return bytes;
   }
 
   resetDecoder() {
