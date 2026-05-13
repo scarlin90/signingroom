@@ -593,14 +593,14 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                     <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
                         <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
                         <p class="text-xs text-emerald-200/80 leading-relaxed">
-                            <strong>Standard Protocol:</strong> Optimized for Keystone, Passport, and standard hardware wallets. Streams at a stable 400ms interval.
+                            <strong>Standard Protocol:</strong> Optimized for Keystone, Passport, and standard hardware wallets. Adjust the speed slider for compatibility and performance.
                         </p>
                     </div>
                 } @else {
                     <div class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
                         <lucide-icon [img]="Shield" class="w-5 h-5 text-amber-500 shrink-0"></lucide-icon>
                         <p class="text-xs text-amber-200/80 leading-relaxed">
-                            <strong>Coldcard Protocol:</strong> Optimized for Coinkite Coldcard devices. Streams at a high-speed 250ms interval.
+                            <strong>Coldcard Protocol:</strong> Optimized for Coinkite Coldcard devices. Adjust the speed slider for compatibility and performance.
                         </p>
                     </div>
                 }
@@ -627,6 +627,24 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                 <p class="text-xs text-slate-500 mt-6 text-center max-w-[320px]">
                     Ensure no cameras are observing your screen before revealing.
                 </p>
+
+                @if (isFountainRevealed()) {
+                    <div class="w-full mt-6 bg-slate-950 p-4 rounded-xl border border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Frame Delay</span>
+                            <span class="text-xs font-mono text-emerald-400 font-bold">{{ fountainSpeed() }}ms</span>
+                        </div>
+                        <input type="range" 
+                               min="100" max="1000" step="50" 
+                               [ngModel]="fountainSpeed()" 
+                               (ngModelChange)="updateFountainSpeed($event)"
+                               class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 transition-all hover:accent-emerald-400" />
+                        <div class="flex justify-between text-[9px] text-slate-600 font-bold uppercase mt-1">
+                            <span>Fast (Drops frames)</span>
+                            <span>Slow (More reliable)</span>
+                        </div>
+                    </div>
+                }
 
             </div>
 
@@ -663,7 +681,7 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                         <strong>Secure Scanner:</strong> Hold your hardware wallet up to the camera. The scanner automatically detects and reconstructs Standard (UR), Coldcard (BBQr), and Static signatures.
                     </p>
                     <p class="text-[11px] text-emerald-400/90 font-medium bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
-                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT to your device. You can then scan the QR from Nunchuk on this QR reader.
+                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read off a harware device. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT to your device. You can then scan the QR from Nunchuk on this QR reader.
                     </p>
                 </div>
             </div>
@@ -1782,6 +1800,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     activeFountainFrames: string[] = [];
     currentFrameIndex = signal<number>(0);
     fountainInterval: any;
+    fountainSpeed = signal<number>(400);
 
     constructor(
         private route: ActivatedRoute,
@@ -3084,7 +3103,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             this.socket.logAction('Privacy Toggle', `Revealed ${this.exportFormat().toUpperCase()} PSBT QR`);
             this.startFountainAnimation();
         } else {
-            this.socket.logAction('Privacy Toggle', 'Blurred Unsigned PSBT QR');
+            this.socket.logAction('Privacy Toggle', `Blurred ${this.exportFormat().toUpperCase()} PSBT QR`);
             this.stopFountainAnimation();
         }
     }
@@ -3092,12 +3111,10 @@ export class RoomComponent implements OnInit, OnDestroy {
     startFountainAnimation() {
         if (this.fountainInterval) clearInterval(this.fountainInterval);
         
-        const speed = this.exportFormat() === 'bbqr' ? 400 : 400;
-        
         this.fountainInterval = setInterval(() => {
             this.currentFrameIndex.update(i => (i + 1) % this.activeFountainFrames.length);
             this.renderFountainFrame();
-        }, speed);
+        }, this.fountainSpeed());
         
         setTimeout(() => this.renderFountainFrame(), 0);
     }
@@ -3149,12 +3166,12 @@ export class RoomComponent implements OnInit, OnDestroy {
                 await this.html5QrCode.start(
                     { facingMode: "environment" },
                     { 
-                        fps: 30, 
-                        disableFlip: false,
+                        fps: 15,
+                        disableFlip: true,
                         qrbox: { width: 350, height: 350 },
                         videoConstraints: {
-                            width: { ideal: 1920 },
-                            height: { ideal: 1080 }
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
                         }
                     },
                     (decodedText) => this.handleScanResult(decodedText),
@@ -3173,7 +3190,7 @@ export class RoomComponent implements OnInit, OnDestroy {
                         { facingMode: "environment" },
                         { fps: 10, disableFlip: false },
                         (decodedText) => this.handleScanResult(decodedText),
-                        () => {}
+                        () => {console.error("Fallback camera failed to start.")}
                     );
                 } catch (fallbackErr) {
                     console.error("Fallback camera start also failed:", fallbackErr);
@@ -3189,11 +3206,9 @@ export class RoomComponent implements OnInit, OnDestroy {
         const fullHex = this.urService.processFragment(decodedText);
         
         if (fullHex) {
-            console.log("✅ Full PSBT decoded, length:", fullHex.length);
+            console.log("Full PSBT decoded, length:", fullHex.length);
             this.stopScanner();
             this.processScannedSignature(fullHex);
-        } else if (this.urService.scanProgress() >= 95) {
-            console.warn("Progress high but no result yet — forcing check");
         }
     }
 
@@ -3237,6 +3252,14 @@ export class RoomComponent implements OnInit, OnDestroy {
             
         } catch (e) {
             console.error("Failed to parse signed PSBT from scanner", e);
+        }
+    }
+
+    updateFountainSpeed(newSpeed: number) {
+        this.fountainSpeed.set(Number(newSpeed));
+        
+        if (this.isFountainRevealed() && this.showFountainModal()) {
+            this.startFountainAnimation();
         }
     }
 }

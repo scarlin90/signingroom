@@ -80,7 +80,7 @@ export class UrService {
 
       // --- PROTOCOL 1: BC-UR ---
       if (upper.startsWith('UR:')) {
-        this.decoder.receivePart(fragment);
+        this.decoder.receivePart(upper);
 
         const progress = this.decoder.estimatedPercentComplete();
         this.scanProgress.set(Math.max(progress, this.scanProgress()));
@@ -89,18 +89,27 @@ export class UrService {
           if (this.decoder.isSuccess()) {
             try {
               const resultUR = this.decoder.resultUR();
-              const cborPayload = resultUR.decodeCBOR();
+              
+              const cborPayload = resultUR.cbor || (resultUR as any)._cbor || (resultUR as any).cborMessage;
 
               if (cborPayload) {
-                // FIX: Use @scure/base to guarantee a clean hex string
-                const hexData = hex.encode(new Uint8Array(cborPayload));
+                let hexData = hex.encode(new Uint8Array(cborPayload)).toLowerCase();
+                
+                const magicIndex = hexData.indexOf('70736274ff');
+                if (magicIndex !== -1) {
+                    hexData = hexData.substring(magicIndex);
+                }
+
                 this.resetDecoder();
                 return hexData;
               }
             } catch (e) {
               console.error("Failed to decode CBOR", e);
-              this.scanError.set("UR decoded but CBOR extraction failed");
+              this.scanError.set("UR decoded but payload extraction failed");
             }
+          } else {
+             this.scanError.set("UR checksum failed. Please rescan.");
+             this.resetDecoder();
           }
         }
         return null;
@@ -130,7 +139,6 @@ export class UrService {
           }
 
           if (encoding === 'Z') {
-            // SPEC: Decode Base32 -> Decompress Zlib -> Result
             const compressed = this.decodeBase32(fullPayload);
             const decompressed = fflate.inflateSync(compressed);
             this.resetDecoder();

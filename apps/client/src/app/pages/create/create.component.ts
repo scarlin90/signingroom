@@ -17,7 +17,7 @@ import {
   X, UploadCloud, FileJson, AlertTriangle, Shield, Key, Users,
   Eye, EyeOff, QrCode, Edit2
 } from 'lucide-angular';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 import { PROTOCOL_VERSION, SocketService } from '../../services/socket/socket.service';
 import { EncryptionService } from '../../services/encryption/encryption.service';
@@ -330,7 +330,7 @@ interface PsbtAnalysis {
                         <strong>Secure Scanner:</strong> Hold your hardware wallet up to the camera. The scanner automatically detects and reconstructs Standard (UR), Coldcard (BBQr), and Static signatures.
                     </p>
                     <p class="text-[11px] text-emerald-400/90 font-medium bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
-                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT to your device. You can then scan the QR from Nunchuk on this QR reader.
+                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read off a harware device. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT to your device. You can then scan the QR from Nunchuk on this QR reader.
                     </p>
                 </div>
             </div>
@@ -756,28 +756,53 @@ export class CreateComponent implements OnInit {
         this.urService.resetDecoder();
         
         setTimeout(async () => {
-            this.html5QrCode = new Html5Qrcode("reader");
-            try {
-                await this.html5QrCode.start(
-                    { facingMode: "environment" },
-                    { 
-                        fps: 60, 
-                        disableFlip: false,
-                        qrbox: { width: 350, height: 350 },
-                        videoConstraints: {
-                            width: { ideal: 1920 },
-                            height: { ideal: 1080 }
+                    this.html5QrCode = new Html5Qrcode("reader", {
+                        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+                        verbose: false,
+                        experimentalFeatures: {
+                            useBarCodeDetectorIfSupported: true
                         }
-                    },
-                    (decodedText) => this.handleScanResult(decodedText),
-                    (errorMessage) => { /* Ignore standard frame errors */ }
-                );
-            } catch (err) {
-                console.error("Camera start failed", err);
-                this.stopScanner();
+                    });
+                    
+                    let frameCount = 0;
+        
+                    try {
+                            await this.html5QrCode.start(
+                            { facingMode: "environment" },
+                            { 
+                                fps: 15,
+                                disableFlip: true,
+                                qrbox: { width: 350, height: 350 },
+                                videoConstraints: {
+                                    width: { ideal: 1280 }, // 720p is much faster to process than 1080p
+                                    height: { ideal: 720 }
+                                }
+                            },
+                            (decodedText) => this.handleScanResult(decodedText),
+                            (errorMessage) => { 
+                                frameCount++;
+                                if (frameCount % 60 === 0) {
+                                    console.warn(`[Optical Debug] Frame ${frameCount} - Engine failing to lock:`, errorMessage.split('\n')[0]);
+                                }
+                            } 
+                        );
+                    } catch (err) {
+                        console.warn("High-res camera start failed. Falling back to standard resolution...", err);
+                        
+                        try {
+                             await this.html5QrCode.start(
+                                { facingMode: "environment" },
+                                { fps: 10, disableFlip: false },
+                                (decodedText) => this.handleScanResult(decodedText),
+                                () => { console.error("Fallback camera failed to start.") }
+                            );
+                        } catch (fallbackErr) {
+                            console.error("Fallback camera start also failed:", fallbackErr);
+                            this.stopScanner();
+                        }
+                    }
+                }, 100);
             }
-        }, 100);
-    }
 
     async handleScanResult(decodedText: string) {
         if (this.isProcessingScan) return;
@@ -793,32 +818,6 @@ export class CreateComponent implements OnInit {
                 await this.safeStopScanner();
                 this.analyzeRawHex(fullHex);
                 this.isProcessingScan = false;
-            }
-            else if (this.urService.scanProgress() >= 0.99) {
-                try {
-                    const decoder = (this.urService as any)['decoder'];
-                    if (decoder?.isComplete?.() && decoder?.isSuccess?.()) {
-                        const resultUR = decoder.resultUR();
-                        const cbor = resultUR.decodeCBOR();
-                        let hexStr = hex.encode(new Uint8Array(cbor)).toLowerCase();
-                        
-                        const magicIndex = hexStr.indexOf('70736274ff');
-                        if (magicIndex !== -1) {
-                            hexStr = hexStr.substring(magicIndex);
-                        }
-
-                        if (hexStr) {
-                            this.isProcessingScan = true;
-                            await this.safeStopScanner();
-                            this.analyzeRawHex(hexStr);
-                            this.isProcessingScan = false;
-                        }
-                    } else if (decoder?.isComplete?.() && !decoder?.isSuccess?.()) {
-                        this.urService.resetDecoder();
-                    }
-                } catch (e) {
-                    console.error("Force extraction failed", e);
-                }
             }
         } 
         else {
