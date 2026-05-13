@@ -289,6 +289,17 @@ interface PsbtAnalysis {
     </h2>
 
     @if (!psbtAnalysis()) {
+
+        @if (errorMessage()) {
+            <div class="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-rose-400 shrink-0"></lucide-icon>
+                <div>
+                    <h4 class="text-sm font-bold text-rose-300 mb-1">Processing Failed</h4>
+                    <p class="text-xs text-rose-200/80 leading-relaxed">{{ errorMessage() }}</p>
+                </div>
+            </div>
+        }
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2 animate-in fade-in duration-300">
             
             <div class="relative group flex flex-col items-center justify-center p-8 bg-slate-950 border-2 border-dashed border-slate-800 rounded-xl hover:border-purple-500/50 hover:bg-purple-500/5 transition-all cursor-pointer" [class.opacity-50]="isScanning()">
@@ -310,42 +321,66 @@ interface PsbtAnalysis {
         </div>
 
         @if (isScanning()) {
-            <div class="relative bg-black rounded-xl overflow-hidden border border-emerald-500/30 mb-4 mt-4 shadow-[0_0_15px_rgba(16,185,129,0.1)] animate-in fade-in slide-in-from-top-4 duration-300">
-                <div id="reader" class="w-full object-cover"></div>
+            <div class="animate-in fade-in slide-in-from-top-4 duration-300 mt-6 mb-4">
                 
-                <div class="absolute inset-0 pointer-events-none z-10 flex flex-col items-center justify-center overflow-hidden">
-                    <div class="absolute top-8 left-1/2 -translate-x-1/2 z-20 bg-slate-950/80 border border-emerald-500/20 backdrop-blur-md px-4 py-1.5 rounded-full">
-                        <span class="text-xs font-medium text-emerald-400 uppercase tracking-widest flex items-center gap-2">
-                            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                            Align QR within frame
+                <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3">
+                <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                <div class="text-xs text-emerald-200/80 leading-relaxed space-y-2">
+                    <p>
+                        <strong>Secure Scanner:</strong> Hold your hardware wallet up to the camera. The scanner automatically detects and reconstructs Standard (UR), Coldcard (BBQr), and Static signatures.
+                    </p>
+                    <p class="text-[11px] text-emerald-400/90 font-medium bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
+                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT to your device. You can then scan the QR from Nunchuk on this QR reader.
+                    </p>
+                </div>
+            </div>
+
+                <div class="w-full mb-4 space-y-2">
+                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between">
+                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Raw Optical Feed</span>
+                        <span class="text-[10px] text-emerald-400 font-mono truncate max-w-[200px]" [title]="urService.lastScannedText()">
+                            {{ urService.lastScannedText() || 'Waiting for QR...' }}
                         </span>
                     </div>
-
-                    <div class="relative w-56 h-56 rounded-xl shadow-[0_0_0_9999px_rgba(2,6,23,0.7)] border border-emerald-500/30">
-                        <div class="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-emerald-500 rounded-tl-xl"></div>
-                        <div class="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-emerald-500 rounded-tr-xl"></div>
-                        <div class="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-emerald-500 rounded-bl-xl"></div>
-                        <div class="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-emerald-500 rounded-br-xl"></div>
-                        <div class="absolute left-0 right-0 h-[2px] bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] scanner-laser"></div>
-                    </div>
+                    
+                    @if (urService.scanError()) {
+                        <div class="bg-rose-500/10 border border-rose-500/30 rounded-lg p-2.5 flex items-start gap-2 animate-in fade-in zoom-in-95 duration-200">
+                            <lucide-icon [img]="AlertTriangle" class="w-4 h-4 text-rose-400 shrink-0"></lucide-icon>
+                            <span class="text-xs text-rose-300">{{ urService.scanError() }}</span>
+                        </div>
+                    }
                 </div>
 
-                @if (urService.scanProgress() > 0) {
-                    <div class="absolute bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm p-3 border-t border-slate-800 z-20">
-                        <div class="flex justify-between text-xs text-slate-400 mb-2">
-                            <span>Reconstructing PSBT...</span>
-                            <span>{{ (urService.scanProgress() * 100).toFixed(0) }}%</span>
-                        </div>
-                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                            <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-200 ease-out" 
-                                [style.width.%]="urService.scanProgress() * 100"></div>
+                <div class="relative bg-black rounded-xl overflow-hidden border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                    <div id="reader" class="w-full h-72 object-cover"></div>
+                    
+                    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col items-center justify-center overflow-hidden">
+                        <div class="relative w-56 h-56 rounded-xl shadow-[0_0_0_9999px_rgba(2,6,23,0.7)] border border-emerald-500/30">
+                            <div class="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-emerald-500 rounded-tl-xl"></div>
+                            <div class="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-emerald-500 rounded-tr-xl"></div>
+                            <div class="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-emerald-500 rounded-bl-xl"></div>
+                            <div class="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-emerald-500 rounded-br-xl"></div>
+                            <div class="absolute left-0 right-0 h-[2px] bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] scanner-laser"></div>
                         </div>
                     </div>
-                }
-                
-                <button (click)="stopScanner()" class="absolute top-4 right-4 z-20 text-slate-400 bg-slate-900/80 hover:text-white hover:bg-red-500/90 p-2.5 rounded-full transition-all backdrop-blur-sm border border-slate-700 hover:border-red-500">
-                    <lucide-icon [img]="X" [size]="20"></lucide-icon>
-                </button>
+
+                    @if (urService.scanProgress() > 0) {
+                        <div class="absolute bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm p-3 border-t border-emerald-500/30 z-20">
+                            <div class="flex justify-between text-xs text-emerald-400 font-bold mb-2 tracking-wider">
+                                <span>RECONSTRUCTING PSBT...</span>
+                                <span>{{ (urService.scanProgress() * 100).toFixed(0) }}%</span>
+                            </div>
+                            <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                                <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-200 ease-out" 
+                                    [style.width.%]="urService.scanProgress() * 100"></div>
+                            </div>
+                        </div>
+                    }
+                    
+                    <button (click)="stopScanner()" class="absolute top-4 right-4 z-20 text-slate-400 bg-slate-900/80 hover:text-white hover:bg-red-500/90 p-2.5 rounded-full transition-all backdrop-blur-sm border border-slate-700 hover:border-red-500">
+                        <lucide-icon [img]="X" [size]="20"></lucide-icon>
+                    </button>
+                </div>
             </div>
         }
 
@@ -712,8 +747,12 @@ export class CreateComponent implements OnInit {
         return base64.encode(bytes); 
     }
 
+    private isProcessingScan = false;
+
     async startScanner() {
         this.isScanning.set(true);
+        this.isProcessingScan = false;
+        this.errorMessage.set(null); // Clear old errors
         this.urService.resetDecoder();
         
         setTimeout(async () => {
@@ -722,7 +761,7 @@ export class CreateComponent implements OnInit {
                 await this.html5QrCode.start(
                     { facingMode: "environment" },
                     { 
-                        fps: 30, 
+                        fps: 60, 
                         disableFlip: false,
                         qrbox: { width: 350, height: 350 },
                         videoConstraints: {
@@ -740,7 +779,9 @@ export class CreateComponent implements OnInit {
         }, 100);
     }
 
-    handleScanResult(decodedText: string) {
+    async handleScanResult(decodedText: string) {
+        if (this.isProcessingScan) return;
+
         const upper = decodedText.toUpperCase();
         
         // Route BOTH Fountain Codes (UR) and Coldcard BBQr codes (B$) to the Omni-Decoder
@@ -748,10 +789,11 @@ export class CreateComponent implements OnInit {
             const fullHex = this.urService.processFragment(decodedText);
             
             if (fullHex) {
-                this.stopScanner();
+                this.isProcessingScan = true;
+                await this.safeStopScanner();
                 this.analyzeRawHex(fullHex);
+                this.isProcessingScan = false;
             }
-            // Optional Safety Net for stuck UR streams 
             else if (this.urService.scanProgress() >= 0.99) {
                 try {
                     const decoder = (this.urService as any)['decoder'];
@@ -760,15 +802,16 @@ export class CreateComponent implements OnInit {
                         const cbor = resultUR.decodeCBOR();
                         let hexStr = hex.encode(new Uint8Array(cbor)).toLowerCase();
                         
-                        // Strip CBOR wrapper if present
                         const magicIndex = hexStr.indexOf('70736274ff');
                         if (magicIndex !== -1) {
                             hexStr = hexStr.substring(magicIndex);
                         }
 
                         if (hexStr) {
-                            this.stopScanner();
+                            this.isProcessingScan = true;
+                            await this.safeStopScanner();
                             this.analyzeRawHex(hexStr);
+                            this.isProcessingScan = false;
                         }
                     } else if (decoder?.isComplete?.() && !decoder?.isSuccess?.()) {
                         this.urService.resetDecoder();
@@ -779,19 +822,28 @@ export class CreateComponent implements OnInit {
             }
         } 
         else {
-            this.stopScanner();
+            this.isProcessingScan = true;
+            await this.safeStopScanner();
             this.analyzeRawHex(decodedText);
+            this.isProcessingScan = false;
         }
     }
 
-    stopScanner() {
+    async safeStopScanner() {
         if (this.html5QrCode) {
-            this.html5QrCode.stop().then(() => {
-                this.html5QrCode?.clear();
-                this.isScanning.set(false);
-            });
-        } else {
-            this.isScanning.set(false);
+            try {
+                if (this.html5QrCode.getState() === 2) {
+                    await this.html5QrCode.stop();
+                }
+                this.html5QrCode.clear();
+            } catch (e) {
+                console.error("Camera stop error", e);
+            }
         }
+        this.isScanning.set(false);
+    }
+
+    stopScanner() {
+        this.safeStopScanner();
     }
 }

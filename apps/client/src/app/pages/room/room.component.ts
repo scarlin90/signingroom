@@ -557,22 +557,22 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
   }
 
   @if (showFountainModal()) {
-    <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
             
-            <div class="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/50">
-                <h3 class="text-white font-medium flex items-center gap-2">
-                    <lucide-icon [img]="Shield" class="text-emerald-500" [size]="18"></lucide-icon>
-                    Air-Gapped Export
-                </h3>
-                <button (click)="closeFountainModal()" class="text-slate-500 hover:text-white transition-colors">
-                    <lucide-icon [img]="X" [size]="20"></lucide-icon>
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Air-Gapped Export PSBT</h3>
+                </div>
+                <button (click)="closeFountainModal()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
                 </button>
             </div>
 
             <div class="p-6 flex flex-col items-center">
                 
-                <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-6 w-full max-w-[320px]">
+                <div class="w-full flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-6">
                     <button (click)="setExportFormat('ur')"
                             class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2"
                             [class.bg-slate-800]="exportFormat() === 'ur'"
@@ -589,92 +589,103 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                     </button>
                 </div>
 
-                <div class="relative w-[320px] h-[320px] rounded-xl overflow-hidden cursor-pointer bg-white" (click)="toggleFountainReveal()">
-                    <canvas id="fountain-psbt-canvas" class="absolute inset-0 w-full h-full"
-                            [class.blur-xl]="!isFountainRevealed()" 
-                            [class.opacity-30]="!isFountainRevealed()">
-                    </canvas>
+                @if (exportFormat() === 'ur') {
+                    <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
+                        <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <p class="text-xs text-emerald-200/80 leading-relaxed">
+                            <strong>Standard Protocol:</strong> Optimized for Keystone, Passport, and standard hardware wallets. Streams at a stable 400ms interval.
+                        </p>
+                    </div>
+                } @else {
+                    <div class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
+                        <lucide-icon [img]="Shield" class="w-5 h-5 text-amber-500 shrink-0"></lucide-icon>
+                        <p class="text-xs text-amber-200/80 leading-relaxed">
+                            <strong>Coldcard Protocol:</strong> Optimized for Coinkite Coldcard devices. Streams at a high-speed 250ms interval.
+                        </p>
+                    </div>
+                }
+
+                <div class="relative group cursor-pointer inline-flex flex-col items-center" (click)="toggleFountainReveal()">
+                    
+                    <div class="bg-white p-2 rounded-xl transition-all duration-300 relative"
+                         [class.blur-md]="!isFountainRevealed()"
+                         [class.opacity-50]="!isFountainRevealed()">
+                         
+                        <canvas id="fountain-psbt-canvas" class="w-64 h-64 sm:w-72 sm:h-72 block"></canvas>
+                    </div>
 
                     @if (!isFountainRevealed()) {
-                        <div class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/40 hover:bg-slate-950/60 transition-colors">
-                            <div class="bg-slate-900/90 p-4 rounded-full border border-slate-700 mb-3 text-slate-300">
-                                <lucide-icon [img]="EyeOff" [size]="32"></lucide-icon>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center z-10">
+                            <div class="bg-slate-900/90 p-3 rounded-full border border-slate-700 shadow-xl mb-2">
+                                <lucide-icon [img]="Eye" class="w-6 h-6 text-white"></lucide-icon>
                             </div>
-                            <span class="text-white font-medium tracking-wide">Click to Reveal QR</span>
+                            <span class="text-xs font-bold text-slate-900 bg-white/90 px-2 py-1 rounded shadow-sm">Click to Reveal</span>
                         </div>
                     }
                 </div>
 
-                <div class="mt-6 border rounded-lg p-4 w-full flex items-start gap-3 transition-colors"
-                     [class.bg-amber-500_10]="exportFormat() === 'bbqr'"
-                     [class.border-amber-500_20]="exportFormat() === 'bbqr'"
-                     [class.bg-emerald-500_10]="exportFormat() === 'ur'"
-                     [class.border-emerald-500_20]="exportFormat() === 'ur'">
-                    
-                    <lucide-icon [img]="AlertTriangle" class="shrink-0 mt-0.5" [size]="18"
-                                 [class.text-amber-500]="exportFormat() === 'bbqr'"
-                                 [class.text-emerald-500]="exportFormat() === 'ur'">
-                    </lucide-icon>
-                    
-                    <div>
-                        <div class="text-sm font-medium mb-1"
-                             [class.text-amber-500]="exportFormat() === 'bbqr'"
-                             [class.text-emerald-500]="exportFormat() === 'ur'">
-                            {{ exportFormat() === 'bbqr' ? 'Coldcard Protocol' : 'Standard Protocol' }}
-                        </div>
-                        <div class="text-slate-400 text-xs leading-relaxed">
-                            {{ exportFormat() === 'bbqr' 
-                                ? 'Optimized for Coinkite Coldcard devices. Streams at a high-speed 250ms interval.' 
-                                : 'Optimized for Keystone, Passport, and standard hardware wallets. Streams at a stable 400ms interval.' 
-                            }}
-                            Ensure no cameras are observing your screen before revealing.
-                        </div>
-                    </div>
-                </div>
+                <p class="text-xs text-slate-500 mt-6 text-center max-w-[320px]">
+                    Ensure no cameras are observing your screen before revealing.
+                </p>
 
             </div>
+
+            <div class="p-4 bg-slate-950/50 border-t border-slate-800 flex justify-end gap-3">
+                <button (click)="closeFountainModal()" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white font-medium text-sm transition border border-transparent hover:border-slate-700 w-full">
+                    Close
+                </button>
+            </div>
+
         </div>
     </div>
   }
 
   @if (showScannerModal()) {
-    <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
             
-            <div class="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/50">
-                <h3 class="text-white font-medium flex items-center gap-2">
-                    <lucide-icon [img]="QrCode" class="text-emerald-500" [size]="18"></lucide-icon>
-                    Optical Ingestion
-                </h3>
-                <button (click)="stopScanner()" class="text-slate-500 hover:text-white transition-colors">
-                    <lucide-icon [img]="X" [size]="20"></lucide-icon>
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="QrCode" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Air-Gapped Import PSBT</h3>
+                </div>
+                <button (click)="stopScanner()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
                 </button>
             </div>
 
             <div class="p-6 flex flex-col items-center">
-                <div class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 mb-6 flex items-start gap-3">
-                    <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
-                    <p class="text-xs text-slate-300 leading-relaxed">
-                        Hold your hardware wallet up to the camera. The scanner automatically detects and reconstructs <strong>Standard (UR)</strong>, <strong>Coldcard (BBQr)</strong>, and Static signatures.
+                
+                <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3">
+                <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                <div class="text-xs text-emerald-200/80 leading-relaxed space-y-2">
+                    <p>
+                        <strong>Secure Scanner:</strong> Hold your hardware wallet up to the camera. The scanner automatically detects and reconstructs Standard (UR), Coldcard (BBQr), and Static signatures.
                     </p>
+                    <p class="text-[11px] text-emerald-400/90 font-medium bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
+                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT to your device. You can then scan the QR from Nunchuk on this QR reader.
+                    </p>
+                </div>
+            </div>
+
+                <div class="w-full mb-4 space-y-2">
+                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between">
+                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Raw Optical Feed</span>
+                        <span class="text-[10px] text-emerald-400 font-mono truncate max-w-[200px]" [title]="urService.lastScannedText()">
+                            {{ urService.lastScannedText() || 'Waiting for QR...' }}
+                        </span>
+                    </div>
+                    
+                    @if (urService.scanError()) {
+                        <div class="bg-rose-500/10 border border-rose-500/30 rounded-lg p-2.5 flex items-start gap-2 animate-in fade-in zoom-in-95 duration-200">
+                            <lucide-icon [img]="AlertTriangle" class="w-4 h-4 text-rose-400 shrink-0"></lucide-icon>
+                            <span class="text-xs text-rose-300">{{ urService.scanError() }}</span>
+                        </div>
+                    }
                 </div>
 
                 <div class="relative bg-black w-full rounded-xl overflow-hidden border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                    <div class="w-full mb-4 space-y-2">
-                        <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between">
-                            <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Raw Optical Feed</span>
-                            <span class="text-[10px] text-emerald-400 font-mono truncate max-w-[200px]">
-                                {{ urService.lastScannedText() }}
-                            </span>
-                        </div>
-                        
-                        @if (urService.scanError()) {
-                            <div class="bg-rose-500/10 border border-rose-500/30 rounded-lg p-2.5 flex items-start gap-2">
-                                <lucide-icon [img]="AlertTriangle" class="w-4 h-4 text-rose-400 shrink-0"></lucide-icon>
-                                <span class="text-xs text-rose-300">{{ urService.scanError() }}</span>
-                            </div>
-                        }
-                    </div>
+                    
                     <div id="signer-reader" class="w-full h-72 object-cover"></div>
                     
                     <div class="absolute inset-0 pointer-events-none z-10 flex flex-col items-center justify-center overflow-hidden">
@@ -701,6 +712,13 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                     }
                 </div>
             </div>
+
+            <div class="p-4 bg-slate-950/50 border-t border-slate-800 flex justify-end gap-3">
+                <button (click)="stopScanner()" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white font-medium text-sm transition border border-transparent hover:border-slate-700 w-full">
+                    Cancel & Close
+                </button>
+            </div>
+
         </div>
     </div>
   }
@@ -3074,7 +3092,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     startFountainAnimation() {
         if (this.fountainInterval) clearInterval(this.fountainInterval);
         
-        const speed = this.exportFormat() === 'bbqr' ? 250 : 400;
+        const speed = this.exportFormat() === 'bbqr' ? 400 : 400;
         
         this.fountainInterval = setInterval(() => {
             this.currentFrameIndex.update(i => (i + 1) % this.activeFountainFrames.length);
