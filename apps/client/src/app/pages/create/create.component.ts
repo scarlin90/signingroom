@@ -770,11 +770,11 @@ export class CreateComponent implements OnInit {
                             await this.html5QrCode.start(
                             { facingMode: "environment" },
                             { 
-                                fps: 15,
+                                fps: 10,
                                 disableFlip: true,
                                 qrbox: { width: 350, height: 350 },
                                 videoConstraints: {
-                                    width: { ideal: 1280 }, // 720p is much faster to process than 1080p
+                                    width: { ideal: 1280 },
                                     height: { ideal: 720 }
                                 }
                             },

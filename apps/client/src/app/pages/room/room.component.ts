@@ -3166,7 +3166,7 @@ export class RoomComponent implements OnInit, OnDestroy {
                 await this.html5QrCode.start(
                     { facingMode: "environment" },
                     { 
-                        fps: 15,
+                        fps: 10,
                         disableFlip: true,
                         qrbox: { width: 350, height: 350 },
                         videoConstraints: {

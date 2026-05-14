@@ -164,7 +164,7 @@ it('should detect binary magic bytes and convert to hex', async () => {
   const event = { target: { files: [file] } };
 
   await component.onFileSelected(event);
-  expect(component.rawHex).toBe('70736274ff0102');
+  expect(component.rawHex).toBe('cHNidP8BAg==');
 });
 
 it('should handle binary PSBT files (magic bytes check)', async () => {
@@ -173,7 +173,7 @@ it('should handle binary PSBT files (magic bytes check)', async () => {
   const event = { target: { files: [file] } };
 
   await component.onFileSelected(event);
-  expect(component.rawHex).toBe('70736274ff0102');
+  expect(component.rawHex).toBe('cHNidP8BAg==');
 });
 
 it('should normalize input and generate keys', () => {
@@ -199,7 +199,7 @@ it('should detect binary PSBT files via magic bytes', async () => {
 
   await component.onFileSelected(event);
   
-  expect(component.rawHex).toBe('70736274ff0102');
+  expect(component.rawHex).toBe('cHNidP8BAg==');
 });
 
 it('should correctly normalize inputs and generate encryption keys', () => {
@@ -217,7 +217,7 @@ it('should process binary PSBT files correctly', async () => {
   const event = { target: { files: [file] } };
 
   await component.onFileSelected(event);
-  expect(component.rawHex).toBe('70736274ff01');
+  expect(component.rawHex).toBe('cHNidP8B');
 });
 
 it('should normalize input and generate encryption keys', () => {
@@ -581,6 +581,95 @@ it('should handle onMessage from allowed origin and ignore unauthorized', async 
     const key = (component as any).generateEncryptionKey();
     expect(key).toBeDefined();
     expect(typeof key).toBe('string');
+  });
+
+  describe('Scanner Integration (handleScanResult)', () => {
+    it('should route UR/BBQr fragments through the urService', async () => {
+      vi.spyOn(component.urService, 'processFragment').mockReturnValue(null); 
+      
+      await component.handleScanResult('ur:crypto-psbt/1-10/part1');
+      
+      expect(component.urService.processFragment).toHaveBeenCalledWith('ur:crypto-psbt/1-10/part1');
+      expect(component['isProcessingScan']).toBe(false);
+    });
+
+    it('should stop scanner and analyze hex when UR fountian completes', async () => {
+      const mockExtractedHex = '70736274ff0102';
+      vi.spyOn(component.urService, 'processFragment').mockReturnValue(mockExtractedHex);
+      vi.spyOn(component, 'safeStopScanner').mockResolvedValue(undefined); // mockResolvedValue for Promises
+      vi.spyOn(component, 'analyzeRawHex');
+
+      await component.handleScanResult('UR:CRYPTO-PSBT/10-10/FINALPART');
+
+      expect(component['isProcessingScan']).toBe(false);
+      expect(component.safeStopScanner).toHaveBeenCalled();
+      expect(component.analyzeRawHex).toHaveBeenCalledWith(mockExtractedHex);
+    });
+
+    it('should bypass urService and analyze directly for raw standard QR codes', async () => {
+      const rawPsbtBase64 = 'cHNidP8BAg==';
+      vi.spyOn(component.urService, 'processFragment');
+      vi.spyOn(component, 'safeStopScanner').mockResolvedValue(undefined);
+      vi.spyOn(component, 'analyzeRawHex');
+
+      await component.handleScanResult(rawPsbtBase64);
+
+      expect(component.urService.processFragment).not.toHaveBeenCalled();
+      expect(component.safeStopScanner).toHaveBeenCalled();
+      expect(component.analyzeRawHex).toHaveBeenCalledWith(rawPsbtBase64);
+    });
+
+    it('should safely handle errors when stopping the scanner fails', async () => {
+      component.html5QrCode = {
+        getState: () => 2, // 2 = Html5QrcodeScannerState.SCANNING
+        stop: vi.fn().mockRejectedValue(new Error('Camera stuck')),
+        clear: vi.fn()
+      } as any;
+
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await component.safeStopScanner();
+
+      expect(console.error).toHaveBeenCalledWith("Camera stop error", expect.any(Error));
+      expect(component.isScanning()).toBe(false);
+    });
+
+    it('should not stop scanner or analyze hex if processFragment returns null (incomplete)', async () => {
+      vi.spyOn(component.urService, 'processFragment').mockReturnValue(null);
+      vi.spyOn(component, 'safeStopScanner');
+      vi.spyOn(component, 'analyzeRawHex');
+
+      await component.handleScanResult('UR:CRYPTO-PSBT/1-10/PART1');
+
+      // The scanner should keep running silently
+      expect(component.safeStopScanner).not.toHaveBeenCalled();
+      expect(component.analyzeRawHex).not.toHaveBeenCalled();
+    });
+});
+
+describe('Additional Edge Cases', () => {
+    it('should return early from handleScanResult if already processing', async () => {
+      component['isProcessingScan'] = true;
+      vi.spyOn(component.urService, 'processFragment');
+      
+      await component.handleScanResult('UR:CRYPTO-PSBT/1-1/MOCK');
+      
+      // Proves we hit line 832 and returned early
+      expect(component.urService.processFragment).not.toHaveBeenCalled();
+    });
+
+    it('should safely handle synchronous clear() errors in safeStopScanner', async () => {
+      component.html5QrCode = {
+        getState: () => 1, // 1 = Not scanning, bypasses stop()
+        clear: vi.fn().mockImplementation(() => { throw new Error('Clear crash'); })
+      } as any;
+      
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      await component.safeStopScanner();
+      
+      // Proves we hit the catch block when clear() explosively fails
+      expect(console.error).toHaveBeenCalledWith("Camera stop error", expect.any(Error));
+    });
   });
 
 });

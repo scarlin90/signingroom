@@ -23,8 +23,10 @@ vi.mock('jspdf', () => ({
 
 vi.mock('qrcode', () => ({
   toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,FAKEQR'),
+  toCanvas: vi.fn().mockResolvedValue(undefined),
   default: {
-    toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,FAKEQR')
+    toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,FAKEQR'),
+    toCanvas: vi.fn().mockResolvedValue(undefined)
   }
 }));
 
@@ -1055,6 +1057,444 @@ describe('RoomComponent', () => {
       expect(component.showPrivacyWarning()).toBe(false);
       expect(component.pendingUnblurSection()).toBeNull();
       expect(component.blurStates().signers).toBe(true); // Should remain safely blurred
+    });
+  });
+
+  describe('Scanner Handling', () => {
+
+    it('stopScanner: should handle falsy html5QrCode', () => {
+      component.html5QrCode = null as any;
+      component.isScanningSigned.set(true);
+      
+      component.stopScanner();
+      
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('stopScanner: should safely clear scanner if state is not SCANNING', () => {
+      component.html5QrCode = {
+        getState: () => 1, // Not scanning
+        clear: vi.fn()
+      } as any;
+      component.isScanningSigned.set(true);
+      
+      component.stopScanner();
+      
+      expect(component.html5QrCode.clear).toHaveBeenCalled();
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('stopScanner: should handle asynchronous promise rejection from stop()', async () => {
+      let rejectPromise: any;
+      const promise = new Promise((_, reject) => { rejectPromise = reject; });
+      component.html5QrCode = {
+        getState: () => 2, // Scanning
+        stop: vi.fn().mockReturnValue(promise),
+        clear: vi.fn()
+      } as any;
+      component.isScanningSigned.set(true);
+      
+      component.stopScanner();
+      
+      rejectPromise(new Error('Camera stuck'));
+      
+      await new Promise(process.nextTick);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      expect(component.html5QrCode.clear).toHaveBeenCalled();
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('stopScanner: should execute catch block if synchronous error occurs', () => {
+      component.html5QrCode = {
+        getState: () => { throw new Error('Sync crash'); },
+        clear: vi.fn()
+      } as any;
+      component.isScanningSigned.set(true);
+      
+      component.stopScanner();
+      
+      expect(component.html5QrCode.clear).toHaveBeenCalled();
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('handleScanResult: should process fragment and stop scanner when complete', () => {
+      vi.spyOn(component.urService, 'processFragment').mockReturnValue('010203');
+      vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
+      vi.spyOn(component, 'processScannedSignature').mockImplementation(async () => {});
+
+      component.handleScanResult('UR:CRYPTO-PSBT/1-1/MOCK');
+
+      expect(component.stopScanner).toHaveBeenCalled();
+      expect(component.processScannedSignature).toHaveBeenCalledWith('010203');
+    });
+
+    it('handleScanResult: should do nothing if fragment is incomplete', () => {
+      vi.spyOn(component.urService, 'processFragment').mockReturnValue(null);
+      vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
+
+      component.handleScanResult('UR:CRYPTO-PSBT/1-2/MOCK');
+
+      expect(component.stopScanner).not.toHaveBeenCalled();
+    });
+
+    it('updateFountainSpeed: should update speed and restart animation if currently running', () => {
+      component.isFountainRevealed.set(true);
+      component.showFountainModal.set(true);
+      vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+
+      component.updateFountainSpeed(250);
+
+      expect(component.fountainSpeed()).toBe(250);
+      expect(component.startFountainAnimation).toHaveBeenCalled();
+    });
+
+    it('updateFountainSpeed: should just update speed if animation is not currently running', () => {
+      component.isFountainRevealed.set(false); // Modal hidden
+      vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+
+      component.updateFountainSpeed(300);
+
+      expect(component.fountainSpeed()).toBe(300);
+      expect(component.startFountainAnimation).not.toHaveBeenCalled();
+    });
+
+    it('should catch errors if uploadSignature fails in processScannedSignature', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Use spyOn to safely hijack just this one method without breaking ngOnDestroy
+      vi.spyOn(component.socket, 'uploadSignature').mockRejectedValue(new Error('Network disconnected'));
+      
+      await component.processScannedSignature('01020304'); 
+      
+      expect(console.error).toHaveBeenCalledWith("Failed to parse signed PSBT from scanner", expect.any(Error));
+    });
+
+    it('should safely execute the catch block if getState throws in stopScanner', () => {
+        component.html5QrCode = {
+          getState: () => { throw new Error('State crash'); },
+          clear: vi.fn()
+        } as any;
+        
+        component.stopScanner();
+        
+        expect(component.isScanningSigned()).toBe(false);
+      });
+
+    it('should safely handle errors when parsing a scanned signature fails', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        
+        await component.processScannedSignature('INVALID_!!!_DATA');
+        
+        expect(console.error).toHaveBeenCalledWith(
+            "Failed to parse signed PSBT from scanner", 
+            expect.any(Error)
+        );
+    });
+
+    it('should handle asynchronous rejection when stopping the scanner', async () => {
+      component.html5QrCode = {
+        getState: () => 2,
+        stop: vi.fn().mockRejectedValue(new Error('Camera stuck')),
+        clear: vi.fn()
+      } as any;
+      
+      component.stopScanner();
+      await Promise.resolve();
+      
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('should handle synchronous errors when stopping the scanner', () => {
+      component.html5QrCode = {
+        getState: () => { throw new Error('Sync crash'); },
+        clear: vi.fn()
+      } as any;
+      
+      component.stopScanner();
+      
+      expect(component.isScanningSigned()).toBe(false);
+    });
+  });
+
+  describe('startScanner Anonymous Callbacks & Error Chains', () => {
+    
+    beforeEach(() => {
+      vi.useFakeTimers();
+      // Provide the missing DOM element to prevent the constructor from throwing unhandled rejections
+      if (!document.getElementById('signer-reader')) {
+        const div = document.createElement('div');
+        div.id = 'signer-reader';
+        document.body.appendChild(div);
+      }
+    });
+
+    afterEach(() => {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+      const div = document.getElementById('signer-reader');
+      if (div) div.remove();
+    });
+
+    it('should trigger the success and error callbacks passed to html5QrCode.start', async () => {
+      vi.spyOn(component, 'handleScanResult').mockImplementation(() => {});
+
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start')
+        .mockImplementation((camId: any, config: any, onSuccess: any, onError: any) => {
+          if (onSuccess) onSuccess('UR:CRYPTO-PSBT/1-1/MOCK');
+          if (onError) onError('Ignored scan error');
+          return Promise.resolve();
+        });
+
+      component.startScanner();
+
+      vi.advanceTimersByTime(100);
+      
+      await Promise.resolve(); 
+
+      expect(component.handleScanResult).toHaveBeenCalledWith('UR:CRYPTO-PSBT/1-1/MOCK');
+      expect(component.isScanningSigned()).toBe(true);
+
+      startSpy.mockRestore();
+    });
+
+    it('should execute the .catch() block if html5QrCode.start rejects', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start')
+        .mockRejectedValue(new Error('Camera permissions denied'));
+
+      component.isScanningSigned.set(false);
+
+      component.startScanner();
+
+      vi.advanceTimersByTime(100);
+      
+      await Promise.resolve();
+      await Promise.resolve(); 
+
+      expect(console.error).toHaveBeenCalled();
+
+      startSpy.mockRestore();
+    });
+    
+    it('should fall safely through safeStopScanner if html5QrCode is null', () => {
+      component.html5QrCode = null as any;
+      component.isScanningSigned.set(true);
+      
+      component.stopScanner();
+      
+      expect(component.isScanningSigned()).toBe(false);
+    });
+  });
+
+  describe('scanner Function (Callbacks & Edge Cases)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      if (!document.getElementById('signer-reader')) {
+        const div = document.createElement('div');
+        div.id = 'signer-reader';
+        document.body.appendChild(div);
+      }
+    });
+    
+    afterEach(() => {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+      const div = document.getElementById('signer-reader');
+      if (div) div.remove();
+    });
+
+    it('should successfully resolve stopScanner and trigger .then() callback', async () => {
+      component.html5QrCode = {
+        getState: () => 2,
+        stop: vi.fn().mockResolvedValue(undefined),
+        clear: vi.fn()
+      } as any;
+      component.isScanningSigned.set(true);
+      
+      component.stopScanner();
+      await Promise.resolve(); 
+      
+      expect(component.html5QrCode.clear).toHaveBeenCalled();
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('should trigger doFinalize() callback inside confirmation modal', () => {
+      socketSpy.roomState.mockReturnValue({
+        ...baseRoomState,
+        whitelist: ['some-address'],
+        signatures: ['sig1']
+      });
+      socketSpy.txDetails.mockReturnValue({ 
+          outputs: [{ address: 'unverified-addr', isChange: false }] 
+      });
+
+      component.finalize();
+      
+      const broadcastSpy = vi.spyOn(socketSpy, 'broadcastFinalization');
+      socketSpy.getFinalTxHex.mockReturnValue('hex');
+      socketSpy.getFinalTxId.mockReturnValue('id');
+      
+      component.executeConfirmAction();
+      
+      expect(broadcastSpy).toHaveBeenCalledWith('hex', 'id');
+    });
+
+    it('should execute setTimeout callback inside doCopy()', () => {
+      component.copyHex(); 
+      expect(component.copied()).toBe(true);
+      
+      vi.advanceTimersByTime(2000);
+      
+      expect(component.copied()).toBe(false);
+    });
+
+    it('should execute interval and timeout callbacks in startFountainAnimation()', () => {
+      const renderSpy = vi.spyOn(component, 'renderFountainFrame').mockImplementation(async () => {});
+      component.activeFountainFrames = ['frame1', 'frame2'];
+      component.currentFrameIndex.set(0);
+      component.fountainSpeed.set(400);
+      
+      component.startFountainAnimation();
+      
+      vi.advanceTimersByTime(1);
+      expect(renderSpy).toHaveBeenCalledTimes(1);
+      
+      vi.advanceTimersByTime(400);
+      expect(renderSpy).toHaveBeenCalledTimes(2);
+      
+      component.stopFountainAnimation();
+    });
+
+    it('should start and stop animation via toggleFountainReveal()', () => {
+      const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+      const stopSpy = vi.spyOn(component, 'stopFountainAnimation').mockImplementation(() => {});
+      
+      component.isFountainRevealed.set(false);
+      component.exportFormat.set('ur');
+      
+      component.toggleFountainReveal();
+      expect(startSpy).toHaveBeenCalled();
+      
+      component.toggleFountainReveal();
+      expect(stopSpy).toHaveBeenCalled();
+    });
+
+    it('should execute fallback camera start callbacks if high-res fails', async () => {
+      vi.spyOn(component, 'handleScanResult').mockImplementation(() => {});
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { Html5Qrcode } = await import('html5-qrcode');
+      
+      let callCount = 0;
+      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start')
+        .mockImplementation((camId: any, config: any, onSuccess: any, onError: any) => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.reject(new Error('High res fail'));
+          } else {
+            // Fires the anonymous callbacks in the fallback catch block
+            if (onSuccess) onSuccess('UR:CRYPTO-PSBT/1-1/FALLBACK');
+            if (onError) onError('Fallback error');
+            return Promise.resolve();
+          }
+        });
+
+      component.startScanner();
+      vi.advanceTimersByTime(100);
+      
+      await Promise.resolve(); 
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(component.handleScanResult).toHaveBeenCalledWith('UR:CRYPTO-PSBT/1-1/FALLBACK');
+      expect(console.error).toHaveBeenCalledWith('Fallback camera failed to start.');
+
+      startSpy.mockRestore();
+    });
+    
+    it('should hit the catch block if the fallback camera ALSO fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const stopSpy = vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
+
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start')
+        .mockRejectedValue(new Error('Complete failure'));
+
+      component.startScanner();
+      vi.advanceTimersByTime(100);
+      
+      await Promise.resolve(); 
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(stopSpy).toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalledWith('Fallback camera start also failed:', expect.any(Error));
+
+      startSpy.mockRestore();
+    });
+
+    it('setExportFormat: should regenerate frames and restart animation if revealed', () => {
+      const regenSpy = vi.spyOn(component, 'regenerateFrames').mockImplementation(() => {});
+      const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+      
+      component.showFountainModal.set(true);
+      component.isFountainRevealed.set(true);
+      
+      component.setExportFormat('bbqr');
+      
+      expect(component.exportFormat()).toBe('bbqr');
+      expect(regenSpy).toHaveBeenCalled();
+      expect(startSpy).toHaveBeenCalled();
+    });
+    
+    it('setExportFormat: should not regenerate frames if modal is closed', () => {
+      const regenSpy = vi.spyOn(component, 'regenerateFrames').mockImplementation(() => {});
+      component.showFountainModal.set(false);
+      
+      component.setExportFormat('ur');
+      expect(regenSpy).not.toHaveBeenCalled();
+    });
+
+    it('regenerateFrames: should catch exception if urService throws', () => {
+      socketSpy.roomState.mockReturnValue({ ...baseRoomState, psbt: 'bad-psbt' });
+      component.exportFormat.set('ur');
+      
+      vi.spyOn(component.urService, 'generateFrames').mockImplementation(() => {
+        throw new Error('Explosion');
+      });
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      component.regenerateFrames();
+      
+      expect(console.error).toHaveBeenCalledWith('Failed to prepare frames', expect.any(Error));
+    });
+
+    it('renderFountainFrame: should render to canvas if revealed', async () => {
+      component.isFountainRevealed.set(true);
+      component.activeFountainFrames = ['test'];
+      component.currentFrameIndex.set(0);
+      
+      const canvas = document.createElement('canvas');
+      canvas.id = 'fountain-psbt-canvas';
+      document.body.appendChild(canvas);
+      
+      await component.renderFountainFrame();
+      
+      document.body.removeChild(canvas);
+    });
+
+    it('should cover the empty reset action in closeConfirmModal', () => {
+      component.closeConfirmModal();
+      component.confirmData().action();
+    });
+
+    it('should cover the empty alert action in openAlert', () => {
+      component.openAlert('Test', 'Test Msg');
+      component.confirmData().action();
     });
   });
 
