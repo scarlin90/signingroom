@@ -27,7 +27,7 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
 
     // --- Verification: Assert error handling UI ---
     // Ensure the application provides clear feedback instead of crashing
-    await expect(page.getByText('Parsing Error')).toBeVisible();
+    await expect(page.getByText('Processing Failed')).toBeVisible();
     await expect(page.getByText(/Invalid PSBT format/i)).toBeVisible();
 
     // Cleanup generated fixture

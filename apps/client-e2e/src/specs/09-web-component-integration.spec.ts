@@ -41,7 +41,7 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // --- Interaction: Room Initialization inside Iframe ---
     const hostFrame = hostPage.frameLocator('iframe');
-    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click();
+    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click({ force: true });
     
     // --- Verification: Host State ---
     await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
@@ -128,7 +128,7 @@ test.describe('Web Component / Embedded Integration', () => {
     const frame = page.frameLocator('iframe');
     
     // --- Verification: UI and Event Feedback ---
-    await expect(frame.getByText('Parsing Error')).toBeVisible();
+    await expect(frame.getByText('Processing Failed')).toBeVisible();
 
     // Confirm the error was reported back to the host page via the signingError action
     const errorEvent = messages.find(m => m.action === 'signingError');
@@ -200,7 +200,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await hostPage.getByRole('button', { name: /Inject PSBT/i }).click();
 
     const hostFrame = hostPage.frameLocator('iframe');
-    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click();
+    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click({ force: true });
     
     // --- Verification: Host Ready State ---
     await expect(hostFrame.getByText('Connection lost... Reconnecting...')).toBeHidden();

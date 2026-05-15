@@ -28,7 +28,7 @@ export class UrService {
     const psbtBytes = base64.decode(cleanBase64); // Using @scure/base
     
     // generate the CBOR Byte String
-    const genericUr = UR.fromBuffer(Buffer.from(psbtBytes)); // @ngraveio still expects Node Buffer here
+    const genericUr = UR.fromBuffer(Buffer.from(psbtBytes));
     
     const cborPayload = genericUr.cbor || (genericUr as any)._cbor || (genericUr as any).cborMessage;
     

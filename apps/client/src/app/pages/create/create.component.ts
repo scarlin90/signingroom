@@ -145,7 +145,7 @@ interface PsbtAnalysis {
                         <div class="grid grid-cols-2 gap-4">
                             <div class="text-sm">
                                 <span class="text-slate-500 block">Signers</span>
-                                <span class="text-white font-bold">{{ psbtAnalysis()?.signerCount }} Required</span>
+                                <span class="text-white font-bold">{{ psbtAnalysis()?.signerCount }}</span>
                             </div>
                             <div class="text-sm">
                                 <span class="text-slate-500 block">Network</span>
@@ -284,9 +284,7 @@ interface PsbtAnalysis {
             </div>
 
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6">
-    <h2 class="text-xl font-medium text-white mb-6 flex items-center">
-        Transaction Data
-    </h2>
+        <label class="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-500">Transaction Data (Required)</label>
 
     @if (!psbtAnalysis()) {
 
@@ -327,10 +325,10 @@ interface PsbtAnalysis {
                 <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
                 <div class="text-xs text-emerald-200/80 leading-relaxed space-y-2">
                     <p>
-                        <strong>Secure Scanner:</strong> Hold your hardware wallet up to the camera. The scanner automatically detects and reconstructs Standard (UR), Coldcard (BBQr), and Static signatures.
+                        <strong>Secure Scanner:</strong> Hold your hardware wallet diplaying PSBT QR Code up to the camera.
                     </p>
                     <p class="text-[11px] text-emerald-400/90 font-medium bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
-                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read off a harware device. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT to your device. You can then scan the QR from Nunchuk on this QR reader.
+                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read off a harware device. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT from Nunchuk to Signing room through this reader.
                     </p>
                 </div>
             </div>
@@ -416,9 +414,11 @@ interface PsbtAnalysis {
                         </div>
                     </div>
                 </div>
-                <button (click)="clearPsbt()" class="text-slate-500 hover:text-rose-400 p-1 rounded-md hover:bg-rose-400/10 transition-colors">
-                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
-                </button>
+                @if (!isEmbedded) {
+                    <button (click)="clearPsbt()" class="text-slate-500 hover:text-rose-400 p-1 rounded-md hover:bg-rose-400/10 transition-colors">
+                        <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                    </button>
+                }
             </div>
 
             <div class="grid grid-cols-3 gap-2 text-center">
@@ -437,7 +437,7 @@ interface PsbtAnalysis {
                 <div class="bg-slate-900 rounded p-2 border border-slate-800">
                     <div class="text-[10px] text-slate-500 uppercase tracking-tight">Signers</div>
                     <div class="text-white text-xs font-bold">
-                        {{ psbtAnalysis()?.signerCount }} Required
+                        {{ psbtAnalysis()?.signerCount }}
                     </div>
                 </div>
             </div>
