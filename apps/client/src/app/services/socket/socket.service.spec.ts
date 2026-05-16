@@ -783,4 +783,22 @@ describe('Getters & Crypto Helpers', () => {
       expect(participants!['S3'].displayName).toBe('Bob Signer');
     });
   });
+
+  describe('PSBT Finalization Error Handling', () => {
+    it('should return null from getFinalTxHex and getFinalTxId if parsing fails', () => {
+      service.role.set('admin');
+      service.roomState.set({ psbt: 'not-a-valid-base64-psbt!' } as any);
+      
+      expect(service.getFinalTxHex()).toBeNull();
+      expect(service.getFinalTxId()).toBeNull();
+    });
+
+    it('should return null from getFinalTxHex and getFinalTxId if state is corrupt', () => {
+      // Forcing roomState to null guarantees a TypeError when methods try to read it
+      service.roomState.set(null as any);
+      
+      expect(service.getFinalTxHex()).toBeNull();
+      expect(service.getFinalTxId()).toBeNull();
+    });
+  });
 });

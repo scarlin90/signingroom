@@ -66,3 +66,14 @@ body.is-embedded {
     .pt-32 { padding-top: 1rem !important; }
     .absolute-blurs { display: none; }
 }
+
+/* Scanner Laser Animation */
+.scanner-laser {
+  animation: scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes scan {
+  0%, 100% { top: 5%; opacity: 0; }
+  10%, 90% { opacity: 1; }
+  50% { top: 95%; }
+}

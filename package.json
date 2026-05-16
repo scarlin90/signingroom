@@ -1,6 +1,6 @@
 {
   "name": "@signing-room/source",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "license": "AGPL-3.0",
   "author": {
     "name": "Stateless Research Ltd",
@@ -21,9 +21,13 @@
     "@angular/platform-browser": "~20.3.0",
     "@angular/router": "~20.3.0",
     "@angular/service-worker": "~20.3.0",
+    "@ngraveio/bc-ur": "^1.1.13",
     "@scure/btc-signer": "^2.0.1",
+    "buffer": "^6.0.3",
     "canvas-confetti": "^1.9.4",
     "express": "^4.21.2",
+    "fflate": "^0.8.2",
+    "html5-qrcode": "^2.3.8",
     "jspdf": "^4.0.0",
     "lucide-angular": "^0.554.0",
     "qrcode": "^1.5.4",

@@ -105,9 +105,7 @@ export class RoomPage {
     this.shareLinkButton = page.getByRole('button', { name: /Share Link/i });
     this.closeButton = page.getByRole('button', { name: 'Close', exact: true });
     this.confirmButton = page.getByRole('button', { name: 'Confirm' });
-    this.signatureFileInput = page.locator('label')
-      .filter({ hasText: /Upload Signed PSBT/i })
-      .locator('input[type="file"]');
+    this.signatureFileInput = page.locator('input[type="file"]').first();
     this.broadcastLink = page.getByRole('link', { name: /Broadcast/i });
     this.successMessage = page.getByText(/Transaction Finalized Successfully/i);
     this.lockButton = page.getByRole('button', { name: /Lock Room|Locked/i });
@@ -137,7 +135,7 @@ export class RoomPage {
     this.copyHexButton = page.getByRole('button', { name: 'Copy Hex' });
 
     // PSBT Locators
-    this.psbtDownloadAction = page.getByRole('button', { name: 'Download Unsigned PSBT' });
+    this.psbtDownloadAction = page.getByRole('button', { name: 'Download File' });
     this.psbtModalDownloadButton = page.getByRole('button', { name: 'Download PSBT', exact: true });
 
     // Search Locators

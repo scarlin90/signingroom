@@ -12,7 +12,7 @@ export class CreatePage {
     this.page = page;
     this.launchButton = page.getByRole('button', { name: /Launch Signing Room/i });
     this.fileInput = page.locator('input[type="file"]');
-    this.hexTextArea = page.getByPlaceholder(/paste hex/i).or(page.locator('input[type="text"]'));
+    this.hexTextArea = page.locator('textarea').first();
     this.startCeremonyButton = page.getByRole('button', { name: /Start Signing Ceremony/i });
     this.networkMismatchWarning = page.getByText('Network Mismatch');
   }

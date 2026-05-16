@@ -17,6 +17,9 @@ import {
 import { SocketService } from '../../services/socket/socket.service';
 import { jsPDF } from 'jspdf';
 import * as QRCode from 'qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { UrService } from '../../services/ur/ur.service';
+import { base64, hex } from '@scure/base';
 
 export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
 
@@ -553,6 +556,191 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
     </div>
   }
 
+  @if (showFountainModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Air-Gapped Export PSBT</h3>
+                </div>
+                <button (click)="closeFountainModal()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+
+            <div class="p-6 flex flex-col items-center">
+                
+                <div class="w-full flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-6">
+                    <button (click)="setExportFormat('ur')"
+                            class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2"
+                            [class.bg-slate-800]="exportFormat() === 'ur'"
+                            [class.text-emerald-400]="exportFormat() === 'ur'"
+                            [class.text-slate-500]="exportFormat() !== 'ur'">
+                        Universal (UR)
+                    </button>
+                    <button (click)="setExportFormat('bbqr')"
+                            class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2"
+                            [class.bg-slate-800]="exportFormat() === 'bbqr'"
+                            [class.text-amber-400]="exportFormat() === 'bbqr'"
+                            [class.text-slate-500]="exportFormat() !== 'bbqr'">
+                        Coldcard (BBQr)
+                    </button>
+                </div>
+
+                @if (exportFormat() === 'ur') {
+                    <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
+                        <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <p class="text-xs text-emerald-200/80 leading-relaxed">
+                            <strong>Standard Protocol:</strong> Optimized for Keystone, Passport, and standard hardware wallets. Adjust the speed slider for compatibility and performance.
+                        </p>
+                    </div>
+                } @else {
+                    <div class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
+                        <lucide-icon [img]="Shield" class="w-5 h-5 text-amber-500 shrink-0"></lucide-icon>
+                        <p class="text-xs text-amber-200/80 leading-relaxed">
+                            <strong>Coldcard Protocol:</strong> Optimized for Coinkite Coldcard devices. Adjust the speed slider for compatibility and performance.
+                        </p>
+                    </div>
+                }
+
+                <div class="relative group cursor-pointer inline-flex flex-col items-center" (click)="toggleFountainReveal()">
+                    
+                    <div class="bg-white p-2 rounded-xl transition-all duration-300 relative"
+                         [class.blur-md]="!isFountainRevealed()"
+                         [class.opacity-50]="!isFountainRevealed()">
+                         
+                        <canvas id="fountain-psbt-canvas" class="w-64 h-64 sm:w-72 sm:h-72 block"></canvas>
+                    </div>
+
+                    @if (!isFountainRevealed()) {
+                        <div class="absolute inset-0 flex flex-col items-center justify-center z-10">
+                            <div class="bg-slate-900/90 p-3 rounded-full border border-slate-700 shadow-xl mb-2">
+                                <lucide-icon [img]="Eye" class="w-6 h-6 text-white"></lucide-icon>
+                            </div>
+                            <span class="text-xs font-bold text-slate-900 bg-white/90 px-2 py-1 rounded shadow-sm">Click to Reveal</span>
+                        </div>
+                    }
+                </div>
+
+                <p class="text-xs text-slate-500 mt-6 text-center max-w-[320px]">
+                    Ensure no cameras are observing your screen before revealing.
+                </p>
+
+                @if (isFountainRevealed()) {
+                    <div class="w-full mt-6 bg-slate-950 p-4 rounded-xl border border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Frame Delay</span>
+                            <span class="text-xs font-mono text-emerald-400 font-bold">{{ fountainSpeed() }}ms</span>
+                        </div>
+                        <input type="range" 
+                               min="100" max="1000" step="50" 
+                               [ngModel]="fountainSpeed()" 
+                               (ngModelChange)="updateFountainSpeed($event)"
+                               class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 transition-all hover:accent-emerald-400" />
+                        <div class="flex justify-between text-[9px] text-slate-600 font-bold uppercase mt-1">
+                            <span>Fast (Drops frames)</span>
+                            <span>Slow (More reliable)</span>
+                        </div>
+                    </div>
+                }
+
+            </div>
+
+            <div class="p-4 bg-slate-950/50 border-t border-slate-800 flex justify-end gap-3">
+                <button (click)="closeFountainModal()" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white font-medium text-sm transition border border-transparent hover:border-slate-700 w-full">
+                    Close
+                </button>
+            </div>
+
+        </div>
+    </div>
+  }
+
+  @if (showScannerModal()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+            
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <lucide-icon [img]="QrCode" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <h3 class="font-bold text-white">Air-Gapped Import PSBT</h3>
+                </div>
+                <button (click)="stopScanner()" class="text-slate-400 hover:text-white transition">
+                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                </button>
+            </div>
+
+            <div class="p-6 flex flex-col items-center">
+                
+                <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3">
+                <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                <div class="text-xs text-emerald-200/80 leading-relaxed space-y-2">
+                    <p>
+                        <strong>Secure Scanner:</strong> Hold your hardware wallet diplaying PSBT QR Code up to the camera.
+                    </p>
+                    <p class="text-[11px] text-emerald-400/90 font-medium bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
+                        💡 <strong>Tip:</strong> Sometimes QR codes are too small for webcams to read off a harware device. You can use a mobile companion application like Nunchuk to scan the hardware wallet, and then export the Signed PSBT from Nunchuk to Signing room through this reader.
+                    </p>
+                </div>
+            </div>
+
+                <div class="w-full mb-4 space-y-2">
+                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between">
+                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Raw Optical Feed</span>
+                        <span class="text-[10px] text-emerald-400 font-mono truncate max-w-[200px]" [title]="urService.lastScannedText()">
+                            {{ urService.lastScannedText() || 'Waiting for QR...' }}
+                        </span>
+                    </div>
+                    
+                    @if (urService.scanError()) {
+                        <div class="bg-rose-500/10 border border-rose-500/30 rounded-lg p-2.5 flex items-start gap-2 animate-in fade-in zoom-in-95 duration-200">
+                            <lucide-icon [img]="AlertTriangle" class="w-4 h-4 text-rose-400 shrink-0"></lucide-icon>
+                            <span class="text-xs text-rose-300">{{ urService.scanError() }}</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="relative bg-black w-full rounded-xl overflow-hidden border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                    
+                    <div id="signer-reader" class="w-full h-72 object-cover"></div>
+                    
+                    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col items-center justify-center overflow-hidden">
+                        <div class="relative w-56 h-56 rounded-xl shadow-[0_0_0_9999px_rgba(2,6,23,0.7)] border border-emerald-500/30">
+                            <div class="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-emerald-500 rounded-tl-xl"></div>
+                            <div class="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-emerald-500 rounded-tr-xl"></div>
+                            <div class="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-emerald-500 rounded-bl-xl"></div>
+                            <div class="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-emerald-500 rounded-br-xl"></div>
+                            <div class="absolute left-0 right-0 h-[2px] bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] scanner-laser"></div>
+                        </div>
+                    </div>
+
+                    @if (urService.scanProgress() > 0) {
+                        <div class="absolute bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm p-3 border-t border-emerald-500/30 z-20">
+                            <div class="flex justify-between text-xs text-emerald-400 font-bold mb-2 tracking-wider">
+                                <span>RECONSTRUCTING SIGNATURE...</span>
+                                <span>{{ (urService.scanProgress() * 100).toFixed(0) }}%</span>
+                            </div>
+                            <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                                <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-200 ease-out" 
+                                     [style.width.%]="urService.scanProgress() * 100"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-950/50 border-t border-slate-800 flex justify-end gap-3">
+                <button (click)="stopScanner()" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white font-medium text-sm transition border border-transparent hover:border-slate-700 w-full">
+                    Cancel & Close
+                </button>
+            </div>
+
+        </div>
+    </div>
+  }
+
     @if (showConfirmModal()) {
     <div class="fixed inset-0 z-[250] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 relative overflow-hidden">
@@ -1043,25 +1231,79 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                 }
             </div>
 
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6">
                 <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-4">Signer Actions</h3>
-                <div class="grid md:grid-cols-2 gap-4">
-                    <button (click)="promptPsbtDownload()" class="flex items-center justify-between p-4 bg-slate-950 rounded-xl border border-slate-800 hover:border-slate-600 transition group text-left">
-                        <div>
-                            <div class="text-white font-bold text-sm mb-1 group-hover:text-emerald-400 transition-colors">Download Unsigned PSBT</div>
-                            <div class="text-slate-500 text-xs">For Coldcard / Offline Signing</div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <div class="flex flex-col gap-2">
+                        <div class="text-xs text-slate-400 mb-1">1. Export Unsigned Transaction</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button (click)="openFountainModal()" class="flex items-center justify-center p-3 bg-slate-950 border border-slate-800 rounded-lg hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-sm font-medium text-slate-200 group">
+                                <lucide-icon [img]="QrCode" class="mr-2 text-slate-400 group-hover:text-emerald-400 transition-colors" [size]="18"></lucide-icon>
+                                Show QR
+                            </button>
+                            <button (click)="promptPsbtDownload()" class="flex items-center justify-center p-3 bg-slate-950 border border-slate-800 rounded-lg hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-sm font-medium text-slate-200 group">
+                                <lucide-icon [img]="DownloadCloud" class="mr-2 text-slate-400 group-hover:text-purple-400 transition-colors" [size]="18"></lucide-icon>
+                                Download File
+                            </button>
                         </div>
-                        <lucide-icon [img]="DownloadCloud" class="w-5 h-5 text-slate-500 group-hover:text-emerald-400 transition-colors"></lucide-icon>
-                    </button>
-                    <label class="flex items-center justify-between p-4 bg-slate-950 rounded-xl border border-slate-800 hover:border-emerald-500/50 hover:bg-emerald-900/5 transition cursor-pointer group">
-                        <div>
-                            <div class="text-white font-bold text-sm mb-1 group-hover:text-emerald-400 transition-colors">Upload Signed PSBT</div>
-                            <div class="text-slate-500 text-xs">Click to upload .psbt file here</div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <div class="text-xs text-slate-400 mb-1">2. Import Signed Transaction</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button (click)="startScanner()" [disabled]="isScanningSigned()" class="flex items-center justify-center p-3 bg-slate-950 border border-slate-800 rounded-lg hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-sm font-medium text-slate-200 group disabled:opacity-50 disabled:cursor-not-allowed">
+                                <lucide-icon [img]="QrCode" class="mr-2 text-slate-400 group-hover:text-emerald-400 transition-colors" [size]="18"></lucide-icon>
+                                Scan QR
+                            </button>
+                            <label class="relative group cursor-pointer flex items-center justify-center p-3 bg-slate-950 border border-slate-800 rounded-lg hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-sm font-medium text-slate-200 disabled:opacity-50">
+                                <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" class="absolute inset-0 opacity-0 cursor-pointer z-10" [disabled]="isScanningSigned()">
+                                <lucide-icon [img]="UploadCloud" class="mr-2 text-slate-400 group-hover:text-purple-400 transition-colors" [size]="18"></lucide-icon>
+                                Upload File
+                            </label>
                         </div>
-                        <lucide-icon [img]="UploadCloud" class="w-5 h-5 text-slate-500 group-hover:text-emerald-400 transition-colors"></lucide-icon>
-                        <input type="file" class="hidden" (change)="onFileSelected($event)" accept=".psbt,.txt">
-                    </label>
+                    </div>
                 </div>
+
+                @if (isScanningSigned()) {
+                    <div class="relative bg-black rounded-xl overflow-hidden border border-emerald-500/30 mt-6 shadow-[0_0_15px_rgba(16,185,129,0.1)] animate-in fade-in slide-in-from-top-4 duration-300">
+                        <div id="signer-reader" class="w-full h-72 object-cover"></div>
+                        
+                        <div class="absolute inset-0 pointer-events-none z-10 flex flex-col items-center justify-center overflow-hidden">
+                            <div class="absolute top-6 left-1/2 -translate-x-1/2 z-20 bg-slate-950/80 border border-emerald-500/20 backdrop-blur-md px-4 py-1.5 rounded-full whitespace-nowrap shadow-lg">
+                                <span class="text-xs font-medium text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    Scan Signature Sequence
+                                </span>
+                            </div>
+
+                            <div class="relative w-56 h-56 rounded-xl shadow-[0_0_0_9999px_rgba(2,6,23,0.7)] border border-emerald-500/30">
+                                <div class="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-emerald-500 rounded-tl-xl"></div>
+                                <div class="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-emerald-500 rounded-tr-xl"></div>
+                                <div class="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-emerald-500 rounded-bl-xl"></div>
+                                <div class="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-emerald-500 rounded-br-xl"></div>
+                                <div class="absolute left-0 right-0 h-[2px] bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] scanner-laser"></div>
+                            </div>
+                        </div>
+
+                        @if (urService.scanProgress() > 0) {
+                            <div class="absolute bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm p-3 border-t border-slate-800 z-20">
+                                <div class="flex justify-between text-xs text-slate-400 mb-2">
+                                    <span>Ingesting Signature...</span>
+                                    <span>{{ (urService.scanProgress() * 100).toFixed(0) }}%</span>
+                                </div>
+                                <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                    <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-200 ease-out" [style.width.%]="urService.scanProgress() * 100"></div>
+                                </div>
+                            </div>
+                        }
+                        
+                        <button (click)="stopScanner()" class="absolute top-4 right-4 z-20 text-slate-400 bg-slate-900/80 hover:text-white hover:bg-red-500/90 p-2.5 rounded-full transition-all backdrop-blur-sm border border-slate-700 hover:border-red-500">
+                            <lucide-icon [img]="X" [size]="20"></lucide-icon>
+                        </button>
+                    </div>
+                }
             </div>
 
             <div class="relative bg-slate-900 border border-slate-800 rounded-xl p-5 min-h-[400px] overflow-hidden">
@@ -1541,12 +1783,31 @@ export class RoomComponent implements OnInit, OnDestroy {
     private hasEmittedFinalized = false;
 
     readonly icons = { Shield, Users, CheckCircle, Loader2, Copy, Clock, ArrowRight, Hash, Crown, UploadCloud, DownloadCloud, Download, ExternalLink, Check, Zap, AlertTriangle, Power, X, Key, RefreshCw, AlertOctagon, FileKey, FileCheck, Edit2, Tag, Lock, Unlock, Bell, Infinity, ArrowDown, Book };
+    
+    
+    // -------------------------------------------------------------------------
+    // Fountain Codes
+    // -------------------------------------------------------------------------
+    public html5QrCode: Html5Qrcode | null = null;
+    // INHALE (Scanning Signed PSBT)
+    isScanningSigned = signal<boolean>(false);
+
+    // EXHALE (Displaying Unsigned PSBT Modal)
+    showFountainModal = signal<boolean>(false);
+    isFountainRevealed = signal<boolean>(false);
+    showScannerModal = signal<boolean>(false);
+    exportFormat = signal<'ur' | 'bbqr'>('ur');
+    activeFountainFrames: string[] = [];
+    currentFrameIndex = signal<number>(0);
+    fountainInterval: any;
+    fountainSpeed = signal<number>(400);
 
     constructor(
         private route: ActivatedRoute,
         public socket: SocketService,
         private router: Router,
         private titleService: Title,
+        public urService: UrService,
         @Inject(PLATFORM_ID) private platformId: Object
     ) {
         effect(() => {
@@ -2797,5 +3058,208 @@ export class RoomComponent implements OnInit, OnDestroy {
     closePrivacyWarning() {
         this.showPrivacyWarning.set(false);
         this.pendingUnblurSection.set(null);
+    }
+
+    // ==========================================
+    // EXHALE: Showing the Unsigned PSBT to Coldcard
+    // ==========================================
+    openFountainModal() {
+        this.regenerateFrames();
+        this.showFountainModal.set(true);
+        this.isFountainRevealed.set(false);
+    }
+
+    setExportFormat(format: 'ur' | 'bbqr') {
+        this.exportFormat.set(format);
+        if (this.showFountainModal()) {
+            this.regenerateFrames();
+
+            if (this.isFountainRevealed()) {
+                this.startFountainAnimation(); 
+            }
+        }
+    }
+
+    regenerateFrames() {
+        const psbtData = this.socket.roomState()?.psbt;
+        if (!psbtData) return;
+        try {
+            if (this.exportFormat() === 'ur') {
+                this.activeFountainFrames = this.urService.generateFrames(psbtData);
+            } else {
+                this.activeFountainFrames = this.urService.generateBBQrFrames(psbtData);
+            }
+            this.currentFrameIndex.set(0);
+        } catch (e) {
+            console.error("Failed to prepare frames", e);
+        }
+    }
+
+    toggleFountainReveal() {
+        const nextState = !this.isFountainRevealed();
+        this.isFountainRevealed.set(nextState);
+        
+        if (nextState) {
+            this.socket.logAction('Privacy Toggle', `Revealed ${this.exportFormat().toUpperCase()} PSBT QR`);
+            this.startFountainAnimation();
+        } else {
+            this.socket.logAction('Privacy Toggle', `Blurred ${this.exportFormat().toUpperCase()} PSBT QR`);
+            this.stopFountainAnimation();
+        }
+    }
+
+    startFountainAnimation() {
+        if (this.fountainInterval) clearInterval(this.fountainInterval);
+        
+        this.fountainInterval = setInterval(() => {
+            this.currentFrameIndex.update(i => (i + 1) % this.activeFountainFrames.length);
+            this.renderFountainFrame();
+        }, this.fountainSpeed());
+        
+        setTimeout(() => this.renderFountainFrame(), 0);
+    }
+
+    stopFountainAnimation() {
+        if (this.fountainInterval) clearInterval(this.fountainInterval);
+    }
+
+    closeFountainModal() {
+        this.showFountainModal.set(false);
+        this.isFountainRevealed.set(false);
+        this.stopFountainAnimation();
+    }
+
+    async renderFountainFrame() {
+        if (!this.isFountainRevealed()) return;
+        const canvas = document.getElementById('fountain-psbt-canvas') as HTMLCanvasElement;
+        if (canvas && this.activeFountainFrames.length > 0) {
+            const frame = this.activeFountainFrames[this.currentFrameIndex()];
+            
+            await QRCode.toCanvas(canvas, frame, {
+                width: 320,
+                margin: 2,
+                color: { dark: '#000000', light: '#ffffff' } 
+            });
+        }
+    }
+
+    // ==========================================
+    // INHALE: Scanning the Signed PSBT from Coldcard
+    // ==========================================
+    startScanner() {
+        this.showScannerModal.set(true);
+        this.isScanningSigned.set(true);
+        this.urService.resetDecoder();
+        
+        setTimeout(async () => {
+            this.html5QrCode = new Html5Qrcode("signer-reader", {
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+                verbose: false,
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            });
+            
+            let frameCount = 0;
+
+            try {
+                await this.html5QrCode.start(
+                    { facingMode: "environment" },
+                    { 
+                        fps: 10,
+                        disableFlip: true,
+                        qrbox: { width: 350, height: 350 },
+                        videoConstraints: {
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    },
+                    (decodedText) => this.handleScanResult(decodedText),
+                    (errorMessage) => { 
+                        frameCount++;
+                        if (frameCount % 60 === 0) {
+                            console.warn(`[Optical Debug] Frame ${frameCount} - Engine failing to lock:`, errorMessage.split('\n')[0]);
+                        }
+                    } 
+                );
+            } catch (err) {
+                console.warn("High-res camera start failed. Falling back to standard resolution...", err);
+                
+                try {
+                     await this.html5QrCode.start(
+                        { facingMode: "environment" },
+                        { fps: 10, disableFlip: false },
+                        (decodedText) => this.handleScanResult(decodedText),
+                        () => {console.error("Fallback camera failed to start.")}
+                    );
+                } catch (fallbackErr) {
+                    console.error("Fallback camera start also failed:", fallbackErr);
+                    this.stopScanner();
+                }
+            }
+        }, 100);
+    }
+
+    handleScanResult(decodedText: string) {
+        console.log("Scanned fragment:", decodedText.substring(0, 80) + "...");
+        
+        const fullHex = this.urService.processFragment(decodedText);
+        
+        if (fullHex) {
+            console.log("Full PSBT decoded, length:", fullHex.length);
+            this.stopScanner();
+            this.processScannedSignature(fullHex);
+        }
+    }
+
+    stopScanner() {
+        if (this.html5QrCode) {
+            try {
+                if (this.html5QrCode.getState() === 2) {
+                    this.html5QrCode.stop().then(() => {
+                        this.html5QrCode?.clear();
+                        this.isScanningSigned.set(false);
+                        this.showScannerModal.set(false);
+                    }).catch(() => {
+                        this.html5QrCode?.clear();
+                        this.isScanningSigned.set(false);
+                        this.showScannerModal.set(false);
+                    });
+                } else {
+                    this.html5QrCode.clear();
+                    this.isScanningSigned.set(false);
+                    this.showScannerModal.set(false);
+                }
+            } catch (e) {
+                this.html5QrCode.clear();
+                this.isScanningSigned.set(false);
+                this.showScannerModal.set(false);
+            }
+        } else {
+            this.isScanningSigned.set(false);
+            this.showScannerModal.set(false);
+        }
+    }
+
+    async processScannedSignature(data: string) {
+        try {
+            const clean = data.replace(/\s+/g, '');
+            const psbtBytes = /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
+            const normalizedBase64 = base64.encode(psbtBytes);
+            
+            await this.socket.uploadSignature(normalizedBase64);
+            console.log("Successfully ingested signed PSBT via optics!");
+            
+        } catch (e) {
+            console.error("Failed to parse signed PSBT from scanner", e);
+        }
+    }
+
+    updateFountainSpeed(newSpeed: number) {
+        this.fountainSpeed.set(Number(newSpeed));
+        
+        if (this.isFountainRevealed() && this.showFountainModal()) {
+            this.startFountainAnimation();
+        }
     }
 }
