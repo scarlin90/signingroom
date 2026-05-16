@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-01_May_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-16_May_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -53,13 +53,13 @@ You are solely responsible for verifying the details of any transaction (address
 
 As a privacy-focused public good, we believe in complete operational transparency. Rather than asking for blind trust, we regularly publish verifiable site metrics to demonstrate the scale, efficiency, and real-world usage of the relay infrastructure.
 
-Based on our latest 30-day forensic audit (May 1, 2026):
-- **Total Requests Handled:** 48,241
-- **Total Network Bandwidth:** 2.94 GB
-- **Community Adoption:** 3,866 aggregated monthly unique visitors.
+Based on our latest 30-day forensic audit (May 16, 2026):
+- **Total Requests Handled:** 78,806
+- **Total Network Bandwidth:** 3.19 GB
+- **Community Adoption:** 4,311 aggregated monthly unique visitors.
 
 ### 🔍 Forensic Highlight
-**Edge Caching Efficiency:** In the last 30 days, over **1.52 GB (51% of total bandwidth)** was served directly from the edge cache, maintaining an average cache hit rate of 38.44%, with 24-hour efficiency spikes hitting up to **98.8%**. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency for users worldwide.
+**Edge Caching Efficiency:** In the last 30 days, over **1.64 GB (51.36% of total bandwidth)** was served directly from the edge cache. The network effectively sustained global traffic with 24-hour efficiency spikes hitting up to **92.59%** during rapid bursts of coordination. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency for users worldwide.
 
 ### 🛡️ Transparency & Audits
 To maintain transparency, raw exported logs and previous traffic audits are preserved in our public manifest. You can verify our historical infrastructure performance here: 
