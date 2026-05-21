@@ -15,7 +15,7 @@ test.describe('Advanced Workflows and Edge Cases', () => {
 
     // --- Interaction: Filtering Outputs ---
     await roomPage.switchTab('Outputs');
-    const specificOutputAddress = 'bc1q04e2117f1b09f7c6a6ff92daecfb9a4de57bc4ca18e33933f28d1067d81b3196'; 
+    const specificOutputAddress = 'tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc'; 
     await roomPage.outputSearchInput.fill(specificOutputAddress);
     
     // --- Verification: Assert visibility and filter count ---
@@ -24,7 +24,7 @@ test.describe('Advanced Workflows and Edge Cases', () => {
 
     // --- Interaction: Filtering Inputs ---
     await roomPage.switchTab('Inputs');
-    const specificInputAddress = 'bc1q739fe38612ee73e2a2efc24600a7485898615bc8c2607d159332c7cbcb4693e2';
+    const specificInputAddress = 'tb1qww078psjaee79gh0cfrqpf6gtzvxzk7gcfs869vnxtruhj6xj03qjfdnh8';
     await roomPage.inputSearchInput.fill(specificInputAddress);
 
     // --- Verification: Assert search accuracy ---

@@ -60,7 +60,7 @@ test.describe('Room Management and OpSec', () => {
     await roomPage.switchTab('Outputs');
 
     // --- Setup: Identify target address and associated UI card ---
-    const address = 'bc1q04e2117f1b09f7c6a6ff92daecfb9a4de57bc4ca18e33933f28d1067d81b3196';
+    const address = 'tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc';
     const outputCard = roomPage.getCard(0, '0.00100913 BTC');
     const approveBtn = outputCard.getByRole('button', { name: /Approve Destination/i });
 

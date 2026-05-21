@@ -5,8 +5,8 @@
 
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http'; 
-import { Transaction } from '@scure/btc-signer';
-import { base64, hex } from '@scure/base';
+import { Transaction, NETWORK, TEST_NETWORK } from '@scure/btc-signer';
+import { base64, hex, bech32, bech32m } from '@scure/base';
 import { environment } from '../../../environments/environment';
 import { EncryptionService } from '../encryption/encryption.service';
 
@@ -1087,12 +1087,40 @@ async updateSignerLabel(fingerprint: string, label: string) {
 }
 
   private formatScriptAddress(script: Uint8Array): string {
-      const s = hex.encode(script);
-      if (s.startsWith('0014')) return `bc1q${s.slice(4)}`;
-      if (s.startsWith('0020')) return `bc1q${s.slice(4)}`;
-      if (s.startsWith('5120')) return `bc1p${s.slice(4)}`;
-      return s; 
-  }
+    try {
+        if (!script || script.length === 0) return 'Unknown';
+        const s = hex.encode(script);
+
+        // Map network human-readable prefix ('tb' for testnet/signet, 'bc' for mainnet)
+        const currentNetwork = this.roomState()?.network || 'bitcoin';
+        const hrp = (currentNetwork === 'testnet' || currentNetwork === 'signet') ? 'tb' : 'bc';
+
+        // Handle P2WPKH (22 bytes) or P2WSH (34 bytes) -> Witness Version 0 (Bech32)
+        if ((s.startsWith('0014') && script.length === 22) || (s.startsWith('0020') && script.length === 34)) {
+            const dataBytes = script.slice(2); 
+            const words = bech32.toWords(dataBytes); 
+            words.unshift(0); // Insert witness version 0 at the beginning
+            return bech32.encode(hrp, words); 
+        }
+
+        // Handle P2TR (34 bytes) -> Witness Version 1 (Bech32m)
+        if (s.startsWith('5120') && script.length === 34) {
+            const dataBytes = script.slice(2);
+            const words = bech32m.toWords(dataBytes);
+            words.unshift(1); 
+            return bech32m.encode(hrp, words);
+        }
+
+        return s;
+
+    } catch (e) {
+        const s = hex.encode(script);
+        if (s.startsWith('0014') || s.startsWith('0020') || s.startsWith('5120')) {
+            return s.slice(4);
+        }
+        return s;
+    }
+}
 
   private areKeysEqual(k1: Uint8Array, k2: Uint8Array): boolean {
     if (hex.encode(k1) === hex.encode(k2)) return true;

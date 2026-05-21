@@ -93,7 +93,7 @@ test.describe('Room Interface Verification', () => {
 
     // --- Verification: Outputs (Default View) ---
     const outputCard = roomPage.getCard(0, '0.00100913 BTC');
-    await expect(outputCard).toContainText('bc1q04e2117f1b09f7c6a6ff92daecfb9a4de57bc4ca18e33933f28d1067d81b3196');
+    await expect(outputCard).toContainText('tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc');
     await expect(outputCard.getByRole('button', { name: /Approve Destination/i })).toBeVisible();
 
     // --- Interaction: Switch to Inputs Tab ---
@@ -103,7 +103,7 @@ test.describe('Room Interface Verification', () => {
     
     // --- Verification: Inputs Details ---
     const inputCard = roomPage.getCard(0, '0.00101106 BTC');
-    await expect(inputCard).toContainText('bc1q739fe38612ee73e2a2efc24600a7485898615bc8c2607d159332c7cbcb4693e2');
+    await expect(inputCard).toContainText('tb1qww078psjaee79gh0cfrqpf6gtzvxzk7gcfs869vnxtruhj6xj03qjfdnh8');
     await expect(inputCard.getByRole('button', { name: /Approve Source/i })).toBeVisible();
 
     // --- Interaction: Re-blur Details ---
