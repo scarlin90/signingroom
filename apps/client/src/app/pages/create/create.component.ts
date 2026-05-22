@@ -309,7 +309,7 @@ interface PsbtAnalysis {
                 <span class="text-xs text-slate-500 mt-1">.psbt, .txt, or .hex</span>
             </div>
 
-            <button (click)="startScanner()" [disabled]="isScanning()" class="flex flex-col items-center justify-center p-8 bg-slate-950 border-2 border-slate-800 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group disabled:opacity-50 disabled:cursor-not-allowed">
+            <button (click)="startScanner()" [disabled]="isScanning()" class="flex flex-col items-center justify-center p-8 bg-slate-950 border-2 border-slate-800 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group disabled:opacity-50 cursor-pointer">
                 <div class="bg-slate-800 p-3 rounded-full mb-3 group-hover:bg-emerald-500/20 transition-colors">
                     <lucide-icon [img]="QrCode" class="text-slate-400 group-hover:text-emerald-400 transition-colors"></lucide-icon>
                 </div>

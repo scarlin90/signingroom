@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SocketService } from './socket.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { Transaction } from '@scure/btc-signer';
+import { base64, hex, bech32 } from '@scure/base';
 
 class MockWebSocket {
   onopen: ((event: any) => void) | null = null;
@@ -799,6 +800,104 @@ describe('Getters & Crypto Helpers', () => {
       
       expect(service.getFinalTxHex()).toBeNull();
       expect(service.getFinalTxId()).toBeNull();
+    });
+  });
+
+  describe('Address Encoding (formatScriptAddress)', () => {
+    // Helper to convert raw hex strings to Uint8Array for the encoder
+    const hexToBytes = (hexStr: string) => 
+        new Uint8Array(hexStr.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+
+    beforeEach(() => {
+      // Default all tests to Mainnet unless overridden
+      service.roomState.set({ network: 'bitcoin' } as any);
+    });
+
+    it('should encode Mainnet P2WPKH (Native SegWit Single-Sig) correctly', () => {
+      const script = hexToBytes('0014751e76e8199196d454941c45d1b3a323f1433bd6');
+      const result = service['formatScriptAddress'](script);
+      expect(result).toBe('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4');
+    });
+
+    it('should encode Mainnet P2WSH (Native SegWit Multi-Sig) correctly', () => {
+      const script = hexToBytes('00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262');
+      const result = service['formatScriptAddress'](script);
+      expect(result).toBe('bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3');
+    });
+
+    it('should encode Mainnet P2TR (Taproot) correctly using bech32m', () => {
+      const script = hexToBytes('5120cc8a4bc6416805ac1141fb11508f72382f71694fbbbf017a5223e743a6d96923');
+      const result = service['formatScriptAddress'](script);
+      expect(result).toBe('bc1pej9yh3jpdqz6cy2plvg4prmj8qhhz620hwlsz7jjy0n58fkedy3szerluj');
+    });
+
+    it('should encode Signet/Testnet P2WSH correctly when room network is signet', () => {
+      service.roomState.set({ network: 'signet' } as any);
+      
+      const script = hexToBytes('00203d6bbc9c7ff1c578f24322a1f3b9f78c4646f96a450060c181fec38a3ce41519');
+      const result = service['formatScriptAddress'](script);
+      
+      expect(result).toBe('tb1q844me8rl78zh3ujry2sl8w0h33ryd7t2g5qxpsvplmpc508yz5vslwxw8z');
+    });
+
+    it('should successfully encode Legacy P2PKH scripts to Base58Check addresses', () => {
+      // Standard P2PKH legacy script starting with 76a914...
+      const script = hexToBytes('76a914751e76e8199196d454941c45d1b3a323f1433bd688ac');
+      const result = service['formatScriptAddress'](script);
+      
+      // Mainnet address
+      expect(result).toBe('1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH');
+  });
+
+    it('should return "Unknown" for empty or uninitialized script arrays', () => {
+      const result = service['formatScriptAddress'](new Uint8Array([]));
+      expect(result).toBe('Unknown');
+    });
+
+    it('should fallback to slicing hex if a fatal error occurs during encoding', () => {
+      // Force the underlying library to throw an unexpected runtime error
+      vi.spyOn(bech32, 'toWords').mockImplementationOnce(() => { 
+          throw new Error('Simulated hardware read failure'); 
+      });
+      
+      const script = hexToBytes('00203d6bbc9c7ff1c578f24322a1f3b9f78c4646f96a450060c181fec38a3ce41519');
+      const result = service['formatScriptAddress'](script);
+      
+      // Because the script starts with '0020', the catch block should safely slice off the first 4 chars
+      expect(result).toBe('3d6bbc9c7ff1c578f24322a1f3b9f78c4646f96a450060c181fec38a3ce41519');
+    });
+
+    it('should successfully encode Signet/Testnet Legacy P2PKH scripts to Base58Check addresses', () => {
+      // Set network context to trigger the 0x6f Base58 prefix
+      service.roomState.set({ network: 'signet' } as any);
+      
+      const script = hexToBytes('76a914cd3b7aca26208b3239f96fff6a37b8de3ae0915488ac'); 
+      const result = service['formatScriptAddress'](script);
+      
+      // Mathematically verified Testnet/Signet address
+      expect(result).toBe('mzE856cXjeyBt8HY9eNXxW5JYDJp2vmMuU');
+    });
+
+    it('should successfully encode Mainnet P2SH / Nested SegWit scripts to Base58Check addresses', () => {
+      service.roomState.set({ network: 'bitcoin' } as any);
+      
+      // Standard P2SH legacy script starting with a914... ending in 87
+      const script = hexToBytes('a914363c62e38ad4b5550f9b268fc5ab5839613f8c7087');
+      const result = service['formatScriptAddress'](script);
+      
+      // Mainnet P2SH address (starts with 3)
+      expect(result).toBe('36dnkcdnhSpfbb8tCDn49t5gp6ruGUQReo');
+    });
+
+    it('should successfully encode Signet/Testnet P2SH / Nested SegWit scripts to Base58Check addresses', () => {
+      // Set network context to trigger the 0xc4 Base58 prefix for Testnet P2SH
+      service.roomState.set({ network: 'signet' } as any);
+      
+      const script = hexToBytes('a914363c62e38ad4b5550f9b268fc5ab5839613f8c7087'); 
+      const result = service['formatScriptAddress'](script);
+      
+      // Mathematically verified Testnet/Signet address (starts with 2)
+      expect(result).toBe('2MxBzpMZpJuL1oNmRsMPvmq4x2T557PHFFG');
     });
   });
 });
