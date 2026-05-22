@@ -5,7 +5,7 @@
 
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http'; 
-import { Transaction, NETWORK, TEST_NETWORK } from '@scure/btc-signer';
+import { Transaction, NETWORK, TEST_NETWORK, Address } from '@scure/btc-signer';
 import { base64, hex, bech32, bech32m } from '@scure/base';
 import { environment } from '../../../environments/environment';
 import { EncryptionService } from '../encryption/encryption.service';
@@ -1060,67 +1060,93 @@ async updateSignerLabel(fingerprint: string, label: string) {
     } catch (e) { return []; }
   }
 
-  private getFingerprintFromPsbt(psbtData: string): string | null {
-    try {
-        const bytes = this.decodePsbt(psbtData);
-        const tx = Transaction.fromPSBT(bytes);
-        
-        for (let i = 0; i < tx.inputsLength; i++) {
-        const input = tx.getInput(i);
-        
-        if (input.partialSig && input.partialSig.length > 0) {
-            const pubkeySigned = input.partialSig[0][0];
+    private getFingerprintFromPsbt(psbtData: string): string | null {
+        try {
+            const bytes = this.decodePsbt(psbtData);
+            const tx = Transaction.fromPSBT(bytes);
             
-            if (input.bip32Derivation) {
-                for (const [pubkey, meta] of input.bip32Derivation) {
-                    if (hex.encode(pubkey) === hex.encode(pubkeySigned)) {
-                    return meta.fingerprint.toString(16).padStart(8, '0');
+            for (let i = 0; i < tx.inputsLength; i++) {
+            const input = tx.getInput(i);
+            
+            if (input.partialSig && input.partialSig.length > 0) {
+                const pubkeySigned = input.partialSig[0][0];
+                
+                if (input.bip32Derivation) {
+                    for (const [pubkey, meta] of input.bip32Derivation) {
+                        if (hex.encode(pubkey) === hex.encode(pubkeySigned)) {
+                        return meta.fingerprint.toString(16).padStart(8, '0');
+                        }
                     }
                 }
             }
+            }
+            return null;
+        } catch (e) {
+            return null;
         }
-        }
-        return null;
-    } catch (e) {
-        return null;
     }
-}
 
-  private formatScriptAddress(script: Uint8Array): string {
-    try {
-        if (!script || script.length === 0) return 'Unknown';
-        const s = hex.encode(script);
-
-        // Map network human-readable prefix ('tb' for testnet/signet, 'bc' for mainnet)
-        const currentNetwork = this.roomState()?.network || 'bitcoin';
-        const hrp = (currentNetwork === 'testnet' || currentNetwork === 'signet') ? 'tb' : 'bc';
-
-        // Handle P2WPKH (22 bytes) or P2WSH (34 bytes) -> Witness Version 0 (Bech32)
-        if ((s.startsWith('0014') && script.length === 22) || (s.startsWith('0020') && script.length === 34)) {
-            const dataBytes = script.slice(2); 
-            const words = bech32.toWords(dataBytes); 
-            words.unshift(0); // Insert witness version 0 at the beginning
-            return bech32.encode(hrp, words); 
+    private formatScriptAddress(script: Uint8Array): string {
+        if (!script || script.length === 0) {
+            return 'Unknown';
         }
 
-        // Handle P2TR (34 bytes) -> Witness Version 1 (Bech32m)
-        if (s.startsWith('5120') && script.length === 34) {
-            const dataBytes = script.slice(2);
-            const words = bech32m.toWords(dataBytes);
-            words.unshift(1); 
-            return bech32m.encode(hrp, words);
-        }
+        try {
+            const s = hex.encode(script);
+            const currentNetwork = this.roomState()?.network || 'bitcoin';
+            const isTestnetLike = currentNetwork === 'testnet' || currentNetwork === 'signet';
+            const hrp = isTestnetLike ? 'tb' : 'bc';
+            const networkConfig = isTestnetLike ? TEST_NETWORK : NETWORK;
 
-        return s;
+            // Legacy P2PKH (important for old multisig/unsigned txs)
+            if (s.startsWith('76a914') && s.endsWith('88ac') && script.length === 25) {
+                const pubKeyHash = script.slice(3, 23);
+                
+                return Address(networkConfig).encode({ type: 'pkh', hash: pubKeyHash } as any);
+            }
 
-    } catch (e) {
-        const s = hex.encode(script);
-        if (s.startsWith('0014') || s.startsWith('0020') || s.startsWith('5120')) {
-            return s.slice(4);
+            // Legacy P2SH & Nested SegWit (starts with a914, length 23 bytes)
+            if (s.startsWith('a914') && s.endsWith('87') && script.length === 23) {
+                const scriptHash = script.slice(2, 22); // Extract the 20-byte script hash
+                return Address(networkConfig).encode({ type: 'sh', hash: scriptHash } as any);
+            }
+
+            // SegWit v0 - P2WPKH (22 bytes) or P2WSH (34 bytes) = Bech32
+            if ((s.startsWith('0014') && script.length === 22) || 
+                (s.startsWith('0020') && script.length === 34)) {
+                
+                const witnessProgram = script.slice(2);
+                const words = bech32.toWords(witnessProgram);
+                words.unshift(0);
+                return bech32.encode(hrp, words);
+            }
+
+            // Taproot + Future Witness Versions (v1 to v16) = Bech32m (BIP-350)
+            if (s.length >= 4) {
+                const versionByte = parseInt(s.slice(0, 2), 16);
+                if (versionByte >= 0x51 && versionByte <= 0x60) {   // OP_1 to OP_16
+                    const witnessVersion = versionByte - 0x50;
+                    const witnessProgram = script.slice(2);
+                    
+                    const words = bech32m.toWords(witnessProgram);
+                    words.unshift(witnessVersion);
+                    return bech32m.encode(hrp, words);
+                }
+            }
+
+            // Fallback: show raw hex for unknown scripts
+            return s;
+
+        } catch (e) {
+            console.warn('Address formatting failed:', e, hex.encode(script));
+            
+            const s = hex.encode(script);
+            if (s.startsWith('0014') || s.startsWith('0020') || s.startsWith('51')) return s.slice(4);
+            if (s.startsWith('76a914')) return s.slice(6, 46); // P2PKH fallback
+            if (s.startsWith('a914')) return s.slice(4, 44);   // P2SH fallback
+            return s;
         }
-        return s;
     }
-}
 
   private areKeysEqual(k1: Uint8Array, k2: Uint8Array): boolean {
     if (hex.encode(k1) === hex.encode(k2)) return true;

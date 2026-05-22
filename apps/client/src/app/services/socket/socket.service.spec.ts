@@ -840,12 +840,14 @@ describe('Getters & Crypto Helpers', () => {
       expect(result).toBe('tb1q844me8rl78zh3ujry2sl8w0h33ryd7t2g5qxpsvplmpc508yz5vslwxw8z');
     });
 
-    it('should return raw hex for legacy or unknown script templates', () => {
+    it('should successfully encode Legacy P2PKH scripts to Base58Check addresses', () => {
       // Standard P2PKH legacy script starting with 76a914...
       const script = hexToBytes('76a914751e76e8199196d454941c45d1b3a323f1433bd688ac');
       const result = service['formatScriptAddress'](script);
-      expect(result).toBe('76a914751e76e8199196d454941c45d1b3a323f1433bd688ac');
-    });
+      
+      // Mainnet address
+      expect(result).toBe('1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH');
+  });
 
     it('should return "Unknown" for empty or uninitialized script arrays', () => {
       const result = service['formatScriptAddress'](new Uint8Array([]));
@@ -863,6 +865,39 @@ describe('Getters & Crypto Helpers', () => {
       
       // Because the script starts with '0020', the catch block should safely slice off the first 4 chars
       expect(result).toBe('3d6bbc9c7ff1c578f24322a1f3b9f78c4646f96a450060c181fec38a3ce41519');
+    });
+
+    it('should successfully encode Signet/Testnet Legacy P2PKH scripts to Base58Check addresses', () => {
+      // Set network context to trigger the 0x6f Base58 prefix
+      service.roomState.set({ network: 'signet' } as any);
+      
+      const script = hexToBytes('76a914cd3b7aca26208b3239f96fff6a37b8de3ae0915488ac'); 
+      const result = service['formatScriptAddress'](script);
+      
+      // Mathematically verified Testnet/Signet address
+      expect(result).toBe('mzE856cXjeyBt8HY9eNXxW5JYDJp2vmMuU');
+    });
+
+    it('should successfully encode Mainnet P2SH / Nested SegWit scripts to Base58Check addresses', () => {
+      service.roomState.set({ network: 'bitcoin' } as any);
+      
+      // Standard P2SH legacy script starting with a914... ending in 87
+      const script = hexToBytes('a914363c62e38ad4b5550f9b268fc5ab5839613f8c7087');
+      const result = service['formatScriptAddress'](script);
+      
+      // Mainnet P2SH address (starts with 3)
+      expect(result).toBe('36dnkcdnhSpfbb8tCDn49t5gp6ruGUQReo');
+    });
+
+    it('should successfully encode Signet/Testnet P2SH / Nested SegWit scripts to Base58Check addresses', () => {
+      // Set network context to trigger the 0xc4 Base58 prefix for Testnet P2SH
+      service.roomState.set({ network: 'signet' } as any);
+      
+      const script = hexToBytes('a914363c62e38ad4b5550f9b268fc5ab5839613f8c7087'); 
+      const result = service['formatScriptAddress'](script);
+      
+      // Mathematically verified Testnet/Signet address (starts with 2)
+      expect(result).toBe('2MxBzpMZpJuL1oNmRsMPvmq4x2T557PHFFG');
     });
   });
 });
