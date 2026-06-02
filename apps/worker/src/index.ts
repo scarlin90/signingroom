@@ -527,7 +527,7 @@ export class SigningRoom implements DurableObject {
           await this.saveRoomState();
           
           await this.log(msg.encryptedLogBlob);
-          this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint });
+          this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
         }
 
         // Destroy Room (Admin Only)

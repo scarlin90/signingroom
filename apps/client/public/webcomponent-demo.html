@@ -56,6 +56,12 @@
         .doc-table th, .doc-table td { text-align: left; padding: 1rem; border-bottom: 1px solid #1e293b; }
         .doc-table th { color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; background: rgba(255,255,255,0.02); }
         .doc-table code { background: #020617; border: 1px solid #1e293b; padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; color: #38bdf8; font-size: 0.85rem; }
+
+        /* Custom Scrollbar for the Audit Log */
+        #log-output::-webkit-scrollbar { width: 6px; }
+        #log-output::-webkit-scrollbar-track { background: #0f172a; border-radius: 4px; }
+        #log-output::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        #log-output::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
 </head>
@@ -132,9 +138,9 @@
                         <button class="btn" id="load-guest-btn" style="margin-top: 10px;">Load Guest View</button>
                     </div>
 
-                    <div class="card" id="event-log" style="flex-grow: 1;">
+                    <div class="card" id="event-log" style="flex-grow: 1; display: flex; flex-direction: column; max-height: 280px;">
                         <h2>Audit Events</h2>
-                        <div id="log-output" style="font-family: monospace; font-size: 11px; color: #64748b; display: flex; flex-direction: column; gap: 4px;">
+                        <div id="log-output" style="font-family: monospace; font-size: 11px; color: #64748b; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; padding-right: 8px;">
                             <div>Waiting for interaction...</div>
                         </div>
                     </div>

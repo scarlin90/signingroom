@@ -1933,38 +1933,17 @@ export class RoomComponent implements OnInit, OnDestroy {
         });
 
         // --- SIGNATURE NETWORK TRACKER ---
-        effect(() => {
-            const state = this.socket.roomState();
-            const currentSigs = state?.signatures || [];
+        this.socket.networkSignatureReceived$.subscribe(data => {
             const sessions = this.socket.activeSessions();
+            const uploaderSession = sessions.find(s => s.id === data.sessionId);
+            const label = this.socket.roomState()?.signerLabels?.[data.fingerprint];
             
-            if (this.socket.status() === 'connected') {
-                if (currentSigs.length > this.previousSignaturesCount) {
-                    const currentSigners = this.socket.signers();
-                    currentSigners.forEach(s => {
-                        if (s.signed && !this.previousSigners[s.fingerprint]) {
-                            
-                            const label = this.socket.roomState()?.signerLabels?.[s.fingerprint];
-                            
-                            // Find the session that corresponds to the CURRENT user
-                            const session = sessions.find(sess => sess.id === this.socket.currentSessionId());
-                            
-                            // Emit ONCE per signature change
-                            this.dispatcher.emitSignatureReceived(
-                                s.fingerprint, 
-                                label, 
-                                session?.id, 
-                                session?.displayName
-                            );
-                        }
-                    });
-                }
-                this.previousSignaturesCount = currentSigs.length;
-                this.socket.signers().forEach(s => this.previousSigners[s.fingerprint] = s.signed);
-            } else {
-                this.previousSignaturesCount = 0;
-                this.previousSigners = {};
-            }
+            this.dispatcher.emitSignatureReceived(
+                data.fingerprint, 
+                label, 
+                data.sessionId, 
+                uploaderSession?.displayName
+            );
         });
 
         this.socket.securityAlert$.subscribe(event => {

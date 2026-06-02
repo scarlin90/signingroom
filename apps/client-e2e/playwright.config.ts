@@ -33,7 +33,7 @@ export default defineConfig({
       timeout: 120000,
     },
     {
-      command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787',
+      command: 'npx wrangler dev apps/worker/src/index.ts',
       url: 'http://127.0.0.1:8787/api/health',
       reuseExistingServer: true,
       cwd: workspaceRoot,

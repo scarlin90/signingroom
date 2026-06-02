@@ -256,4 +256,193 @@ test.describe('Web Component / Embedded Integration', () => {
     await guestCtx.close();
   });
 
+test('Should emit complete UI and Privacy telemetry events to the host', async ({ page, context }) => {
+    // Grant clipboard permissions to the default browser context
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    
+    await page.goto('/webcomponent-demo.html');
+    const messages = await trapWidgetEvents(page);
+    
+    // Inject and Start
+    await page.getByRole('button', { name: /Inject PSBT/i }).click();
+    const frame = page.frameLocator('iframe');
+    await frame.getByRole('button', { name: /Start Signing Ceremony/i }).click();
+    await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
+
+    // Verify `roomCreated` Event via polling
+    await expect(async () => {
+      const createdEvent = messages.find(m => m.action === 'roomCreated');
+      expect(createdEvent).toBeDefined();
+      expect(createdEvent.payload.network).toBeDefined();
+    }).toPass({ timeout: 5000 });
+
+    // Interact with Privacy Toggles & Modals
+    const hostHeaderBadge = frame.getByRole('button', { name: 'Hidden for Privacy' }).first();
+    await hostHeaderBadge.click({ force: true });
+    
+    await expect(async () => {
+      expect(messages.find(m => m.action === 'modalViewed' && m.payload.modalName.includes('Privacy'))).toBeDefined();
+    }).toPass({ timeout: 5000 });
+
+    await frame.getByRole('button', { name: 'Reveal All' }).click({ force: true });
+    await expect(hostHeaderBadge).toBeHidden({ timeout: 10000 });
+    
+    await expect(async () => {
+      const privacyEvent = messages.find(m => m.action === 'privacyToggled');
+      expect(privacyEvent).toBeDefined();
+      expect(privacyEvent.payload.state).toBe('reveal-all');
+    }).toPass({ timeout: 5000 });
+
+    // Interact with Clipboard Data
+    await page.evaluate(() => navigator.clipboard.writeText('')); 
+    await frame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('button').first().click();
+    
+    // Ensure the modal rendered before trying to click the copy button
+    const copyBtn = frame.getByRole('button', { name: 'Copy Room ID' });
+    await expect(copyBtn).toBeVisible();
+    await copyBtn.click({ force: true });
+
+    await expect(async () => {
+      const copyEvent = messages.find(m => m.action === 'dataCopied');
+      expect(copyEvent).toBeDefined();
+      expect(copyEvent.payload.dataType).toBe('room-id');
+    }).toPass({ timeout: 5000 });
+
+    // Interact with Transaction Views
+    await frame.getByRole('button', { name: /Outputs/i }).click();
+    
+    await expect(async () => {
+      const viewEvent = messages.find(m => m.action === 'transactionViewChanged');
+      expect(viewEvent).toBeDefined();
+      expect(viewEvent.payload.view).toBe('outputs');
+    }).toPass({ timeout: 5000 });
+  });
+
+  test('Should detect brute force attempts and emit securityAlert (access_denied) to the host', async ({ browser }) => {
+    const hostCtx = await browser.newContext();
+    const guestCtx = await browser.newContext();
+    await hostCtx.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    const hostPage = await hostCtx.newPage();
+    const guestPage = await guestCtx.newPage();
+
+    // Setup Host
+    await hostPage.goto('/webcomponent-demo.html');
+    await hostPage.getByRole('button', { name: /Inject PSBT/i }).click();
+    const hostFrame = hostPage.frameLocator('iframe');
+    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click({ force: true });
+    await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
+
+    // Reveal Privacy & Extract Room ID
+    await hostFrame.getByRole('button', { name: 'Hidden for Privacy' }).first().click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Reveal All' }).click({ force: true });
+    const roomId = (await hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('span.font-mono').innerText()).trim();
+
+    // Setup Malicious Guest
+    await guestPage.goto('/webcomponent-demo.html');
+    const guestMessages = await trapWidgetEvents(guestPage);
+    
+    // Provide correct Room ID, but completely WRONG key to trigger 1006 disconnect
+    await guestPage.locator('#guest-room-id').fill(roomId);
+    await guestPage.locator('#guest-key').fill('malicious-wrong-key-1234');
+    await guestPage.locator('#load-guest-btn').click();
+
+    const guestFrame = guestPage.frameLocator('iframe');
+    
+    // Verify UI accurately reflects the denial by kicking them back to the key prompt
+    await expect(guestFrame.getByText(/Decryption Key Required/i)).toBeVisible({ timeout: 8000 });
+    await expect(guestFrame.getByPlaceholder(/Enter decryption key/i)).toBeVisible();
+
+    // Verify the widget fired the SIEM/Security webhook
+    await expect(async () => {
+        const securityAlert = guestMessages.find(m => m.action === 'securityAlert');
+        expect(securityAlert).toBeDefined();
+        expect(securityAlert.payload.alertType).toBe('access_denied');
+        expect(securityAlert.payload.roomId).toBe(roomId);
+    }).toPass({ timeout: 5000 });
+    
+    await hostCtx.close();
+    await guestCtx.close();
+  });
+
+  test('Should emit participantPresence and cross-reference signatureReceived events between users', async ({ browser }) => {
+    const hostCtx = await browser.newContext();
+    const guestCtx = await browser.newContext();
+    await hostCtx.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    const hostPage = await hostCtx.newPage();
+    const guestPage = await guestCtx.newPage();
+
+    // Setup Host & Create Room
+    await hostPage.goto('/webcomponent-demo.html');
+    const hostMessages = await trapWidgetEvents(hostPage);
+    await hostPage.getByRole('button', { name: /Inject PSBT/i }).click();
+
+    const hostFrame = hostPage.frameLocator('iframe');
+    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click({ force: true });
+    await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
+
+    // Extract Credentials
+    await hostFrame.getByRole('button', { name: 'Hidden for Privacy' }).first().click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Reveal All' }).click({ force: true });
+    
+    const roomId = (await hostFrame.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('span.font-mono').innerText()).trim();
+    await hostPage.evaluate(() => navigator.clipboard.writeText('')); 
+    await hostFrame.getByRole('button', { name: /Link Key/i }).click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click({ force: true });
+    
+    let roomKey = '';
+    await expect(async () => {
+        roomKey = await hostPage.evaluate(() => navigator.clipboard.readText());
+        expect(roomKey.length).toBeGreaterThan(10);
+    }).toPass({ timeout: 5000 });
+    await hostPage.keyboard.press('Escape');
+
+    // Clear message array so we strictly capture events occurring AFTER setup
+    hostMessages.length = 0;
+
+    // Setup Guest & Join
+    await guestPage.goto('/webcomponent-demo.html');
+    
+    await guestPage.locator('#guest-room-id').fill(roomId);
+    await guestPage.locator('#guest-key').fill(roomKey);
+    await guestPage.locator('#load-guest-btn').click();
+
+    const guestFrame = guestPage.frameLocator('iframe');
+    await expect(guestFrame.locator('span[title="Room Active"]')).toBeVisible();
+
+    const guestHeaderBadge = guestFrame.getByRole('button', { name: 'Hidden for Privacy' }).first();
+    await guestHeaderBadge.click({ force: true });
+    await guestFrame.getByRole('button', { name: 'Reveal All' }).click({ force: true });
+    await expect(guestHeaderBadge).toBeHidden({ timeout: 10000 });
+
+    // Verify Presence Event
+    let participantId = '';
+    await expect(async () => {
+        const presenceEvent = hostMessages.find(m => m.action === 'participantPresence' && m.payload.action === 'joined');
+        expect(presenceEvent).toBeDefined();
+        expect(presenceEvent.payload.participantRole).toBe('guest');
+        participantId = presenceEvent.payload.participantId;
+    }).toPass({ timeout: 5000 });
+
+    // Guest Uploads Signature
+    const guestFileInput = guestFrame.locator('input[type="file"]');
+    await guestFileInput.setInputFiles(getFixturePath('3_5_signed_charlie.psbt.txt'));
+    
+    await expect(guestFrame.getByText(/2 more signatures required/i)).toBeVisible({ timeout: 10000 });
+
+    // Verify Correlated Signature Event on Host
+    await expect(async () => {
+        const networkSigEvent = hostMessages.find(m => m.action === 'signatureReceived');
+        expect(networkSigEvent).toBeDefined();
+        expect(networkSigEvent.payload.fingerprint).toBeDefined();
+        
+        // The signature event must trace back to the EXACT session ID of the guest who joined
+        expect(networkSigEvent.payload.signerSessionId).toBe(participantId); 
+    }).toPass({ timeout: 5000 });
+
+    await hostCtx.close();
+    await guestCtx.close();
+  });
+
 });

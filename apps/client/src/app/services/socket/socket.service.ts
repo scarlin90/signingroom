@@ -90,6 +90,7 @@ export class SocketService {
   public role = signal<'guest' | 'admin'>('guest');
   public currentSessionId = signal<string | null>(null);
   public activeSessions = signal<{id: string, role: string, displayName?: string}[]>([]);
+  public networkSignatureReceived$ = new Subject<{fingerprint: string, sessionId: string}>();
   
   // Room Data
   public roomState = signal<RoomState | null>(null);
@@ -946,6 +947,13 @@ async updateSignerLabel(fingerprint: string, label: string) {
             signatures: [...current.signatures, decrypted]
         };
     });
+
+    if (msg.fingerprint && msg.sessionId) {
+        this.networkSignatureReceived$.next({
+            fingerprint: msg.fingerprint,
+            sessionId: msg.sessionId
+        });
+    }
     
     console.log(`Successfully merged new signature from signer: ${realFingerprint}`);
   }
