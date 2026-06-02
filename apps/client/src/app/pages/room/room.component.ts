@@ -1330,14 +1330,14 @@ import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
                   [class.pointer-events-none]="blurStates()['transaction-details']">
                   
                   <div class="w-full flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-4">
-                      <button (click)="viewMode.set('inputs')" 
+                      <button (click)="setViewMode('inputs')"
                               class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                               [class.bg-slate-800]="viewMode() === 'inputs'"
                               [class.text-emerald-400]="viewMode() === 'inputs'"
                               [class.text-slate-500]="viewMode() !== 'inputs'">
                           Inputs ({{ socket.txDetails()?.inputs || 0 }})
                       </button>
-                      <button (click)="viewMode.set('outputs')" 
+                      <button (click)="setViewMode('outputs')" 
                               class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                               [class.bg-slate-800]="viewMode() === 'outputs'"
                               [class.text-emerald-400]="viewMode() === 'outputs'"
@@ -1349,7 +1349,7 @@ import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
                       @if (viewMode() === 'inputs') {
                           <div class="relative flex items-center">
                               <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
-                              <input type="text" [ngModel]="inputSearchQuery()" (ngModelChange)="inputSearchQuery.set($event)" placeholder="Search input address..."
+                              <input type="text" [ngModel]="inputSearchQuery()" (ngModelChange)="updateSearchQuery('inputs', $event)" placeholder="Search input address..."
                                 class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
                               <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
                                   {{ filteredInputs().length }}
@@ -1358,7 +1358,7 @@ import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
                       } @else {
                           <div class="relative flex items-center">
                               <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
-                              <input type="text" [ngModel]="outputSearchQuery()" (ngModelChange)="outputSearchQuery.set($event)" placeholder="Search output address..."
+                              <input type="text" [ngModel]="outputSearchQuery()" (ngModelChange)="updateSearchQuery('outputs', $event)" placeholder="Search output address..."
                                 class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
                               <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
                                   {{ filteredOutputs().length }}
@@ -1776,6 +1776,11 @@ export class RoomComponent implements OnInit, OnDestroy {
     public claimPassword = '';
     public manualKey = '';
     
+    // --- EVENT TRACKERS ---
+    private previousSessions: {id: string, role: string, displayName?: string}[] = [];
+    private previousSignaturesCount = 0;
+    private previousSigners: Record<string, boolean> = {};
+    
     public editingFingerprint = signal<string | null>(null);
     public editingLabel = signal('');
     public saveToBook = signal(true);
@@ -1888,19 +1893,87 @@ export class RoomComponent implements OnInit, OnDestroy {
                 const pdfData = this.getPdfDocument();
                 const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
 
-                window.parent.postMessage({
-                    type: 'SIGNING_ROOM_EVENT',
-                    action: 'transactionFinalized',
-                    payload: {
-                        txId: state.finalTxId,
-                        txHex: state.finalTxHex,
-                        roomState: sanitizedState,
-                        auditLogCsv: this.getAuditLogCsvData(),
-                        settlementCsv: this.getSettlementCsvData(),
-                        auditPdfUri: pdfBase64 
-                    }
-                }, '*');
+                this.dispatcher.emitTransactionFinalized({
+                    txId: state.finalTxId,
+                    txHex: state.finalTxHex,
+                    roomState: sanitizedState,
+                    auditLogCsv: this.getAuditLogCsvData(),
+                    settlementCsv: this.getSettlementCsvData(),
+                    auditPdfUri: pdfBase64 
+                });
             }
+        });
+
+        // --- PARTICIPANT PRESENCE TRACKER ---
+        effect(() => {
+            const currentSessions = this.socket.activeSessions();
+            
+            if (this.socket.status() === 'connected') {
+                const joined = currentSessions.filter(cs => !this.previousSessions.some(ps => ps.id === cs.id));
+                const left = this.previousSessions.filter(ps => !currentSessions.some(cs => cs.id === ps.id));
+                
+                // Find users who just changed their display name!
+                const nameChanged = currentSessions.filter(cs => {
+                    const prev = this.previousSessions.find(ps => ps.id === cs.id);
+                    return prev && prev.displayName !== cs.displayName;
+                });
+
+                joined.forEach(p => this.dispatcher.emitParticipantPresence('joined', p.id, p.role, p.displayName));
+                left.forEach(p => this.dispatcher.emitParticipantPresence('left', p.id, p.role, p.displayName));
+                
+                nameChanged.forEach(p => {
+                    // Only broadcast if it's someone ELSE (our own local save handles 'self')
+                    if (p.id !== this.socket.currentSessionId()) {
+                        this.dispatcher.emitParticipantLabelled('participant', p.displayName || 'Anonymous', undefined, p.id);
+                    }
+                });
+            }
+
+            this.previousSessions = currentSessions;
+        });
+
+        // --- SIGNATURE NETWORK TRACKER ---
+        effect(() => {
+            const state = this.socket.roomState();
+            const currentSigs = state?.signatures || [];
+            const sessions = this.socket.activeSessions();
+            
+            if (this.socket.status() === 'connected') {
+                if (currentSigs.length > this.previousSignaturesCount) {
+                    const currentSigners = this.socket.signers();
+                    currentSigners.forEach(s => {
+                        if (s.signed && !this.previousSigners[s.fingerprint]) {
+                            
+                            const label = this.socket.roomState()?.signerLabels?.[s.fingerprint];
+                            
+                            // Find the session that corresponds to the CURRENT user
+                            const session = sessions.find(sess => sess.id === this.socket.currentSessionId());
+                            
+                            // Emit ONCE per signature change
+                            this.dispatcher.emitSignatureReceived(
+                                s.fingerprint, 
+                                label, 
+                                session?.id, 
+                                session?.displayName
+                            );
+                        }
+                    });
+                }
+                this.previousSignaturesCount = currentSigs.length;
+                this.socket.signers().forEach(s => this.previousSigners[s.fingerprint] = s.signed);
+            } else {
+                this.previousSignaturesCount = 0;
+                this.previousSigners = {};
+            }
+        });
+
+        this.socket.securityAlert$.subscribe(event => {
+            const severity = event.count >= 3 ? 'high' : 'medium';
+            this.dispatcher.emitSecurityAlert(
+                event.type, 
+                severity, 
+                `Failed decryption attempt ${event.count}/3`
+            );
         });
     }
 
@@ -2123,7 +2196,10 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.openConfirm(
             `${action} Room`,
             `Are you sure you want to ${action} this room? ${current ? 'New users will be able to join.' : 'No new users will be able to connect.'}`,
-            () => this.socket.toggleLock(!current),
+            () => {
+                this.socket.toggleLock(!current)
+                this.dispatcher.emitRoomStateChanged(!current ? 'locked' : 'unlocked');
+            },
             !current 
         );
     }
@@ -2143,20 +2219,22 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     saveLabel() {
-    const fp = this.editingFingerprint();
-    const label = this.editingLabel().trim();
-    
-    if (fp) {
-        this.socket.updateSignerLabel(fp, label);
+        const fp = this.editingFingerprint();
+        const label = this.editingLabel().trim();
+        
+        if (fp) {
+            this.socket.updateSignerLabel(fp, label);
 
-        if (this.saveToBook() && label) {
-            this.socket.saveToAddressBook(fp, label);
-        } else {
-            this.socket.removeFromAddressBook(fp);
+            if (this.saveToBook() && label) {
+                this.socket.saveToAddressBook(fp, label);
+            } else {
+                this.socket.removeFromAddressBook(fp);
+            }
+
+            this.dispatcher.emitParticipantLabelled('signer', label, fp);
         }
+        this.closeLabelModal();
     }
-    this.closeLabelModal();
-}
 
     closeLabelModal() {
         this.showLabelModal.set(false);
@@ -2170,7 +2248,10 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.openConfirm(
             'Update Whitelist',
             `${isPresent ? 'Remove' : 'Add'} the following address ${isPresent ? 'from' : 'to'} the whitelist?\n\n${address}`,
-            () => this.socket.updateWhitelist(address, isPresent),
+            () => { 
+                this.socket.updateWhitelist(address, isPresent);
+                this.dispatcher.emitDestinationVerified(this.viewMode(), address, !isPresent);
+             },
             false
         );
     }
@@ -2221,6 +2302,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
         if (toAdd.length > 0) {
             this.socket.updateWhitelistBatch(toAdd, false);
+            this.dispatcher.emitDestinationVerified('inputs', 'batch', true);
         }
     }
 
@@ -2238,10 +2320,24 @@ export class RoomComponent implements OnInit, OnDestroy {
 
                 if (toAdd.length > 0) {
                     this.socket.updateWhitelistBatch(toAdd, false); 
+                    this.dispatcher.emitDestinationVerified('outputs', 'batch', true);
                 }
             },
             false
         );
+    }
+
+    setViewMode(mode: 'inputs' | 'outputs') {
+        this.viewMode.set(mode);
+        this.dispatcher.emitTransactionViewChanged(mode);
+    }
+
+    updateSearchQuery(view: 'inputs' | 'outputs', query: string) {
+        if (view === 'inputs') {
+            this.inputSearchQuery.set(query);
+        } else {
+            this.outputSearchQuery.set(query);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -3131,10 +3227,13 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.regenerateFrames();
         this.showFountainModal.set(true);
         this.isFountainRevealed.set(false);
+        this.dispatcher.emitModalView('Export PSBT (Air-Gapped)');
     }
 
     setExportFormat(format: 'ur' | 'bbqr') {
         this.exportFormat.set(format);
+        this.dispatcher.emitFountainFormatChanged(format);
+
         if (this.showFountainModal()) {
             this.regenerateFrames();
 
@@ -3214,6 +3313,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.showScannerModal.set(true);
         this.isScanningSigned.set(true);
         this.urService.resetDecoder();
+
+        this.dispatcher.emitModalView('Import PSBT (Scanner)');
         
         setTimeout(async () => {
             this.html5QrCode = new Html5Qrcode("signer-reader", {

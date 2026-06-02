@@ -9,6 +9,7 @@ import { Transaction, NETWORK, TEST_NETWORK, Address } from '@scure/btc-signer';
 import { base64, hex, bech32, bech32m } from '@scure/base';
 import { environment } from '../../../environments/environment';
 import { EncryptionService } from '../encryption/encryption.service';
+import { Subject } from 'rxjs';
 
 // -------------------------------------------------------------------------
 // Constants
@@ -77,6 +78,8 @@ export class SocketService {
   private fallbackVersion: string | null = null;
   private blindFingerprintMap: Map<string, string> = new Map();
   private hasAnnouncedJoin = false;
+  public securityAlert$ = new Subject<{type: 'access_denied', count: number}>();
+  private failedKeyAttempts = 0;
 
   // -------------------------------------------------------------------------
   // Signals
@@ -207,6 +210,12 @@ export class SocketService {
           console.warn("Connection rejected by server. Invalid room pass.");
           this.decryptionError.set('Invalid decryption key. Access denied.');
           this.setRoomKey(null);
+
+          this.failedKeyAttempts++;
+          this.securityAlert$.next({
+              type: 'access_denied',
+              count: this.failedKeyAttempts
+          });
           return;
       }
 

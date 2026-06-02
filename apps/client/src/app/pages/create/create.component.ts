@@ -23,6 +23,7 @@ import { PROTOCOL_VERSION, SocketService } from '../../services/socket/socket.se
 import { EncryptionService } from '../../services/encryption/encryption.service';
 import { environment } from '../../../environments/environment';
 import { UrService } from '../../services/ur/ur.service';
+import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 
 // 1. CONSTANTS MUST BE OUTSIDE THE CLASS
 const NETWORKS = ['bitcoin', 'testnet', 'signet'] as const;
@@ -505,6 +506,7 @@ export class CreateComponent implements OnInit {
     private titleService = inject(Title);
     private metaService = inject(Meta);
     public urService = inject(UrService);
+    private dispatcher = inject(WidgetDispatcherService);
 
     readonly networks = NETWORKS;
     
@@ -623,6 +625,8 @@ export class CreateComponent implements OnInit {
 
             sessionStorage.setItem(`admin_token_${roomId}`, encryptedAdminToken);
 
+            this.dispatcher.emitRoomCreated(roomId, this.selectedNetwork());
+
             this.router.navigate(['/room', roomId], { fragment: encryptionKey });
         } catch (e) {
             console.error(e);
@@ -722,6 +726,10 @@ export class CreateComponent implements OnInit {
                     }
                 }, '*');
             } }
+    }
+
+    emitRoomCreated(roomId: string, network: string): void {
+        this.dispatcher.emitRoomCreated(roomId, network);
     }
 
     // UX Helpers

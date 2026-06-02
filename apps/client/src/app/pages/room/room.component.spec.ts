@@ -8,6 +8,7 @@ import { SocketService } from '../../services/socket/socket.service';
 import { of } from 'rxjs';
 import { jsPDF } from 'jspdf';
 import { Title } from '@angular/platform-browser';
+import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 
 // ==================== GLOBAL MOCKS ====================
 vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
@@ -116,6 +117,22 @@ describe('RoomComponent', () => {
   });
 
   beforeEach(async () => {
+
+    const dispatcherSpy = {
+        emitModalView: vi.fn(),
+        emitPrivacyToggle: vi.fn(),
+        emitRoomRenamed: vi.fn(),
+        emitDataCopied: vi.fn(),
+        emitParticipantLabelled: vi.fn(),
+        emitDownloadTriggered: vi.fn(),
+        emitRoomStateChanged: vi.fn(),
+        emitQrStateChanged: vi.fn(),
+        emitFountainFormatChanged: vi.fn(),
+        emitPsbtImported: vi.fn(),
+        emitTransactionViewChanged: vi.fn(),
+        emitDestinationVerified: vi.fn()
+    };
+
     vi.clearAllMocks();
     TestBed.resetTestingModule();   // ← Important for stability
 
@@ -139,6 +156,7 @@ describe('RoomComponent', () => {
             paramMap: of({ get: () => '123' }),
           },
         },
+        { provide: WidgetDispatcherService, useValue: dispatcherSpy }
       ],
     }).compileComponents();
 
