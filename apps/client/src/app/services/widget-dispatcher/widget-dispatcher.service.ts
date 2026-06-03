@@ -10,6 +10,17 @@ export class WidgetDispatcherService {
   constructor(private socket: SocketService) {}
 
   /**
+   * Securely checks if the application is running inside an iframe.
+   */
+  public get isEmbedded(): boolean {
+    try {
+      return window !== window.top;
+    } catch (e) {
+      return true; 
+    }
+  }
+
+  /**
    * Helper to return current state of room
    */
   private getBaseContext(): BaseEventContext {
@@ -27,6 +38,10 @@ export class WidgetDispatcherService {
    * Core dispatcher that emits events to the parent window (signing room) with a consistent structure. All widget events should funnel through this method.
    */
   private dispatchEvent(action: string, payload: any): void {
+    if (!this.isEmbedded) {
+        return; 
+    }
+
     if (window && window.parent) {
 
       const enrichedPayload = {
@@ -85,6 +100,10 @@ export class WidgetDispatcherService {
 
   emitFountainFormatChanged(format: FountainFormatChangedPayload['format']): void {
     this.dispatchEvent('fountainFormatChanged', { format });
+  }
+
+  emitFountainStateChanged(isRevealed: boolean, format: string): void {
+    this.dispatchEvent('fountainStateChanged', { isRevealed, format });
   }
 
   emitPsbtImported(method: PsbtImportedPayload['method']): void {

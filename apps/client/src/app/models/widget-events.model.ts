@@ -49,6 +49,11 @@ export interface FountainFormatChangedPayload {
   format: 'ur' | 'bbqr';
 }
 
+export interface FountainStateChangedPayload {
+    isRevealed: boolean;
+    format: 'ur' | 'bbqr';
+}
+
 export interface PsbtImportedPayload {
   method: 'scan' | 'upload';
 }

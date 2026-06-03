@@ -2006,7 +2006,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     get isEmbedded(): boolean {
-        return window !== window.top;
+        return this.dispatcher.isEmbedded;
     }
 
     isWhitelisted(address: string): boolean {
@@ -2035,8 +2035,6 @@ export class RoomComponent implements OnInit, OnDestroy {
         const file = event.target.files[0];
         if (!file) return;
 
-        // --- VALIDATION START ---
-        // 1. Extension Check
         const validExtensions = ['.psbt', '.txt', '.hex', '.base64'];
         const fileName = file.name.toLowerCase();
         if (!validExtensions.some(ext => fileName.endsWith(ext))) {
@@ -2045,13 +2043,11 @@ export class RoomComponent implements OnInit, OnDestroy {
             return;
         }
 
-        // 2. Size Check (Max 2MB for browser performance)
         if (file.size > 2 * 1024 * 1024) {
             this.openAlert("File Too Large", "File exceeds 2MB limit. PSBTs are usually much smaller.");
             event.target.value = '';
             return;
         }
-        // --- VALIDATION END ---
 
         this.isUploading.set(true); 
 
@@ -2070,6 +2066,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             }
 
             await this.socket.uploadSignature(content);
+            this.dispatcher.emitPsbtImported('upload');
             event.target.value = ''; 
         } catch (e) {
             console.error(e);
@@ -2101,6 +2098,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         a.download = `unsigned_tx_${this.roomId()?.slice(0,8)}.psbt`;
         a.click();
         window.URL.revokeObjectURL(url);
+
+        this.dispatcher.emitDownloadTriggered('unsigned-psbt');
     }
 
     // -------------------------------------------------------------------------
@@ -3130,21 +3129,17 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     /**
      * Handles the click of the Eye icon for any section.
-     * If blurred -> Prompts the warning modal.
-     * If unblurred -> Instantly re-blurs and logs it.
      */
     togglePrivacyBlur(section: PrivacySection) {
         if (this.blurStates()[section]) {
             this.pendingUnblurSection.set(section);
             this.showPrivacyWarning.set(true);
             
-            // EMIT: Viewed Privacy Modal
             this.dispatcher.emitModalView('Toggle Privacy Warning', section);
         } else {
             this.blurStates.update(s => ({ ...s, [section]: true }));
             this.socket.logAction('Privacy Toggle', `Re-blurred ${section} section`);
             
-            // EMIT: Hidden/Blurred Action
             this.dispatcher.emitPrivacyToggle(section, 'hidden');
         }
     }
@@ -3178,7 +3173,6 @@ export class RoomComponent implements OnInit, OnDestroy {
         });
         this.socket.logAction('Privacy Toggle', `Revealed all sections`);
         
-        // EMIT: Reveal All Action (Requires casting 'all' if it's not in the union type)
         this.dispatcher.emitPrivacyToggle('all' as any, 'reveal-all');
         
         this.showPrivacyWarning.set(false);
@@ -3191,7 +3185,6 @@ export class RoomComponent implements OnInit, OnDestroy {
     closePrivacyWarning() {
         const section = this.pendingUnblurSection();
         if (section) {
-            // EMIT: Keep Blurred Action
             this.dispatcher.emitPrivacyToggle(section, 'blurred');
         }
         
@@ -3240,6 +3233,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     toggleFountainReveal() {
         const nextState = !this.isFountainRevealed();
         this.isFountainRevealed.set(nextState);
+
+        this.dispatcher.emitFountainStateChanged(nextState, this.exportFormat());
         
         if (nextState) {
             this.socket.logAction('Privacy Toggle', `Revealed ${this.exportFormat().toUpperCase()} PSBT QR`);
@@ -3393,6 +3388,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             
             await this.socket.uploadSignature(normalizedBase64);
             console.log("Successfully ingested signed PSBT via optics!");
+            this.dispatcher.emitPsbtImported('scan');
             
         } catch (e) {
             console.error("Failed to parse signed PSBT from scanner", e);
