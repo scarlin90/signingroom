@@ -92,16 +92,53 @@ widget.addEventListener('signingError', (e) => {
 });
 ```
 
-### Event Payload Structure
+### Universal Event Context
+Every event payload (except signingError) implicitly includes a BaseEventContext object, ensuring your host application always knows who triggered the event, and in which room.
 ```
-export interface TransactionFinalizedPayload {
-  txId: string;           // The final SHA256 transaction ID
-  txHex: string;          // The broadcast-ready raw hex
-  auditPdfUri: string;    // Base64 Data URI of the generated PDF
-  auditLogCsv: string;    // Formatted CSV string of events
-  settlementCsv: string;  // Formatted CSV string of financial data
-  roomState: RoomState;   // The complete raw state (minus internal keys)
+export interface BaseEventContext {
+  roomId: string | null;
+  sessionId: string | null;
+  role: 'coordinator' | 'guest' | 'unknown';
+  network: 'bitcoin' | 'testnet' | 'signet' | null;
+  timestamp: number;
 }
+```
+
+### Event List
+All event properties listed below are attached directly to event.detail (alongside the BaseEventContext properties above).
+
+#### Core Lifecycle & Security
+```
+roomCreated: { roomId: string, network: string }
+transactionFinalized: { txId: string, txHex: string, auditPdfUri: string, auditLogCsv: string, settlementCsv: string, roomState: RoomState }
+roomStateChanged: { state: 'locked' | 'unlocked' | 'closed' }
+participantPresence: { action: 'joined' | 'left', participantId: string, participantRole: string, displayName?: string }
+destinationVerified: { type: 'inputs' | 'outputs', address: string | 'batch', isVerified: boolean }
+securityAlert: { alertType: 'access_denied', severity: 'low' | 'medium' | 'high', message: string }
+```
+
+#### Hardware & Cryptographic Imports
+```
+signatureReceived: { fingerprint: string, signerLabel?: string, signerSessionId?: string, signerName?: string }
+psbtImported: { method: 'scan' | 'upload' }
+qrStateChanged: { includesKey: boolean, isRevealed: boolean }
+fountainFormatChanged: { format: 'ur' | 'bbqr' }
+fountainStateChanged: { isRevealed: boolean, format: 'ur' | 'bbqr' }
+```
+
+#### User Actions & Data Management
+```
+dataCopied: { dataType: 'room-id' | 'session-id' | 'decryption-key' | 'admin-token' | 'share-link' | 'share-link-full' | 'final-hex' }
+downloadTriggered: { fileType: 'audit-log' | 'csv' | 'unsigned-psbt' | 'qr-code-image' }
+roomRenamed: { newName: string }
+participantLabelled: { target: 'self' | 'participant' | 'signer', label: string, fingerprint?: string, participantId?: string }
+```
+
+#### Privacy & UI Telemetry
+```
+privacyToggled: { section: string, state: 'blurred' | 'reveal-all' | 'reveal-section' | 'hidden' }
+modalViewed: { modalName: string, context?: string }
+transactionViewChanged: { view: 'inputs' | 'outputs' }
 ```
 
 ## 🏢 Enterprise & Commercial Licensing
