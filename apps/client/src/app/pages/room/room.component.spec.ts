@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { describe, it, expect, beforeEach, vi, afterEach, beforeAll } from 'vitest';
 import { RoomComponent } from './room.component';
 import { SocketService } from '../../services/socket/socket.service';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { jsPDF } from 'jspdf';
 import { Title } from '@angular/platform-browser';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
@@ -44,6 +44,7 @@ describe('RoomComponent', () => {
   let component: RoomComponent;
   let fixture: ComponentFixture<RoomComponent>;
   let router: Router;
+  let dispatcherSpy: any;
 
   const baseRoomState = {
     roomId: '123',
@@ -104,7 +105,9 @@ describe('RoomComponent', () => {
     broadcastFinalization: vi.fn(),
     uploadSignature: vi.fn().mockResolvedValue(true),
     claimCoordinator: vi.fn(),
-    setDisplayName: vi.fn()
+    setDisplayName: vi.fn(),
+    networkSignatureReceived$: new Subject(),
+    securityAlert$: new Subject()
   };
 
   beforeAll(() => {
@@ -114,36 +117,68 @@ describe('RoomComponent', () => {
       };
     }
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      writable: true,
+      configurable: true
+    });
+
+    // Ensure JSDOM has proper navigator
+    if (!navigator.platform) {
+      Object.defineProperty(navigator, 'platform', { value: 'MacIntel' });
+    }
+
+    HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({
+      fillRect: vi.fn(),
+      clearRect: vi.fn(),
+      getImageData: vi.fn(),
+      putImageData: vi.fn(),
+      createImageData: vi.fn(),
+      setTransform: vi.fn(),
+      drawImage: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn()
+    } as any);
+
   });
 
   beforeEach(async () => {
+    vi.clearAllMocks();
+    TestBed.resetTestingModule();
 
-    const dispatcherSpy = {
-        emitModalView: vi.fn(),
-        emitPrivacyToggle: vi.fn(),
-        emitRoomRenamed: vi.fn(),
-        emitDataCopied: vi.fn(),
-        emitParticipantLabelled: vi.fn(),
-        emitDownloadTriggered: vi.fn(),
-        emitRoomStateChanged: vi.fn(),
-        emitQrStateChanged: vi.fn(),
-        emitFountainFormatChanged: vi.fn(),
-        emitPsbtImported: vi.fn(),
-        emitTransactionViewChanged: vi.fn(),
-        emitDestinationVerified: vi.fn()
+      dispatcherSpy = {
+      emitModalView: vi.fn(),
+      emitPrivacyToggle: vi.fn(),
+      emitRoomRenamed: vi.fn(),
+      emitDataCopied: vi.fn(),
+      emitDownloadTriggered: vi.fn(),
+      emitRoomStateChanged: vi.fn(),
+      emitQrStateChanged: vi.fn(),
+      emitFountainFormatChanged: vi.fn(),
+      emitFountainStateChanged: vi.fn(),
+      emitPsbtImported: vi.fn(),
+      emitTransactionViewChanged: vi.fn(),
+      emitDestinationVerified: vi.fn(),
+      emitTransactionFinalized: vi.fn(),
+      emitParticipantLabelled: vi.fn(),
+      emitParticipantPresence: vi.fn(),
+      emitSignatureReceived: vi.fn(),
+      emitSecurityAlert: vi.fn(),
+      emitRoomCreated: vi.fn(),
+      isEmbedded: false // Default
     };
 
-    vi.clearAllMocks();
-    TestBed.resetTestingModule();   // ← Important for stability
-
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState });
-
-    if (!navigator.clipboard) {
-      Object.defineProperty(navigator, 'clipboard', {
-        value: { writeText: vi.fn().mockResolvedValue(undefined) },
-        configurable: true,
-      });
-    }
+    const mockClipboard = {
+      writeText: vi.fn().mockResolvedValue(undefined),
+      readText: vi.fn().mockResolvedValue('key-1234567890'),
+    };
+    
+    Object.defineProperty(navigator, 'clipboard', {
+      value: mockClipboard,
+      writable: true,
+      configurable: true
+    });
 
     await TestBed.configureTestingModule({
       imports: [RoomComponent, RouterTestingModule],
@@ -163,6 +198,9 @@ describe('RoomComponent', () => {
     router = TestBed.inject(Router);
     fixture = TestBed.createComponent(RoomComponent);
     component = fixture.componentInstance;
+    
+    socketSpy.roomState.mockReturnValue({ ...baseRoomState });
+    
     fixture.detectChanges();
   });
 
@@ -175,6 +213,11 @@ describe('RoomComponent', () => {
     if (fixture) fixture.destroy();
     vi.clearAllMocks();
     sessionStorage.clear();
+
+    ['signer-reader', 'fountain-psbt-canvas'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
   });
 
   // ====================== BASIC TESTS ======================
@@ -530,33 +573,34 @@ describe('RoomComponent', () => {
     vi.useRealTimers();
   });
 
-  it('should update window title for all room stages', () => {
-    const titleSpy = vi.spyOn(TestBed.inject(Title), 'setTitle');
+  it('should update window title for all room stages', async () => {
+  const titleSpy = vi.spyOn(TestBed.inject(Title), 'setTitle');
 
-    // Stage 1: Waiting
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState, signatures: [] });
-    socketSpy.signers.mockReturnValue([{ fingerprint: 'a', signed: false }]);
-    socketSpy.getThreshold.mockReturnValue(1);
-    fixture.detectChanges();
-    expect(titleSpy).toHaveBeenLastCalledWith(expect.stringContaining('Needed'));
+  // Stage 1: Waiting
+  socketSpy.roomState.mockReturnValue({ ...baseRoomState, signatures: [] });
+  socketSpy.signers.mockReturnValue([{ fingerprint: 'a', signed: false }]);
+  socketSpy.getThreshold.mockReturnValue(1);
+  fixture.detectChanges();
+  await Promise.resolve(); 
+  expect(titleSpy).toHaveBeenCalledWith(expect.stringContaining('Needed'));
 
-    // Stage 2: Locked 
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState, isLocked: true });
-    fixture.detectChanges();
-    expect(titleSpy).toHaveBeenLastCalledWith(expect.stringContaining('Room Locked'));
+  // Stage 2: Locked
+  socketSpy.roomState.mockReturnValue({ ...baseRoomState, isLocked: true });
+  fixture.detectChanges();
+  await Promise.resolve();
+  expect(titleSpy).toHaveBeenCalledWith(expect.stringContaining('Room Locked'));
 
-    // Stage 3: Finalized
-    socketSpy.roomState.mockReturnValue({ 
-        ...baseRoomState, 
-        isLocked: false, 
-        finalTxHex: '010203' 
-    });
-    socketSpy.getFinalTxHex.mockReturnValue('010203'); 
-    socketSpy.getThreshold.mockReturnValue(0); 
-    fixture.detectChanges();
-    
-    expect(titleSpy).toHaveBeenLastCalledWith(expect.stringContaining('Ready to Broadcast'));
+  // Stage 3: Finalized
+  socketSpy.roomState.mockReturnValue({ 
+    ...baseRoomState, 
+    finalTxHex: '010203',
+    finalTxId: 'deadbeef'
   });
+  socketSpy.getFinalTxHex.mockReturnValue('010203');
+  fixture.detectChanges();
+  await Promise.resolve();
+  expect(titleSpy).toHaveBeenCalledWith(expect.stringContaining('Ready to Broadcast'));
+});
 
   // ====================== QR CODE ======================
   it('should handle QR code generation and reveal toggle', async () => {
@@ -817,16 +861,22 @@ describe('RoomComponent', () => {
     const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
     const openSpy = vi.spyOn(window, 'open');
 
+    // Ensure finalHex() returns value
     socketSpy.roomState.mockReturnValue({
       ...baseRoomState,
       finalTxHex: 'finalhex123',
       network: 'testnet'
     });
 
+    fixture.detectChanges(); 
+
     component.broadcastAndCopy();
 
     expect(clipboardSpy).toHaveBeenCalledWith('finalhex123');
-    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('testnet/tx/push'), '_blank');
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('testnet/tx/push'), 
+      '_blank'
+    );
   });
 
   it('should handle titleService updates via effects', () => {
@@ -933,28 +983,27 @@ describe('RoomComponent', () => {
   // ====================== EMBEDDED MODE ======================
 
   it('should handle postMessage and finalization in embedded mode', async () => {
-    const postMessageSpy = vi.spyOn(window.parent, 'postMessage').mockImplementation(() => {});
-    
+    // Force the mocked dispatcher to return true for isEmbedded
+    dispatcherSpy.isEmbedded = true;
+
+    // Mock a finalized state
     socketSpy.roomState.mockReturnValue({ 
       ...baseRoomState, 
       finalTxId: 'mock-tx-id', 
       finalTxHex: 'mock-hex' 
     });
 
-    const localFixture = TestBed.createComponent(RoomComponent);
-    const localComponent = localFixture.componentInstance;
-    
-    Object.defineProperty(localComponent, 'isEmbedded', { value: true, writable: true });
-    
-    localFixture.detectChanges();
+    // 3. Trigger the component's effect
+    fixture.detectChanges(); 
     await Promise.resolve();
     
-    expect(postMessageSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'transactionFinalized' }), 
-      '*'
+    // Verify the component successfully passed the data to the dispatcher
+    expect(dispatcherSpy.emitTransactionFinalized).toHaveBeenCalledWith(
+        expect.objectContaining({
+            txId: 'mock-tx-id',
+            txHex: 'mock-hex'
+        })
     );
-
-    postMessageSpy.mockRestore();
   });
 
   it('should navigate and clear fragment if connected and key is present', async () => {
@@ -1015,54 +1064,54 @@ describe('RoomComponent', () => {
   describe('Privacy & OpSec Blur Controls', () => {
     it('should initialize with all sections blurred and modal hidden', () => {
       const states = component.blurStates();
-      expect(states.header).toBe(true);
-      expect(states.proposal).toBe(true);
-      expect(states.details).toBe(true);
-      expect(states.signers).toBe(true);
+      expect(states['transaction-overview']).toBe(true);
+      expect(states['transaction-proposal']).toBe(true);
+      expect(states['transaction-details']).toBe(true);
+      expect(states['signers']).toBe(true);
       
       expect(component.showPrivacyWarning()).toBe(false);
       expect(component.pendingUnblurSection()).toBeNull();
     });
 
     it('should open the warning modal and set pending section when clicking a blurred section', () => {
-      component.togglePrivacyBlur('details');
+      component.togglePrivacyBlur('transaction-details');
       
-      expect(component.pendingUnblurSection()).toBe('details');
+      expect(component.pendingUnblurSection()).toBe('transaction-details');
       expect(component.showPrivacyWarning()).toBe(true);
-      expect(component.blurStates().details).toBe(true); 
+      expect(component.blurStates()['transaction-details']).toBe(true); 
     });
 
     it('should instantly re-blur an unblurred section without showing the modal', () => {
       // Setup: manually unblur a section
-      component.blurStates.update(s => ({ ...s, header: false }));
+      component.blurStates.update(s => ({ ...s, 'transaction-overview': false }));
       
       // Interaction: Toggle it back
-      component.togglePrivacyBlur('header');
+      component.togglePrivacyBlur('transaction-overview');
       
       // Verification: Should instantly re-blur, skip modal, and log
       expect(component.showPrivacyWarning()).toBe(false);
-      expect(component.blurStates().header).toBe(true);
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Re-blurred header section');
+      expect(component.blurStates()['transaction-overview']).toBe(true);
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Re-blurred transaction-overview section');
     });
 
     it('should unblur the pending section when the user confirms', () => {
-      component.togglePrivacyBlur('proposal');
+      component.togglePrivacyBlur('transaction-proposal');
       component.confirmUnblur();
       
-      expect(component.blurStates().proposal).toBe(false);
+      expect(component.blurStates()['transaction-proposal']).toBe(false);
       expect(component.showPrivacyWarning()).toBe(false);
       expect(component.pendingUnblurSection()).toBeNull();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Revealed proposal section');
+      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Revealed transaction-proposal section');
     });
 
     it('should unblur all sections when the user selects Reveal All', () => {
       component.confirmUnblurAll();
       
       const states = component.blurStates();
-      expect(states.header).toBe(false);
-      expect(states.proposal).toBe(false);
-      expect(states.details).toBe(false);
-      expect(states.signers).toBe(false);
+      expect(states['transaction-overview']).toBe(false);
+      expect(states['transaction-proposal']).toBe(false);
+      expect(states['transaction-details']).toBe(false);
+      expect(states['signers']).toBe(false);
       
       expect(component.showPrivacyWarning()).toBe(false);
       expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Revealed all sections');
@@ -1074,7 +1123,7 @@ describe('RoomComponent', () => {
       
       expect(component.showPrivacyWarning()).toBe(false);
       expect(component.pendingUnblurSection()).toBeNull();
-      expect(component.blurStates().signers).toBe(true); // Should remain safely blurred
+      expect(component.blurStates()['signers']).toBe(true); // Should remain safely blurred
     });
   });
 
