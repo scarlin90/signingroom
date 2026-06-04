@@ -2,9 +2,9 @@ name: CI Test Suite
 
 on:
   push:
-    branches: [ "main", "Improve-Coverage" ]
+    branches: [ "main", "development" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "development" ]
 
 jobs:
   run-tests:
