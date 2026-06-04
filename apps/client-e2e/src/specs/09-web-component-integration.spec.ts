@@ -501,10 +501,15 @@ test('Should emit complete UI and Privacy telemetry events to the host', async (
     await expect(hostHeaderBadge).toBeHidden({ timeout: 10000 });
 
     // Verify `roomRenamed`
-    // Click the Edit icon/button next to the room name
-    await frame.getByRole('button', { name: /Rename|Edit/i }).first().click();
-    await frame.getByRole('textbox').first().fill('Audit Room Alpha');
-    await frame.getByRole('button', { name: /Save|Confirm/i }).first().click();
+    // Click the Edit icon/button next to the room name using its exact title
+    await frame.getByRole('button', { name: 'Rename Room' }).click();
+    
+    // Wait for modal animation to finish
+    await expect(frame.getByRole('heading', { name: 'Rename Room' })).toBeVisible();
+    
+    // Target the specific input by placeholder to avoid hitting the search boxes
+    await frame.getByPlaceholder('e.g. Q1 Treasury Board Vote').fill('Audit Room Alpha');
+    await frame.getByRole('button', { name: 'Save Name' }).click();
     
     await expect(async () => {
         const renameEvent = messages.find(m => m.action === 'roomRenamed');
@@ -518,8 +523,9 @@ test('Should emit complete UI and Privacy telemetry events to the host', async (
     
     await expect(frame.getByRole('heading', { name: 'Active Sessions' })).toBeVisible();
     
-    await frame.getByRole('textbox').first().fill('Test Coordinator');
-    await frame.getByRole('button', { name: /Save|Update/i }).first().click();
+    // Target the specific input by placeholder here too!
+    await frame.getByPlaceholder('e.g. Auditor Bob').fill('Test Coordinator');
+    await frame.getByRole('button', { name: 'Save', exact: true }).click();
 
     await expect(async () => {
         const labelEvent = messages.find(m => m.action === 'participantLabelled');
