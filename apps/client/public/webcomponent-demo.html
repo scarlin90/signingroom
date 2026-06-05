@@ -495,7 +495,11 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
         
         function log(msg) {
             const time = new Date().toLocaleTimeString();
-            logOutput.innerHTML = `<div style="word-break: break-all;"><span style="color:var(--accent)">[${time}]</span> ${msg}</div>` + logOutput.innerHTML;
+            const logEntry = document.createElement('div');
+            logEntry.style.wordBreak = 'break-all';
+            logEntry.innerHTML = `<span style="color:var(--accent)">[${time}]</span> ${msg}`;
+            
+            logOutput.prepend(logEntry);
         }
 
         function mountWidget(roomId = null, key = null, viewMode = null) {
