@@ -879,6 +879,29 @@ describe('RoomComponent', () => {
     );
   });
 
+  it('should handle copying final hex, logging the action, and emitting the telemetry event', () => {
+    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
+    
+    socketSpy.roomState.mockReturnValue({
+      ...baseRoomState,
+      finalTxHex: 'd1234567890'
+    });
+    
+    fixture.detectChanges(); 
+
+    component.copyHex();
+
+    // Verify the copy happened
+    expect(clipboardSpy).toHaveBeenCalledWith('d1234567890');
+    expect(component.copied()).toBe(true);
+
+    // Verify internal audit log was created
+    expect(socketSpy.logAction).toHaveBeenCalledWith('Hex Copied', expect.any(String));
+
+    // Verify external webhook was fired to the host application
+    expect(dispatcherSpy.emitDataCopied).toHaveBeenCalledWith('final-hex');
+  });
+
   it('should handle titleService updates via effects', () => {
     const titleSpy = vi.spyOn(TestBed.inject(Title), 'setTitle');
 

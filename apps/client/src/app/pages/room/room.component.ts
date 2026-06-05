@@ -3009,7 +3009,11 @@ export class RoomComponent implements OnInit, OnDestroy {
         import('canvas-confetti').then(c => c.default());
     }
 
-    copyHex() { this.doCopy(this.finalHex() || '', this.copied); }
+    copyHex() { 
+        this.doCopy(this.finalHex() || '', this.copied);
+        this.socket.logAction('Hex Copied', 'Copied final transaction hex');
+        this.dispatcher.emitDataCopied('final-hex');
+    }
 
     private doCopy(text: string, signalToToggle: any) {
         navigator.clipboard.writeText(text);

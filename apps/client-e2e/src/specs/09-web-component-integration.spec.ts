@@ -137,8 +137,10 @@ test.describe('Web Component / Embedded Integration', () => {
     expect(errorEvent.payload.message).toContain('invalid base64');
   });
 
-  test('Should emit transactionFinalized event with full payload after threshold is reached', async ({ page }) => {
+  test('Should emit transactionFinalized event with full payload after threshold is reached', async ({ page, context }) => {
     // --- Interaction: Setup Full Ceremony ---
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
     await page.goto('/webcomponent-demo.html');
     const messages = await trapWidgetEvents(page);
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
@@ -191,6 +193,16 @@ test.describe('Web Component / Embedded Integration', () => {
         expect(payload.auditLogCsv).toBeDefined();
         expect(payload.settlementCsv).toBeDefined();
         expect(payload.auditPdfUri).toMatch(/^data:application\/pdf;.*base64,/);
+    }).toPass({ timeout: 5000 });
+
+    await page.evaluate(() => navigator.clipboard.writeText('')); 
+    const copyHexButton = frame.getByRole('button', { name: 'Copy Hex' });
+    await expect(copyHexButton).toBeVisible();
+    await copyHexButton.click({ force: true });
+
+    await expect(async () => {
+        const copyEvent = messages.find(m => m.action === 'dataCopied' && m.payload.dataType === 'final-hex');
+        expect(copyEvent).toBeDefined();
     }).toPass({ timeout: 5000 });
 
     // Click the main Close button
