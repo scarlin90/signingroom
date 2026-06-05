@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-16_May_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-05_June_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -53,13 +53,13 @@ You are solely responsible for verifying the details of any transaction (address
 
 As a privacy-focused public good, we believe in complete operational transparency. Rather than asking for blind trust, we regularly publish verifiable site metrics to demonstrate the scale, efficiency, and real-world usage of the relay infrastructure.
 
-Based on our latest 30-day forensic audit (May 16, 2026):
-- **Total Requests Handled:** 78,806
-- **Total Network Bandwidth:** 3.19 GB
-- **Community Adoption:** 4,311 aggregated monthly unique visitors.
+Based on our latest 30-day forensic audit (June 5, 2026):
+- **Total Requests Handled:** 85,650
+- **Total Network Bandwidth:** 4.45 GB
+- **Community Adoption:** 5,979 aggregated monthly unique visitors.
 
 ### 🔍 Forensic Highlight
-**Edge Caching Efficiency:** In the last 30 days, over **1.64 GB (51.36% of total bandwidth)** was served directly from the edge cache. The network effectively sustained global traffic with 24-hour efficiency spikes hitting up to **92.59%** during rapid bursts of coordination. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency for users worldwide.
+**Edge Caching Efficiency:** In the last 30 days, over **2.59 GB (58.27% of total bandwidth)** was served directly from the edge cache. The network effectively sustained global traffic with 24-hour efficiency spikes hitting up to **98.54%** during rapid bursts of coordination. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency for users worldwide.
 
 ### 🛡️ Transparency & Audits
 To maintain transparency, raw exported logs and previous traffic audits are preserved in our public manifest. You can verify our historical infrastructure performance here: 
@@ -122,11 +122,12 @@ We are actively seeking funding and grants to evolve **SigningRoom** from a stan
 ### Phase 2: Ubiquity — 🔴 Active Grant Target (Q2 2026)
 - [x] **BIP Draft Submitted**: Standardizing Stateless Encrypted WebSocket Coordination for PSBTs
 - [x] **Web Component (`<signing-room>`)**: Drop-in HTML element for easy third-party integration
+- [x] **Extand Web Component Events**: Expose all events inside room for compliance and governance
+- [ ] **Build Typescript Client Library**: Create Typescript Client to simplify integrations to relay
 - [ ] **Stealth Room**: Prototype OHTTP with Web Transport and MASQUE
 
 ### Phase 3: The UX Upgrade (Q3/Q4 2026)
 - [ ] **Public API**: Well-documented WebSocket API for automated agents and services
-- [ ] Native iOS & Android Apps with NFC support for direct tapping of hardware wallets (Coldcard, Tapsigner, etc.)
 - [ ] Third-party security audit of all cryptographic primitives and implementation
 
 ---
@@ -138,7 +139,7 @@ SigningRoom is Free and Open Source Software (FOSS), maintained for the public g
 
 [Support on OpenSats] (Application Initial Rejection Q1 - Feedback go BIP — Actively drafting BIP)
 
-[Human Rights Foundation] (Bitcoin Development Fund — Deferred Q2 2026)
+[Human Rights Foundation] (Bitcoin Development Fund — Deferred Q3 2026)
 
 [Donate via Lightning] (Instant)
 
@@ -239,7 +240,7 @@ npx nx e2e client-e2e --ui
 ```
 
 ## 🤝 Contributing
-We need your help. SigningRoom is a community-run project. We welcome code, documentation, translations, and security audits.
+We welcome code, documentation, translations, and security audits.
 
 ## ⚠️ The "Blind Server" Rule
 Before contributing, please understand our core constraint:
