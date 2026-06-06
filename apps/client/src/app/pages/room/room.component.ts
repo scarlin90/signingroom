@@ -20,8 +20,8 @@ import * as QRCode from 'qrcode';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { UrService } from '../../services/ur/ur.service';
 import { base64, hex } from '@scure/base';
-
-export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
+import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
+import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
 
 @Component({
   selector: 'app-room',
@@ -786,22 +786,22 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                 </h2>
                 
                 <button 
-                    (click)="togglePrivacyBlur('header')" 
+                    (click)="togglePrivacyBlur('transaction-overview')" 
                     class="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
-                    [class.text-amber-500]="!blurStates().header"
-                    [class.text-slate-400]="blurStates().header"
-                    [title]="blurStates().header ? 'Reveal Header' : 'Hide Header'">
-                    <lucide-icon [img]="blurStates().header ? EyeOff : Eye" [size]="20"></lucide-icon>
+                    [class.text-amber-500]="!blurStates()['transaction-overview']"
+                    [class.text-slate-400]="blurStates()['transaction-overview']"
+                    [title]="blurStates()['transaction-overview'] ? 'Reveal Header' : 'Hide Header'">
+                    <lucide-icon [img]="blurStates()['transaction-overview'] ? EyeOff : Eye" [size]="20"></lucide-icon>
                 </button>
             </div>
 
             <div class="relative overflow-hidden rounded-lg">
                 <div class="transition-all duration-300 relative z-10 flex flex-col gap-6"
-                     [class.blur-md]="blurStates().header"
-                     [class.opacity-30]="blurStates().header"
-                     [class.select-none]="blurStates().header"
-                     [class.pointer-events-none]="blurStates().header">
-                    
+                     [class.blur-md]="blurStates()['transaction-overview']"
+                     [class.opacity-30]="blurStates()['transaction-overview']"
+                     [class.select-none]="blurStates()['transaction-overview']"
+                     [class.pointer-events-none]="blurStates()['transaction-overview']">
+
                     <div class="flex items-center gap-3">
                         @if (isExpired()) {
                             <span class="w-3 h-3 rounded-full bg-rose-600 shrink-0 shadow-[0_0_10px_#e11d48]" title="Room Expired"></span>
@@ -918,9 +918,9 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                     </div>
                 </div>
                 
-                @if (blurStates().header) {
+                @if (blurStates()['transaction-overview']) {
                     <div class="absolute inset-0 flex items-center justify-center z-20">
-                        <button (click)="togglePrivacyBlur('header')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm transition-colors cursor-pointer">
+                        <button (click)="togglePrivacyBlur('transaction-overview')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm transition-colors cursor-pointer">
                             <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
                             Hidden for Privacy
                         </button>
@@ -1194,20 +1194,20 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                     </h2>
                     
                     <button 
-                      (click)="togglePrivacyBlur('proposal')" 
+                      (click)="togglePrivacyBlur('transaction-proposal')" 
                       class="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
-                      [class.text-amber-500]="!blurStates().proposal"
-                      [class.text-slate-400]="blurStates().proposal"
-                      [title]="blurStates().proposal ? 'Reveal Proposal' : 'Hide Proposal'">
-                      <lucide-icon [img]="blurStates().proposal ? EyeOff : Eye" [size]="20"></lucide-icon>
+                      [class.text-amber-500]="!blurStates()['transaction-proposal']"
+                      [class.text-slate-400]="blurStates()['transaction-proposal']"
+                      [title]="blurStates()['transaction-proposal'] ? 'Reveal Proposal' : 'Hide Proposal'">
+                      <lucide-icon [img]="blurStates()['transaction-proposal'] ? EyeOff : Eye" [size]="20"></lucide-icon>
                     </button>
                 </div>
 
                 <div class="transition-all duration-300 relative z-10"
-                     [class.blur-md]="blurStates().proposal"
-                     [class.opacity-30]="blurStates().proposal"
-                     [class.select-none]="blurStates().proposal"
-                     [class.pointer-events-none]="blurStates().proposal">
+                     [class.blur-md]="blurStates()['transaction-proposal']"
+                     [class.opacity-30]="blurStates()['transaction-proposal']"
+                     [class.select-none]="blurStates()['transaction-proposal']"
+                     [class.pointer-events-none]="blurStates()['transaction-proposal']">
                     
                     <div class="flex justify-between items-end">
                         <div>
@@ -1221,9 +1221,9 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                     </div>
                 </div>
 
-                @if (blurStates().proposal) {
+                @if (blurStates()['transaction-proposal']) {
                     <div class="absolute inset-0 flex items-center justify-center z-10">
-                        <button (click)="togglePrivacyBlur('proposal')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm mt-8 transition-colors cursor-pointer">
+                        <button (click)="togglePrivacyBlur('transaction-proposal')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm mt-8 transition-colors cursor-pointer">
                             <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
                             Hidden for Privacy
                         </button>
@@ -1314,30 +1314,30 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                   </h2>
                   
                   <button 
-                  (click)="togglePrivacyBlur('details')" 
+                  (click)="togglePrivacyBlur('transaction-details')" 
                   class="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
-                  [class.text-amber-500]="!blurStates().details"
-                  [class.text-slate-400]="blurStates().details"
-                  [title]="blurStates().details ? 'Reveal Details' : 'Hide Details'">
-                  <lucide-icon [img]="blurStates().details ? EyeOff : Eye" [size]="20"></lucide-icon>
+                  [class.text-amber-500]="!blurStates()['transaction-details']"
+                  [class.text-slate-400]="blurStates()['transaction-details']"
+                  [title]="blurStates()['transaction-details'] ? 'Reveal Details' : 'Hide Details'">
+                  <lucide-icon [img]="blurStates()['transaction-details'] ? EyeOff : Eye" [size]="20"></lucide-icon>
                   </button>
               </div>
 
               <div class="transition-all duration-300"
-                  [class.blur-md]="blurStates().details"
-                  [class.opacity-30]="blurStates().details"
-                  [class.select-none]="blurStates().details"
-                  [class.pointer-events-none]="blurStates().details">
+                  [class.blur-md]="blurStates()['transaction-details']"
+                  [class.opacity-30]="blurStates()['transaction-details']"
+                  [class.select-none]="blurStates()['transaction-details']"
+                  [class.pointer-events-none]="blurStates()['transaction-details']">
                   
                   <div class="w-full flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-4">
-                      <button (click)="viewMode.set('inputs')" 
+                      <button (click)="setViewMode('inputs')"
                               class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                               [class.bg-slate-800]="viewMode() === 'inputs'"
                               [class.text-emerald-400]="viewMode() === 'inputs'"
                               [class.text-slate-500]="viewMode() !== 'inputs'">
                           Inputs ({{ socket.txDetails()?.inputs || 0 }})
                       </button>
-                      <button (click)="viewMode.set('outputs')" 
+                      <button (click)="setViewMode('outputs')" 
                               class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                               [class.bg-slate-800]="viewMode() === 'outputs'"
                               [class.text-emerald-400]="viewMode() === 'outputs'"
@@ -1349,7 +1349,7 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                       @if (viewMode() === 'inputs') {
                           <div class="relative flex items-center">
                               <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
-                              <input type="text" [ngModel]="inputSearchQuery()" (ngModelChange)="inputSearchQuery.set($event)" placeholder="Search input address..."
+                              <input type="text" [ngModel]="inputSearchQuery()" (ngModelChange)="updateSearchQuery('inputs', $event)" placeholder="Search input address..."
                                 class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
                               <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
                                   {{ filteredInputs().length }}
@@ -1358,7 +1358,7 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                       } @else {
                           <div class="relative flex items-center">
                               <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
-                              <input type="text" [ngModel]="outputSearchQuery()" (ngModelChange)="outputSearchQuery.set($event)" placeholder="Search output address..."
+                              <input type="text" [ngModel]="outputSearchQuery()" (ngModelChange)="updateSearchQuery('outputs', $event)" placeholder="Search output address..."
                                 class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
                               <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
                                   {{ filteredOutputs().length }}
@@ -1472,9 +1472,9 @@ export type PrivacySection = 'header' | 'proposal' | 'details' | 'signers';
                      }
                   </div>
               </div> 
-              @if (blurStates().details) {
+              @if (blurStates()['transaction-details']) {
                   <div class="absolute inset-0 flex items-center justify-center z-10 mt-10">
-                  <button (click)="togglePrivacyBlur('details')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm transition-colors cursor-pointer">
+                  <button (click)="togglePrivacyBlur('transaction-details')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm transition-colors cursor-pointer">
                       <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
                       Hidden for Privacy
                   </button>
@@ -1776,6 +1776,11 @@ export class RoomComponent implements OnInit, OnDestroy {
     public claimPassword = '';
     public manualKey = '';
     
+    // --- EVENT TRACKERS ---
+    private previousSessions: {id: string, role: string, displayName?: string}[] = [];
+    private previousSignaturesCount = 0;
+    private previousSigners: Record<string, boolean> = {};
+    
     public editingFingerprint = signal<string | null>(null);
     public editingLabel = signal('');
     public saveToBook = signal(true);
@@ -1808,7 +1813,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         private router: Router,
         private titleService: Title,
         public urService: UrService,
-        @Inject(PLATFORM_ID) private platformId: Object
+        @Inject(PLATFORM_ID) private platformId: Object,
+        private dispatcher: WidgetDispatcherService
     ) {
         effect(() => {
             const status = this.socket.status();
@@ -1887,19 +1893,66 @@ export class RoomComponent implements OnInit, OnDestroy {
                 const pdfData = this.getPdfDocument();
                 const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
 
-                window.parent.postMessage({
-                    type: 'SIGNING_ROOM_EVENT',
-                    action: 'transactionFinalized',
-                    payload: {
-                        txId: state.finalTxId,
-                        txHex: state.finalTxHex,
-                        roomState: sanitizedState,
-                        auditLogCsv: this.getAuditLogCsvData(),
-                        settlementCsv: this.getSettlementCsvData(),
-                        auditPdfUri: pdfBase64 
-                    }
-                }, '*');
+                this.dispatcher.emitTransactionFinalized({
+                    txId: state.finalTxId,
+                    txHex: state.finalTxHex,
+                    roomState: sanitizedState,
+                    auditLogCsv: this.getAuditLogCsvData(),
+                    settlementCsv: this.getSettlementCsvData(),
+                    auditPdfUri: pdfBase64 
+                });
             }
+        });
+
+        // --- PARTICIPANT PRESENCE TRACKER ---
+        effect(() => {
+            const currentSessions = this.socket.activeSessions();
+            
+            if (this.socket.status() === 'connected') {
+                const joined = currentSessions.filter(cs => !this.previousSessions.some(ps => ps.id === cs.id));
+                const left = this.previousSessions.filter(ps => !currentSessions.some(cs => cs.id === ps.id));
+                
+                // Find users who just changed their display name!
+                const nameChanged = currentSessions.filter(cs => {
+                    const prev = this.previousSessions.find(ps => ps.id === cs.id);
+                    return prev && prev.displayName !== cs.displayName;
+                });
+
+                joined.forEach(p => this.dispatcher.emitParticipantPresence('joined', p.id, p.role, p.displayName));
+                left.forEach(p => this.dispatcher.emitParticipantPresence('left', p.id, p.role, p.displayName));
+                
+                nameChanged.forEach(p => {
+                    // Only broadcast if it's someone ELSE (our own local save handles 'self')
+                    if (p.id !== this.socket.currentSessionId()) {
+                        this.dispatcher.emitParticipantLabelled('participant', p.displayName || 'Anonymous', undefined, p.id);
+                    }
+                });
+            }
+
+            this.previousSessions = currentSessions;
+        });
+
+        // --- SIGNATURE NETWORK TRACKER ---
+        this.socket.networkSignatureReceived$.subscribe(data => {
+            const sessions = this.socket.activeSessions();
+            const uploaderSession = sessions.find(s => s.id === data.sessionId);
+            const label = this.socket.roomState()?.signerLabels?.[data.fingerprint];
+            
+            this.dispatcher.emitSignatureReceived(
+                data.fingerprint, 
+                label, 
+                data.sessionId, 
+                uploaderSession?.displayName
+            );
+        });
+
+        this.socket.securityAlert$.subscribe(event => {
+            const severity = event.count >= 3 ? 'high' : 'medium';
+            this.dispatcher.emitSecurityAlert(
+                event.type, 
+                severity, 
+                `Failed decryption attempt ${event.count}/3`
+            );
         });
     }
 
@@ -1953,7 +2006,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     get isEmbedded(): boolean {
-        return window !== window.top;
+        return this.dispatcher.isEmbedded;
     }
 
     isWhitelisted(address: string): boolean {
@@ -1982,8 +2035,6 @@ export class RoomComponent implements OnInit, OnDestroy {
         const file = event.target.files[0];
         if (!file) return;
 
-        // --- VALIDATION START ---
-        // 1. Extension Check
         const validExtensions = ['.psbt', '.txt', '.hex', '.base64'];
         const fileName = file.name.toLowerCase();
         if (!validExtensions.some(ext => fileName.endsWith(ext))) {
@@ -1992,13 +2043,11 @@ export class RoomComponent implements OnInit, OnDestroy {
             return;
         }
 
-        // 2. Size Check (Max 2MB for browser performance)
         if (file.size > 2 * 1024 * 1024) {
             this.openAlert("File Too Large", "File exceeds 2MB limit. PSBTs are usually much smaller.");
             event.target.value = '';
             return;
         }
-        // --- VALIDATION END ---
 
         this.isUploading.set(true); 
 
@@ -2017,6 +2066,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             }
 
             await this.socket.uploadSignature(content);
+            this.dispatcher.emitPsbtImported('upload');
             event.target.value = ''; 
         } catch (e) {
             console.error(e);
@@ -2048,6 +2098,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         a.download = `unsigned_tx_${this.roomId()?.slice(0,8)}.psbt`;
         a.click();
         window.URL.revokeObjectURL(url);
+
+        this.dispatcher.emitDownloadTriggered('unsigned-psbt');
     }
 
     // -------------------------------------------------------------------------
@@ -2065,6 +2117,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     closeRoom() {
+        this.dispatcher.emitModalView('Close Room Warning');
         this.openConfirm(
             'Close Room',
             'Are you sure you want to close this room? This action cannot be undone and will delete all data immediately.',
@@ -2072,6 +2125,8 @@ export class RoomComponent implements OnInit, OnDestroy {
                 if (!this.isEmbedded) {
                     this.generateAuditLog();
                 }
+
+                this.dispatcher.emitRoomStateChanged('closed');
                 setTimeout(() => {
                     this.socket.closeRoom();
                 
@@ -2088,6 +2143,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         const currentRoomName = this.socket.roomState()?.roomName;
         this.newRoomName.set(currentRoomName || '');
         this.showRenameModal.set(true);
+        this.dispatcher.emitModalView('Rename Room');
     }
 
     closeRenameModal() {
@@ -2107,16 +2163,21 @@ export class RoomComponent implements OnInit, OnDestroy {
         }
 
         this.socket.renameRoom(name); 
+        this.dispatcher.emitRoomRenamed(name);
         this.closeRenameModal();
     }
 
     toggleLock() {
         const current = this.socket.roomState()?.isLocked;
         const action = current ? 'Unlock' : 'LOCK';
+        this.dispatcher.emitModalView(`${action} Room Warning`);
         this.openConfirm(
             `${action} Room`,
             `Are you sure you want to ${action} this room? ${current ? 'New users will be able to join.' : 'No new users will be able to connect.'}`,
-            () => this.socket.toggleLock(!current),
+            () => {
+                this.socket.toggleLock(!current)
+                this.dispatcher.emitRoomStateChanged(!current ? 'locked' : 'unlocked');
+            },
             !current 
         );
     }
@@ -2136,20 +2197,22 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     saveLabel() {
-    const fp = this.editingFingerprint();
-    const label = this.editingLabel().trim();
-    
-    if (fp) {
-        this.socket.updateSignerLabel(fp, label);
+        const fp = this.editingFingerprint();
+        const label = this.editingLabel().trim();
+        
+        if (fp) {
+            this.socket.updateSignerLabel(fp, label);
 
-        if (this.saveToBook() && label) {
-            this.socket.saveToAddressBook(fp, label);
-        } else {
-            this.socket.removeFromAddressBook(fp);
+            if (this.saveToBook() && label) {
+                this.socket.saveToAddressBook(fp, label);
+            } else {
+                this.socket.removeFromAddressBook(fp);
+            }
+
+            this.dispatcher.emitParticipantLabelled('signer', label, fp);
         }
+        this.closeLabelModal();
     }
-    this.closeLabelModal();
-}
 
     closeLabelModal() {
         this.showLabelModal.set(false);
@@ -2163,7 +2226,10 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.openConfirm(
             'Update Whitelist',
             `${isPresent ? 'Remove' : 'Add'} the following address ${isPresent ? 'from' : 'to'} the whitelist?\n\n${address}`,
-            () => this.socket.updateWhitelist(address, isPresent),
+            () => { 
+                this.socket.updateWhitelist(address, isPresent);
+                this.dispatcher.emitDestinationVerified(this.viewMode(), address, !isPresent);
+             },
             false
         );
     }
@@ -2174,6 +2240,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             this.personalDisplayName.set(savedName || '');
         }
         this.showSessionsModal.set(true);
+        this.dispatcher.emitModalView('Active Sessions');
     }
 
     savePersonalName() {
@@ -2182,6 +2249,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         const sid = this.socket.currentSessionId(); 
         const actionLabel = name ? `Identified as "${name}"` : 'Cleared display name';
         this.socket.logAction('Participant Identified', actionLabel);
+        this.dispatcher.emitParticipantLabelled('self', name);
         this.showSessionsModal.set(false);
     }
 
@@ -2191,6 +2259,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         
         navigator.clipboard.writeText(textToCopy);
         this.copiedSessionId.set(id);
+
+        this.dispatcher.emitDataCopied('session-id');
         
         // Reset it after 2 seconds
         setTimeout(() => this.copiedSessionId.set(null), 2000);
@@ -2210,6 +2280,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
         if (toAdd.length > 0) {
             this.socket.updateWhitelistBatch(toAdd, false);
+            this.dispatcher.emitDestinationVerified('inputs', 'batch', true);
         }
     }
 
@@ -2227,10 +2298,24 @@ export class RoomComponent implements OnInit, OnDestroy {
 
                 if (toAdd.length > 0) {
                     this.socket.updateWhitelistBatch(toAdd, false); 
+                    this.dispatcher.emitDestinationVerified('outputs', 'batch', true);
                 }
             },
             false
         );
+    }
+
+    setViewMode(mode: 'inputs' | 'outputs') {
+        this.viewMode.set(mode);
+        this.dispatcher.emitTransactionViewChanged(mode);
+    }
+
+    updateSearchQuery(view: 'inputs' | 'outputs', query: string) {
+        if (view === 'inputs') {
+            this.inputSearchQuery.set(query);
+        } else {
+            this.outputSearchQuery.set(query);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -2323,12 +2408,17 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.showQrModal.set(true);
         this.isQrRevealed.set(false); 
         this.qrIncludesKey.set(false); 
+
+        this.dispatcher.emitModalView('Room QR Code');
+        this.dispatcher.emitQrStateChanged(false, false);
+
         await this.generateQrData();
     }
 
     async toggleQrKey(includesKey: boolean) {
         this.qrIncludesKey.set(includesKey);
         this.isQrRevealed.set(false);
+        this.dispatcher.emitQrStateChanged(includesKey, false);
         await this.generateQrData();
     }
 
@@ -2362,6 +2452,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         const isRevealing = !this.isQrRevealed();
         this.isQrRevealed.update(v => !v);
 
+        this.dispatcher.emitQrStateChanged(this.qrIncludesKey(), isRevealing);
+
         if (isRevealing) {
             const qrType = this.qrIncludesKey() ? 'Full (Link + Key)' : 'Link Only (No Key)';
             this.socket.logAction('QR Code Revealed', `${qrType} QR Code on screen`);
@@ -2374,6 +2466,8 @@ export class RoomComponent implements OnInit, OnDestroy {
 
         const qrType = this.qrIncludesKey() ? 'Full (Link + Key)' : 'Link Only (No Key)';
         this.socket.logAction('QR Code Downloaded', `${qrType} QR Code to their device`);
+
+        this.dispatcher.emitDownloadTriggered('qr-code-image');
 
         const safeId = this.roomId() ?? 'unknown-room';
 
@@ -2406,12 +2500,14 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     promptAuditLogDownload() {
         this.showAuditModal.set(true);
+        this.dispatcher.emitModalView('Download Audit Log');
     }
 
     async executeAuditDownload() {
         this.showAuditModal.set(false);
         
         await this.socket.logAction('Audit Export', 'Downloaded audit log');
+        this.dispatcher.emitDownloadTriggered('audit-log');
 
         await this.delay(1000);
 
@@ -2420,11 +2516,13 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     promptCsvDownload() {
         this.showCsvModal.set(true);
+        this.dispatcher.emitModalView('Download CSV Data');
     }
 
     async executeCsvDownload() {
         this.showCsvModal.set(false);
         await this.socket.logAction('CSV Export', 'Downloaded settlement data');
+        this.dispatcher.emitDownloadTriggered('csv');
         await this.delay(1000);
         this.downloadCsv();
     }
@@ -2911,7 +3009,11 @@ export class RoomComponent implements OnInit, OnDestroy {
         import('canvas-confetti').then(c => c.default());
     }
 
-    copyHex() { this.doCopy(this.finalHex() || '', this.copied); }
+    copyHex() { 
+        this.doCopy(this.finalHex() || '', this.copied);
+        this.socket.logAction('Hex Copied', 'Copied final transaction hex');
+        this.dispatcher.emitDataCopied('final-hex');
+    }
 
     private doCopy(text: string, signalToToggle: any) {
         navigator.clipboard.writeText(text);
@@ -2943,6 +3045,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     openShareModal() {
         this.showShareModal.set(true);
+        this.dispatcher.emitModalView('Share Room Securely');
     }
 
     closeShareModal() {
@@ -2953,12 +3056,16 @@ export class RoomComponent implements OnInit, OnDestroy {
         const baseUrl = window.location.href.split('#')[0];
         this.doCopy(baseUrl, this.secureLinkCopied);
         this.socket.logAction('Link Copied (No Key)', 'User copied room link');
+
+        this.dispatcher.emitDataCopied('share-link');
         this.closeShareModal();
     }
 
     copyFullLink() {
         this.doCopy(this.getFullShareLink(), this.fullLinkCopied);
-         this.socket.logAction('Link Copied (With Key)', 'User copied room link');
+        this.socket.logAction('Link Copied (With Key)', 'User copied room link');
+        
+        this.dispatcher.emitDataCopied('share-link-full');
         this.closeShareModal();
     }
 
@@ -2966,18 +3073,29 @@ export class RoomComponent implements OnInit, OnDestroy {
     // Actions: OpSec Key & Admin Sharing
     // -------------------------------------------------------------------------
 
-    openKeyModal() { this.showKeyModal.set(true); }
+    openKeyModal() { 
+        this.showKeyModal.set(true);
+        this.dispatcher.emitModalView('Room Decryption Key');
+    }
     closeKeyModal() { this.showKeyModal.set(false); }
 
-    openAdminModal() { this.showAdminModal.set(true); }
+    openAdminModal() { 
+        this.showAdminModal.set(true);
+        this.dispatcher.emitModalView('Backup Admin Token');
+    }
+
     closeAdminModal() { this.showAdminModal.set(false); }
 
-    openRoomIdModal() { this.showRoomIdModal.set(true); }
+    openRoomIdModal() { 
+        this.showRoomIdModal.set(true); 
+        this.dispatcher.emitModalView('Room ID');
+    }
     closeRoomIdModal() { this.showRoomIdModal.set(false); }
 
     copyKey() { 
         this.doCopy(this.socket.getRoomKey() || '', this.keyCopied); 
-        this.socket.logAction('Key Copied', 'Copied room decryption key')
+        this.socket.logAction('Key Copied', 'Copied room decryption key');
+        this.dispatcher.emitDataCopied('decryption-key');
         this.closeKeyModal();
     }
 
@@ -2985,6 +3103,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         const t = sessionStorage.getItem(`admin_token_${this.roomId()}`);
         if(t) this.doCopy(t, this.adminCopied);
         this.socket.logAction('Admin Token Copied', 'Backed up the admin token');
+        this.dispatcher.emitDataCopied('admin-token');
         this.closeAdminModal();
     }
 
@@ -2992,6 +3111,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         if (this.roomId()) {
             this.doCopy(this.roomId()!, this.roomIdCopied);
             this.socket.logAction('Room ID Copied', 'Copied the room identifier');
+            this.dispatcher.emitDataCopied('room-id');
             this.closeRoomIdModal();
         }
     }
@@ -3002,10 +3122,10 @@ export class RoomComponent implements OnInit, OnDestroy {
     // All sections start blurred by default
 
     blurStates = signal<Record<PrivacySection, boolean>>({
-        header: true,
-        proposal: true,
-        details: true,
-        signers: true
+        'transaction-overview': true,
+        'transaction-proposal': true,
+        'transaction-details': true,
+        'signers': true
     });
 
     showPrivacyWarning = signal(false);
@@ -3013,16 +3133,18 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     /**
      * Handles the click of the Eye icon for any section.
-     * If blurred -> Prompts the warning modal.
-     * If unblurred -> Instantly re-blurs and logs it.
      */
     togglePrivacyBlur(section: PrivacySection) {
         if (this.blurStates()[section]) {
             this.pendingUnblurSection.set(section);
             this.showPrivacyWarning.set(true);
+            
+            this.dispatcher.emitModalView('Toggle Privacy Warning', section);
         } else {
             this.blurStates.update(s => ({ ...s, [section]: true }));
             this.socket.logAction('Privacy Toggle', `Re-blurred ${section} section`);
+            
+            this.dispatcher.emitPrivacyToggle(section, 'hidden');
         }
     }
 
@@ -3034,8 +3156,13 @@ export class RoomComponent implements OnInit, OnDestroy {
         if (section) {
             this.blurStates.update(s => ({ ...s, [section]: false }));
             this.socket.logAction('Privacy Toggle', `Revealed ${section} section`);
+            
+            // EMIT: Reveal Specific Section Action
+            this.dispatcher.emitPrivacyToggle(section, 'reveal-section');
         }
-        this.closePrivacyWarning();
+        
+        this.showPrivacyWarning.set(false);
+        this.pendingUnblurSection.set(null);
     }
 
     /**
@@ -3043,19 +3170,28 @@ export class RoomComponent implements OnInit, OnDestroy {
      */
     confirmUnblurAll() {
         this.blurStates.set({
-            header: false,
-            proposal: false,
-            details: false,
-            signers: false
+            'transaction-overview': false,
+            'transaction-proposal': false,
+            'transaction-details': false,
+            'signers': false
         });
         this.socket.logAction('Privacy Toggle', `Revealed all sections`);
-        this.closePrivacyWarning();
+        
+        this.dispatcher.emitPrivacyToggle('all' as any, 'reveal-all');
+        
+        this.showPrivacyWarning.set(false);
+        this.pendingUnblurSection.set(null);
     }
 
     /**
      * Closes the privacy warning modal without revealing.
      */
     closePrivacyWarning() {
+        const section = this.pendingUnblurSection();
+        if (section) {
+            this.dispatcher.emitPrivacyToggle(section, 'blurred');
+        }
+        
         this.showPrivacyWarning.set(false);
         this.pendingUnblurSection.set(null);
     }
@@ -3067,10 +3203,13 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.regenerateFrames();
         this.showFountainModal.set(true);
         this.isFountainRevealed.set(false);
+        this.dispatcher.emitModalView('Export PSBT (Air-Gapped)');
     }
 
     setExportFormat(format: 'ur' | 'bbqr') {
         this.exportFormat.set(format);
+        this.dispatcher.emitFountainFormatChanged(format);
+
         if (this.showFountainModal()) {
             this.regenerateFrames();
 
@@ -3098,6 +3237,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     toggleFountainReveal() {
         const nextState = !this.isFountainRevealed();
         this.isFountainRevealed.set(nextState);
+
+        this.dispatcher.emitFountainStateChanged(nextState, this.exportFormat());
         
         if (nextState) {
             this.socket.logAction('Privacy Toggle', `Revealed ${this.exportFormat().toUpperCase()} PSBT QR`);
@@ -3150,6 +3291,8 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.showScannerModal.set(true);
         this.isScanningSigned.set(true);
         this.urService.resetDecoder();
+
+        this.dispatcher.emitModalView('Import PSBT (Scanner)');
         
         setTimeout(async () => {
             this.html5QrCode = new Html5Qrcode("signer-reader", {
@@ -3249,6 +3392,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             
             await this.socket.uploadSignature(normalizedBase64);
             console.log("Successfully ingested signed PSBT via optics!");
+            this.dispatcher.emitPsbtImported('scan');
             
         } catch (e) {
             console.error("Failed to parse signed PSBT from scanner", e);

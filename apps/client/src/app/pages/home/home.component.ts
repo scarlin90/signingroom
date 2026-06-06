@@ -60,7 +60,7 @@ import {
           View Source
         </a>
 
-        <a href="/webcomponent-demo.html" target="_blank"  class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
+        <a href="/webcomponent-demo.html?ngsw-bypass=true" target="_blank" rel="external noopener noreferrer"  class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
           <lucide-icon [img]="Terminal" class="w-4 h-4"></lucide-icon>
           Web Component Demo
       </a>

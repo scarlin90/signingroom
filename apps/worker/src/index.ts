@@ -146,7 +146,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
   return c.json({ 
     status: 'healthy', 
-    version: '2.3.1', 
+    version: '2.4.0', 
     timestamp: Date.now() 
   });
 });
@@ -527,7 +527,7 @@ export class SigningRoom implements DurableObject {
           await this.saveRoomState();
           
           await this.log(msg.encryptedLogBlob);
-          this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint });
+          this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
         }
 
         // Destroy Room (Admin Only)
