@@ -672,4 +672,71 @@ describe('Additional Edge Cases', () => {
     });
   });
 
+  describe('File Upload Parsing Branches', () => {
+    it('should process plain text files', async () => {
+      const file = new File(['deadbeef'], 'test.txt', { type: 'text/plain' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50)); // Wait for FileReader
+
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('deadbeef');
+    });
+
+    it('should process JSON files with a psbt property', async () => {
+      const file = new File(['{"psbt": "base64data"}'], 'test.json', { type: 'application/json' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Component passes the raw string to analyzeRawHex to be parsed
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('{"psbt": "base64data"}');
+    });
+
+    it('should process JSON files with a tx property', async () => {
+      const file = new File(['{"tx": "hexdata"}'], 'test.json', { type: 'application/json' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Component passes the raw string to analyzeRawHex to be parsed
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('{"tx": "hexdata"}');
+    });
+  });
+
+  describe('File Upload and UI Edge Cases', () => {
+    it('should call safeStopScanner when stopScanner is called', () => {
+      vi.spyOn(component, 'safeStopScanner').mockResolvedValue(undefined);
+      component.stopScanner();
+      expect(component.safeStopScanner).toHaveBeenCalled();
+    });
+
+    it('should process plain text files via onFileSelected', async () => {
+      const file = new File(['deadbeef'], 'test.txt', { type: 'text/plain' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50)); 
+
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('deadbeef');
+    });
+
+    it('should process JSON files via onFileSelected', async () => {
+      const file = new File(['{"psbt": "base64data"}'], 'test.json', { type: 'application/json' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('{"psbt": "base64data"}');
+    });
+  });
+
 });

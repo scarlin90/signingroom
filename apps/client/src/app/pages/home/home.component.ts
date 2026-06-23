@@ -4,7 +4,7 @@
  */
 
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterModule } from '@angular/router';
 import { 
   LucideAngularModule, Zap, Users, Shield, Terminal, ChevronRight, Lock,
@@ -17,7 +17,7 @@ import {
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, LucideAngularModule],
+  imports: [RouterModule, LucideAngularModule],
   template: `
     <div class="max-w-6xl mx-auto text-center pt-24 px-6 relative">
        

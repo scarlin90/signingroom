@@ -13,14 +13,22 @@ import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget
 // ==================== GLOBAL MOCKS ====================
 vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
 
-vi.mock('jspdf', () => ({
-  jsPDF: vi.fn().mockImplementation(() => ({
-    setFont: vi.fn(), setFontSize: vi.fn(), setTextColor: vi.fn(),
-    text: vi.fn(), setDrawColor: vi.fn(), setLineWidth: vi.fn(),
-    line: vi.fn(), addPage: vi.fn(), save: vi.fn(),
-    output: vi.fn().mockReturnValue('data:application/pdf;base64,FAKEPDF')
-  }))
-}));
+vi.mock('jspdf', () => {
+  const MockJsPDF = vi.fn(function(this: any) {
+    this.setFont = vi.fn().mockReturnThis();
+    this.setFontSize = vi.fn().mockReturnThis();
+    this.setTextColor = vi.fn().mockReturnThis();
+    this.text = vi.fn().mockReturnThis();
+    this.setDrawColor = vi.fn().mockReturnThis();
+    this.setLineWidth = vi.fn().mockReturnThis();
+    this.line = vi.fn().mockReturnThis();
+    this.addPage = vi.fn().mockReturnThis();
+    this.save = vi.fn();
+    this.output = vi.fn().mockReturnValue('data:application/pdf;base64,FAKEPDF');
+  });
+
+  return { jsPDF: MockJsPDF };
+});
 
 vi.mock('qrcode', () => ({
   toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,FAKEQR'),
@@ -383,6 +391,7 @@ describe('RoomComponent', () => {
     });
 
     it('should generate a comprehensive Audit Log PDF with all sections', async () => {
+
     const fullState = {
       ...baseRoomState,
       finalTxHex: '02000000000101...', 
