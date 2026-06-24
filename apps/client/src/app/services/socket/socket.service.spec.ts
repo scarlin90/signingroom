@@ -914,4 +914,30 @@ describe('Getters & Crypto Helpers', () => {
       expect(result).toBe('2MxBzpMZpJuL1oNmRsMPvmq4x2T557PHFFG');
     });
   });
+
+  describe('Helper Methods & Cleanup', () => {
+    it('should return empty string if log entry creation fails (no key)', async () => {
+      vi.spyOn(service, 'getRoomKey').mockReturnValue(null);
+      const result = await service['createSecureLogBlob']('event', 'detail', 'user');
+      expect(result).toBe('');
+    });
+
+    it('should clear local room data only if localStorage is defined', () => {
+      // Mock localStorage being undefined
+      const originalLocalStorage = (globalThis as any).localStorage;
+      (globalThis as any).localStorage = undefined;
+      
+      expect(() => service['clearLocalRoomData']('room-1')).not.toThrow();
+      
+      // Restore
+      (globalThis as any).localStorage = originalLocalStorage;
+    });
+
+    it('should handle gracefullyDisconnect when not connected', async () => {
+      vi.spyOn(service, 'status').mockReturnValue('disconnected');
+      await service.gracefullyDisconnect();
+      // Should not call send()
+      expect(ws.send).not.toHaveBeenCalled();
+    });
+  });
 });

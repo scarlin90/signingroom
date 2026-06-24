@@ -35,7 +35,7 @@ export default defineConfig(() => ({
       reportsDirectory: '../../coverage/apps/client',
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'json-summary'],
-      thresholds: { lines: 88, functions: 90, branches: 69, statements: 88 },
+      thresholds: { lines: 90, functions: 89, branches: 74, statements: 90 },
     },
     pool: 'threads',
     clearMocks: true,

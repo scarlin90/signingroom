@@ -678,7 +678,7 @@ export class CreateComponent implements OnInit {
 
             this.rawHex = base64.encode(psbtBytes);
 
-            const tx = Transaction.fromPSBT(psbtBytes);
+            const tx = Transaction.fromPSBT(psbtBytes, { allowUnknown: true });
 
             // Calculate Signers
             const fingerprints = new Set<string>();

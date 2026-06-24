@@ -1597,4 +1597,32 @@ describe('RoomComponent', () => {
     });
   });
 
+  describe('Modal Toggles and Platform Logic', () => {
+    it('should toggle various modals and dispatch events', () => {
+      const dispatcherSpy = vi.spyOn(component['dispatcher'], 'emitModalView');
+      
+      component.openRenameModal();
+      expect(component.showRenameModal()).toBe(true);
+      expect(dispatcherSpy).toHaveBeenCalledWith('Rename Room');
+      
+      component.closeRenameModal();
+      expect(component.showRenameModal()).toBe(false);
+
+      component.openShareModal();
+      expect(component.showShareModal()).toBe(true);
+      component.closeShareModal();
+      
+      component.openKeyModal();
+      expect(component.showKeyModal()).toBe(true);
+      component.closeKeyModal();
+    });
+
+    it('should handle confirm modal actions', () => {
+      component.openAlert('Title', 'Msg');
+      expect(component.showConfirmModal()).toBe(true);
+      component.executeConfirmAction();
+      expect(component.showConfirmModal()).toBe(false);
+    });
+  });
+
 });
