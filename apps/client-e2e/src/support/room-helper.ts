@@ -8,7 +8,11 @@ import * as fs from 'fs';
  * Resolves the absolute path to a fixture file
  */
 export function getFixturePath(fileName: string) {
-  return path.join(__dirname, '../fixtures', fileName);
+  const fullPath = path.join(__dirname, '../fixtures', fileName);
+  if (!fs.existsSync(fullPath)) {
+    throw new Error(`Fixture not found at: ${fullPath}`);
+  }
+  return fullPath;
 }
 
 /**
@@ -26,6 +30,7 @@ export async function launchRoomFromFixture(page: Page, fileName: string, networ
 
   // Use the internal path resolver
   await createPage.fileInput.setInputFiles(getFixturePath(fileName));
+  await expect(createPage.startCeremonyButton).toBeEnabled({ timeout: 10000 });
   await createPage.startCeremonyButton.click();
   
   const roomPage = new RoomPage(page);

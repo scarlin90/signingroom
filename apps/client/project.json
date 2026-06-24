@@ -11,6 +11,7 @@
       "outputs": [
         "{options.outputPath}"
       ],
+      "defaultConfiguration": "production",
       "options": {
         "outputPath": "dist/apps/client",
         "browser": "apps/client/src/main.ts",
@@ -74,12 +75,12 @@
           "extractLicenses": false,
           "sourceMap": true
         }
-      },
-      "defaultConfiguration": "production"
+      }
     },
     "serve": {
       "continuous": true,
       "executor": "@angular/build:dev-server",
+      "defaultConfiguration": "development",
       "configurations": {
         "production": {
           "buildTarget": "client:build:production"
@@ -87,8 +88,7 @@
         "development": {
           "buildTarget": "client:build:development"
         }
-      },
-      "defaultConfiguration": "development"
+      }
     },
     "extract-i18n": {
       "executor": "@angular/build:extract-i18n",
@@ -105,7 +105,7 @@
         "{options.reportsDirectory}"
       ],
       "options": {
-        "reportsDirectory": "../../coverage/apps/client"
+        "reportsDirectory": "{projectRoot}/../../coverage/apps/client"
       }
     },
     "serve-static": {

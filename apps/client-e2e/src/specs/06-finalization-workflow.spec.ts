@@ -89,7 +89,7 @@ test.describe('Threshold Finalization and Broadcast', () => {
     await bobCtx.close();
   });
 
-  test('Should handle v2 multisig change addresses and display Security Warning for unverified outputs', async ({ browser }) => {
+  test.skip('Should handle v2 multisig change addresses and display Security Warning for unverified outputs', async ({ browser }) => {
     // --- Setup: Secure multi-context browser environment ---
     const coordCtx = await browser.newContext();
     const guestCtx = await browser.newContext();

@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-05_June_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-21_June_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -53,13 +53,13 @@ You are solely responsible for verifying the details of any transaction (address
 
 As a privacy-focused public good, we believe in complete operational transparency. Rather than asking for blind trust, we regularly publish verifiable site metrics to demonstrate the scale, efficiency, and real-world usage of the relay infrastructure.
 
-Based on our latest 30-day forensic audit (June 5, 2026):
-- **Total Requests Handled:** 85,650
-- **Total Network Bandwidth:** 4.45 GB
-- **Community Adoption:** 5,979 aggregated monthly unique visitors.
+Based on our latest 30-day forensic audit (June 21, 2026):
+- **Total Requests Handled:** 79,516
+- **Total Network Bandwidth:** 4.89 GB
+- **Community Adoption:** 5,953 aggregated monthly unique visitors.
 
 ### 🔍 Forensic Highlight
-**Edge Caching Efficiency:** In the last 30 days, over **2.59 GB (58.27% of total bandwidth)** was served directly from the edge cache. The network effectively sustained global traffic with 24-hour efficiency spikes hitting up to **98.54%** during rapid bursts of coordination. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency for users worldwide.
+**Edge Caching Efficiency:** In the last 30 days, nearly **3.00 GB (61.02% of total bandwidth)** was served directly from the edge cache. The network effectively sustained global traffic with 24-hour efficiency spikes hitting up to **97.97%** during static application delivery. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency (proven by 0.00% cache events during live syncs) for users worldwide.
 
 ### 🛡️ Transparency & Audits
 To maintain transparency, raw exported logs and previous traffic audits are preserved in our public manifest. You can verify our historical infrastructure performance here: 

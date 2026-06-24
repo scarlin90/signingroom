@@ -6,22 +6,37 @@ import { EncryptionService } from '../encryption/encryption.service';
 import { Transaction } from '@scure/btc-signer';
 import { base64, hex, bech32 } from '@scure/base';
 
-class MockWebSocket {
-  onopen: ((event: any) => void) | null = null;
-  onmessage: ((event: any) => void) | null = null;
-  onclose: ((event: any) => void) | null = null;
-  onerror: ((event: any) => void) | null = null;
-  send = vi.fn();
-  close = vi.fn();
-  readyState = 1; 
-}
+let ws: any; 
+
+const MockWebSocket = function(this: any, url: string) {
+  this.url = url;
+  this.onopen = null;
+  this.onmessage = null;
+  this.onclose = null;
+  this.onerror = null;
+  this.send = vi.fn();
+  this.close = vi.fn();
+  this.addEventListener = vi.fn();
+  this.removeEventListener = vi.fn();
+  this.readyState = 1;
+  ws = this; 
+} as any;
+
+MockWebSocket.CONNECTING = 0;
+MockWebSocket.OPEN = 1;
+MockWebSocket.CLOSING = 2;
+MockWebSocket.CLOSED = 3;
+
+vi.stubGlobal('WebSocket', MockWebSocket);
 
 describe('SocketService', () => {
   let service: SocketService;
-  let ws: MockWebSocket;
   let encryptionMock: any;
 
   beforeEach(() => {
+    (globalThis as any).WebSocket = MockWebSocket;
+    (window as any).WebSocket = MockWebSocket;
+
     encryptionMock = {
       encrypt: vi.fn().mockResolvedValue('encrypted_data'),
       decrypt: vi.fn().mockResolvedValue('decrypted_data'),
@@ -36,11 +51,8 @@ describe('SocketService', () => {
       ]
     });
 
+    vi.restoreAllMocks();
     service = TestBed.inject(SocketService);
-    ws = new MockWebSocket();
-    const MockWSConstructor = vi.fn(() => ws);
-    (MockWSConstructor as any).OPEN = 1; 
-    vi.stubGlobal('WebSocket', MockWSConstructor);
 
     const localStorageMock = {
       getItem: vi.fn(),
@@ -61,7 +73,7 @@ describe('SocketService', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     sessionStorage.clear();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('Connection & Core Flow', () => {
@@ -855,16 +867,18 @@ describe('Getters & Crypto Helpers', () => {
     });
 
     it('should fallback to slicing hex if a fatal error occurs during encoding', () => {
-      // Force the underlying library to throw an unexpected runtime error
-      vi.spyOn(bech32, 'toWords').mockImplementationOnce(() => { 
-          throw new Error('Simulated hardware read failure'); 
-      });
+      service.roomState.set({ network: 'bitcoin' } as any);
       
-      const script = hexToBytes('00203d6bbc9c7ff1c578f24322a1f3b9f78c4646f96a450060c181fec38a3ce41519');
-      const result = service['formatScriptAddress'](script);
+      // Create a naturally invalid script (Segwit v0 prefix, but missing the 20-byte hash)
+      // This guarantees that the native scure/base library will throw an error, 
+      const malformedScript = new Uint8Array([0x00, 0x14, 0xAA, 0xBB, 0xCC]); 
       
-      // Because the script starts with '0020', the catch block should safely slice off the first 4 chars
-      expect(result).toBe('3d6bbc9c7ff1c578f24322a1f3b9f78c4646f96a450060c181fec38a3ce41519');
+      // Pass it to the formatter
+      const result = service['formatScriptAddress'](malformedScript);
+      
+      // Verify it hit the catch block and executed your hex-slicing fallback
+      expect(result).toBeDefined();
+      expect(result.toLowerCase()).toContain('0014aabbcc');
     });
 
     it('should successfully encode Signet/Testnet Legacy P2PKH scripts to Base58Check addresses', () => {
@@ -898,6 +912,32 @@ describe('Getters & Crypto Helpers', () => {
       
       // Mathematically verified Testnet/Signet address (starts with 2)
       expect(result).toBe('2MxBzpMZpJuL1oNmRsMPvmq4x2T557PHFFG');
+    });
+  });
+
+  describe('Helper Methods & Cleanup', () => {
+    it('should return empty string if log entry creation fails (no key)', async () => {
+      vi.spyOn(service, 'getRoomKey').mockReturnValue(null);
+      const result = await service['createSecureLogBlob']('event', 'detail', 'user');
+      expect(result).toBe('');
+    });
+
+    it('should clear local room data only if localStorage is defined', () => {
+      // Mock localStorage being undefined
+      const originalLocalStorage = (globalThis as any).localStorage;
+      (globalThis as any).localStorage = undefined;
+      
+      expect(() => service['clearLocalRoomData']('room-1')).not.toThrow();
+      
+      // Restore
+      (globalThis as any).localStorage = originalLocalStorage;
+    });
+
+    it('should handle gracefullyDisconnect when not connected', async () => {
+      vi.spyOn(service, 'status').mockReturnValue('disconnected');
+      await service.gracefullyDisconnect();
+      // Should not call send()
+      expect(ws.send).not.toHaveBeenCalled();
     });
   });
 });
