@@ -35,7 +35,7 @@
     "jspdf": "^4.0.0",
     "lucide-angular": "^0.554.0",
     "qrcode": "^1.5.4",
-    "rxjs": "~7.8.0",
+    "rxjs": "7.8.2",
     "ws": "^8.19.0",
     "zone.js": "0.16.2"
   },
@@ -105,6 +105,8 @@
     },
     "@vitejs/plugin-basic-ssl": {
       "vite": "$vite"
-    }
+    },
+    "rxjs": "7.8.2",
+    "yaml": "2.4.2"
   }
 }
