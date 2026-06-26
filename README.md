@@ -62,8 +62,12 @@ Based on our latest 30-day forensic audit (June 21, 2026):
 **Edge Caching Efficiency:** In the last 30 days, nearly **3.00 GB (61.02% of total bandwidth)** was served directly from the edge cache. The network effectively sustained global traffic with 24-hour efficiency spikes hitting up to **97.97%** during static application delivery. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency (proven by 0.00% cache events during live syncs) for users worldwide.
 
 ### 🛡️ Transparency & Audits
-To maintain transparency, raw exported logs and previous traffic audits are preserved in our public manifest. You can verify our historical infrastructure performance here: 
-👉 [View the Site Metrics Manifest](./site_metric_logs/MANIFEST.md)
+To maintain strict compliance and absolute operational transparency, all core metrics, dependency structures, and security audits are preserved as verifiable assets directly within this repository:
+
+📊 **Infrastructure Integrity:** Raw exported logs and historical performance data are logged publicly.
+[View the Site Metrics Manifest](./site_metric_logs/MANIFEST.md)
+📦 **Software Bill of Materials (SBOM):** In alignment with European Cyber Resilience Act (CRA) guidelines, we maintain a comprehensive machine-readable vulnerability mapping of our software supply chain.
+[Verify our Security Supply Chain](./sbom.json)
 
 ## 🔬 Research & Standards
 

@@ -1,12 +1,12 @@
-FROM mcr.microsoft.com/playwright:v1.50.0-jammy
+FROM node:26-bookworm
 
 WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
-# Install Playwright browsers (specifically Chromium for your suite)
+# Install Playwright Chromium browser AND its required OS system dependencies
 RUN npx playwright install chromium --with-deps
 
 # Copy source code

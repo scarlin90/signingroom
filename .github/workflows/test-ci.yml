@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ "main", "development" ]
 
+permissions:
+  contents: write
+
 jobs:
   run-tests:
     runs-on: ubuntu-latest
@@ -42,3 +45,24 @@ jobs:
       - name: Cleanup Docker
         if: always()
         run: docker rm test-container
+
+      - name: Generate Automated SBOM
+        if: github.event_name == 'push' # Only generate on pushes, not PR reviews
+        run: |
+          echo "Compiling automated Software Bill of Materials (CycloneDX)..."
+          npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom.json --ignore-npm-errors
+
+      - name: Commit and Push Updated SBOM
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Only stage changes if the sbom.json file has actually mutated
+          if ! git diff --exit-code sbom.json; then
+            git add sbom.json
+            git commit -m "chore(compliance): auto-update software bill of materials (SBOM) [skip ci]"
+            git push origin ${{ github.ref_name }}
+          else
+            echo "No dependencies changed. SBOM is completely up to date."
+          fi

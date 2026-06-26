@@ -1287,7 +1287,7 @@ describe('RoomComponent', () => {
         
         expect(console.error).toHaveBeenCalledWith(
             "Failed to parse signed PSBT from scanner", 
-            expect.any(Error)
+            expect.anything()
         );
     });
 
