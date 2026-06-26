@@ -66,6 +66,7 @@ To maintain strict compliance and absolute operational transparency, all core me
 
 📊 **Infrastructure Integrity:** Raw exported logs and historical performance data are logged publicly.
 [View the Site Metrics Manifest](./site_metric_logs/MANIFEST.md)
+
 📦 **Software Bill of Materials (SBOM):** In alignment with European Cyber Resilience Act (CRA) guidelines, we maintain a comprehensive machine-readable vulnerability mapping of our software supply chain.
 [Verify our Security Supply Chain](./sbom.json)
 
