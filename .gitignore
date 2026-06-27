@@ -50,3 +50,7 @@ vitest.config.*.timestamp*
 .dev.vars
 .wrangler/
 stress-test.js
+.claude/worktrees
+.nx/polygraph
+.nx/self-healing
+.nx/migrate-runs

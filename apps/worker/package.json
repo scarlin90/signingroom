@@ -14,5 +14,10 @@
     },
     "dependencies": {
         "hono": "^4.10.7"
+    },
+    "allowScripts": {
+        "sharp@0.34.5": true,
+        "esbuild@0.28.1": true,
+        "workerd@1.20260625.1": true
     }
 }

@@ -32,6 +32,8 @@ afterEach(() => {
   // Clear any lingering Zone.js tasks (timers, effects, etc.)
   (window as any).__zone_symbol__unregisterAllTasks?.();
 
+  vi.stubGlobal('open', vi.fn());
+
   // Clear mocks
   vi.clearAllMocks?.();
 });

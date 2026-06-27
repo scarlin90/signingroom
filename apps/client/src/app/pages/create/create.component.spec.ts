@@ -8,6 +8,7 @@ import { SocketService } from '../../services/socket/socket.service';
 import { EncryptionService } from '../../services/encryption/encryption.service';
 import { of, throwError } from 'rxjs';
 import { Transaction } from '@scure/btc-signer';
+import { Html5Qrcode } from 'html5-qrcode';
 
 if (!File.prototype.arrayBuffer) {
   File.prototype.arrayBuffer = function() {
@@ -669,6 +670,179 @@ describe('Additional Edge Cases', () => {
       
       // Proves we hit the catch block when clear() explosively fails
       expect(console.error).toHaveBeenCalledWith("Camera stop error", expect.any(Error));
+    });
+  });
+
+  describe('File Upload Parsing Branches', () => {
+    it('should process plain text files', async () => {
+      const file = new File(['deadbeef'], 'test.txt', { type: 'text/plain' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50)); // Wait for FileReader
+
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('deadbeef');
+    });
+
+    it('should process JSON files with a psbt property', async () => {
+      const file = new File(['{"psbt": "base64data"}'], 'test.json', { type: 'application/json' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Component passes the raw string to analyzeRawHex to be parsed
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('{"psbt": "base64data"}');
+    });
+
+    it('should process JSON files with a tx property', async () => {
+      const file = new File(['{"tx": "hexdata"}'], 'test.json', { type: 'application/json' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Component passes the raw string to analyzeRawHex to be parsed
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('{"tx": "hexdata"}');
+    });
+  });
+
+  describe('File Upload and UI Edge Cases', () => {
+    it('should call safeStopScanner when stopScanner is called', () => {
+      vi.spyOn(component, 'safeStopScanner').mockResolvedValue(undefined);
+      component.stopScanner();
+      expect(component.safeStopScanner).toHaveBeenCalled();
+    });
+
+    it('should process plain text files via onFileSelected', async () => {
+      const file = new File(['deadbeef'], 'test.txt', { type: 'text/plain' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50)); 
+
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('deadbeef');
+    });
+
+    it('should process JSON files via onFileSelected', async () => {
+      const file = new File(['{"psbt": "base64data"}'], 'test.json', { type: 'application/json' });
+      const event = { target: { files: [file] } } as unknown as Event;
+      vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
+
+      component.onFileSelected(event);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      expect(component.analyzeRawHex).toHaveBeenCalledWith('{"psbt": "base64data"}');
+    });
+  });
+
+  describe('Room Navigation and Dispatcher', () => {
+    beforeEach(() => {
+      // We MUST spy on the component's injected router to prevent JSDOM from actually navigating
+      vi.spyOn(component['router'], 'navigate').mockResolvedValue(true);
+    });
+
+    it('should navigate to room with manual ID and key (no hash in key)', () => {
+      component.manualRoomId = 'test-room-id';
+      component.manualKey = 'test-secret-key';
+      
+      component.joinRoom();
+      
+      expect(component['router'].navigate).toHaveBeenCalledWith(
+        ['/room', 'test-room-id'], 
+        { fragment: 'test-secret-key' }
+      );
+    });
+
+    it('should navigate to room and clean key if it contains a hash', () => {
+      component.manualRoomId = 'test-room-id  ';
+      component.manualKey = 'https://example.com#dirty-key  ';
+      
+      component.joinRoom();
+      
+      expect(component['router'].navigate).toHaveBeenCalledWith(
+        ['/room', 'test-room-id'], 
+        { fragment: 'dirty-key' }
+      );
+    });
+
+    it('should not navigate if manualRoomId or manualKey is missing', () => {
+      component.manualRoomId = 'test-room-id';
+      component.manualKey = ''; // Missing
+      
+      component.joinRoom();
+      
+      expect(component['router'].navigate).not.toHaveBeenCalled();
+    });
+
+    it('should emit room created event via dispatcher', () => {
+      const dispatcherSpy = vi.spyOn(component['dispatcher'], 'emitRoomCreated');
+      component.emitRoomCreated('test-room', 'bitcoin');
+      expect(dispatcherSpy).toHaveBeenCalledWith('test-room', 'bitcoin');
+    });
+  });
+
+  describe('Scanner Initialization and UX Helpers', () => {
+    it('should catch complete failures in analyzeRawHex', () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Pass a string > 10 chars so it hits the try/catch, but is invalid hex/base64
+      component.analyzeRawHex('this-is-not-valid-hex-or-base64-data'); 
+      
+      expect(errorSpy).toHaveBeenCalled();
+    });
+
+    it('should start scanner and handle success callback', async () => {
+      vi.useFakeTimers();
+      
+      // Create the reader element in the virtual DOM so Html5Qrcode doesn't crash on init
+      const reader = document.createElement('div');
+      reader.id = 'reader';
+      document.body.appendChild(reader);
+      
+      // Spy on the actual prototype used by the component
+      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start').mockResolvedValue(undefined);
+
+      component.startScanner();
+      
+      // Trigger the 100ms setTimeout inside startScanner
+      vi.advanceTimersByTime(150);
+
+      expect(startSpy).toHaveBeenCalled();
+      
+      // Extract the success callback (3rd argument) from the start method and trigger it
+      const successCallback = startSpy.mock.calls[0][2] as Function;
+      vi.spyOn(component, 'handleScanResult').mockImplementation(async () => {});
+      successCallback('MOCK_QR_DATA');
+      
+      expect(component.handleScanResult).toHaveBeenCalledWith('MOCK_QR_DATA');
+      
+      // Cleanup
+      startSpy.mockRestore();
+      document.body.removeChild(reader);
+      vi.useRealTimers();
+    });
+
+    it('should calculate UX helpers isNetworkMismatch and isHighFee', () => {
+      // isNetworkMismatch (Bitcoin selected, Testnet detected)
+      component.selectedNetwork.set('bitcoin');
+      component.psbtAnalysis.set({ detectedNetwork: 'testnet' } as any);
+      expect(component.isNetworkMismatch()).toBe(true);
+      
+      // isHighFee (Rate > 100 sats/vByte)
+      component.psbtAnalysis.set({
+          valid: true,
+          signerCount: 3,
+          amountBtc: 1.5,
+          networkFeeSat: 500000, // Unusually high fee
+          outputCount: 2,
+          detectedNetwork: 'bitcoin'
+      });
+      expect(component.isHighFee()).toBe(true);
     });
   });
 
