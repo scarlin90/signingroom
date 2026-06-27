@@ -66,3 +66,4 @@ jobs:
           else
             echo "No dependencies changed. SBOM is completely up to date."
           fi
+          
