@@ -10,6 +10,7 @@ import { base64, hex, bech32, bech32m } from '@scure/base';
 import { environment } from '../../../environments/environment';
 import { EncryptionService } from '../encryption/encryption.service';
 import { Subject } from 'rxjs';
+import { RelayClient, EncryptionEngine } from '@signing-room/core';
 
 // -------------------------------------------------------------------------
 // Constants
@@ -73,6 +74,10 @@ type DerivationEntry = [Uint8Array, { fingerprint: number; path: number[] }];
 
 @Injectable({ providedIn: 'root' })
 export class SocketService {
+
+  private engine: EncryptionEngine;
+  private relay: RelayClient;
+
   private ws: WebSocket | null = null;
   private encryptionKey: string | null = null; 
   private fallbackVersion: string | null = null;
@@ -132,7 +137,16 @@ export class SocketService {
   constructor(
     private http: HttpClient,
     private encryption: EncryptionService
-  ) {}
+  ) {
+
+    this.engine = this.encryption.getEngine();
+    this.relay = new RelayClient(this.engine);
+
+    this.relay.events.on('ROOM_CONNECTED').subscribe(() => {
+        this.status.set('connected');
+    });
+
+  }
 
   // -------------------------------------------------------------------------
   // Security Handoff

@@ -13,26 +13,22 @@
  */
 
 import { Injectable } from '@angular/core';
+import { EncryptionEngine } from '@signing-room/core';
 
 @Injectable({ providedIn: 'root' })
 export class EncryptionService {
+
+  private engine = new EncryptionEngine();
+
+  public getEngine(): EncryptionEngine {
+    return this.engine;
+  }
 
   /**
    * Generates a cryptographically strong random AES-GCM 256-bit key.
    * @returns The raw key material encoded as a URL-safe Base64 string.
    */
-  async generateKey(): Promise<string> {
-    const key = await window.crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    );
-    
-    // Export as 'raw' to get the bytes
-    const exported = await window.crypto.subtle.exportKey('raw', key);
-    // Cast exported to ArrayBuffer just to be safe with strict TS types
-    return this.buf2base64(exported as ArrayBuffer); 
-  }
+  async generateKey() { return this.engine.generateKey(); }
 
   /**
    * Encrypts a string using AES-GCM.
@@ -40,38 +36,7 @@ export class EncryptionService {
    * @param key The Base64 encoded encryption key.
    * @returns A Base64 string containing the IV + Ciphertext.
    */
-  async encrypt(data: string, key: string): Promise<string> {
-    try {
-      const encoder = new TextEncoder();
-      const rawKey = this.base642buf(key);
-
-      const keyBuffer = await crypto.subtle.importKey(
-        'raw',
-        rawKey as BufferSource,
-        { name: 'AES-GCM' },
-        true,
-        ['encrypt', 'decrypt']
-      );
-
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      const encodedData = encoder.encode(data);
-
-      const encryptedData = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: iv },
-        keyBuffer,
-        encodedData
-      );
-
-      const resultArray = new Uint8Array(iv.length + new Uint8Array(encryptedData).length);
-      resultArray.set(iv);
-      resultArray.set(new Uint8Array(encryptedData), iv.length);
-      
-      return this.buf2base64(resultArray.buffer as ArrayBuffer); 
-    } catch (error) {
-      console.error('Encryption failed:', error);
-      throw error; 
-    }
-  }
+  async encrypt(data: string, key: string) { return this.engine.encrypt(data, key); }
 
   /**
    * Decrypts a Base64 payload using AES-GCM.
@@ -79,73 +44,10 @@ export class EncryptionService {
    * @param key The Base64 encoded decryption key.
    * @returns The decrypted plaintext string.
    */
-  async decrypt(encryptedData: string, key: string): Promise<string> {
-    try {
-      const rawKey = this.base642buf(key);
-      
-      const keyBuffer = await crypto.subtle.importKey(
-        'raw',
-        rawKey as BufferSource,
-        { name: 'AES-GCM' },
-        true,
-        ['encrypt', 'decrypt']
-      );
-
-      const encryptedArray = this.base642buf(encryptedData);
-      
-      const iv = encryptedArray.slice(0, 12);
-      const ciphertext = encryptedArray.slice(12);
-      
-      const decryptedData = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: iv },
-        keyBuffer,
-        ciphertext
-      );
-      
-      return new TextDecoder().decode(decryptedData);
-    } catch (error) {
-      console.error('Decryption failed:', error);
-      throw error;
-    }
-  }
+  async decrypt(data: string, key: string) { return this.engine.decrypt(data, key); }
 
   /**
    * Deterministically blinds metadata using the room's encryption key as a salt.
    */
-  async blindData(data: string, key: string): Promise<string> {
-    const encoder = new TextEncoder();
-    // Salt the data with the FBEK
-    const dataBuffer = encoder.encode(data + key); 
-    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
-    
-    // Return the first 16 characters of the hex hash
-    return Array.from(new Uint8Array(hashBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-      .slice(0, 16); 
-  }
-
-  // -------------------------------------------------------------------------
-  // Private Helpers
-  // -------------------------------------------------------------------------
-
-  private buf2base64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-  }
-
-  private base642buf(base64: string): Uint8Array {
-    const binary_string = window.atob(base64);
-    const len = binary_string.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binary_string.charCodeAt(i);
-    }
-    return bytes;
-  }
+  async blindData(data: string, key: string) { return this.engine.blindData(data, key); }
 }
