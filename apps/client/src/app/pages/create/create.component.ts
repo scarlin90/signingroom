@@ -11,6 +11,7 @@ import { Title, Meta } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { Transaction } from '@scure/btc-signer';
 import { base64, hex } from '@scure/base';
+import { RelayClient, EncryptionEngine, PsbtUtils, RoomFactory, PsbtAnalysis } from '@signing-room/core';
 
 import { 
   LucideAngularModule, Zap, Check, Loader2, 
@@ -28,15 +29,6 @@ import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget
 // 1. CONSTANTS MUST BE OUTSIDE THE CLASS
 const NETWORKS = ['bitcoin', 'testnet', 'signet'] as const;
 type Network = (typeof NETWORKS)[number];
-
-interface PsbtAnalysis {
-    valid: boolean;
-    signerCount: number;
-    amountBtc: number;
-    networkFeeSat: number;
-    outputCount: number;
-    detectedNetwork: 'bitcoin' | 'testnet' | 'unknown';
-}
 
 @Component({
   selector: 'app-create',
@@ -507,6 +499,7 @@ export class CreateComponent implements OnInit {
     private metaService = inject(Meta);
     public urService = inject(UrService);
     private dispatcher = inject(WidgetDispatcherService);
+    
 
     readonly networks = NETWORKS;
     
@@ -601,33 +594,25 @@ export class CreateComponent implements OnInit {
     async launchRoom() {
         this.isLoading.set(true);
         try {
-            const encryptionKey = this.generateEncryptionKey(); 
-            const adminSecret = crypto.randomUUID();
+            // Use the Core Library!
+            const factoryPayload = await RoomFactory.prepareCreationPayload(
+                this.encryption.getEngine(), 
+                this.rawHex, 
+                this.selectedNetwork(), 
+                "Untitled Room", 
+                PROTOCOL_VERSION
+            );
+
+            await firstValueFrom(this.socket['http'].post(
+                `${environment.apiUrl}/api/room`, 
+                factoryPayload.httpPayload
+            ));
+
+            // Save admin token and route
+            sessionStorage.setItem(`admin_token_${factoryPayload.localData.roomId}`, factoryPayload.httpPayload.adminToken);
+            this.dispatcher.emitRoomCreated(factoryPayload.localData.roomId, this.selectedNetwork());
+            this.router.navigate(['/room', factoryPayload.localData.roomId], { fragment: factoryPayload.localData.encryptionKey });
             
-            const encryptedData = await this.encryption.encrypt(this.rawHex, encryptionKey);
-            const encryptedAdminToken = await this.encryption.encrypt(adminSecret, encryptionKey);
-
-            const defaultName = "Untitled Room";
-            const encryptedRoomName = await this.encryption.encrypt(defaultName, encryptionKey);
-
-            const roomId = crypto.randomUUID();
-            const expectedPass = await this.encryption.blindData(roomId, encryptionKey);
-
-            const res: any = await firstValueFrom(this.socket['http'].post(`${environment.apiUrl}/api/room`, { 
-                roomId: roomId, 
-                expectedPass: expectedPass,
-                encryptedPsbt: encryptedData, 
-                adminToken: encryptedAdminToken,
-                network: this.selectedNetwork(),
-                protocolVersion: PROTOCOL_VERSION,
-                encryptedRoomName
-            }));
-
-            sessionStorage.setItem(`admin_token_${roomId}`, encryptedAdminToken);
-
-            this.dispatcher.emitRoomCreated(roomId, this.selectedNetwork());
-
-            this.router.navigate(['/room', roomId], { fragment: encryptionKey });
         } catch (e) {
             console.error(e);
         } finally {
@@ -672,48 +657,14 @@ export class CreateComponent implements OnInit {
 
     analyzeRawHex(data: string) {
         if (!data || data.length < 10) return;
-        try {
-            const clean = this.normalizeInput(data);
-            const psbtBytes = /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
 
-            this.rawHex = base64.encode(psbtBytes);
+        const analysis = PsbtUtils.analyze(data);
 
-            const tx = Transaction.fromPSBT(psbtBytes, { allowUnknown: true });
-
-            // Calculate Signers
-            const fingerprints = new Set<string>();
-            let totalInput = 0, totalOutput = 0, networkScore = 0;
-
-            for(let i=0; i<tx.inputsLength; i++) {
-                const input = tx.getInput(i);
-                if (input.witnessUtxo) totalInput += Number(input.witnessUtxo.amount);
-                if (input.bip32Derivation) {
-                    for (const [, meta] of input.bip32Derivation as any[]) {
-                        if (meta?.fingerprint) fingerprints.add(meta.fingerprint.toString(16));
-                        if (meta?.path) {
-                            const coinType = meta.path[1];
-                            if (coinType === 2147483648) networkScore--;
-                            if (coinType === 2147483649) networkScore++;
-                        }
-                    }
-                }
-            }
-            for(let i=0; i<tx.outputsLength; i++) totalOutput += Number(tx.getOutput(i).amount);
-
-            const fee = totalInput > 0 ? totalInput - totalOutput : 0;
-
-            this.psbtAnalysis.set({
-                valid: true,
-                signerCount: fingerprints.size || 1,
-                amountBtc: totalOutput / 100000000,
-                networkFeeSat: fee,
-                outputCount: tx.outputsLength,
-                detectedNetwork: networkScore > 0 ? 'testnet' : 'bitcoin'
-            });
-        } catch (e: any) { 
-            console.error("PSBT Parse Error:", e);
+        if (analysis) {
+            this.psbtAnalysis.set(analysis);
+            this.errorMessage.set(null);
+        } else {
             this.psbtAnalysis.set(null); 
-            
             this.errorMessage.set("Invalid PSBT format. Please ensure you are providing a valid Base64 or Hex encoded Partially Signed Bitcoin Transaction.");
             
             if (this.isEmbedded) {
@@ -722,10 +673,11 @@ export class CreateComponent implements OnInit {
                     action: 'signingError',
                     payload: {
                         code: 'PSBT_INVALID',
-                        message: e.message || 'Failed to parse PSBT data.'
+                        message: 'Failed to parse PSBT data.'
                     }
                 }, '*');
-            } }
+            } 
+        }
     }
 
     emitRoomCreated(roomId: string, network: string): void {

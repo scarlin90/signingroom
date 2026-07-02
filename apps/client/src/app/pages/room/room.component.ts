@@ -22,6 +22,7 @@ import { UrService } from '../../services/ur/ur.service';
 import { base64, hex } from '@scure/base';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
+import { RoomAuditor } from 'libs/core/src/lib/bitcoin/room-auditor';
 
 @Component({
   selector: 'app-room',
@@ -1611,21 +1612,22 @@ import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
                                 </div>
                             }
                         </div>
-                    } @else if (canFinalize) {  
+                    } @else if (socket.isReadyToBroadcast()) {  
                         @if (socket.isCoordinator()) {
                             <button (click)="finalize()" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer">
                                 <lucide-icon [img]="Shield" class="w-4 h-4"></lucide-icon> 
-                                Finalize Transaction ({{ socket.signerCount() }}/{{ requiredSignatures }})
+                                Finalize Transaction ({{ socket.signerCount() }}/{{ socket.signerThreshold() }})
                             </button>
                         } @else { <p class="text-xs text-center text-slate-500">Only the Coordinator can finalize.</p> }
                     } @else if (socket.isCoordinator()) {
-                         <button disabled class="w-full py-3.5 bg-slate-800 text-slate-500 font-bold rounded-xl border border-slate-700 cursor-not-allowed flex items-center justify-center gap-2">
-                             <lucide-icon [img]="Loader2" class="w-4 h-4 animate-spin"></lucide-icon> <span>Waiting for Signatures ({{ socket.signerCount() }} / {{ socket.signers().length }})</span>
-                         </button>
+                        <button disabled class="w-full py-3.5 bg-slate-800 text-slate-500 font-bold rounded-xl border border-slate-700 cursor-not-allowed flex items-center justify-center gap-2">
+                            <lucide-icon [img]="Loader2" class="w-4 h-4 animate-spin"></lucide-icon> 
+                            <span>Waiting for Signatures ({{ socket.signerCount() }} / {{ socket.signerThreshold() }})</span>
+                        </button>
                     } @else {
                         <div class="text-center p-4">
                             <p class="text-sm text-slate-400 font-medium mb-1">Waiting for Finalization</p>
-                            <p class="text-xs text-slate-600 mb-4">{{ Math.max(0, requiredSignatures - (socket.signerCount() || 0)) }} more signatures required</p>
+                            <p class="text-xs text-slate-600 mb-4">{{ Math.max(0, socket.signerThreshold() - (socket.signerCount() || 0)) }} more signatures required</p>
                             @if (!showClaimInput()) {
                                 <button (click)="showClaimInput.set(true)" class="text-xs text-slate-500 hover:text-emerald-400 underline transition">Have the Admin Key? Claim Coordinator Role</button>
                             } @else {
@@ -1897,8 +1899,8 @@ export class RoomComponent implements OnInit, OnDestroy {
                     txId: state.finalTxId,
                     txHex: state.finalTxHex,
                     roomState: sanitizedState,
-                    auditLogCsv: this.getAuditLogCsvData(),
-                    settlementCsv: this.getSettlementCsvData(),
+                    auditLogCsv: RoomAuditor.getAuditLogCsvData(state),
+                    settlementCsv: RoomAuditor.getSettlementCsvData(state, this.socket.txDetails() as any, this.socket.signers()),
                     auditPdfUri: pdfBase64 
                 });
             }
@@ -2535,62 +2537,13 @@ export class RoomComponent implements OnInit, OnDestroy {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    getSettlementCsvData() {
-        const state = this.socket.roomState();
-        const tx = this.socket.txDetails();
-        if (!state || !tx) return;
-
-        const headers = ["Date", "Room ID", "Network", "TXID", "Total Amount (BTC)", "Fee Rate (sats/vB)", "Inputs", "Outputs", "Signers", "Witnesses", "Status"];
-        
-        const signersList = this.socket.signers().map(s => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`).join("; ");
-        
-        const participantsObj = state.participants || {};
-        const witnessesList = Object.values(participantsObj).map((p: any) => {
-            const name = p.displayName || 'Anonymous';
-            const role = p.role === 'admin' ? 'Coordinator' : 'Guest';
-            return `${name} [${role}] (${p.id})`;
-        }).join("; ")
-        
-        const row = [
-            new Date().toISOString(),
-            state.roomId,
-            state.network,
-            this.socket.getFinalTxId() || "Pending",
-            (tx.amount / 100000000).toFixed(8),
-            tx.feeRate,
-            tx.inputsList?.length || 0,
-            tx.outputs?.length || 0,
-            `"${signersList}"`, 
-            `"${witnessesList}"`,
-            this.finalHex() ? "Signed & Ready" : "Pending Signatures"
-        ];
-
-        const csvContent = headers.join(",") + "\n" 
-            + row.join(",");
-
-        return csvContent;
-    }
-
-    getAuditLogCsvData(): string {
-        const logs = this.socket.roomState()?.auditLog || [];
-        const csvHeader = 'Timestamp,Event,User,Detail\n';
-        const csvRows = logs.map(l => {
-            const time = new Date(l.timestamp).toISOString();
-            const event = `"${l.event.replace(/"/g, '""')}"`;
-            const user = `"${l.user.replace(/"/g, '""')}"`;
-            const detail = `"${(l.detail || '').replace(/"/g, '""')}"`;
-            return `${time},${event},${user},${detail}`;
-        }).join('\n');
-        return csvHeader + csvRows;
-    }
-
     downloadCsv() {
         const state = this.socket.roomState();
+        const tx = this.socket.txDetails();
 
-        const csvContent = "data:text/csv;charset=utf-8," 
-            + this.getSettlementCsvData();
+        if (!state || !tx) return;
 
-        const encodedUri = encodeURI(csvContent);
+        const encodedUri =  RoomAuditor.getEncodedCsvData(state, tx, this.socket.signers());
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
         link.setAttribute("download", `settlement_${state?.roomId}_${new Date().toISOString().slice(0,10)}.csv`);

@@ -13,7 +13,7 @@ export class EncryptionEngine {
     const encoder = new TextEncoder();
     const rawKey = this.base642buf(key);
     const keyBuffer = await crypto.subtle.importKey(
-      'raw', rawKey, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']
+      'raw', rawKey as BufferSource, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']
     );
 
     const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -30,7 +30,7 @@ export class EncryptionEngine {
   async decrypt(encryptedData: string, key: string): Promise<string> {
     const rawKey = this.base642buf(key);
     const keyBuffer = await crypto.subtle.importKey(
-      'raw', rawKey, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']
+      'raw', rawKey as BufferSource, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']
     );
 
     const encryptedArray = this.base642buf(encryptedData);

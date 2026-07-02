@@ -555,10 +555,9 @@ export class SigningRoom implements DurableObject {
           this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
         }
 
-
         // Room Lock (Admin Only)
         if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {
-          this.roomState.isLocked = msg.locked;
+          this.roomState.isLocked = msg.isLocked;
           await this.saveRoomState();
           await this.log(msg.encryptedLogBlob);
           this.broadcast({ type: 'LOCK_UPDATED', isLocked: this.roomState.isLocked });

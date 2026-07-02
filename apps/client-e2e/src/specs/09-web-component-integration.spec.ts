@@ -134,7 +134,7 @@ test.describe('Web Component / Embedded Integration', () => {
     const errorEvent = messages.find(m => m.action === 'signingError');
     expect(errorEvent).toBeDefined();
     expect(errorEvent.payload.code).toBe('PSBT_INVALID');
-    expect(errorEvent.payload.message).toContain("cannot be part of a valid base64");
+    expect(errorEvent.payload.message).toContain("Failed to parse PSBT data.");
   });
 
   test('Should emit transactionFinalized event with full payload after threshold is reached', async ({ page, context }) => {
