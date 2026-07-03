@@ -45,7 +45,10 @@ export class RoomStateStore {
   constructor(private events: RoomEventBus) {
     this.events.on('STATE_SYNC_DECRYPTED').subscribe(e => this.sync(e.payload));
     this.events.on('NEW_PARTIAL_DECRYPTED').subscribe(e => this.merge(e.payload));
-    this.events.on('LOCK_UPDATED').subscribe(e => this.updatePartial({ isLocked: e.payload }));
+    this.events.on('LOCK_UPDATED').subscribe(e => {
+        const isLocked = typeof e.payload?.isLocked === 'boolean' ? e.payload.isLocked : e.payload;
+        this.updatePartial({ isLocked });
+    });
     this.events.on('LABELS_DECRYPTED').subscribe(e => this.updatePartial({ signerLabels: e.payload }));
     this.events.on('ROOM_RENAMED_DECRYPTED').subscribe(e => this.updatePartial({ roomName: e.payload }));
     this.events.on('LOG_UPDATE_DECRYPTED').subscribe(e => this.updatePartial({ auditLog: e.payload }));
@@ -56,6 +59,15 @@ export class RoomStateStore {
         finalTxHex: e.payload.finalTxHex, 
         finalTxId: e.payload.finalTxId 
     }));
+    this.events.on('UPDATE_LABEL').subscribe(e => {
+        const { fingerprint, label } = e.payload;
+        this.updatePartial({ 
+            signerLabels: { 
+                ...this.state?.signerLabels, 
+                [fingerprint]: label
+            } 
+        });
+    });
   }
 
   private updatePartial(partialState: Partial<RoomState>) {
@@ -80,6 +92,7 @@ export class RoomStateStore {
         isLocked: false, network: 'bitcoin',
         protocolVersion: protocolVersion
       };
+      this.events.dispatch('STATE_CHANGED', this.state);
   }
 
   private sync(data: any) {

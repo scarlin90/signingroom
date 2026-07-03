@@ -334,7 +334,7 @@ export class RelayClient {
 
   // --- OUTBOUND PROTOCOL ACTIONS ---
 
-  private async createSecureLogBlob(event: string, detail: string, user: string): Promise<string> {
+  public async createSecureLogBlob(event: string, detail: string, user: string): Promise<string> {
     if (!this.encryptionKey) return '';
     const logEntry = { timestamp: Date.now(), event, detail, user };
     return await this.crypto.encrypt(JSON.stringify(logEntry), this.encryptionKey);

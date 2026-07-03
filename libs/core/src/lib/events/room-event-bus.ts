@@ -31,7 +31,8 @@ export type RoomEventType =
   | 'PARTICIPANTS_DECRYPTED'
   | 'TX_FINALIZED_DECRYPTED'
   | 'STATE_CHANGED'
-  | 'TOGGLE_LOCK';
+  | 'TOGGLE_LOCK'
+  | 'UPDATE_LABEL';
 
 export interface RoomEvent {
   type: RoomEventType;

@@ -485,7 +485,7 @@ export class SocketService {
     this.relay.send(type, payload);
   }
 
-  private reset() {
+  public reset() {
     this.hasAnnouncedJoin = false;
     this.store.set(null);
     this.roomState.set(null);
@@ -496,6 +496,10 @@ export class SocketService {
     this.isLockedOut.set(false);
     this.isRoomFull.set(false);
     this.roomNotFound.set(false);
+
+    this.store.set(null); 
+    this.activeSessions.set([]);
+    this.status.set('disconnected');
   }
 
   async gracefullyDisconnect() {

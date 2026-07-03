@@ -1985,6 +1985,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     ngOnDestroy() {
         if (isPlatformBrowser(this.platformId)) {
             this.socket.gracefullyDisconnect();
+            this.socket.reset();
             
             if (this.timerInterval) clearInterval(this.timerInterval);
         }

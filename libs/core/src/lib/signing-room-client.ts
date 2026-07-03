@@ -1,111 +1,182 @@
-import { Subject, Observable } from 'rxjs';
-import { filter } from 'rxjs/operators';
-import { RoomEventType, RoomEvent, BaseEventContext } from './types/client-events';
+import { EncryptionEngine } from './crypto/encryption-engine';
+import { RelayClient } from './relay/relay-client';
+import { RoomStateStore, RoomState } from './relay/room-state-store';
+import { RoomFactory } from './relay/room-factory';
+import { RoomEventBus, RoomEvent } from './events/room-event-bus';
+import { RoomAuditor } from './bitcoin/room-auditor';
+import { PsbtUtils } from './bitcoin/psbt-utils';
+import { Observable } from 'rxjs';
 
-export interface ClientConfig {
-  relayEndpoint: string;
-  network: 'mainnet' | 'testnet' | 'signet';
+export interface SigningRoomConfig {
+  apiUrl: string;
+  protocolVersion?: string;
 }
 
 export class SigningRoomClient {
-  private config: ClientConfig;
-  private eventSubject = new Subject<RoomEvent>();
+  public readonly engine: EncryptionEngine;
+  public readonly relay: RelayClient;
+  public readonly store: RoomStateStore;
+  
+  private apiUrl: string;
+  private protocolVersion: string;
+  private _sessionId: string | null = null;
+  private _role = 'guest';
 
-  // Tracks stateless, internal running session metrics dynamically
-  private currentRoomId: string | null = null;
-  private currentSessionId: string | null = null;
-  private isCoordinatorRole = false;
+  constructor(config: SigningRoomConfig) {
+    this.apiUrl = config.apiUrl.replace(/\/$/, '');
+    this.protocolVersion = config.protocolVersion || '1.0.0';
+    
+    this.engine = new EncryptionEngine();
+    this.relay = new RelayClient(this.engine);
+    this.store = new RoomStateStore(this.relay.events);
 
-  constructor(config: ClientConfig) {
-    this.config = config;
+    // Listen for the session ID assignment from the relay
+    this.relay.events.on('SESSION_CONNECTED').subscribe(e => {
+        this._sessionId = e.payload;
+    });
+    
+    // Listen for role elevation (admin/guest)
+    this.relay.events.on('ROLE_UPDATE').subscribe(e => {
+        this._role = e.payload;
+    });
   }
 
-  /**
-   * Safe, runtime check to evaluate if code is executing inside an iframe boundary
-   */
-  public get isEmbedded(): boolean {
-    try {
-      return typeof window !== 'undefined' && window !== window.top;
-    } catch (e) {
-      return true;
-    }
+  public get userContext(): string {
+      return this._role === 'admin' ? 'Coordinator' : `Guest (${this._sessionId || 'Unknown'})`;
   }
 
-  /**
-   * Sets runtime context dynamically as the stateless relay changes states
-   */
-  public updateSessionContext(roomId: string | null, sessionId: string | null, isCoordinator: boolean): void {
-    this.currentRoomId = roomId;
-    this.currentSessionId = sessionId;
-    this.isCoordinatorRole = isCoordinator;
+  public onStateChange(): Observable<RoomEvent> {
+    return this.relay.events.on('STATE_CHANGED');
   }
 
-  /**
-   * Resolves the real-time cryptographic metadata baseline for regulatory tracking
-   */
-  private getBaseContext(): BaseEventContext {
+  // --- STATE ACCESS ---
+  public getRoomState(): RoomState | null {
+    return this.store.getState();
+  }
+
+  // --- ROOM LIFECYCLE ---
+  public async createRoom(psbtBase64: string, network: 'bitcoin' | 'testnet' | 'signet', roomName = 'Untitled Room') {
+    const payload = await RoomFactory.prepareCreationPayload(
+      this.engine, psbtBase64, network, roomName, this.protocolVersion
+    );
+
+    const res = await fetch(`${this.apiUrl}/api/room`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload.httpPayload)
+    });
+
+    if (!res.ok) throw new Error(`Failed to create room: ${await res.text()}`);
+
+    // Create a promise that resolves when the ROOM_CONNECTED event fires
+    const connectionPromise = new Promise<void>((resolve) => {
+        const sub = this.relay.events.on('ROOM_CONNECTED').subscribe(() => {
+            sub.unsubscribe(); 
+            resolve();
+        });
+    });
+
+    const wsUrl = this.apiUrl.replace(/^http/, 'ws');
+    this.store.init(payload.localData.roomId, this.protocolVersion);
+    await this.relay.joinRoom(wsUrl, payload.localData.roomId, payload.localData.encryptionKey, this.protocolVersion);
+
+    // Wait for the websocket to confirm connection
+    await connectionPromise;
+
+    // NOW it is safe to send the auth token
+    this.relay.claimCoordinator(payload.httpPayload.adminToken);
+
     return {
-      roomId: this.currentRoomId,
-      sessionId: this.currentSessionId,
-      role: this.isCoordinatorRole ? 'coordinator' : (this.currentRoomId ? 'guest' : 'unknown'),
-      network: this.config.network,
-      timestamp: Date.now()
+      roomId: payload.localData.roomId,
+      encryptionKey: payload.localData.encryptionKey,
+      adminSecret: payload.localData.adminSecret
     };
   }
 
+  public async joinRoom(roomId: string, encryptionKey: string) {
+    const wsUrl = this.apiUrl.replace(/^http/, 'ws');
+    this.store.init(roomId, this.protocolVersion);
+    await this.relay.joinRoom(wsUrl, roomId, encryptionKey, this.protocolVersion);
+  }
+
+  /** Update the room name (e.g., "Q1 Settlement") */
+  public async setRoomName(name: string) {
+    await this.relay.renameRoom(name, this.userContext);
+  }
+
+  public async toggleLock(isLocked: boolean) {
+    await this.relay.toggleLock(isLocked, this.userContext);
+  }
+
+  public async uploadSignature(psbtBase64: string, fingerprint: string) {
+    await this.relay.uploadSignature(psbtBase64, fingerprint, this.userContext);
+  }
+
+  // --- IDENTITY & LABELLING ---
+
+  public async logParticipantAction(action: string, detail: string) {
+      const blob = await this.relay.createSecureLogBlob(action, detail, this.userContext);
+      this.relay['send']('LOG_ACTION', { encryptedLogBlob: blob });
+  }
+  
+  /** Updates the display name for the current participant session */
+  public async setDisplayName(name: string) {
+    await this.relay.setDisplayName(name);
+    await this.logParticipantAction('Participant Identified', `Identified as '${name}'`);
+  }
+
+/** Labels a specific hardware device/fingerprint (e.g., "Alice's Coldcard") */
+public async setSignerLabel(fingerprint: string, label: string) {
+    await this.relay.updateSignerLabel(fingerprint, label, this.userContext);
+}
+
+  /** Coordinator: Close the room and securely destroy session */
+  public async closeRoom(userDisplayName = 'Coordinator') {
+    const blob = await this.relay.createSecureLogBlob('Room Closed', 'Manual teardown initiated', userDisplayName);
+    this.relay['send']('CLOSE_ROOM', { encryptedLogBlob: blob });
+  }
+
+  // --- AUDIT & COMPLIANCE ---
+  public getAuditLogCsv(): string {
+    const state = this.getRoomState();
+    if (!state) return '';
+    return RoomAuditor.getAuditLogCsvData(state);
+  }
+
+  // --- GOVERNANCE & SECURITY ---
+
+  /** Coordinator: Restrict transactions to specific addresses */
+  public async updateWhitelist(addresses: string[], detail: string) {
+    await this.relay.updateWhitelist(addresses, detail, this.userContext);
+  }
+
+  // --- FINALIZATION ---
+
   /**
-   * Core execution pipeline: fires internal RxJS hooks AND safe boundary postMessages
+   * Finalizes the PSBT and returns the broadcast-ready hex.
+   * This should be called by the Coordinator once the threshold is met.
    */
-  public emitEvent(type: RoomEventType, action: string, payload: any): void {
-    const context = this.getBaseContext();
-    const enrichedEvent: RoomEvent = {
-      type,
-      action,
-      context,
-      payload
-    };
+  public finalizeTransaction(): { hex: string, txId: string } | null {
+    const state = this.store.getState();
+    if (!state) return null;
 
-    // 1. Dispatch to local software subscribers (e.g., Angular App or Node Agents)
-    this.eventSubject.next(enrichedEvent);
-
-    // 2. Dispatch across parent execution window for IFRAME integrators
-    if (this.isEmbedded && typeof window !== 'undefined' && window.parent) {
-      window.parent.postMessage({
-        type: 'SIGNING_ROOM_EVENT',
-        action: action,
-        payload: {
-          ...context,
-          ...payload
-        }
-      }, '*'); // Targeted origin can be tightened per installation parameter
+    // Use your existing PsbtUtils logic
+    const result = PsbtUtils.finalizeTx(state.psbt);
+    
+    if (result) {
+        this.store.update(s => ({ ...s!, finalTxHex: result.hex, finalTxId: result.txId }));
     }
+    
+    return result;
   }
 
-  /**
-   * RxJS Hook to subscribe to a specific subset of workspace events
-   */
-  public on(type: RoomEventType): Observable<RoomEvent> {
-    return this.eventSubject.asObservable().pipe(filter(e => e.type === type));
+  /** Returns the finalized transaction hex if the threshold has been reached */
+  public getFinalTransactionHex(): string | null {
+    const state = this.store.getState();
+    return state?.finalTxHex || null;
   }
 
-  /**
-   * RxJS Hook to subscribe to ALL infrastructure signals (Critical for Audit Logs)
-   */
-  public onAll(): Observable<RoomEvent> {
-    return this.eventSubject.asObservable();
-  }
-
-  // --- SAMPLE IMPLEMENTATION PIPELINES (To be mapped to future logic) ---
-
-  public dispatchSignatureReceived(data: { fingerprint: string; label?: string; sessionId?: string; name?: string }): void {
-    this.emitEvent('SIGNATURE_RECEIVED', 'signatureReceived', data);
-  }
-
-  public dispatchSecurityAlert(alertType: string, severity: 'low' | 'medium' | 'high', message: string): void {
-    this.emitEvent('SECURITY_ALERT', 'securityAlert', { alertType, severity, message });
-  }
-
-  public dispatchTransactionFinalized(data: { txId: string; txHex: string; auditPdfUri: string | null }): void {
-    this.emitEvent('TRANSACTION_FINALIZED', 'transactionFinalized', data);
+  public disconnect() {
+    this.relay.gracefullyDisconnect(null);
   }
 }

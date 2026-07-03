@@ -153,4 +153,28 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
     // This confirms the version >= 0x51 logic block is working
     await expect(page.getByText('tb1p6239qc5cmrl9zd9lzjc5p59lxznayp258nyxqhfx7zullqstn3hsg789xh')).toBeVisible();
   });
+
+  test('should completely clear SPA state between sequential room creations (No State Bleed)', async ({ page }) => {
+    // --- Interaction: Launch First Room (2-of-2) ---
+    await launchRoomFromFixture(page, '2_2_unsigned_taproot_p2tr.psbt.txt');
+
+    // --- Verification: First Room State ---
+    // Verify the threshold evaluated to 2
+    await expect(page.getByRole('button', { name: /Waiting for Signatures\s*\(\s*0\s*\/\s*2\s*\)/i })).toBeVisible();
+
+    // Count the physical hardware cards rendered (Expect exactly 2)
+    // We target the "Add Label" span which uniquely identifies a signer card row
+    await expect(page.locator('span.italic', { hasText: 'Add Label' })).toHaveCount(2);
+
+    // --- Interaction: Launch Second Room (3-of-5) in the SAME tab ---
+    await launchRoomFromFixture(page, '3_5_unsigned.psbt.txt');
+
+    // --- Verification: Second Room State (Assert Memory Cleanup) ---
+    // Verify the new threshold is 3
+    await expect(page.getByRole('button', { name: /Waiting for Signatures\s*\(\s*0\s*\/\s*3\s*\)/i })).toBeVisible();
+
+    // Count the physical hardware cards rendered (Expect exactly 5)
+    // If state bled, this would be 2 (stuck) or 7 (merged arrays). 5 proves perfect cleanup.
+    await expect(page.locator('span.italic', { hasText: 'Add Label' })).toHaveCount(5);
+  });
 });
