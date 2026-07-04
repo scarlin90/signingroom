@@ -24,111 +24,192 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function runIntegratorTest() {
   console.log("==================================================");
-  console.log("🤖 Starting Signing Room SDK Integration (3-of-5)");
+  console.log(" Starting Signing Room SDK Integration (3-of-5)");
   console.log("==================================================\n");
 
   // ---------------------------------------------------------
   // PHASE 1: INITIALIZATION & SECURITY POLICIES
   // ---------------------------------------------------------
-  console.log("👨‍💻 Coordinator: Initializing and Creating Room...");
+  console.log("Coordinator: Initializing and Creating Room...");
   const coordinatorApp = new SigningRoomClient({ apiUrl: API_URL });
   
   const session = await coordinatorApp.createRoom(UNSIGNED_PSBT, 'signet', 'Project Titan Vault (3-of-5)');
-  console.log(`\n✅ Room Created! Room ID: ${session.roomId}\n`);
-  console.log(`\n✅ Room encryptionKey: ${session.encryptionKey}\n`);
+  console.log(`\nRoom Created! Room ID: ${session.roomId}\n`);
+  console.log(`\nRoom encryptionKey: ${session.encryptionKey}\n`);
 
-  await sleep(1500);
+  await coordinatorApp.setDisplayName('Original Coordinator Carl');
 
-  console.log("👨‍💻 Coordinator: Setting Room Metadata...");
+  console.log("\n==================================================");
+  console.log("🔗 LIVE DEMO READY");
+  console.log("==================================================");
+  
+  // Set this to wherever your Angular app is running
+  const UI_APP_URL = 'http://localhost:4200'; 
+  
+  console.log(`Open this link in your browser to watch live:`);
+  console.log(`${coordinatorApp.getRoomLink(UI_APP_URL, true)}\n`);
+  console.log(`Room with key: ${coordinatorApp.getRoomLink(UI_APP_URL, true)}\n`);
+
+  // Pause the script until the user hits ENTER
+  await new Promise(resolve => {
+      const rl = require('readline').createInterface({
+          input: process.stdin,
+          output: process.stdout
+      });
+      rl.question("⏸️  Press [ENTER] to execute the rest of the signing ceremony...", () => {
+          rl.close();
+          resolve();
+      });
+  });
+
+
+  // --- RECOVERY DEMO ---
+  console.log("\nTEST: Coordinator Session Recovery...");
+  
+  // Create instance (Guest)
+  const coordinatorRecoveryApp = new SigningRoomClient({ apiUrl: API_URL });
+  
+  // Join room (as guest initially)
+  await coordinatorRecoveryApp.joinRoom(session.roomId, session.encryptionKey);
+  console.log("Joined as Guest.");
+
+  await coordinatorRecoveryApp.setDisplayName('Recovery Coordinator Carl');
+
+
+  // Promote to Admin/Coordinator using the secret saved from creation
+  await coordinatorRecoveryApp.claimCoordinator(session.encryptedAdminToken);
+  console.log("Successfully reclaimed Coordinator role!");
+
+  // Now this instance can perform admin tasks
+  await coordinatorRecoveryApp.setRoomName("Reclaimed Room Name");
+
+  console.log("\nRESUMING: Triggering participant uploads...\n");
+
+
+  console.log("Coordinator: Setting Room Metadata...");
   await coordinatorApp.setRoomName("Q1 Settlement");
 
-  await sleep(1500);
 
-  console.log("\n👩‍🦰 Alice: Labeling hardware wallet...");
+  console.log("\nAlice: Labeling hardware wallet...");
   await coordinatorApp.setSignerLabel('fe0fa7b4', 'Alice\'s Coldcard MK4');
   
-  console.log("👨‍🦱 Bob: Labeling hardware wallet...");
+  console.log("\nBob: Labeling hardware wallet...");
   await coordinatorApp.setSignerLabel('57308a20', 'Bob\'s Ledger Nano X');
 
-  console.log("👱‍♂️ Charlie: Labeling hardware wallet...");
+  console.log("\nCharlie: Labeling hardware wallet...");
   await coordinatorApp.setSignerLabel('7fd7cacb', 'Charlie\'s Trezor Safe 3');
-  await sleep(1000);
 
-  console.log("👨‍💻 Coordinator: Enforcing Output/Input Whitelists...");
-  await coordinatorApp.updateWhitelist(
-      [WHITELIST_INPUT, WHITELIST_OUTPUT], 
-      'Coordinator restricted allowed addresses', 
-      'Coordinator'
-  );
-  await sleep(1000);
+
+  console.log("Coordinator: Enforcing Output/Input Whitelists...");
+  await coordinatorApp.addWhitelistAddress(WHITELIST_INPUT);
+
+  await coordinatorApp.addWhitelistAddress(WHITELIST_OUTPUT);
+
 
   // ---------------------------------------------------------
   // PHASE 2: PARTICIPANT ENTRY & PRESENCE
   // ---------------------------------------------------------
-  console.log("\n👁️  Witness: Joining to observe the ceremony...");
+  console.log("\nWitness: Joining to observe the ceremony...");
   const witnessApp = new SigningRoomClient({ apiUrl: API_URL });
   await witnessApp.joinRoom(session.roomId, session.encryptionKey);
-  await sleep(500);
-  await witnessApp.setDisplayName('Witness Wendy');
-  await sleep(500);
 
-  console.log("\n👩‍🦰 Alice: Joining Room...");
+  await witnessApp.setDisplayName('Witness Wendy');
+
+
+  console.log("\nAlice: Joining Room...");
   const aliceApp = new SigningRoomClient({ apiUrl: API_URL });
   await aliceApp.joinRoom(session.roomId, session.encryptionKey);
-  await sleep(500);
+
   await aliceApp.setDisplayName('Alice (Hardware Wallet 1)');
   
-  console.log("\n👨‍🦱 Bob: Joining Room...");
+  console.log("\nBob: Joining Room...");
   const bobApp = new SigningRoomClient({ apiUrl: API_URL });
   await bobApp.joinRoom(session.roomId, session.encryptionKey);
-  await sleep(500);
+
   await bobApp.setDisplayName('Bob (Hardware Wallet 2)');
 
-  console.log("\n👱‍♂️ Charlie: Joining Room...");
+  console.log("\nCharlie: Joining Room...");
   const charlieApp = new SigningRoomClient({ apiUrl: API_URL });
   await charlieApp.joinRoom(session.roomId, session.encryptionKey);
-  await sleep(500);
+
   await charlieApp.setDisplayName('Charlie (Hardware Wallet 3)');
-  await sleep(1000);
+
 
   await coordinatorApp.toggleLock(true, 'Coordinator'); // Lock the room to prevent new participants
-  await sleep(1000);
+
 
   // ---------------------------------------------------------
-  // PHASE 3: THRESHOLD SIGNING
+  // PHASE 3: THRESHOLD SIGNING (Fully Dynamic)
   // ---------------------------------------------------------
-  console.log("\n👩‍🦰 Alice: Uploading Signature...");
-  await aliceApp.uploadSignature(ALICE_SIGNED_PSBT, 'fe0fa7b4');
-  await sleep(800);
-
-  console.log("👨‍🦱 Bob: Uploading Signature...");
-  await bobApp.uploadSignature(BOB_SIGNED_PSBT, '57308a20');
-  await sleep(800);
-
-  console.log("👱‍♂️ Charlie: Uploading Signature (Threshold Reached!)...");
-  await charlieApp.uploadSignature(CHARLIE_SIGNED_PSBT, '7fd7cacb');
-  await sleep(1500); // Wait for the network to sync the final signature
-
-  // ---------------------------------------------------------
-  // PHASE 4: FINALIZATION
-  // ---------------------------------------------------------
-  console.log("\n🚀 FINAL TRANSACTION HEX (Ready for Broadcast):");
   
-  // Now call the facade method to perform the finalization
-  const final = coordinatorApp.finalizeTransaction();
+  const QUORUM_THRESHOLD = 3; 
+
+  const logProgress = () => {
+      const progress = coordinatorApp.getSignatureProgress();
+      const remaining = coordinatorApp.getSignaturesRemaining(QUORUM_THRESHOLD);
+      const ready = coordinatorApp.isThresholdMet();
+      
+      console.log(`Progress: ${progress.signaturesReceived} of ${progress.totalSigners} Hardware Signers Submitted`);
+      
+      // NEW: Show exactly who we are waiting for!
+      const status = coordinatorApp.getSignersStatus();
+      const pending = status.filter(s => !s.signed).map(s => s.fingerprint);
+      if (pending.length > 0) {
+          console.log(`Waiting for: ${pending.join(', ')}`);
+      }
+
+      if (ready) {
+          console.log(`Threshold Met! Ready to Finalize.`);
+      } else {
+          console.log(`Waiting for ${remaining} more signature(s)...`);
+      }
+  };
+console.log("\nAlice: Uploading Signature...");
+  const aliceFp = aliceApp.extractFingerprintFromSignature(ALICE_SIGNED_PSBT);
+  await aliceApp.uploadSignature(ALICE_SIGNED_PSBT, aliceFp);
+  // Optional: Wait for coordinator to see it just for clean console logs
+  await coordinatorApp.waitForState(s => s.signatures.length >= 1);
+  logProgress();
+
+  console.log("\nBob: Uploading Signature...");
+  const bobFp = bobApp.extractFingerprintFromSignature(BOB_SIGNED_PSBT);
+  await bobApp.uploadSignature(BOB_SIGNED_PSBT, bobFp);
+  await coordinatorApp.waitForState(s => s.signatures.length >= 2);
+  logProgress();
+
+  console.log("\nCharlie: Uploading Signature...");
+  const charlieFp = charlieApp.extractFingerprintFromSignature(CHARLIE_SIGNED_PSBT);
+  await charlieApp.uploadSignature(CHARLIE_SIGNED_PSBT, charlieFp);
   
-  if (final) {
-      console.log(`TXID: ${final.txId}`);
-      console.log(`HEX: ${final.hex.slice(0, 50)}...`);
+  // Ensure the Coordinator has fully synced the 3rd signature 
+  // before we attempt to finalize or extract the CSV!
+  await coordinatorApp.waitForState(s => s.signatures.length >= QUORUM_THRESHOLD);
+  logProgress();
+
+  // ---------------------------------------------------------
+  // PHASE 4: FINALIZATION & AUDIT & TEARDOWN
+  // ---------------------------------------------------------
+  console.log("\nFINAL TRANSACTION HEX (Ready for Broadcast):");
+  
+  if (coordinatorApp.isThresholdMet()) {
+      console.log("Coordinator: Finalizing and broadcasting to the room...");
+      
+      const final = await coordinatorApp.finalizeTransaction();
+      
+      if (final) {
+          console.log(`TXID: ${final.txId}`);
+          console.log(`HEX:  ${final.hex.slice(0, 60)}...`);
+      }
   } else {
-      console.log("Finalization failed: Threshold not met or invalid PSBT.");
+      console.log("Finalization failed: Threshold not met.");
   }
 
-  console.log("\n🔍 FINAL ROOM STATE:");
+  console.log("\nFINAL ROOM STATE:");
   const finalState = coordinatorApp.getRoomState();
   
   // Truncate the PSBT for console readability, but show the participants and governance
   const displayState = { 
+      roomId: finalState.roomId,
       roomName: finalState.roomName,
       isLocked: finalState.isLocked,
       connectedParticipants: finalState.connectedCount,
@@ -142,25 +223,47 @@ async function runIntegratorTest() {
   console.log(await coordinatorApp.getFinalTransactionHex());
   console.log("----------------------------\n");
   
-  await sleep(1000);
+
 
   console.log("\n--- SECURE AUDIT LOG CSV ---");
   console.log(coordinatorApp.getAuditLogCsv());
   console.log("----------------------------\n");
 
-  await sleep(1000);
+  console.log("\n🔍 COORDINATOR: Verifying forensic room integrity...");
+  
+  const seal = await coordinatorApp.getIntegrityReport();
+  console.log(`\n🔑 FORENSIC SEAL GENERATED: ${seal.anchor}`);
+  
+  console.log("\n🔍 COORDINATOR: Verifying forensic room integrity...");
+  const integrity = await coordinatorApp.verifyIntegrity(seal.anchor);
 
-  console.log("🔒 Coordinator: Closing the room to destroy the session...");
-  // Using the underlying relay client to broadcast the close command
-  await coordinatorApp.closeRoom('Coordinator');
-  await sleep(1000);
+  console.log(`Calculated Anchor: ${integrity.anchor}`);
+  console.log(`INTEGRITY CHECK: ${integrity.isValid ? 'PASSED ✅' : 'FAILED ❌'}`);
 
-  console.log("🧹 Test Complete. Disconnecting all SDK instances...");
+await new Promise(resolve => {
+      const rl = require('readline').createInterface({
+          input: process.stdin,
+          output: process.stdout
+      });
+      rl.question("⏸️  Press [ENTER] to execute the rest of the signing ceremony...", () => {
+          rl.close();
+          resolve();
+      });
+  });
+
+  console.log("Coordinator: Closing the room to destroy the session...");
+  await coordinatorApp.closeRoom();
+
+  console.log("Test Complete. Room successfully destroyed.");
+  
+  // Gracefully disconnect the local WebSocket instances
+  coordinatorRecoveryApp.disconnect();
   coordinatorApp.disconnect();
   witnessApp.disconnect();
   aliceApp.disconnect();
   bobApp.disconnect();
   charlieApp.disconnect();
+  
   process.exit(0);
 }
 

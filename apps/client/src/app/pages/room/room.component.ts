@@ -1881,7 +1881,7 @@ export class RoomComponent implements OnInit, OnDestroy {
             }
         });
 
-        effect(() => {
+        effect(async () => {
             const state = this.socket.roomState();
 
             if (state && state.finalTxId && state.finalTxHex && 
@@ -1892,7 +1892,7 @@ export class RoomComponent implements OnInit, OnDestroy {
                 const sanitizedState = { ...state } as any;
                 delete sanitizedState.expectedPass;
                 
-                const pdfData = this.getPdfDocument();
+                const pdfData = await this.getPdfDocument();
                 const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
 
                 this.dispatcher.emitTransactionFinalized({
@@ -2362,7 +2362,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
 
     broadcastAndCopy() {
-        this.socket.logAction('Broadcast', 'User clicked Broadcast button');
+        // this.socket.logAction('Broadcast', 'User clicked Broadcast button');
         if (this.finalHex()) {
             navigator.clipboard.writeText(this.finalHex()!);
             
@@ -2509,7 +2509,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     async executeAuditDownload() {
         this.showAuditModal.set(false);
         
-        await this.socket.logAction('Audit Export', 'Downloaded audit log');
+        //await this.socket.logAction('Audit Export', 'Downloaded audit log');
         this.dispatcher.emitDownloadTriggered('audit-log');
 
         await this.delay(1000);
@@ -2524,7 +2524,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     async executeCsvDownload() {
         this.showCsvModal.set(false);
-        await this.socket.logAction('CSV Export', 'Downloaded settlement data');
+        //await this.socket.logAction('CSV Export', 'Downloaded settlement data');
         this.dispatcher.emitDownloadTriggered('csv');
         await this.delay(1000);
         this.downloadCsv();
@@ -2560,7 +2560,7 @@ export class RoomComponent implements OnInit, OnDestroy {
         
         if (!state) return;
 
-        const { doc, filename } = RoomAuditor.generateAuditPdf(
+        const { doc, filename } = await RoomAuditor.generateAuditPdf(
             new jsPDF(), 
             state, 
             tx, 
@@ -2617,7 +2617,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     copyHex() { 
         this.doCopy(this.finalHex() || '', this.copied);
-        this.socket.logAction('Hex Copied', 'Copied final transaction hex');
+        //this.socket.logAction('Hex Copied', 'Copied final transaction hex');
         this.dispatcher.emitDataCopied('final-hex');
     }
 

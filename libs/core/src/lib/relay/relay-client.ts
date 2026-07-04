@@ -35,12 +35,21 @@ export class RelayClient {
     };
   }
 
-  /**
+   /**
    * Automatically computes the BIP-compliant Blind Pass and establishes the WebSocket connection.
    */
-  public async joinRoom(wsBaseUrl: string, roomId: string, key: string, version: string) {
-    this.setKey(key);
-    const roomPass = key ? await this.crypto.blindData(roomId, key) : '';
+    public async joinRoom(wsBaseUrl: string, roomId: string, key: string, version: string) {
+    let cleanKey = key.trim(); 
+      
+    if (cleanKey.includes('%')) {
+        try { 
+            cleanKey = decodeURIComponent(cleanKey); 
+        } catch (e) {}
+    }
+
+    this.setKey(cleanKey);
+      
+    const roomPass = cleanKey ? await this.crypto.blindData(roomId, cleanKey) : '';
     const url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${version}&pass=${roomPass}`;
     this.connect(url);
   }

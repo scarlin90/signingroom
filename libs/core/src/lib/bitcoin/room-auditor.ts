@@ -1,5 +1,5 @@
 import { SignerStatus, TxDetails } from './psbt-utils';
-import { RoomState } from '../relay/room-state-store';
+import { RoomState, AuditEntry } from '../relay/room-state-store';
 import { jsPDF } from 'jspdf';
 
 export class RoomAuditor {
@@ -59,13 +59,13 @@ export class RoomAuditor {
         return encodedUri;
     }
 
-    static generateAuditPdf(
+    static async generateAuditPdf(
         doc: jsPDF, 
         state: RoomState, 
         tx: TxDetails | null, 
         signers: SignerStatus[], 
         finalHex: string | null
-    ): { doc: jsPDF, filename: string } {
+    ): Promise<{ doc: jsPDF, filename: string }> {
         
         let y = 20;
         const checkPageBreak = (spaceNeeded: number) => {
@@ -410,9 +410,12 @@ export class RoomAuditor {
         // FOOTER
         // =========================================================
         if (finalHex) {
+            const anchor = await this.calculateForensicAnchor(state.auditLog, finalHex);
             checkPageBreak(20);
             doc.setFontSize(8);
             doc.setTextColor(150);
+            doc.text(`Forensic Integrity Anchor (SHA256): ${anchor}`, 20, y);
+            y += 5;
             doc.text(`Final Tx Hash (SHA256 of Hex): Verified`, 20, y);
         }
 
@@ -423,5 +426,64 @@ export class RoomAuditor {
         const filename = `SigningRoom_Audit_${dateStr}_Room-${shortId}_Tx-${txSuffix}.pdf`;
 
         return { doc, filename };
+    }
+
+    static async calculateForensicAnchor(auditLog: AuditEntry[], finalTxHex: string): Promise<string> {
+        // Convert AuditEntry objects into a deterministic string array
+        // We sort by timestamp to ensure the order is always the same regardless of arrival
+        const sortedLog = [...auditLog].sort((a, b) => a.timestamp - b.timestamp);
+        
+        // Map participants and logs using a strictly deterministic order
+        // Do not use toLocaleTimeString() or toLocaleDateString() as these are locale-dependent!
+        const logStrings = sortedLog.map(entry => {
+            return `${new Date(entry.timestamp).toISOString()}|${entry.event}|${entry.user}|${entry.detail || ''}`;
+        });
+
+        // Concatenate: Audit Log Strings + Final Transaction Hex
+        const payload = logStrings.join('') + finalTxHex;
+        
+        // Create SHA-256 Hash
+        const encoder = new TextEncoder();
+        const data = encoder.encode(payload);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        
+        return Array.from(new Uint8Array(hashBuffer))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+    }
+
+    /**
+     * Verifies that the audit log and transaction hex are cryptographically bound
+     * to a previously recorded forensic anchor.
+     */
+    static async verifyRoomIntegrity(
+        state: RoomState, 
+        expectedAnchor: string
+    ): Promise<{ anchor: string, isValid: boolean }> {
+        
+        if (!state.finalTxHex || !state.auditLog) {
+            throw new Error("Room not finalized or audit log missing");
+        }
+        
+        // Re-calculate the anchor using the current log and transaction data
+        const calculatedAnchor = await this.calculateForensicAnchor(state.auditLog, state.finalTxHex);
+        
+        // Perform the cryptographic integrity check
+        // We compare the re-calculated anchor against the one captured at finalization
+        const isValid = calculatedAnchor === expectedAnchor;
+        
+        return { 
+            anchor: calculatedAnchor, 
+            isValid: isValid 
+        };
+    }
+
+    static async getIntegrityReport(state: RoomState): Promise<{ anchor: string, timestamp: string }> {
+        if (!state.finalTxHex || !state.auditLog) throw new Error("Room not finalized");
+        
+        return {
+            anchor: await this.calculateForensicAnchor(state.auditLog, state.finalTxHex),
+            timestamp: new Date().toISOString()
+        };
     }
 }
