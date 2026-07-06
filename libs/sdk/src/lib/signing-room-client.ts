@@ -2,16 +2,26 @@ import { EncryptionEngine } from './crypto/encryption-engine';
 import { RelayClient } from './relay/relay-client';
 import { RoomStateStore, RoomState } from './relay/room-state-store';
 import { RoomFactory } from './relay/room-factory';
-import { RoomEventBus, RoomEvent } from './events/room-event-bus';
+import { RoomEvent } from './events/room-event-bus';
 import { RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils } from './bitcoin/psbt-utils';
 import { Observable } from 'rxjs';
 
+/**
+ * Configuration schema for initializing the SigningRoom SDK client.
+ */
 export interface SigningRoomConfig {
+  /** The base URL of the SigningRoom signaling API. */
   apiUrl: string;
+  /** Optional version tag to ensure compatibility with backend protocol updates. */
   protocolVersion?: string;
 }
 
+/**
+ * The primary entry point for the SigningRoom SDK.
+ * Facilitates room orchestration, cryptographic key management, relay coordination,
+ * and automated state synchronization across the collaborative lifecycle.
+ */
 export class SigningRoomClient {
   public readonly engine: EncryptionEngine;
   public readonly relay: RelayClient;
@@ -20,9 +30,13 @@ export class SigningRoomClient {
   private apiUrl: string;
   private protocolVersion: string;
   private _sessionId: string | null = null;
-  private _role = 'guest';
+  private _role: 'admin' | 'guest' = 'guest';
   private _encryptionKey: string | null = null;
 
+  /**
+   * Initializes a new SigningRoom client.
+   * @param config - The API configuration and optional protocol versioning.
+   */
   constructor(config: SigningRoomConfig) {
     this.apiUrl = config.apiUrl.replace(/\/$/, '');
     this.protocolVersion = config.protocolVersion || '1.0.0';
@@ -31,16 +45,12 @@ export class SigningRoomClient {
     this.relay = new RelayClient(this.engine);
     this.store = new RoomStateStore(this.relay.events);
 
-    // Listen for the session ID assignment from the relay
     this.relay.events.on('SESSION_CONNECTED').subscribe((e) => {
       this._sessionId = e.payload;
     });
 
-    // Listen for role elevation (admin/guest)
     this.relay.events.on('ROLE_UPDATE').subscribe(async (e) => {
       const newRole = e.payload;
-
-      // Announce Role Claimed if transitioning from guest to admin
       if (this._role === 'guest' && newRole === 'admin') {
         await this.logParticipantAction(
           'Role Claimed Coordinator',
@@ -48,26 +58,38 @@ export class SigningRoomClient {
           'Coordinator',
         );
       }
-
       this._role = newRole;
     });
   }
 
+  /**
+   * Returns a human-readable identifier for the current user's session and role.
+   */
   public get userContext(): string {
-    if (this._role === 'admin') return 'Coordinator';
-    return `Guest (${this._sessionId || 'Unknown'})`;
+    return this._role === 'admin' ? 'Coordinator' : `Guest (${this._sessionId || 'Unknown'})`;
   }
 
+  /**
+   * Provides an observable stream of room state changes for UI reactivity.
+   */
   public onStateChange(): Observable<RoomEvent> {
     return this.relay.events.on('STATE_CHANGED');
   }
 
-  // --- STATE ACCESS ---
+  /**
+   * Retrieves the current, synchronized state of the room.
+   */
   public getRoomState(): RoomState | null {
     return this.store.getState();
   }
 
-  // --- ROOM LIFECYCLE ---
+  /**
+   * Orchestrates the creation of a new collaborative cryptographic room.
+   * @param psbtBase64 - The initial, unsigned PSBT string.
+   * @param network - The target Bitcoin network (mainnet, testnet, or signet).
+   * @param roomName - The display name for the room.
+   * @returns The room's access credentials including the admin secret.
+   */
   public async createRoom(
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet',
@@ -91,7 +113,6 @@ export class SigningRoomClient {
 
     if (!res.ok) throw new Error(`Failed to create room: ${await res.text()}`);
 
-    // Wait for the WS Handshake
     const connectionPromise = new Promise<void>((resolve) => {
       const sub = this.relay.events.on('ROOM_CONNECTED').subscribe(() => {
         sub.unsubscribe();
@@ -99,7 +120,6 @@ export class SigningRoomClient {
       });
     });
 
-    // Wait for Role Escalation
     const rolePromise = new Promise<void>((resolve) => {
       const sub = this.relay.events.on('ROLE_UPDATE').subscribe(() => {
         sub.unsubscribe();
@@ -130,6 +150,11 @@ export class SigningRoomClient {
     };
   }
 
+  /**
+   * Joins an existing room using its unique ID and encryption key.
+   * @param roomId - Unique identifier for the room.
+   * @param encryptionKey - The shared secret key for the room.
+   */
   public async joinRoom(roomId: string, encryptionKey: string) {
     this._encryptionKey = encryptionKey;
     const connectionPromise = new Promise<void>((resolve) => {
@@ -144,34 +169,42 @@ export class SigningRoomClient {
     await this.relay.joinRoom(wsUrl, roomId, encryptionKey, this.protocolVersion);
 
     await connectionPromise;
-
-    // Wait a tiny tick to ensure the worker's SESSION_CONNECTED payload was processed
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     await this.logParticipantAction('User Joined', `Session: ${this._sessionId}`);
   }
 
-  /** Update the room name (e.g., "Q1 Settlement") */
+  /** * Updates the display name of the room.
+   * @param name - The new room name.
+   */
   public async setRoomName(name: string) {
     const confirmation = this.waitForEvent('ROOM_RENAMED_DECRYPTED');
     await this.relay.renameRoom(name, this.userContext);
     await confirmation;
   }
 
+  /** * Toggles the room's locked status to restrict participant access.
+   * @param isLocked - Boolean toggle for room lock.
+   */
   public async toggleLock(isLocked: boolean) {
     const confirmation = this.waitForEvent('LOCK_UPDATED');
     await this.relay.toggleLock(isLocked, this.userContext);
     await confirmation;
   }
 
+  /** * Uploads a partial signature to the room for the specified hardware wallet.
+   * @param psbtBase64 - The partial PSBT payload.
+   * @param fingerprint - The hardware device's master key fingerprint.
+   */
   public async uploadSignature(psbtBase64: string, fingerprint: string) {
     const confirmation = this.waitForEvent('NEW_PARTIAL_DECRYPTED');
     await this.relay.uploadSignature(psbtBase64, fingerprint, this.userContext);
     await confirmation;
   }
 
-  // --- IDENTITY & LABELLING ---
-
+  /** * Records a secure audit trail event for the current room state.
+   * @param action - Human-readable label of the action.
+   * @param detail - Supplementary information about the action.
+   * @param overrideRole - Optional role override for audit reporting.
+   */
   public async logParticipantAction(action: string, detail: string, overrideRole?: string) {
     const roleContext =
       overrideRole || (this._role === 'admin' ? 'Coordinator' : `Guest (${this._sessionId})`);
@@ -180,7 +213,9 @@ export class SigningRoomClient {
     this.relay.send('LOG_ACTION', { encryptedLogBlob: blob });
   }
 
-  /** Updates the display name for the current participant session */
+  /** * Updates the display name for the current participant session.
+   * @param name - The new display name.
+   */
   public async setDisplayName(name: string) {
     const confirmation = this.waitForEvent('PARTICIPANTS_DECRYPTED');
     await this.relay.setDisplayName(name);
@@ -188,34 +223,37 @@ export class SigningRoomClient {
     await confirmation;
   }
 
-  /** Labels a specific hardware device/fingerprint (e.g., "Alice's Coldcard") */
+  /** * Assigns a human-readable label to a hardware device fingerprint.
+   * @param fingerprint - The master key fingerprint.
+   * @param label - The label to apply.
+   */
   public async setSignerLabel(fingerprint: string, label: string) {
     const confirmation = this.waitForEvent('LABELS_DECRYPTED');
     await this.relay.updateSignerLabel(fingerprint, label, this.userContext);
     await confirmation;
   }
 
-  /** * Destroys the room on the server and ejects all participants.
+  /** * Closes the room session, ejecting all participants and wiping temporary relay state.
    * Only the Coordinator can execute this.
    */
   public async closeRoom() {
     const confirmation = this.waitForEvent('ROOM_CLOSED');
-
     this.relay.closeRoom();
-
     await confirmation;
   }
 
-  // --- AUDIT & COMPLIANCE ---
+  /** * Generates a CSV-formatted export of the current audit trail.
+   * @returns A CSV string containing the room's event history.
+   */
   public getAuditLogCsv(): string {
     const state = this.getRoomState();
     if (!state) return '';
     return RoomAuditor.getAuditLogCsvData(state);
   }
 
-  // --- GOVERNANCE & SECURITY ---
-
-  /** Coordinator: Restrict transactions to specific addresses */
+  /** * Coordinator: Restricts transactions to a specific allowlist of addresses.
+   * @param address - The target bitcoin address to whitelist.
+   */
   public async addWhitelistAddress(address: string) {
     const state = this.getRoomState();
     const currentList = state?.whitelist || [];
@@ -229,6 +267,10 @@ export class SigningRoomClient {
     await confirmation;
   }
 
+  /** * Batch updates the whitelist allowlist.
+   * @param addresses - Array of addresses to add or remove.
+   * @param remove - Toggle to either add (false) or remove (true) addresses.
+   */
   public async updateWhitelistBatch(addresses: string[], remove: boolean = false) {
     const state = this.getRoomState();
     const currentList = state?.whitelist || [];
@@ -248,60 +290,54 @@ export class SigningRoomClient {
     await confirmation;
   }
 
-  // --- FINALIZATION ---
-
   /**
    * Finalizes the PSBT, updates local state, and automatically broadcasts
    * the finalized transaction to the room so all participants sync.
    * Guarantees the forensic audit log is sealed before resolving.
+   * @returns A Promise resolving to the finalized hex and transaction ID, or null if the PSBT is invalid.
    */
   public async finalizeTransaction(): Promise<{ hex: string; txId: string } | null> {
     const state = this.getRoomState();
     if (!state) return null;
 
-    // Calculate locally
     const result = PsbtUtils.finalizeTx(state.psbt);
 
     if (result) {
-      // Update local state immediately for snappy UI
       this.store.update((s) => ({ ...s!, finalTxHex: result.hex, finalTxId: result.txId }));
 
-      //  Wait for the server to confirm the Log Entry has been appended
       const confirmation = this.waitForState((s) =>
         s.auditLog.some((log) => log.event === 'Tx Finalized'),
       );
 
-      // Broadcast to network
       await this.relay.broadcastFinalization(result.hex, result.txId, this.userContext);
-
-      // Block until the log is confirmed
       await confirmation;
     }
 
     return result;
   }
 
-  /** Returns the finalized transaction hex if the threshold has been reached */
+  /** * Returns the finalized transaction hex if the threshold has been reached.
+   */
   public getFinalTransactionHex(): string | null {
     const state = this.store.getState();
     return state?.finalTxHex || null;
   }
 
+  /** * Gracefully closes the connection to the relay server.
+   */
   public disconnect() {
     this.relay.gracefullyDisconnect(null);
   }
 
-  // --- PSBT & THRESHOLD TRACKING ---
-
   /**
    * Returns the current progress of the signing ceremony.
    * Extracts the total hardware signers from the PSBT script and compares to received signatures.
+   * @returns Signature progress metrics.
    */
   public getSignatureProgress(): { totalSigners: number; signaturesReceived: number } {
     const state = this.getRoomState();
     if (!state || !state.psbt) return { totalSigners: 0, signaturesReceived: 0 };
 
-    // Use PsbtUtils to extract the total number of physical keys in the quorum
     const analysis = PsbtUtils.analyze(state.psbt);
 
     return {
@@ -311,14 +347,12 @@ export class SigningRoomClient {
   }
 
   /**
-   * Dynamically evaluates if the aggregated PSBT has met the required script threshold (e.g. 2-of-2, 3-of-5).
+   * Dynamically evaluates if the aggregated PSBT has met the required script threshold.
+   * @returns True if the transaction can be finalized.
    */
   public isThresholdMet(): boolean {
     const state = this.getRoomState();
     if (!state || !state.psbt) return false;
-
-    // If PsbtUtils can successfully extract a final hex without throwing an error,
-    // it mathematically guarantees the signature threshold has been met!
     return PsbtUtils.finalizeTx(state.psbt) !== null;
   }
 
@@ -335,30 +369,28 @@ export class SigningRoomClient {
     return Math.max(0, remaining);
   }
 
-  // --- TRANSACTION PARSING (DX HELPERS) ---
-
-  /** Returns full parsed transaction details (Inputs, Outputs, Fees) */
+  /** * Returns full parsed transaction details (Inputs, Outputs, Fees).
+   */
   public getTransactionDetails() {
     const state = this.getRoomState();
     if (!state || !state.psbt) return null;
-
-    // The facade automatically knows the network from the room state!
     return PsbtUtils.parseTxDetails(state.psbt, state.network);
   }
 
+  /** Returns the list of outputs for the current PSBT. */
   public getOutputs() {
     return this.getTransactionDetails()?.outputs || [];
   }
 
+  /** Returns the list of inputs for the current PSBT. */
   public getInputs() {
     return this.getTransactionDetails()?.inputsList || [];
   }
 
+  /** Returns the calculated network fee for the current transaction in satoshis. */
   public getNetworkFee(): number {
     return this.getTransactionDetails()?.fee || 0;
   }
-
-  // --- SIGNER & HARDWARE (DX HELPERS) ---
 
   /** * Returns a list of all required hardware fingerprints for this transaction,
    * and a boolean indicating if their signature has been provided yet.
@@ -366,19 +398,20 @@ export class SigningRoomClient {
   public getSignersStatus() {
     const state = this.getRoomState();
     if (!state || !state.psbt) return [];
-
     return PsbtUtils.extractSigners(state.psbt);
   }
 
   /**
-   * Utility for integrators: Pass a newly signed PSBT file to this method
-   * to extract the hardware fingerprint *before* uploading it to the room.
+   * Extracts the hardware fingerprint from a signed PSBT before uploading it to the room.
+   * @param signedPsbtBase64 - The signed PSBT payload.
    */
   public extractFingerprintFromSignature(signedPsbtBase64: string): string | null {
     return PsbtUtils.getFingerprintFromPsbt(signedPsbtBase64);
   }
 
-  /** Helper to wait for a specific server response event before resolving */
+  /** * Internal helper to wait for a specific server response event before resolving.
+   * @param eventType - The event key to listen for.
+   */
   private waitForEvent(eventType: any): Promise<void> {
     return new Promise((resolve) => {
       const sub = this.relay.events.on(eventType).subscribe(() => {
@@ -388,29 +421,22 @@ export class SigningRoomClient {
     });
   }
 
-  // --- STATE SYNCHRONIZATION HELPERS ---
-
   /**
    * Pauses execution until the RoomState satisfies a provided condition.
    * Excellent for UI transitions and integration testing.
-   * * @param condition A function that evaluates the current RoomState
-   * @param timeoutMs Max time to wait before rejecting (default 10s)
+   * @param condition A function that evaluates the current RoomState.
+   * @param timeoutMs Max time to wait before rejecting (default 10s).
    */
   public waitForState(condition: (state: RoomState) => boolean, timeoutMs = 10000): Promise<void> {
     return new Promise((resolve, reject) => {
-      // 1. Check if the condition is already met
       const currentState = this.getRoomState();
-      if (currentState && condition(currentState)) {
-        return resolve();
-      }
+      if (currentState && condition(currentState)) return resolve();
 
-      // 2. Set a timeout so it doesn't hang forever
       const timer = setTimeout(() => {
         sub.unsubscribe();
         reject(new Error('waitForState condition timed out'));
       }, timeoutMs);
 
-      // 3. Listen to the reactive state stream
       const sub = this.onStateChange().subscribe(() => {
         const state = this.getRoomState();
         if (state && condition(state)) {
@@ -423,8 +449,8 @@ export class SigningRoomClient {
   }
 
   /** * Generates a sharing link for the room.
-   * @param appBaseUrl The base URL of your web UI (e.g., 'http://localhost:4200' or 'https://myapp.com')
-   * @param includeKey Whether to include the decryption key in the URL hash (default: false)
+   * @param appBaseUrl The base URL of your web UI.
+   * @param includeKey Whether to include the decryption key in the URL hash.
    */
   public getRoomLink(appBaseUrl: string, includeKey: boolean = false): string | null {
     const state = this.getRoomState();
@@ -432,7 +458,6 @@ export class SigningRoomClient {
 
     let link = `${appBaseUrl.replace(/\/$/, '')}/room/${state.roomId}`;
     if (includeKey && this._encryptionKey) {
-      // Angular expects the hash format: #key=...
       link += `#${encodeURIComponent(this._encryptionKey)}`;
     }
     return link;
@@ -447,7 +472,6 @@ export class SigningRoomClient {
   ): Promise<{ anchor: string; isValid: boolean }> {
     const state = this.getRoomState();
     if (!state) throw new Error('No room state available to verify.');
-
     return await RoomAuditor.verifyRoomIntegrity(state, expectedAnchor);
   }
 
@@ -462,6 +486,9 @@ export class SigningRoomClient {
     return await RoomAuditor.calculateForensicAnchor(state.auditLog, state.finalTxHex);
   }
 
+  /**
+   * Retrieves a full cryptographic integrity report for the current room state.
+   */
   public async getIntegrityReport() {
     const state = this.getRoomState();
     if (!state) throw new Error('No state');
@@ -476,11 +503,8 @@ export class SigningRoomClient {
     if (this.store.getState() === null) {
       throw new Error('Must join room before claiming coordinator role.');
     }
-
-    // Send the AUTH message
     this.relay.send('AUTH', { token: adminSecret });
 
-    // wait for the state role to update
     await this.waitForState((state) => {
       if (!this._sessionId || !state.participants) return false;
       return state.participants[this._sessionId]?.role === 'admin';

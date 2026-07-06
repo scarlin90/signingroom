@@ -8,14 +8,17 @@ echo "🚀 RUNNING CLIENT TESTS"
 echo "------------------------------------------------------"
 npx nx run client:test --ci --code-coverage=true --watch=false
 
+echo ""
+echo "------------------------------------------------------"
+echo "🚀 RUNNING SDK TESTS"
+echo "------------------------------------------------------"
+npx nx run sdk:test --ci --code-coverage=true --watch=false
+
 echo "------------------------------------------------------"
 echo "🚀 RUNNING WORKER TESTS"
 echo "------------------------------------------------------"
 # Using --ci and --code-coverage=true
 npx nx run worker:test --ci --code-coverage=true --watch=false -- --max-workers=1
-
-echo ""
-echo "✅ All test suites passed coverage requirements."
 
 echo "------------------------------------------------------"
 echo "🚀 RUNNING END-TO-END TESTS (PLAYWRIGHT)"

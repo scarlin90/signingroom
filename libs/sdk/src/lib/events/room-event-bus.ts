@@ -1,7 +1,7 @@
 import { Subject, Observable } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
-export type RoomEventType = 
+export type RoomEventType =
   | 'ROOM_CONNECTED'
   | 'ROOM_DISCONNECTED'
   | 'ROOM_CREATED'
@@ -12,9 +12,6 @@ export type RoomEventType =
   | 'SECURITY_ALERT'
   | 'ERROR'
   | 'RAW_MESSAGE'
-  | 'STATE_SYNC_DECRYPTED'
-  | 'NEW_PARTIAL_DECRYPTED'
-  | 'DECRYPTION_ERROR'
   | 'STATE_SYNC_DECRYPTED'
   | 'NEW_PARTIAL_DECRYPTED'
   | 'DECRYPTION_ERROR'
@@ -34,27 +31,48 @@ export type RoomEventType =
   | 'TOGGLE_LOCK'
   | 'UPDATE_LABEL';
 
+/**
+ * Represents an individual event emitted inside a live collaboration room session workspace.
+ */
 export interface RoomEvent {
+  /** The distinct string identifier classifying the event category. */
   type: RoomEventType;
+  /** Optional contextual payload structure matching the unique demands of the event type. */
   payload?: any;
 }
 
+/**
+ * Central broker implementation providing decoupled RxJS-based reactive event lines.
+ * Enables the library kernel to transparently dispatch signals to listening host platforms (such as Angular apps).
+ */
 export class RoomEventBus {
+  /** Internal streaming subject piping incoming signals down active subscriber branches. */
   private eventsSubject = new Subject<RoomEvent>();
 
-  // Internal method for the library to emit events to the apps
+  /**
+   * Publishes an event to the messaging bus layout, casting it to all current observers.
+   * Typically used internally by the SDK module components.
+   * * @param type - The exact event classifier tag.
+   * @param payload - Optional extra metadata parameters associated with the operation scope.
+   */
   public dispatch(type: RoomEventType, payload?: any): void {
     this.eventsSubject.next({ type, payload });
   }
 
-  // External method for apps (like Angular) to subscribe to specific events
+  /**
+   * Generates a reactive channel filtered down to an isolated event string type.
+   * * @param eventType - The target event indicator to listen for.
+   * @returns An RxJS Observable yielding exclusive target events.
+   */
   public on(eventType: RoomEventType): Observable<RoomEvent> {
-    return this.eventsSubject.asObservable().pipe(
-      filter(event => event.type === eventType)
-    );
+    return this.eventsSubject.asObservable().pipe(filter((event) => event.type === eventType));
   }
 
-  // External method for apps to subscribe to ALL events (useful for your Audit Logs)
+  /**
+   * Generates an un-filtered event stream listening to every message running across the bus architecture.
+   * Perfect for building centralized auditing engines, telemetry logs, or state synchronizers.
+   * * @returns An RxJS Observable catching all events moving across the channel surface.
+   */
   public onAll(): Observable<RoomEvent> {
     return this.eventsSubject.asObservable();
   }
