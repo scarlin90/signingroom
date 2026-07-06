@@ -21,8 +21,8 @@
       "@signing-room/embed": [
         "embed/src/index.ts"
       ],
-      "@signing-room/core": [
-        "./libs/core/src/index.ts"
+      "@signing-room/sdk": [
+        "./libs/sdk/src/index.ts"
       ]
     }
   },

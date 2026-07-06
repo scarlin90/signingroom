@@ -10,7 +10,7 @@ import { base64, hex, bech32, bech32m } from '@scure/base';
 import { environment } from '../../../environments/environment';
 import { EncryptionService } from '../encryption/encryption.service';
 import { Subject } from 'rxjs';
-import { RelayClient, EncryptionEngine, PsbtUtils, RoomStateStore, TxDetails, RoomState } from '@signing-room/core';
+import { RelayClient, EncryptionEngine, PsbtUtils, RoomStateStore, TxDetails, RoomState } from '@signing-room/sdk';
 
 // -------------------------------------------------------------------------
 // Constants

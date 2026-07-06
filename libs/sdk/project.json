@@ -1,7 +1,7 @@
 {
-  "name": "core",
+  "name": "sdk",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "libs/core/src",
+  "sourceRoot": "libs/sdk/src",
   "projectType": "library",
   "release": {
     "version": {
@@ -21,9 +21,9 @@
     },
     "test": {
       "executor": "@nx/vitest:test",
-      "outputs": ["{workspaceRoot}/coverage/libs/core"],
+      "outputs": ["{workspaceRoot}/coverage/libs/sdk"],
       "options": {
-        "vitestConfig": "libs/core/vite.config.mts"
+        "vitestConfig": "libs/sdk/vite.config.mts"
       }
     }
   }

@@ -7,7 +7,7 @@ import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
-  cacheDir: '../../node_modules/.vite/libs/core',
+  cacheDir: '../../node_modules/.vite/libs/sdk',
   plugins: [nxViteTsPaths(), nxCopyAssetsPlugin(['*.md']), dts({ entryRoot: 'src', tsconfigPath: path.join(import.meta.dirname, 'tsconfig.lib.json'), pathsToAliases: false })],
   // Uncomment this if you are using workers.
   // worker: {
@@ -16,7 +16,7 @@ export default defineConfig(() => ({
   // Configuration for building your library.
   // See: https://vite.dev/guide/build.html#library-mode
   build: {
-    outDir: '../../dist/libs/core',
+    outDir: '../../dist/libs/sdk',
     emptyOutDir: true,
     reportCompressedSize: true,
     commonjsOptions: {
@@ -44,7 +44,7 @@ export default defineConfig(() => ({
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     reporters: ['default'],
     coverage: {
-      reportsDirectory: '../../coverage/libs/core',
+      reportsDirectory: '../../coverage/libs/sdk',
       provider: 'v8' as const,
     }
   },

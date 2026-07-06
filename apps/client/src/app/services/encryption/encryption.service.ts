@@ -13,7 +13,7 @@
  */
 
 import { Injectable } from '@angular/core';
-import { EncryptionEngine } from '@signing-room/core';
+import { EncryptionEngine } from '@signing-room/sdk';
 
 @Injectable({ providedIn: 'root' })
 export class EncryptionService {

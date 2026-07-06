@@ -5,7 +5,7 @@ if (typeof TextEncoder === 'undefined') {
     global.TextDecoder = TextDecoder;
 }
 global.WebSocket = require('ws'); 
-const { SigningRoomClient } = require('./dist/libs/core');
+const { SigningRoomClient } = require('./dist/libs/sdk');
 
 const API_URL = 'http://localhost:8787'; 
 

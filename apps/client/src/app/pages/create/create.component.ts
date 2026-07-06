@@ -11,7 +11,7 @@ import { Title, Meta } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { Transaction } from '@scure/btc-signer';
 import { base64, hex } from '@scure/base';
-import { RelayClient, EncryptionEngine, PsbtUtils, RoomFactory, PsbtAnalysis } from '@signing-room/core';
+import { RelayClient, EncryptionEngine, PsbtUtils, RoomFactory, PsbtAnalysis } from '@signing-room/sdk';
 
 import { 
   LucideAngularModule, Zap, Check, Loader2, 

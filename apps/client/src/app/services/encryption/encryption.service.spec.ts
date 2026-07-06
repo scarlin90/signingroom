@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EncryptionService } from './encryption.service';
-import { EncryptionEngine } from '@signing-room/core';
+import { EncryptionEngine } from '@signing-room/sdk';
 
 describe('EncryptionService (Angular Wrapper)', () => {
   let service: EncryptionService;

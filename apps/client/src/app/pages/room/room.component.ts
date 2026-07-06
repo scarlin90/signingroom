@@ -22,7 +22,7 @@ import { UrService } from '../../services/ur/ur.service';
 import { base64, hex } from '@scure/base';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
-import { RoomAuditor } from 'libs/core/src/lib/bitcoin/room-auditor';
+import { RoomAuditor } from '@signing-room/sdk';
 
 @Component({
   selector: 'app-room',
