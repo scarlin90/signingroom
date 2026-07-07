@@ -1,7 +1,7 @@
 import { EncryptionEngine } from './crypto/encryption-engine';
 import { RelayClient } from './relay/relay-client';
 import { RoomStateStore, RoomState } from './relay/room-state-store';
-import { RoomFactory } from './relay/room-factory';
+import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
 import { RoomEvent } from './events/room-event-bus';
 import { RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils } from './bitcoin/psbt-utils';
@@ -112,6 +112,23 @@ export class SigningRoomClient {
     });
 
     if (!res.ok) throw new Error(`Failed to create room: ${await res.text()}`);
+
+    return payload;
+  }
+
+  /**
+   * Orchestrates the creation of a new collaborative cryptographic room and joins as coordinator.
+   * @param psbtBase64 - The initial, unsigned PSBT string.
+   * @param network - The target Bitcoin network (mainnet, testnet, or signet).
+   * @param roomName - The display name for the room.
+   * @returns The room's access credentials including the admin secret.
+   */
+  public async createRoomAndJoin(
+    psbtBase64: string,
+    network: 'bitcoin' | 'testnet' | 'signet',
+    roomName = 'Untitled Room',
+  ) {
+    const payload: RoomCreationPayload = await this.createRoom(psbtBase64, network, roomName);
 
     const connectionPromise = new Promise<void>((resolve) => {
       const sub = this.relay.events.on('ROOM_CONNECTED').subscribe(() => {

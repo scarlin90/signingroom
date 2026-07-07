@@ -116,13 +116,13 @@ describe('SigningRoomClient', () => {
     expect(client.getRoomState()).toBeNull();
   });
 
-  describe('createRoom', () => {
+  describe('createRoomAndJoin', () => {
     it('should successfully create a room', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
       });
 
-      const result = await client.createRoom('psbt-base64', 'bitcoin', 'Test Room');
+      const result = await client.createRoomAndJoin('psbt-base64', 'bitcoin', 'Test Room');
 
       expect(RoomFactory.prepareCreationPayload).toHaveBeenCalled();
       expect(mockStore.init).toHaveBeenCalled();
@@ -136,13 +136,13 @@ describe('SigningRoomClient', () => {
       });
     });
 
-    it('should throw an error on createRoom when the API request fails', async () => {
+    it('should throw an error on createRoomAndJoin when the API request fails', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         text: async () => 'Server Error',
       });
 
-      await expect(client.createRoom('psbt', 'bitcoin')).rejects.toThrow(
+      await expect(client.createRoomAndJoin('psbt', 'bitcoin')).rejects.toThrow(
         'Failed to create room: Server Error',
       );
     });
@@ -345,7 +345,7 @@ describe('SigningRoomClient', () => {
 
   it('should throw error when room creation fetch fails', async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, text: async () => 'API Error' });
-    await expect(client.createRoom('psbt', 'bitcoin')).rejects.toThrow(
+    await expect(client.createRoomAndJoin('psbt', 'bitcoin')).rejects.toThrow(
       'Failed to create room: API Error',
     );
   });
