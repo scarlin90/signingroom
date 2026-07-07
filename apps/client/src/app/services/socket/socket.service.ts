@@ -3,7 +3,8 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, Inject, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Transaction, NETWORK, TEST_NETWORK, Address } from '@scure/btc-signer';
 import { base64, hex, bech32, bech32m } from '@scure/base';
@@ -43,6 +44,8 @@ export class SocketService {
   private hasAnnouncedJoin = false;
   public securityAlert$ = new Subject<{ type: 'access_denied'; count: number }>();
   private failedKeyAttempts = 0;
+  public isBrowser: boolean;
+  private isConnecting = false;
 
   // -------------------------------------------------------------------------
   // Signals
@@ -100,15 +103,23 @@ export class SocketService {
   constructor(
     private http: HttpClient,
     private encryption: EncryptionService,
+    @Inject(PLATFORM_ID) private platformId: Object,
   ) {
+    this.isBrowser = isPlatformBrowser(this.platformId);
+
     this.sdk = new SigningRoomClient({
       apiUrl: environment.apiUrl,
-      protocolVersion: '1.0.0',
+      protocolVersion: PROTOCOL_VERSION,
     });
 
-    this.engine = this.encryption.getEngine();
-    this.relay = new RelayClient(this.engine);
-    this.store = new RoomStateStore(this.relay.events);
+    this.engine = this.sdk.engine;
+    this.relay = this.sdk.relay;
+    this.store = this.sdk.store;
+
+    this.sdk.onStateChange().subscribe((state) => {
+      // Ignore the event envelope and pull the guaranteed fresh state from the SDK getter
+      this.roomState.set(this.sdk.getRoomState());
+    });
 
     this.relay.events.on('ROOM_CONNECTED').subscribe(() => {
       this.status.set('connected');
@@ -117,7 +128,7 @@ export class SocketService {
     this.relay.events.on('DECRYPTION_ERROR').subscribe((e) => {
       this.decryptionError.set(e.payload);
       this.setRoomKey(null);
-      this.disconnect(false);
+      this.disconnect();
     });
 
     this.relay.events.on('STATE_CHANGED').subscribe((e) => {
@@ -130,7 +141,7 @@ export class SocketService {
 
       if (!this.hasAnnouncedJoin && this.currentSessionId() && !hasAdminToken) {
         this.hasAnnouncedJoin = true;
-        this.relay.logAction('User Joined', `Session: ${this.currentSessionId()}`, 'Guest');
+        //this.relay.logAction('User Joined', `Session: ${this.currentSessionId()}`, 'Guest');
       }
     });
 
@@ -207,17 +218,17 @@ export class SocketService {
       this.isClosed.set(true);
       const roomToClear = this.roomState()?.roomId;
       if (roomToClear) this.clearLocalRoomData(roomToClear);
-      this.disconnect(false);
+      this.disconnect();
     });
 
     this.relay.events.on('PROTOCOL_ERROR').subscribe((e) => {
       const errorType = e.payload.type;
       if (errorType === 'locked') {
         this.isLockedOut.set(true);
-        this.disconnect(false);
+        this.disconnect();
       } else if (errorType === 'not_found') {
         this.roomNotFound.set(true);
-        this.disconnect(false);
+        this.disconnect();
       } else if (errorType === 'version_mismatch') {
         this.fallbackVersion = e.payload.roomVersion;
       }
@@ -230,13 +241,13 @@ export class SocketService {
 
       if (!this.hasAnnouncedJoin && newRole === 'admin') {
         this.hasAnnouncedJoin = true;
-        this.relay.logAction('User Joined', `Session: ${this.currentSessionId()}`, 'Coordinator');
+        //this.relay.logAction('User Joined', `Session: ${this.currentSessionId()}`, 'Coordinator');
       } else if (this.hasAnnouncedJoin && previousRole === 'guest' && newRole === 'admin') {
-        this.relay.logAction(
-          'Role Claimed Coordinator',
-          `Session ID: ${this.currentSessionId()} upgraded`,
-          'Coordinator',
-        );
+        // this.relay.logAction(
+        //   'Role Claimed Coordinator',
+        //   `Session ID: ${this.currentSessionId()} upgraded`,
+        //   'Coordinator',
+        // );
       }
     });
   }
@@ -265,81 +276,122 @@ export class SocketService {
   // Connection Management
   // -------------------------------------------------------------------------
 
-  async connect(roomId: string, key: string | null, targetVersion?: string) {
-    this.reset();
-    this.encryptionKey = key;
+  async connect(roomId: string, key: string | null) {
+    if (this.status() === 'connecting') return;
 
-    const versionToUse = targetVersion || PROTOCOL_VERSION;
-    this.store.init(roomId, versionToUse);
-    this.roomState.set(this.store.getState());
+    this.reset();
     this.status.set('connecting');
 
-    const apiBase = environment.apiUrl;
-    const wsBase = apiBase.replace(/^http/, 'ws');
+    try {
+      if (!key) throw new Error('Decryption key required');
 
-    await this.relay.joinRoom(wsBase, roomId, key || '', versionToUse);
+      if (this.sdk.store.getState() !== null) {
+        this.sdk.disconnect();
+        await new Promise((r) => setTimeout(r, 50));
+      }
 
-    this.relay.events.on('ROOM_CONNECTED').subscribe(async () => {
-      this.status.set('connected');
-      const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
-      if (secureToken) this.relay.send('AUTH', { token: secureToken });
+      await this.sdk.joinRoom(roomId, key);
 
-      if (typeof localStorage !== 'undefined' && this.encryptionKey) {
+      if (this.isBrowser) {
+        const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
+
+        if (secureToken) {
+          await this.sdk.claimCoordinator(secureToken);
+        }
+
         const savedName = localStorage.getItem(`display_name_${roomId}`);
         if (savedName) {
-          const encryptedDisplayName = await this.engine.encrypt(savedName, this.encryptionKey);
-          this.relay.send('SET_DISPLAY_NAME', { encryptedDisplayName });
+          await this.sdk.setDisplayName(savedName);
         }
       }
-    });
 
-    this.relay.events.on('ROOM_DISCONNECTED').subscribe((event) => {
-      const { code } = event.payload;
-      this.status.set('disconnected');
-      this.role.set('guest');
-
-      const roomId = this.roomState()?.roomId;
-      if (!roomId) return;
-
-      if (code === 4026) {
-        console.warn(`Protocol mismatch. Downgrading connection...`);
-        const target = this.fallbackVersion || '1.0.0';
-        this.fallbackVersion = null;
-        this.connect(roomId, this.encryptionKey, target);
-        return;
-      }
-
-      if (code === 4001) {
-        this.isRoomFull.set(true);
-        return;
-      }
-
-      if (code === 1006 && !this.hasAnnouncedJoin) {
-        this.decryptionError.set('Invalid decryption key. Access denied.');
-        this.setRoomKey(null);
-        this.failedKeyAttempts++;
-        this.securityAlert$.next({ type: 'access_denied', count: this.failedKeyAttempts });
-        return;
-      }
-
-      if (!this.isClosed()) {
-        setTimeout(() => {
-          if (this.status() === 'disconnected') this.connect(roomId, this.encryptionKey);
-        }, 3000);
-      }
-    });
-
-    this.relay.events.on('ERROR').subscribe((event) => {
-      console.error('WS Error:', event.payload);
+      this.status.set('connected');
+    } catch (e) {
+      console.error('Connection/Upgrade failed:', e);
       this.status.set('error');
-    });
+    }
   }
 
-  disconnect(clearState = true) {
-    this.relay.disconnect(true);
+  //   async connect(roomId: string, key: string | null, targetVersion?: string) {
+  //     this.reset();
+  //     this.encryptionKey = key;
+
+  //     const versionToUse = targetVersion || PROTOCOL_VERSION;
+  //     this.store.init(roomId, versionToUse);
+  //     this.roomState.set(this.store.getState());
+  //     this.status.set('connecting');
+
+  //     const apiBase = environment.apiUrl;
+  //     const wsBase = apiBase.replace(/^http/, 'ws');
+
+  //     await this.relay.joinRoom(wsBase, roomId, key || '', versionToUse);
+
+  //     this.relay.events.on('ROOM_CONNECTED').subscribe(async () => {
+  //       this.status.set('connected');
+  //       const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
+  //       if (secureToken) this.relay.send('AUTH', { token: secureToken });
+
+  //       if (typeof localStorage !== 'undefined' && this.encryptionKey) {
+  //         const savedName = localStorage.getItem(`display_name_${roomId}`);
+  //         if (savedName) {
+  //           const encryptedDisplayName = await this.engine.encrypt(savedName, this.encryptionKey);
+  //           this.relay.send('SET_DISPLAY_NAME', { encryptedDisplayName });
+  //         }
+  //       }
+  //     });
+
+  //     this.relay.events.on('ROOM_DISCONNECTED').subscribe((event) => {
+  //       const { code } = event.payload;
+  //       this.status.set('disconnected');
+  //       this.role.set('guest');
+
+  //       const roomId = this.roomState()?.roomId;
+  //       if (!roomId) return;
+
+  //       if (code === 4026) {
+  //         console.warn(`Protocol mismatch. Downgrading connection...`);
+  //         const target = this.fallbackVersion || '1.0.0';
+  //         this.fallbackVersion = null;
+  //         this.connect(roomId, this.encryptionKey, target);
+  //         return;
+  //       }
+
+  //       if (code === 4001) {
+  //         this.isRoomFull.set(true);
+  //         return;
+  //       }
+
+  //       if (code === 1006 && !this.hasAnnouncedJoin) {
+  //         this.decryptionError.set('Invalid decryption key. Access denied.');
+  //         this.setRoomKey(null);
+  //         this.failedKeyAttempts++;
+  //         this.securityAlert$.next({ type: 'access_denied', count: this.failedKeyAttempts });
+  //         return;
+  //       }
+
+  //       if (!this.isClosed()) {
+  //         setTimeout(() => {
+  //           if (this.status() === 'disconnected') this.connect(roomId, this.encryptionKey);
+  //         }, 3000);
+  //       }
+  //     });
+
+  //     this.relay.events.on('ERROR').subscribe((event) => {
+  //       console.error('WS Error:', event.payload);
+  //       this.status.set('error');
+  //     });
+  //   }
+
+  //   disconnect(clearState = true) {
+  //     this.relay.disconnect(true);
+  //     this.status.set('disconnected');
+  //     this.fallbackVersion = null;
+  //     if (clearState) this.reset();
+  //   }
+
+  public disconnect() {
+    this.sdk.disconnect();
     this.status.set('disconnected');
-    this.fallbackVersion = null;
-    if (clearState) this.reset();
   }
 
   private getUserContext(): string {
@@ -350,109 +402,115 @@ export class SocketService {
   // Public Actions
   // -------------------------------------------------------------------------
 
-  async uploadSignature(partialPsbtBase64: string) {
-    const currentRoom = this.roomState();
-    const detectedFingerprint = PsbtUtils.getFingerprintFromPsbt(partialPsbtBase64);
-    if (!detectedFingerprint) return;
+  //   async uploadSignature(partialPsbtBase64: string) {
+  //     const currentRoom = this.roomState();
+  //     const detectedFingerprint = PsbtUtils.getFingerprintFromPsbt(partialPsbtBase64);
+  //     if (!detectedFingerprint) return;
 
-    const alreadySigned = this.signers().find((s) => s.fingerprint === detectedFingerprint)?.signed;
-    if (alreadySigned) {
-      console.warn(`Signature for ${detectedFingerprint} has already been applied.`);
-      return;
-    }
+  //     const alreadySigned = this.signers().find((s) => s.fingerprint === detectedFingerprint)?.signed;
+  //     if (alreadySigned) {
+  //       console.warn(`Signature for ${detectedFingerprint} has already been applied.`);
+  //       return;
+  //     }
 
-    if (typeof localStorage !== 'undefined' && currentRoom) {
-      const savedLabel = this.getLocalLabel(detectedFingerprint);
-      const currentSessionName = localStorage.getItem(`display_name_${currentRoom.roomId}`);
-      if (savedLabel && !currentSessionName) {
-        await this.setDisplayName(savedLabel);
-      }
-    }
+  //     if (typeof localStorage !== 'undefined' && currentRoom) {
+  //       const savedLabel = this.getLocalLabel(detectedFingerprint);
+  //       const currentSessionName = localStorage.getItem(`display_name_${currentRoom.roomId}`);
+  //       if (savedLabel && !currentSessionName) {
+  //         await this.setDisplayName(savedLabel);
+  //       }
+  //     }
 
-    let payloadToSend = partialPsbtBase64;
-    if (currentRoom?.psbt) {
-      payloadToSend = this.mergePsbts(currentRoom.psbt, partialPsbtBase64);
-    }
+  //     let payloadToSend = partialPsbtBase64;
+  //     if (currentRoom?.psbt) {
+  //       payloadToSend = this.mergePsbts(currentRoom.psbt, partialPsbtBase64);
+  //     }
 
-    await this.relay.uploadSignature(payloadToSend, detectedFingerprint, this.getUserContext());
+  //     await this.relay.uploadSignature(payloadToSend, detectedFingerprint, this.getUserContext());
+  //   }
+
+  public async uploadSignature(psbtBase64: string) {
+    // Let the SDK automatically extract the fingerprint before uploading!
+    const fingerprint = this.sdk.extractFingerprintFromSignature(psbtBase64);
+    if (!fingerprint) throw new Error('Could not extract fingerprint from PSBT');
+
+    await this.sdk.uploadSignature(psbtBase64, fingerprint);
   }
 
   async claimCoordinator(secureToken: string) {
     this.relay.claimCoordinator(secureToken);
   }
 
-  closeRoom() {
-    this.relay.closeRoom();
+  public async closeRoom() {
+    await this.sdk.closeRoom();
+
+    // Clean up browser storage
+    if (this.isBrowser) {
+      const state = this.sdk.getRoomState();
+      if (state) {
+        sessionStorage.removeItem(`admin_token_${state.roomId}`);
+        localStorage.removeItem(`display_name_${state.roomId}`);
+      }
+    }
   }
 
   async logAction(action: string, detail: string) {
     await this.relay.logAction(action, detail, this.getUserContext());
   }
 
-  async renameRoom(newName: string) {
-    await this.relay.renameRoom(newName, this.getUserContext());
+  public async renameRoom(name: string) {
+    await this.sdk.setRoomName(name);
   }
 
-  async updateSignerLabel(fingerprint: string, label: string) {
-    const currentLabel = this.roomState()?.signerLabels?.[fingerprint] || '';
-    if (currentLabel === (label || '')) return;
-    await this.relay.updateSignerLabel(fingerprint, label, this.getUserContext());
-  }
-
-  async setDisplayName(name: string) {
-    const roomId = this.roomState()?.roomId;
-    if (!roomId) return;
-    const safeName = name.trim().substring(0, 64);
-
-    if (typeof localStorage !== 'undefined') {
-      if (safeName) localStorage.setItem(`display_name_${roomId}`, safeName);
-      else localStorage.removeItem(`display_name_${roomId}`);
+  public async updateSignerLabel(fingerprint: string, label: string) {
+    if (this.isBrowser) {
+      const state = this.sdk.getRoomState();
+      if (state) localStorage.setItem(`signer_label_${state.roomId}_${fingerprint}`, label);
     }
-    await this.relay.setDisplayName(safeName);
+    await this.sdk.setSignerLabel(fingerprint, label);
   }
 
-  async updateWhitelist(address: string, remove: boolean) {
-    const currentList = this.roomState()?.whitelist || [];
-    const newList = remove
-      ? currentList.filter((a) => a !== address)
-      : currentList.includes(address)
-        ? [...currentList]
-        : [...currentList, address];
-
-    const shortAddr = address.length > 5 ? address.slice(-5) : address;
-    const actionWord = remove ? 'Removed' : 'Added';
-
-    await this.relay.updateWhitelist(
-      newList,
-      `${actionWord} ...${shortAddr} to whitelist`,
-      this.getUserContext(),
-    );
-  }
-
-  async toggleLock(locked: boolean) {
-    await this.relay.toggleLock(locked, this.getUserContext());
-  }
-
-  async updateWhitelistBatch(addresses: string[], remove: boolean) {
-    const currentList = this.roomState()?.whitelist || [];
-    let newList: string[] = [];
-
-    if (remove) {
-      newList = currentList.filter((a) => !addresses.includes(a));
-    } else {
-      newList = Array.from(new Set([...currentList, ...addresses]));
+  public async setDisplayName(name: string) {
+    if (this.isBrowser) {
+      const state = this.sdk.getRoomState();
+      if (state) localStorage.setItem(`display_name_${state.roomId}`, name);
     }
-
-    const actionWord = remove ? 'Removed' : 'Verified';
-    await this.relay.updateWhitelist(
-      newList,
-      `${actionWord} ${addresses.length} batch address(es)`,
-      this.getUserContext(),
-    );
+    await this.sdk.setDisplayName(name);
   }
 
-  async broadcastFinalization(finalTxHex: string, finalTxId: string) {
-    await this.relay.broadcastFinalization(finalTxHex, finalTxId, this.getUserContext());
+  public async updateWhitelist(addresses: string[], remove: boolean = false) {
+    await this.sdk.updateWhitelistBatch(addresses, remove);
+  }
+
+  public async toggleLock(isLocked: boolean) {
+    await this.sdk.toggleLock(isLocked);
+  }
+
+  //   async updateWhitelistBatch(addresses: string[], remove: boolean) {
+  //     const currentList = this.roomState()?.whitelist || [];
+  //     let newList: string[] = [];
+
+  //     if (remove) {
+  //       newList = currentList.filter((a) => !addresses.includes(a));
+  //     } else {
+  //       newList = Array.from(new Set([...currentList, ...addresses]));
+  //     }
+
+  //     const actionWord = remove ? 'Removed' : 'Verified';
+  //     await this.relay.updateWhitelist(
+  //       newList,
+  //       `${actionWord} ${addresses.length} batch address(es)`,
+  //       this.getUserContext(),
+  //     );
+  //   }
+
+  //   async broadcastFinalization(finalTxHex: string, finalTxId: string) {
+  //     await this.relay.broadcastFinalization(finalTxHex, finalTxId, this.getUserContext());
+  //   }
+
+  public async finalizeTransaction() {
+    // SDK handles the entire calculation, local state update, and network broadcast atomically
+    return await this.sdk.finalizeTransaction();
   }
 
   // -------------------------------------------------------------------------
@@ -520,14 +578,14 @@ export class SocketService {
   // Private Helpers
   // -------------------------------------------------------------------------
 
-  private send(type: string, payload: any = {}) {
-    this.relay.send(type, payload);
-  }
+  //   private send(type: string, payload: any = {}) {
+  //     this.relay.send(type, payload);
+  //   }
 
   public reset() {
     this.hasAnnouncedJoin = false;
-    this.store.set(null);
-    this.roomState.set(null);
+    //this.store.set(null);
+    //this.roomState.set(null);
     this.role.set('guest');
     this.isClosed.set(false);
 
@@ -536,14 +594,14 @@ export class SocketService {
     this.isRoomFull.set(false);
     this.roomNotFound.set(false);
 
-    this.store.set(null);
+    //this.store.set(null);
     this.activeSessions.set([]);
     this.status.set('disconnected');
   }
 
-  async gracefullyDisconnect() {
-    await this.relay.gracefullyDisconnect(this.currentSessionId());
-  }
+  //   async gracefullyDisconnect() {
+  //     await this.relay.gracefullyDisconnect(this.currentSessionId());
+  //   }
 
   /**
    * Wipes all room-specific identity data from localStorage.

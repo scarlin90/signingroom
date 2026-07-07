@@ -5,7 +5,7 @@ import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
 import { RoomEvent } from './events/room-event-bus';
 import { RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils } from './bitcoin/psbt-utils';
-import { Observable } from 'rxjs';
+import { Observable, firstValueFrom } from 'rxjs';
 
 /**
  * Configuration schema for initializing the SigningRoom SDK client.
@@ -174,18 +174,20 @@ export class SigningRoomClient {
    */
   public async joinRoom(roomId: string, encryptionKey: string) {
     this._encryptionKey = encryptionKey;
-    const connectionPromise = new Promise<void>((resolve) => {
-      const sub = this.relay.events.on('ROOM_CONNECTED').subscribe(() => {
-        sub.unsubscribe();
-        resolve();
-      });
-    });
 
+    // 1. Setup the listener BEFORE triggering the connection
+    const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
+
+    // 2. Trigger the relay connection
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(roomId, this.protocolVersion);
+
     await this.relay.joinRoom(wsUrl, roomId, encryptionKey, this.protocolVersion);
 
-    await connectionPromise;
+    // 3. Await the event
+    await connectionEvent;
+
+    // 4. Log after successful connection
     await this.logParticipantAction('User Joined', `Session: ${this._sessionId}`);
   }
 
