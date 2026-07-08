@@ -59,14 +59,12 @@ import {
   Network,
 } from 'lucide-angular';
 import { SocketService } from '../../services/socket/socket.service';
-import { jsPDF } from 'jspdf';
 import * as QRCode from 'qrcode';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { UrService } from '../../services/ur/ur.service';
 import { base64, hex } from '@scure/base';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
-import { RoomAuditor } from '@signing-room/sdk';
 
 @Component({
   selector: 'app-room',
@@ -74,7 +72,7 @@ import { RoomAuditor } from '@signing-room/sdk';
   imports: [CommonModule, LucideAngularModule, FormsModule, RouterModule],
   template: `
 
-  @if (socket.status() !== 'connected' && !socket.isClosed() && !isExpired()) {
+  @if (socket.status() !== 'connected' && !socket.isClosed() && !isExpired() && !socket.roomNotFound() && !socket.isLockedOut() && !socket.isRoomFull() && !socket.decryptionError()) {
         <div class="w-full bg-amber-500/90 text-slate-950 text-center text-xs font-bold py-1.5 fixed top-0 z-[200] flex items-center justify-center gap-2 animate-pulse">
             <lucide-icon [img]="Loader2" class="w-3 h-3 animate-spin"></lucide-icon>
             Connection lost... Reconnecting...
@@ -1983,12 +1981,8 @@ export class RoomComponent implements OnInit, OnDestroy {
           txId: state.finalTxId,
           txHex: state.finalTxHex,
           roomState: sanitizedState,
-          auditLogCsv: RoomAuditor.getAuditLogCsvData(state),
-          settlementCsv: RoomAuditor.getSettlementCsvData(
-            state,
-            this.socket.txDetails() as any,
-            this.socket.signers(),
-          ),
+          auditLogCsv: this.socket.getAuditLogCsv(),
+          settlementCsv: this.socket.getSettlementCsvData(),
           auditPdfUri: pdfBase64,
         });
       }
@@ -2160,30 +2154,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     this.isUploading.set(true);
 
     try {
-      const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      const isBinary =
-        bytes[0] === 0x70 &&
-        bytes[1] === 0x73 &&
-        bytes[2] === 0x62 &&
-        bytes[3] === 0x74 &&
-        bytes[4] === 0xff;
-
-      let content = isBinary
-        ? Array.from(bytes)
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('')
-        : new TextDecoder().decode(bytes).trim();
-
-      if (content.startsWith('010000') || content.startsWith('020000')) {
-        this.openAlert(
-          'Invalid File',
-          'This looks like a Raw Transaction. Please export as PSBT from your wallet.',
-        );
-        return;
-      }
-
-      await this.socket.uploadSignature(content);
+      const psbtContent = await this.socket.sdk.parsePsbtFile(file);
+      await this.socket.uploadSignature(psbtContent);
       this.dispatcher.emitPsbtImported('upload');
       event.target.value = '';
     } catch (e) {
@@ -2364,9 +2336,6 @@ export class RoomComponent implements OnInit, OnDestroy {
   savePersonalName() {
     const name = this.personalDisplayName().trim();
     this.socket.setDisplayName(name);
-    const sid = this.socket.currentSessionId();
-    const actionLabel = name ? `Identified as "${name}"` : 'Cleared display name';
-    this.socket.logAction('Participant Identified', actionLabel);
     this.dispatcher.emitParticipantLabelled('self', name);
     this.showSessionsModal.set(false);
   }
@@ -2611,7 +2580,6 @@ export class RoomComponent implements OnInit, OnDestroy {
     let key = this.manualKey.trim();
     if (key.includes('#')) key = key.split('#')[1];
     this.socket.decryptionError.set('');
-    this.socket.disconnect();
     this.socket.connect(this.roomId()!, key);
     this.manualKey = '';
   }
@@ -2658,49 +2626,36 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   downloadCsv() {
-    const state = this.socket.roomState();
-    const tx = this.socket.txDetails();
+    const csvContent = this.socket.getSettlementCsvData();
+    if (!csvContent) return;
 
-    if (!state || !tx) return;
+    const roomId = this.socket.roomState()?.roomId || 'unknown';
 
-    const encodedUri = RoomAuditor.getEncodedCsvData(state, tx, this.socket.signers());
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    const url = window.URL.createObjectURL(blob);
+
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute(
       'download',
-      `settlement_${state?.roomId}_${new Date().toISOString().slice(0, 10)}.csv`,
+      `settlement_${roomId}_${new Date().toISOString().slice(0, 10)}.csv`,
     );
+
     document.body.appendChild(link);
     link.click();
+
     document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   }
 
   async generateAuditLog() {
-    const state = this.socket.roomState();
-    const tx = this.socket.txDetails();
-    const signers = this.socket.signers();
-
-    if (!state) return;
-
-    const { doc, filename } = await RoomAuditor.generateAuditPdf(
-      new jsPDF(),
-      state,
-      tx,
-      signers,
-      this.finalHex(),
-    );
-
+    const { doc, filename } = await this.socket.getAuditLogPdf();
     await doc.save(filename);
   }
 
   getPdfDocument() {
-    const state = this.socket.roomState();
-    const tx = this.socket.txDetails();
-    const signers = this.socket.signers();
-
-    if (!state) return null;
-
-    return RoomAuditor.generateAuditPdf(new jsPDF(), state, tx, signers, this.finalHex());
+    return this.socket.getAuditLogPdf();
   }
 
   private startTimer(expiryTime: number) {
@@ -2746,9 +2701,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   private getFullShareLink(): string {
-    const key = this.socket.getRoomKey();
-    const baseUrl = window.location.href.split('#')[0];
-    return `${baseUrl}${key ? '#' + key : ''}`;
+    return this.socket.getRoomLink(window.location.origin, true);
   }
 
   nudgeSigner(fingerprint: string) {

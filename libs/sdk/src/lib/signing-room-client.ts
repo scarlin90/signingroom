@@ -4,8 +4,9 @@ import { RoomStateStore, RoomState } from './relay/room-state-store';
 import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
 import { RoomEvent } from './events/room-event-bus';
 import { RoomAuditor } from './bitcoin/room-auditor';
-import { PsbtUtils } from './bitcoin/psbt-utils';
+import { PsbtUtils, TxDetails } from './bitcoin/psbt-utils';
 import { Observable, firstValueFrom } from 'rxjs';
+import { jsPDF } from 'jspdf';
 
 /**
  * Configuration schema for initializing the SigningRoom SDK client.
@@ -130,19 +131,8 @@ export class SigningRoomClient {
   ) {
     const payload: RoomCreationPayload = await this.createRoom(psbtBase64, network, roomName);
 
-    const connectionPromise = new Promise<void>((resolve) => {
-      const sub = this.relay.events.on('ROOM_CONNECTED').subscribe(() => {
-        sub.unsubscribe();
-        resolve();
-      });
-    });
-
-    const rolePromise = new Promise<void>((resolve) => {
-      const sub = this.relay.events.on('ROLE_UPDATE').subscribe(() => {
-        sub.unsubscribe();
-        resolve();
-      });
-    });
+    const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
+    const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
 
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(payload.localData.roomId, this.protocolVersion);
@@ -153,11 +143,14 @@ export class SigningRoomClient {
       this.protocolVersion,
     );
 
-    await connectionPromise;
-    this.relay.claimCoordinator(payload.httpPayload.adminToken);
-    await rolePromise;
+    await connectionEvent;
+    await sessionEvent;
 
     await this.logParticipantAction('User Joined', `Session: ${this._sessionId}`);
+
+    const roleEvent = firstValueFrom(this.relay.events.on('ROLE_UPDATE'));
+    this.relay.claimCoordinator(payload.httpPayload.adminToken);
+    await roleEvent;
 
     return {
       roomId: payload.localData.roomId,
@@ -175,19 +168,19 @@ export class SigningRoomClient {
   public async joinRoom(roomId: string, encryptionKey: string) {
     this._encryptionKey = encryptionKey;
 
-    // 1. Setup the listener BEFORE triggering the connection
+    // Listen for BOTH events
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
+    const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
 
-    // 2. Trigger the relay connection
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(roomId, this.protocolVersion);
 
     await this.relay.joinRoom(wsUrl, roomId, encryptionKey, this.protocolVersion);
 
-    // 3. Await the event
+    // Await both events
     await connectionEvent;
+    await sessionEvent;
 
-    // 4. Log after successful connection
     await this.logParticipantAction('User Joined', `Session: ${this._sessionId}`);
   }
 
@@ -225,8 +218,7 @@ export class SigningRoomClient {
    * @param overrideRole - Optional role override for audit reporting.
    */
   public async logParticipantAction(action: string, detail: string, overrideRole?: string) {
-    const roleContext =
-      overrideRole || (this._role === 'admin' ? 'Coordinator' : `Guest (${this._sessionId})`);
+    const roleContext = overrideRole || this.userContext;
 
     const blob = await this.relay.createSecureLogBlob(action, detail, roleContext);
     this.relay.send('LOG_ACTION', { encryptedLogBlob: blob });
@@ -268,6 +260,27 @@ export class SigningRoomClient {
     const state = this.getRoomState();
     if (!state) return '';
     return RoomAuditor.getAuditLogCsvData(state);
+  }
+
+  public getSettlementCsvData(): string {
+    const state = this.getRoomState();
+    const tx = this.getTxDetails(state);
+    const signers = this.getSignersStatus(state);
+
+    if (!state || !tx) return '';
+
+    return RoomAuditor.getSettlementCsvData(state, tx, signers);
+  }
+
+  public async getAuditLogPdf(): Promise<{ doc: any; filename: string }> {
+    const state = this.getRoomState();
+    const tx = this.getTxDetails(state);
+    const signers = this.getSignersStatus(state);
+    const finalHex = this.getFinalTransactionHex();
+
+    if (!state) throw new Error('No state available for audit report.');
+
+    return await RoomAuditor.generateAuditPdf(new jsPDF(), state, tx, signers, finalHex);
   }
 
   /** * Coordinator: Restricts transactions to a specific allowlist of addresses.
@@ -414,10 +427,19 @@ export class SigningRoomClient {
   /** * Returns a list of all required hardware fingerprints for this transaction,
    * and a boolean indicating if their signature has been provided yet.
    */
-  public getSignersStatus() {
-    const state = this.getRoomState();
+  public getSignersStatus(state: RoomState | null): any[] {
     if (!state || !state.psbt) return [];
     return PsbtUtils.extractSigners(state.psbt);
+  }
+
+  public getTxDetails(state: RoomState | null): TxDetails | null {
+    return state?.psbt ? PsbtUtils.parseTxDetails(state.psbt, state.network) : null;
+  }
+
+  public getThreshold(state: RoomState | null): number {
+    if (!state?.psbt) return 0;
+    const threshold = PsbtUtils.getThreshold(state.psbt);
+    return threshold > 0 ? threshold : this.getSignersStatus(state).length;
   }
 
   /**
@@ -471,9 +493,9 @@ export class SigningRoomClient {
    * @param appBaseUrl The base URL of your web UI.
    * @param includeKey Whether to include the decryption key in the URL hash.
    */
-  public getRoomLink(appBaseUrl: string, includeKey: boolean = false): string | null {
+  public getRoomLink(appBaseUrl: string, includeKey: boolean = false): string {
     const state = this.getRoomState();
-    if (!state || !state.roomId) return null;
+    if (!state || !state.roomId) return '';
 
     let link = `${appBaseUrl.replace(/\/$/, '')}/room/${state.roomId}`;
     if (includeKey && this._encryptionKey) {
@@ -528,5 +550,39 @@ export class SigningRoomClient {
       if (!this._sessionId || !state.participants) return false;
       return state.participants[this._sessionId]?.role === 'admin';
     }, 15000);
+  }
+
+  public async parsePsbtFile(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    // Logic currently in your RoomComponent
+    const isBinary =
+      bytes[0] === 0x70 &&
+      bytes[1] === 0x73 &&
+      bytes[2] === 0x62 &&
+      bytes[3] === 0x74 &&
+      bytes[4] === 0xff;
+
+    const content = isBinary
+      ? Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('')
+      : new TextDecoder().decode(bytes).trim();
+
+    if (content.startsWith('010000') || content.startsWith('020000')) {
+      throw new Error('This looks like a Raw Transaction. Please export as PSBT from your wallet.');
+    }
+
+    return content;
+  }
+
+  public getErrorCategory(
+    code: number,
+  ): 'ROOM_FULL' | 'AUTH_FAILED' | 'PROTOCOL_MISMATCH' | 'UNKNOWN' {
+    if (code === 4026) return 'PROTOCOL_MISMATCH';
+    if (code === 4001) return 'ROOM_FULL';
+    if (code === 1006) return 'AUTH_FAILED';
+    return 'UNKNOWN';
   }
 }

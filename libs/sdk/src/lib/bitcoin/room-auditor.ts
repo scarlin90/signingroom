@@ -120,7 +120,7 @@ export class RoomAuditor {
     // Header
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(24);
-    doc.setTextColor(16, 185, 129);
+    doc.setTextColor(16, 185, 129); // emerald-500
     doc.text('SigningRoom.io', 20, y);
 
     // Subtitle
@@ -135,6 +135,44 @@ export class RoomAuditor {
     doc.setLineWidth(0.5);
     doc.line(20, y, 190, y);
     y += 10;
+
+    // =========================================================
+    // SECTION 0: FORENSIC INTEGRITY SEAL
+    // =========================================================
+    if (finalHex && state.auditLog && state.auditLog.length > 0) {
+      checkPageBreak(35);
+      const anchor = await this.calculateForensicAnchor(state.auditLog, finalHex);
+
+      doc.setFontSize(14);
+      doc.setTextColor(16, 185, 129); // emerald-500
+      doc.setFont('helvetica', 'bold');
+      doc.text('Cryptographic Integrity Seal', 20, y);
+      y += 6;
+
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.setFont('helvetica', 'italic');
+      doc.text(
+        'This anchor mathematically binds the raw transaction hex to the chronological event timeline below.',
+        20,
+        y,
+      );
+      y += 5;
+      doc.text('Verification formula: SHA256(Audit_Log_CSV_String + Final_Tx_Hex)', 20, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setTextColor(0);
+      doc.setFont('courier', 'bold');
+      doc.text(anchor, 20, y);
+      y += 10;
+
+      // Separator Line
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.5);
+      doc.line(20, y, 190, y);
+      y += 10;
+    }
 
     // =========================================================
     // SECTION 1: ROOM METADATA & GOVERNANCE
@@ -474,18 +512,8 @@ export class RoomAuditor {
     }
 
     // =========================================================
-    // FOOTER
+    // FOOTER (FILE METADATA ONLY)
     // =========================================================
-    if (finalHex) {
-      const anchor = await this.calculateForensicAnchor(state.auditLog, finalHex);
-      checkPageBreak(20);
-      doc.setFontSize(8);
-      doc.setTextColor(150);
-      doc.text(`Forensic Integrity Anchor (SHA256): ${anchor}`, 20, y);
-      y += 5;
-      doc.text(`Final Tx Hash (SHA256 of Hex): Verified`, 20, y);
-    }
-
     const dateStr = new Date().toISOString().split('T')[0];
     const shortId = state.roomId.slice(0, 8);
     const txSuffix = state.finalTxId ? state.finalTxId.slice(0, 8) : 'Pending';
@@ -493,7 +521,6 @@ export class RoomAuditor {
 
     return { doc, filename };
   }
-
   /**
    * Derives a deterministic cryptographic hash connecting the chronological audit log and the final transaction hex.
    * Prevents post-hoc modification of either the historical log or the finalized transaction data.

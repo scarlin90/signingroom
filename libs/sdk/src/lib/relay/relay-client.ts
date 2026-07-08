@@ -47,8 +47,19 @@ export class RelayClient {
       console.log('WS Open Success');
       this.events.dispatch('ROOM_CONNECTED');
     };
-    this.ws.onclose = (e) =>
+    this.ws.onclose = (e) => {
       this.events.dispatch('ROOM_DISCONNECTED', { code: e.code, reason: e.reason });
+
+      if (e.code === 4026) {
+        this.events.dispatch('PROTOCOL_ERROR', { type: 'version_mismatch', roomVersion: '1.0.0' });
+      } else if (e.code === 4001) {
+        this.events.dispatch('PROTOCOL_ERROR', { type: 'room_full' });
+      } else if (e.code === 1006) {
+        this.events.dispatch('PROTOCOL_ERROR', { type: 'access_denied' });
+      } else if (e.code === 4004) {
+        this.events.dispatch('PROTOCOL_ERROR', { type: 'not_found' });
+      }
+    };
     this.ws.onerror = (e) => this.events.dispatch('ERROR', e);
 
     this.ws.onmessage = async (event) => {

@@ -5,18 +5,12 @@
 
 import { Injectable, signal, computed, Inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
-import { Transaction, NETWORK, TEST_NETWORK, Address } from '@scure/btc-signer';
-import { base64, hex, bech32, bech32m } from '@scure/base';
 import { environment } from '../../../environments/environment';
-import { EncryptionService } from '../encryption/encryption.service';
 import { Subject } from 'rxjs';
 import {
   RelayClient,
-  EncryptionEngine,
   PsbtUtils,
   RoomStateStore,
-  TxDetails,
   SigningRoomClient,
   RoomState,
 } from '@signing-room/sdk';
@@ -27,25 +21,20 @@ import {
 
 export const PROTOCOL_VERSION = '1.0.0';
 
-type DerivationEntry = [Uint8Array, { fingerprint: number; path: number[] }];
-
 @Injectable({ providedIn: 'root' })
 export class SocketService {
   public sdk: SigningRoomClient;
   public roomState = signal<RoomState | null>(null);
   private store: RoomStateStore;
-  private engine: EncryptionEngine;
   private relay: RelayClient;
 
-  private ws: WebSocket | null = null;
   private encryptionKey: string | null = null;
-  private fallbackVersion: string | null = null;
-  private blindFingerprintMap: Map<string, string> = new Map();
   private hasAnnouncedJoin = false;
   public securityAlert$ = new Subject<{ type: 'access_denied'; count: number }>();
   private failedKeyAttempts = 0;
+
   public isBrowser: boolean;
-  private isConnecting = false;
+  private fallbackVersion: string | null = null;
 
   // -------------------------------------------------------------------------
   // Signals
@@ -73,38 +62,24 @@ export class SocketService {
 
   public signers = computed(() => {
     const state = this.roomState();
-    if (!state?.psbt) return [];
-    return PsbtUtils.extractSigners(state.psbt);
+    return this.sdk.getSignersStatus(state);
   });
 
-  public signerCount = computed(() => {
-    return this.signers().filter((signer) => signer.signed).length;
+  public txDetails = computed(() => {
+    const state = this.roomState();
+    return this.sdk.getTxDetails(state);
   });
 
   public signerThreshold = computed(() => {
     const state = this.roomState();
-    if (!state?.psbt) return 0;
-
-    const threshold = PsbtUtils.getThreshold(state.psbt);
-
-    return threshold > 0 ? threshold : this.signers().length;
+    return this.sdk.getThreshold(state);
   });
 
-  public isReadyToBroadcast = computed(() => {
-    return this.signerCount() >= this.signerThreshold();
-  });
+  public signerCount = computed(() => this.signers().filter((signer) => signer.signed).length);
 
-  public txDetails = computed<TxDetails | null>(() => {
-    const state = this.roomState();
-    if (!state?.psbt) return null;
-    return PsbtUtils.parseTxDetails(state.psbt, state.network);
-  });
+  public isReadyToBroadcast = computed(() => this.signerCount() >= this.signerThreshold());
 
-  constructor(
-    private http: HttpClient,
-    private encryption: EncryptionService,
-    @Inject(PLATFORM_ID) private platformId: Object,
-  ) {
+  constructor(@Inject(PLATFORM_ID) private platformId: Object) {
     this.isBrowser = isPlatformBrowser(this.platformId);
 
     this.sdk = new SigningRoomClient({
@@ -112,7 +87,6 @@ export class SocketService {
       protocolVersion: PROTOCOL_VERSION,
     });
 
-    this.engine = this.sdk.engine;
     this.relay = this.sdk.relay;
     this.store = this.sdk.store;
 
@@ -125,10 +99,54 @@ export class SocketService {
       this.status.set('connected');
     });
 
+    this.relay.events.on('ROOM_DISCONNECTED').subscribe((event) => {
+      this.status.set('disconnected');
+
+      if (!this.isClosed()) {
+        setTimeout(() => {
+          const hasTerminalError =
+            this.roomNotFound() ||
+            this.isLockedOut() ||
+            this.isRoomFull() ||
+            this.decryptionError() !== null;
+
+          if (this.status() === 'disconnected' && !hasTerminalError) {
+            this.connect(this.roomState()?.roomId || '', this.getRoomKey());
+          }
+        }, 3000);
+      }
+    });
+
+    this.relay.events.on('PROTOCOL_ERROR').subscribe((e) => {
+      const errorType = e.payload.type;
+
+      if (errorType === 'locked') {
+        this.isLockedOut.set(true);
+        this.disconnect();
+      } else if (errorType === 'not_found') {
+        this.roomNotFound.set(true);
+        this.disconnect();
+      } else if (errorType === 'version_mismatch') {
+        this.fallbackVersion = e.payload.roomVersion;
+        // Trigger downgrade connection logic here
+      } else if (errorType === 'room_full') {
+        this.isRoomFull.set(true);
+      } else if (errorType === 'access_denied') {
+        if (!this.hasAnnouncedJoin) {
+          this.decryptionError.set('Invalid decryption key. Access denied.');
+          this.setRoomKey(null);
+          this.failedKeyAttempts++;
+          this.securityAlert$.next({ type: 'access_denied', count: this.failedKeyAttempts });
+        }
+      }
+    });
+
     this.relay.events.on('DECRYPTION_ERROR').subscribe((e) => {
-      this.decryptionError.set(e.payload);
-      this.setRoomKey(null);
-      this.disconnect();
+      if (!this.isLockedOut() && !this.isRoomFull() && !this.roomNotFound()) {
+        this.decryptionError.set(e.payload);
+        this.setRoomKey(null);
+        this.disconnect();
+      }
     });
 
     this.relay.events.on('STATE_CHANGED').subscribe((e) => {
@@ -312,122 +330,14 @@ export class SocketService {
     }
   }
 
-  //   async connect(roomId: string, key: string | null, targetVersion?: string) {
-  //     this.reset();
-  //     this.encryptionKey = key;
-
-  //     const versionToUse = targetVersion || PROTOCOL_VERSION;
-  //     this.store.init(roomId, versionToUse);
-  //     this.roomState.set(this.store.getState());
-  //     this.status.set('connecting');
-
-  //     const apiBase = environment.apiUrl;
-  //     const wsBase = apiBase.replace(/^http/, 'ws');
-
-  //     await this.relay.joinRoom(wsBase, roomId, key || '', versionToUse);
-
-  //     this.relay.events.on('ROOM_CONNECTED').subscribe(async () => {
-  //       this.status.set('connected');
-  //       const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
-  //       if (secureToken) this.relay.send('AUTH', { token: secureToken });
-
-  //       if (typeof localStorage !== 'undefined' && this.encryptionKey) {
-  //         const savedName = localStorage.getItem(`display_name_${roomId}`);
-  //         if (savedName) {
-  //           const encryptedDisplayName = await this.engine.encrypt(savedName, this.encryptionKey);
-  //           this.relay.send('SET_DISPLAY_NAME', { encryptedDisplayName });
-  //         }
-  //       }
-  //     });
-
-  //     this.relay.events.on('ROOM_DISCONNECTED').subscribe((event) => {
-  //       const { code } = event.payload;
-  //       this.status.set('disconnected');
-  //       this.role.set('guest');
-
-  //       const roomId = this.roomState()?.roomId;
-  //       if (!roomId) return;
-
-  //       if (code === 4026) {
-  //         console.warn(`Protocol mismatch. Downgrading connection...`);
-  //         const target = this.fallbackVersion || '1.0.0';
-  //         this.fallbackVersion = null;
-  //         this.connect(roomId, this.encryptionKey, target);
-  //         return;
-  //       }
-
-  //       if (code === 4001) {
-  //         this.isRoomFull.set(true);
-  //         return;
-  //       }
-
-  //       if (code === 1006 && !this.hasAnnouncedJoin) {
-  //         this.decryptionError.set('Invalid decryption key. Access denied.');
-  //         this.setRoomKey(null);
-  //         this.failedKeyAttempts++;
-  //         this.securityAlert$.next({ type: 'access_denied', count: this.failedKeyAttempts });
-  //         return;
-  //       }
-
-  //       if (!this.isClosed()) {
-  //         setTimeout(() => {
-  //           if (this.status() === 'disconnected') this.connect(roomId, this.encryptionKey);
-  //         }, 3000);
-  //       }
-  //     });
-
-  //     this.relay.events.on('ERROR').subscribe((event) => {
-  //       console.error('WS Error:', event.payload);
-  //       this.status.set('error');
-  //     });
-  //   }
-
-  //   disconnect(clearState = true) {
-  //     this.relay.disconnect(true);
-  //     this.status.set('disconnected');
-  //     this.fallbackVersion = null;
-  //     if (clearState) this.reset();
-  //   }
-
   public disconnect() {
     this.sdk.disconnect();
     this.status.set('disconnected');
   }
 
-  private getUserContext(): string {
-    return this.isCoordinator() ? 'Coordinator' : `Guest (${this.currentSessionId() || 'Unknown'})`;
-  }
-
   // -------------------------------------------------------------------------
   // Public Actions
   // -------------------------------------------------------------------------
-
-  //   async uploadSignature(partialPsbtBase64: string) {
-  //     const currentRoom = this.roomState();
-  //     const detectedFingerprint = PsbtUtils.getFingerprintFromPsbt(partialPsbtBase64);
-  //     if (!detectedFingerprint) return;
-
-  //     const alreadySigned = this.signers().find((s) => s.fingerprint === detectedFingerprint)?.signed;
-  //     if (alreadySigned) {
-  //       console.warn(`Signature for ${detectedFingerprint} has already been applied.`);
-  //       return;
-  //     }
-
-  //     if (typeof localStorage !== 'undefined' && currentRoom) {
-  //       const savedLabel = this.getLocalLabel(detectedFingerprint);
-  //       const currentSessionName = localStorage.getItem(`display_name_${currentRoom.roomId}`);
-  //       if (savedLabel && !currentSessionName) {
-  //         await this.setDisplayName(savedLabel);
-  //       }
-  //     }
-
-  //     let payloadToSend = partialPsbtBase64;
-  //     if (currentRoom?.psbt) {
-  //       payloadToSend = this.mergePsbts(currentRoom.psbt, partialPsbtBase64);
-  //     }
-
-  //     await this.relay.uploadSignature(payloadToSend, detectedFingerprint, this.getUserContext());
-  //   }
 
   public async uploadSignature(psbtBase64: string) {
     // Let the SDK automatically extract the fingerprint before uploading!
@@ -455,7 +365,7 @@ export class SocketService {
   }
 
   async logAction(action: string, detail: string) {
-    await this.relay.logAction(action, detail, this.getUserContext());
+    await this.sdk.logParticipantAction(action, detail);
   }
 
   public async renameRoom(name: string) {
@@ -485,28 +395,6 @@ export class SocketService {
   public async toggleLock(isLocked: boolean) {
     await this.sdk.toggleLock(isLocked);
   }
-
-  //   async updateWhitelistBatch(addresses: string[], remove: boolean) {
-  //     const currentList = this.roomState()?.whitelist || [];
-  //     let newList: string[] = [];
-
-  //     if (remove) {
-  //       newList = currentList.filter((a) => !addresses.includes(a));
-  //     } else {
-  //       newList = Array.from(new Set([...currentList, ...addresses]));
-  //     }
-
-  //     const actionWord = remove ? 'Removed' : 'Verified';
-  //     await this.relay.updateWhitelist(
-  //       newList,
-  //       `${actionWord} ${addresses.length} batch address(es)`,
-  //       this.getUserContext(),
-  //     );
-  //   }
-
-  //   async broadcastFinalization(finalTxHex: string, finalTxId: string) {
-  //     await this.relay.broadcastFinalization(finalTxHex, finalTxId, this.getUserContext());
-  //   }
 
   public async finalizeTransaction() {
     // SDK handles the entire calculation, local state update, and network broadcast atomically
@@ -578,14 +466,8 @@ export class SocketService {
   // Private Helpers
   // -------------------------------------------------------------------------
 
-  //   private send(type: string, payload: any = {}) {
-  //     this.relay.send(type, payload);
-  //   }
-
   public reset() {
     this.hasAnnouncedJoin = false;
-    //this.store.set(null);
-    //this.roomState.set(null);
     this.role.set('guest');
     this.isClosed.set(false);
 
@@ -598,11 +480,6 @@ export class SocketService {
     this.activeSessions.set([]);
     this.status.set('disconnected');
   }
-
-  //   async gracefullyDisconnect() {
-  //     await this.relay.gracefullyDisconnect(this.currentSessionId());
-  //   }
-
   /**
    * Wipes all room-specific identity data from localStorage.
    */
@@ -614,5 +491,21 @@ export class SocketService {
     sessionStorage.removeItem(`admin_token_${roomId}`);
 
     console.log(`[Privacy] Local identity data for room ${roomId} has been purged.`);
+  }
+
+  public getAuditLogCsv(): string {
+    return this.sdk.getAuditLogCsv();
+  }
+
+  public getSettlementCsvData(): string {
+    return this.sdk.getSettlementCsvData();
+  }
+
+  public async getAuditLogPdf() {
+    return await this.sdk.getAuditLogPdf();
+  }
+
+  public getRoomLink(appBaseUrl: string, includeKey: boolean = false): string {
+    return this.sdk.getRoomLink(appBaseUrl, includeKey);
   }
 }
