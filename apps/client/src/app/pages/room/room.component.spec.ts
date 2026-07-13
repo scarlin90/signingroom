@@ -5,8 +5,8 @@ import { Title } from '@angular/platform-browser';
 import { PLATFORM_ID, signal } from '@angular/core';
 import { of } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Html5Qrcode } from 'html5-qrcode';
 
-// IMPORT THE ACTUAL CLASSES for proper Dependency Injection
 import { SocketService } from '../../services/socket/socket.service';
 import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
@@ -19,11 +19,32 @@ let mockRouter: any;
 let mockActivatedRoute: any;
 let mockTitleService: any;
 
+const mockClipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
+Object.defineProperty(navigator, 'clipboard', {
+  value: mockClipboard,
+  writable: true,
+  configurable: true,
+});
+
 describe('RoomComponent - Setup & Lifecycle', () => {
   let component: RoomComponent;
   let fixture: ComponentFixture<RoomComponent>;
 
   beforeEach(async () => {
+    vi.useFakeTimers();
+
+    mockActivatedRoute = {
+      snapshot: {
+        fragment: 'test-key-123',
+        paramMap: {
+          get: vi.fn().mockReturnValue('room-123'),
+        },
+      },
+      paramMap: of({
+        get: (key: string) => (key === 'id' ? 'room-123' : null),
+      }),
+    };
+
     // Reset all mocks completely to prevent state leakage between tests
     mockSocketService = {
       // --- Signals ---
@@ -33,7 +54,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       isLockedOut: signal(false),
       isRoomFull: signal(false),
       decryptionError: signal(''),
-      roomState: signal(null),
+      roomState: signal({ roomId: 'room-123', network: 'bitcoin' }),
       txDetails: signal(null),
       signers: signal([]),
       signerCount: signal(0),
@@ -43,8 +64,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       // --- Observables ---
       networkSignatureReceived$: of({}),
       securityAlert$: of({}),
-
-      // --- Methods (Called in TS and HTML Template) ---
       isCoordinator: vi.fn().mockReturnValue(false),
       getThreshold: vi.fn().mockReturnValue(2),
       signerThreshold: vi.fn().mockReturnValue(2),
@@ -61,6 +80,25 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       claimCoordinator: vi.fn(),
       renameRoom: vi.fn(),
       uploadSignature: vi.fn(),
+      getSettlementCsvData: vi.fn().mockReturnValue('csv,data'),
+      getAuditLogCsv: vi.fn().mockReturnValue('audit,csv'),
+      getFinalTxHex: vi.fn(),
+      getFinalTxId: vi.fn(),
+      finalizeTransaction: vi.fn(),
+      getAuditLogPdf: vi.fn().mockResolvedValue({
+        doc: {
+          output: vi.fn().mockReturnValue('mock-data-uri'),
+          save: vi.fn().mockResolvedValue(undefined),
+        },
+        filename: 'audit.pdf',
+      }),
+      updateWhitelist: vi.fn(),
+      updateSignerLabel: vi.fn(),
+      saveToAddressBook: vi.fn(),
+      removeFromAddressBook: vi.fn(),
+      toggleLock: vi.fn(),
+      closeRoom: vi.fn(),
+      setDisplayName: vi.fn(),
       sdk: {
         store: {
           getState: vi.fn().mockReturnValue({ roomId: null }),
@@ -168,6 +206,23 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       expect(mockSocketService.decryptionError()).toBe('Missing decryption key');
     });
+
+    it('should navigate to clear fragment if connected and fragment exists', async () => {
+      // Force connection status
+      mockSocketService.status.set('connected');
+      // Set a fragment in route
+      mockActivatedRoute.snapshot.fragment = 'some-key';
+
+      // Trigger change detection for the effect
+      fixture.detectChanges();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({
+          fragment: undefined,
+        }),
+      );
+    });
   });
 
   describe('ngOnDestroy', () => {
@@ -201,6 +256,33 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('onBeforeUnload should call socket.disconnect()', () => {
       component.onBeforeUnload();
       expect(mockSocketService.disconnect).toHaveBeenCalled();
+    });
+
+    it('unloadNotification should not set returnValue if socket is disconnected', () => {
+      mockSocketService.status.set('disconnected');
+      const event = { returnValue: null };
+      component.unloadNotification(event);
+      expect(event.returnValue).toBeNull();
+    });
+
+    it('unloadNotification should NOT set returnValue if transaction is already finalized', () => {
+      mockSocketService.status.set('connected');
+      mockSocketService.roomState.set({ finalTxHex: '0x123' });
+
+      const event = { returnValue: false };
+      component.unloadNotification(event);
+
+      expect(event.returnValue).toBe(false);
+    });
+
+    it('unloadNotification should not set returnValue if room is closed', () => {
+      mockSocketService.status.set('connected');
+      mockSocketService.isClosed.set(true); // Should short-circuit the IF
+
+      const event = { returnValue: false };
+      component.unloadNotification(event);
+
+      expect(event.returnValue).toBe(false); // Should NOT have been changed to true
     });
   });
 
@@ -249,6 +331,18 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         mockSocketService.txDetails.set(null);
         expect(component.filteredInputs()).toEqual([]);
         expect(component.filteredOutputs()).toEqual([]);
+      });
+
+      it('should correctly filter inputs based on search query', () => {
+        mockSocketService.txDetails.set({
+          inputsList: [{ address: 'bc1q-match' }, { address: '3abc-no-match' }],
+        } as any);
+
+        component.inputSearchQuery.set('bc1q');
+        expect(component.filteredInputs().length).toBe(1);
+
+        component.inputSearchQuery.set('nothing-to-find');
+        expect(component.filteredInputs().length).toBe(0);
       });
     });
 
@@ -519,6 +613,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(mockDispatcher.emitPsbtImported).toHaveBeenCalledWith('upload');
         expect(mockEvent.target.value).toBe('');
       });
+
+      it('should return early and alert when file extension is unsupported', async () => {
+        const spyAlert = vi.spyOn(component, 'openAlert');
+        const event = { target: { files: [new File([''], 'data.pdf')] } }; // .pdf is invalid
+
+        await component.onFileSelected(event);
+
+        expect(spyAlert).toHaveBeenCalledWith('Invalid File Type', expect.any(String));
+      });
     });
 
     describe('PSBT Extraction Workflows', () => {
@@ -664,6 +767,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(mockSocketService.finalizeTransaction).toHaveBeenCalled();
       });
 
+      it('finalize should execute immediately if whitelist exists but is empty', () => {
+        mockSocketService.roomState.set({ whitelist: [] }); // Array exists but length is 0
+        const confirmSpy = vi.spyOn(component, 'openConfirm');
+
+        component.finalize();
+
+        expect(confirmSpy).not.toHaveBeenCalled(); // Should not warn if whitelist is empty
+      });
+
       it('finalize should intercept and warn if unverified destinations exist', () => {
         // out2 is missing from whitelist
         mockSocketService.roomState.set({ whitelist: ['out1'] });
@@ -682,6 +794,26 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(component.confirmData().title).toBe('Security Warning');
       });
 
+      it('finalize should execute immediately if all outputs are whitelisted', () => {
+        // Set up: All outputs are whitelisted
+        mockSocketService.roomState.set({
+          whitelist: ['addr1', 'addr2'],
+          psbt: 'data',
+        });
+        mockSocketService.txDetails.set({
+          outputs: [
+            { address: 'addr1', isChange: false },
+            { address: 'addr2', isChange: false },
+          ],
+        });
+
+        const spy = vi.spyOn(component, 'openConfirm');
+        component.finalize();
+
+        // Should NOT trigger the security warning modal
+        expect(spy).not.toHaveBeenCalled();
+      });
+
       it('broadcastAndCopy should push raw hex to mempool block explorer depending on network', () => {
         mockSocketService.roomState.set({ finalTxHex: 'final-hex', network: 'testnet' });
         const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
@@ -694,6 +826,58 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
         expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/testnet/tx/push', '_blank');
       });
+
+      it('broadcastAndCopy should generate correct URLs based on network', () => {
+        const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+        // Set the roomState signal
+        mockSocketService.roomState.set({ finalTxHex: '0000', network: 'testnet' });
+
+        component.broadcastAndCopy();
+
+        expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/testnet/tx/push', '_blank');
+      });
+    });
+  });
+
+  describe('Finalize Logic Branches', () => {
+    it('finalize() should show confirm modal if unverified outputs exist', () => {
+      // 1. Setup State: Whitelist exists, but outputs are NOT in whitelist
+      mockSocketService.roomState.set({
+        whitelist: ['bc1q-verified'],
+        psbt: 'base64',
+      });
+      mockSocketService.txDetails.set({
+        outputs: [{ address: 'bc1q-unverified', isChange: false }],
+      } as any);
+
+      const confirmSpy = vi.spyOn(component, 'openConfirm');
+
+      component.finalize();
+
+      // It should hit the "unverified.length > 0" branch and open modal
+      expect(confirmSpy).toHaveBeenCalledWith(
+        'Security Warning',
+        expect.stringContaining('unverified address'),
+        expect.any(Function),
+        true,
+      );
+    });
+
+    it('should skip whitelist check if whitelist is null/undefined', () => {
+      mockSocketService.roomState.set({ whitelist: null }); // Short-circuit
+      const confirmSpy = vi.spyOn(component, 'openConfirm');
+
+      component.finalize();
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
+
+    it('should skip whitelist check if whitelist is empty array', () => {
+      mockSocketService.roomState.set({ whitelist: [] }); // Empty array branch
+      const confirmSpy = vi.spyOn(component, 'openConfirm');
+
+      component.finalize();
+      expect(confirmSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -724,6 +908,16 @@ describe('RoomComponent - Setup & Lifecycle', () => {
           'transaction-overview',
           'hidden',
         );
+      });
+
+      it('togglePrivacyBlur should re-blur a section if it is currently revealed', () => {
+        // Set section to revealed (false = blurred, true = revealed)
+        component.blurStates.set({ 'transaction-details': false } as any);
+
+        component.togglePrivacyBlur('transaction-details');
+
+        // It should now be blurred (true)
+        expect(component.blurStates()['transaction-details']).toBe(true);
       });
 
       it('confirmUnblur should reveal the pending section and dismiss warning', () => {
@@ -845,6 +1039,1073 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(mockSocketService.uploadSignature).toHaveBeenCalled();
         expect(mockDispatcher.emitPsbtImported).toHaveBeenCalledWith('scan');
       });
+    });
+  });
+
+  describe('Template Rendering & DOM Interactions', () => {
+    describe('Modal Visibility & @if Blocks', () => {
+      it('should render PSBT modal', () => {
+        component.showPsbtModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Download Unsigned PSBT');
+      });
+
+      it('should render Audit modal', () => {
+        component.showAuditModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Download Audit Log');
+      });
+
+      it('should render CSV modal', () => {
+        component.showCsvModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Download CSV Data');
+      });
+
+      it('should render Room ID modal', () => {
+        component.showRoomIdModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Identifier');
+      });
+
+      it('should render Label modal', () => {
+        component.showLabelModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Label Signer');
+      });
+
+      it('should render Rename modal', () => {
+        component.showRenameModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Rename Room');
+      });
+
+      it('should render QR modal', () => {
+        component.showQrModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room QR Code');
+      });
+
+      it('should render Share modal', () => {
+        component.showShareModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Share Room Securely');
+      });
+
+      it('should render Key modal', () => {
+        component.showKeyModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Decryption Key');
+      });
+
+      it('should render Admin Backup modal', () => {
+        component.showAdminModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Backup Admin Token');
+      });
+
+      it('should render Fountain/Air-Gapped Export modal', () => {
+        component.showFountainModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Air-Gapped Export PSBT');
+      });
+
+      it('should render Scanner/Air-Gapped Import modal', () => {
+        component.showScannerModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Air-Gapped Import PSBT');
+      });
+
+      it('should render generic Confirm/Alert modal', () => {
+        component.confirmData.set({
+          title: 'Danger Alert',
+          message: 'Warning 123',
+          action: () => {},
+          isDestructive: true,
+          type: 'alert',
+        });
+        component.showConfirmModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Danger Alert');
+        expect(fixture.nativeElement.textContent).toContain('Warning 123');
+      });
+
+      it('should render Sessions modal', () => {
+        component.showSessionsModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Active Sessions');
+      });
+
+      it('should render Privacy OpSec Warning', () => {
+        component.showPrivacyWarning.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('OpSec Warning');
+      });
+    });
+
+    describe('Room Error States & Expirations', () => {
+      it('should render Connection Lost banner', () => {
+        mockSocketService.status.set('disconnected');
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Connection lost... Reconnecting...');
+      });
+
+      it('should render Room Not Found overlay', () => {
+        mockSocketService.roomNotFound.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Not Found');
+      });
+
+      it('should render Room Full overlay', () => {
+        mockSocketService.isRoomFull.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Full');
+      });
+
+      it('should render Access Denied overlay', () => {
+        mockSocketService.isLockedOut.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Access Denied');
+      });
+
+      it('should render Decryption Error overlay', () => {
+        mockSocketService.decryptionError.set('Invalid Key');
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Decryption Key Required');
+      });
+
+      it('should render Room Closed overlay', () => {
+        mockSocketService.isClosed.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Signing Room Closed');
+      });
+
+      it('should render Room Expired overlay', () => {
+        component.isExpired.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Expired');
+      });
+    });
+
+    describe('UI Toggles & Specific Roles', () => {
+      it('should render Input and Output search placeholders based on viewMode', () => {
+        component.blurStates.set({ 'transaction-details': false } as any); // Unblur to render search
+
+        component.viewMode.set('inputs');
+        fixture.detectChanges();
+        expect(
+          fixture.nativeElement.querySelector('input[placeholder="Search input address..."]'),
+        ).toBeTruthy();
+
+        component.viewMode.set('outputs');
+        fixture.detectChanges();
+        expect(
+          fixture.nativeElement.querySelector('input[placeholder="Search output address..."]'),
+        ).toBeTruthy();
+      });
+
+      it('should display specific Coordinator actions', () => {
+        mockSocketService.isCoordinator.mockReturnValue(true);
+        mockSocketService.roomState.set({ network: 'bitcoin', isLocked: false, connectedCount: 1 });
+        fixture.detectChanges();
+
+        const html = fixture.nativeElement.textContent;
+        expect(html).toContain('Coordinator');
+        expect(html).toContain('Lock Room');
+        expect(html).toContain('Backup Admin');
+      });
+    });
+
+    describe('QR & Scanner Dynamic Rendering', () => {
+      it('should toggle warning UI based on qrIncludesKey status', () => {
+        component.showQrModal.set(true);
+
+        component.qrIncludesKey.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Contains Decryption Key');
+
+        component.qrIncludesKey.set(false);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Maximum Security');
+      });
+
+      it('should switch descriptions between UR and BBQr formats', () => {
+        component.showFountainModal.set(true);
+
+        component.exportFormat.set('ur');
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Standard Protocol');
+
+        component.exportFormat.set('bbqr');
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Coldcard Protocol');
+      });
+
+      it('should dynamically display scanner errors and progress bars', () => {
+        component.showScannerModal.set(true);
+        component.isScanningSigned.set(true);
+
+        mockUrService.scanError.set('Optical interference detected');
+        mockUrService.scanProgress.set(0.45);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('Optical interference detected');
+        expect(fixture.nativeElement.textContent).toContain('45%');
+      });
+    });
+  });
+
+  describe('Deep Template Branch Coverage', () => {
+    it('should render Active Sessions list with specific roles and you-badge', () => {
+      component.showSessionsModal.set(true);
+      // Simulate a populated list of sessions
+      mockSocketService.activeSessions.set([
+        { id: '1', role: 'admin', displayName: 'Admin Alice' },
+        { id: '2', role: 'guest', displayName: '' }, // Anonymous
+        { id: 'session-1', role: 'guest', displayName: 'Current User' }, // Matches currentSessionId
+      ]);
+      fixture.detectChanges();
+
+      const html = fixture.nativeElement.textContent;
+      // This covers the @for loop inside showSessionsModal()
+      expect(html).toContain('Admin Alice');
+      expect(html).toContain('Anonymous Guest'); // Fallback logic
+      expect(html).toContain('Current User');
+      expect(html).toContain('You'); // Covers the @if (session.id === currentSessionId)
+    });
+
+    it('should render dynamic text for Lock Room based on coordinator and lock state', () => {
+      mockSocketService.isCoordinator.mockReturnValue(true);
+
+      // Locked State
+      mockSocketService.roomState.set({ isLocked: true });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Locked');
+
+      // Unlocked State
+      mockSocketService.roomState.set({ isLocked: false });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Lock Room');
+    });
+
+    it('should render both destructive and standard variants of the Confirm Modal', () => {
+      component.showConfirmModal.set(true);
+
+      // Variant 1: Destructive Confirm
+      component.confirmData.set({
+        title: 'Nuke',
+        message: 'msg',
+        action: () => {},
+        isDestructive: true,
+        type: 'confirm',
+      });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Nuke');
+      expect(fixture.nativeElement.textContent).toContain('Cancel'); // Cancel button exists
+      expect(fixture.nativeElement.textContent).toContain('Confirm'); // Confirm text
+
+      // Variant 2: Standard Alert
+      component.confirmData.set({
+        title: 'Safe',
+        message: 'msg',
+        action: () => {},
+        isDestructive: false,
+        type: 'alert',
+      });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Safe');
+      expect(fixture.nativeElement.textContent).not.toContain('Cancel'); // No cancel button on alert
+      expect(fixture.nativeElement.textContent).toContain('OK'); // OK text
+    });
+
+    it('should render raw optical feed fallback and reconstructing signature progress in scanner modal', () => {
+      component.showScannerModal.set(true);
+
+      // Unpopulated state
+      mockUrService.lastScannedText.set('');
+      mockUrService.scanProgress.set(0);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Waiting for QR...');
+
+      // Populated state with progress
+      mockUrService.lastScannedText.set('ur:bytes/1-2/payload');
+      mockUrService.scanProgress.set(0.65);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('ur:bytes/1-2/payload');
+      expect(fixture.nativeElement.textContent).toContain('RECONSTRUCTING SIGNATURE...');
+      expect(fixture.nativeElement.textContent).toContain('65%'); // Formats decimal to %
+    });
+
+    it('should render ingesting signature progress in the main transaction panel', () => {
+      component.isScanningSigned.set(true);
+      mockUrService.scanProgress.set(0.85);
+      fixture.detectChanges();
+
+      // This covers the secondary scanner UI integrated directly into the panel
+      expect(fixture.nativeElement.textContent).toContain('Ingesting Signature...');
+      expect(fixture.nativeElement.textContent).toContain('85%');
+    });
+
+    it('should render expired state in the main view and header', () => {
+      component.isExpired.set(true);
+      mockSocketService.isClosed.set(false);
+      fixture.detectChanges();
+
+      const html = fixture.nativeElement.textContent;
+      // Covers the @if (isExpired()) blocks
+      expect(html).toContain('Room Expired');
+      expect(html).toContain('Expired');
+    });
+
+    it('should conditionally render Verify All buttons if coordinator and array length > 3', () => {
+      mockSocketService.isCoordinator.mockReturnValue(true);
+      component.blurStates.set({ 'transaction-details': false } as any); // Unblur to render
+
+      // Mock 4 items (greater than 3 trigger)
+      const fourItems = [{}, {}, {}, {}];
+      mockSocketService.txDetails.set({ inputsList: fourItems, outputs: fourItems });
+
+      component.viewMode.set('inputs');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Verify All Inputs');
+
+      component.viewMode.set('outputs');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Verify All Outputs');
+    });
+
+    it('should render the Claim Coordinator input toggle', () => {
+      mockSocketService.isCoordinator.mockReturnValue(false);
+      mockSocketService.isReadyToBroadcast.mockReturnValue(false);
+
+      // Initial State
+      component.showClaimInput.set(false);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain(
+        'Have the Admin Key? Claim Coordinator Role',
+      );
+
+      // Toggled State
+      component.showClaimInput.set(true);
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('input[placeholder="Paste Admin Key here..."]'),
+      ).toBeTruthy();
+      expect(fixture.nativeElement.textContent).toContain('Claim');
+    });
+
+    it('should render the Signers list with specific labels and nudge actions', () => {
+      mockSocketService.isCoordinator.mockReturnValue(true);
+      component.blurStates.set({ signers: false } as any); // Unblur
+
+      mockSocketService.signers.set([
+        { fingerprint: 'fp-123', signed: true },
+        { fingerprint: 'fp-456', signed: false },
+      ]);
+
+      // Only one of them has a label saved
+      mockSocketService.roomState.set({ signerLabels: { 'fp-123': 'Hardware Wallet' } });
+      fixture.detectChanges();
+
+      const html = fixture.nativeElement.textContent;
+      expect(html).toContain('Hardware Wallet'); // Valid label
+      expect(html).toContain('Add Label'); // Fallback for the one without a label
+      expect(html).toContain('Signed');
+      expect(html).toContain('Waiting...');
+    });
+  });
+
+  describe('Effects & Complex State', () => {
+    it('should call getAuditLogPdf when finalized in embedded mode', async () => {
+      mockDispatcher.isEmbedded = true;
+      mockSocketService.isCoordinator.mockReturnValue(true);
+      mockSocketService.roomState.set({
+        finalTxId: 'tx123',
+        finalTxHex: 'deadbeef',
+      });
+
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(mockSocketService.getAuditLogPdf).toHaveBeenCalled();
+      expect(mockDispatcher.emitTransactionFinalized).toHaveBeenCalled();
+    });
+  });
+
+  describe('Form Inputs & Key Submissions Edge Cases', () => {
+    it('claimRole should return early if claimPassword is empty', () => {
+      component.claimPassword = '';
+      component.claimRole();
+      expect(mockSocketService.claimCoordinator).not.toHaveBeenCalled();
+    });
+
+    it('saveRoomName should return early if name is empty', () => {
+      component.newRoomName.set('');
+      component.saveRoomName();
+      expect(mockSocketService.renameRoom).not.toHaveBeenCalled();
+    });
+
+    it('submitKey should return early if manualKey is empty', () => {
+      component.manualKey = '';
+      component.submitKey();
+      expect(mockSocketService.connect).not.toHaveBeenCalled();
+    });
+
+    it('submitKey should extract the fragment if a full URL is pasted', () => {
+      component.roomId.set('room-123');
+      component.manualKey = 'https://app.signingroom.com/room/room-123#my-secret-key';
+
+      component.submitKey();
+
+      expect(mockSocketService.connect).toHaveBeenCalledWith('room-123', 'my-secret-key');
+      expect(component.manualKey).toBe(''); // Verify it resets
+    });
+  });
+
+  describe('File Ingestion Edge Cases (onFileSelected)', () => {
+    let mockEvent: any;
+
+    beforeEach(() => {
+      mockEvent = { target: { value: 'path', files: [] } };
+    });
+
+    it('should reject files with invalid extensions', async () => {
+      const spyAlert = vi.spyOn(component, 'openAlert');
+      mockEvent.target.files = [new File([''], 'image.png')];
+
+      await component.onFileSelected(mockEvent);
+
+      expect(spyAlert).toHaveBeenCalledWith('Invalid File Type', expect.any(String));
+      expect(mockEvent.target.value).toBe('');
+    });
+
+    it('should reject files larger than 2MB', async () => {
+      const spyAlert = vi.spyOn(component, 'openAlert');
+      // Create a dummy file that is 3MB
+      mockEvent.target.files = [new File([new ArrayBuffer(3 * 1024 * 1024)], 'large.psbt')];
+
+      await component.onFileSelected(mockEvent);
+
+      expect(spyAlert).toHaveBeenCalledWith('File Too Large', expect.any(String));
+    });
+
+    it('should catch read errors gracefully', async () => {
+      const spyAlert = vi.spyOn(component, 'openAlert');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Initialize the mock function before rejecting it
+      mockSocketService.sdk.parsePsbtFile = vi.fn().mockRejectedValue(new Error('Parse error'));
+
+      mockEvent.target.files = [new File(['invalid-data'], 'corrupt.psbt')];
+
+      await component.onFileSelected(mockEvent);
+
+      expect(consoleSpy).toHaveBeenCalledWith(new Error('Parse error'));
+      expect(spyAlert).toHaveBeenCalledWith('Read Error', 'Failed to read file.');
+      expect(component.isUploading()).toBe(false);
+    });
+  });
+
+  describe('Timers and Async Exports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('startTimer should calculate remaining time and expire when time runs out', () => {
+      const now = Date.now();
+      const spyDisconnect = vi.spyOn(mockSocketService, 'disconnect');
+
+      // Set expiry to 1 hour, 1 minute, and 1 second from now
+      const expiryTime = now + 1000 * 60 * 60 + 1000 * 60 + 1000;
+
+      component['startTimer'](expiryTime);
+
+      // Fast forward 1 second to trigger the interval calculation
+      vi.advanceTimersByTime(1000);
+      expect(component.timeRemaining()).toBe('01 hrs 01 m 00 s');
+      expect(component.isLowTime()).toBe(false);
+
+      // Fast forward past the expiration
+      vi.advanceTimersByTime(expiryTime - now + 1000);
+
+      expect(component.timeRemaining()).toBe('00 hrs 00 m 00 s');
+      expect(component.isExpired()).toBe(true);
+      expect(spyDisconnect).toHaveBeenCalled();
+    });
+
+    it('startTimer should set isLowTime', () => {
+      vi.useFakeTimers();
+
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+
+      (component as any).startTimer(Date.now() + 65_000);
+
+      vi.advanceTimersByTime(1000);
+
+      expect(component.timeRemaining()).toContain('01 m');
+      expect(component.isLowTime()).toBe(true);
+    });
+
+    it('executeCsvDownload should trigger delay and then download', async () => {
+      const downloadSpy = vi.spyOn(component, 'downloadCsv').mockImplementation(() => {});
+
+      const promise = component.executeCsvDownload();
+
+      // Await the 1000ms delay inside executeCsvDownload
+      await vi.advanceTimersByTimeAsync(1500);
+      await promise;
+
+      expect(downloadSpy).toHaveBeenCalled();
+    });
+
+    it('downloadCsv should return early if no csv content is available', () => {
+      mockSocketService.getSettlementCsvData.mockReturnValue(null);
+      const createElementSpy = vi.spyOn(document, 'createElement');
+
+      component.downloadCsv();
+
+      expect(createElementSpy).not.toHaveBeenCalledWith('a');
+    });
+  });
+
+  describe('Broadcasting & QR Engine Edge Cases', () => {
+    it('broadcastAndCopy should route to correct mempool network', () => {
+      const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+      // Test 1: Signet
+      mockSocketService.roomState.set({ finalTxHex: 'hex', network: 'signet' });
+      component.broadcastAndCopy();
+      expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/signet/tx/push', '_blank');
+
+      // Test 2: Mainnet (Fallback)
+      mockSocketService.roomState.set({ finalTxHex: 'hex', network: 'invalid-network' });
+      component.broadcastAndCopy();
+      expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/tx/push', '_blank');
+    });
+
+    it('generateQrData should safely catch and log generation errors', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      component.qrIncludesKey.set(true);
+      mockSocketService.getRoomLink.mockImplementation(() => {
+        throw new Error('Canvas failure');
+      });
+
+      await component['generateQrData']();
+
+      expect(consoleSpy).toHaveBeenCalledWith('QR Generation failed', new Error('Canvas failure'));
+    });
+  });
+
+  describe('Optical Scanner & Import Error Handling', () => {
+    it('stopScanner should safely handle HTML5QrCode exceptions', async () => {
+      component.html5QrCode = {
+        getState: () => 2, // 2 = SCANNING
+        stop: vi.fn().mockRejectedValue(new Error('Camera locked')),
+        clear: vi.fn(),
+      } as any;
+
+      component.stopScanner();
+
+      // Flush promises
+      await new Promise(process.nextTick);
+
+      // It should gracefully clear state even if the hardware stop command rejects
+      expect(component.isScanningSigned()).toBe(false);
+      expect(component.showScannerModal()).toBe(false);
+    });
+
+    it('processScannedSignature should catch malformed base64/hex data', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await component.processScannedSignature('not_valid_hex_or_base64!');
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Failed to parse signed PSBT from scanner',
+        expect.anything(),
+      );
+    });
+
+    it('handleScanResult should return early if fullHex is null (incomplete fragment)', () => {
+      const stopSpy = vi.spyOn(component, 'stopScanner');
+      mockUrService.processFragment.mockReturnValue(null); // Indicates more fragments needed
+
+      component.handleScanResult('ur:bytes/1-2/incomplete');
+
+      expect(stopSpy).not.toHaveBeenCalled(); // Scanner should keep running
+    });
+  });
+
+  describe('Fountain Settings', () => {
+    it('updateFountainSpeed should update signal value', () => {
+      component.updateFountainSpeed(150);
+      expect(component.fountainSpeed()).toBe(150);
+    });
+
+    it('updateFountainSpeed should restart animation if fountain is currently active and revealed', () => {
+      const animSpy = vi
+        .spyOn(component as any, 'startFountainAnimation')
+        .mockImplementation(() => {});
+
+      // Force conditions to be true
+      vi.spyOn(component, 'isFountainRevealed').mockReturnValue(true);
+      component.showFountainModal.set(true);
+
+      component.updateFountainSpeed(200);
+
+      expect(animSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('updateFountainSpeed: should NOT restart animation if fountain is NOT revealed', () => {
+      const animSpy = vi.spyOn(component, 'startFountainAnimation');
+      component.isFountainRevealed.set(false);
+      component.showFountainModal.set(true);
+
+      component.updateFountainSpeed(500);
+
+      expect(animSpy).not.toHaveBeenCalled();
+    });
+
+    it('updateFountainSpeed: should NOT restart animation if modal is NOT shown', () => {
+      const animSpy = vi.spyOn(component, 'startFountainAnimation');
+      component.isFountainRevealed.set(true);
+      component.showFountainModal.set(false);
+
+      component.updateFountainSpeed(500);
+
+      expect(animSpy).not.toHaveBeenCalled();
+    });
+
+    it('should restart animation only when BOTH revealed and modal shown', () => {
+      const animSpy = vi.spyOn(component, 'startFountainAnimation');
+
+      // Case 1: T & T (Should restart)
+      component.isFountainRevealed.set(true);
+      component.showFountainModal.set(true);
+      component.updateFountainSpeed(500);
+      expect(animSpy).toHaveBeenCalledTimes(1);
+
+      // Case 2: T & F (Should NOT restart)
+      component.isFountainRevealed.set(true);
+      component.showFountainModal.set(false);
+      component.updateFountainSpeed(500);
+      expect(animSpy).toHaveBeenCalledTimes(1); // No change
+
+      // Case 3: F & T (Should NOT restart)
+      component.isFountainRevealed.set(false);
+      component.showFountainModal.set(true);
+      component.updateFountainSpeed(500);
+      expect(animSpy).toHaveBeenCalledTimes(1); // No change
+    });
+  });
+
+  describe('Scanner Handling', () => {
+    it('stopScanner: should handle falsy html5QrCode', () => {
+      component.html5QrCode = null as any;
+      component.isScanningSigned.set(true);
+
+      component.stopScanner();
+
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('stopScanner: should safely clear scanner if state is not SCANNING', () => {
+      component.html5QrCode = {
+        getState: () => 1, // Not scanning
+        clear: vi.fn(),
+      } as any;
+      component.isScanningSigned.set(true);
+
+      component.stopScanner();
+
+      expect(component.html5QrCode.clear).toHaveBeenCalled();
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('stopScanner: should execute catch block if synchronous error occurs', () => {
+      component.html5QrCode = {
+        getState: () => {
+          throw new Error('Sync crash');
+        },
+        clear: vi.fn(),
+      } as any;
+      component.isScanningSigned.set(true);
+
+      component.stopScanner();
+
+      expect(component.html5QrCode.clear).toHaveBeenCalled();
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('handleScanResult: should process fragment and stop scanner when complete', () => {
+      vi.spyOn(component.urService, 'processFragment').mockReturnValue('010203');
+      vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
+      vi.spyOn(component, 'processScannedSignature').mockImplementation(async () => {});
+
+      component.handleScanResult('UR:CRYPTO-PSBT/1-1/MOCK');
+
+      expect(component.stopScanner).toHaveBeenCalled();
+      expect(component.processScannedSignature).toHaveBeenCalledWith('010203');
+    });
+
+    it('handleScanResult: should do nothing if fragment is incomplete', () => {
+      vi.spyOn(component.urService, 'processFragment').mockReturnValue(null);
+      vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
+
+      component.handleScanResult('UR:CRYPTO-PSBT/1-2/MOCK');
+
+      expect(component.stopScanner).not.toHaveBeenCalled();
+    });
+
+    it('updateFountainSpeed: should update speed and restart animation if currently running', () => {
+      component.isFountainRevealed.set(true);
+      component.showFountainModal.set(true);
+      vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+
+      component.updateFountainSpeed(250);
+
+      expect(component.fountainSpeed()).toBe(250);
+      expect(component.startFountainAnimation).toHaveBeenCalled();
+    });
+
+    it('updateFountainSpeed: should just update speed if animation is not currently running', () => {
+      component.isFountainRevealed.set(false); // Modal hidden
+      vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+
+      component.updateFountainSpeed(300);
+
+      expect(component.fountainSpeed()).toBe(300);
+      expect(component.startFountainAnimation).not.toHaveBeenCalled();
+    });
+
+    it('should catch errors if uploadSignature fails in processScannedSignature', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Use spyOn to safely hijack just this one method without breaking ngOnDestroy
+      vi.spyOn(component.socket, 'uploadSignature').mockRejectedValue(
+        new Error('Network disconnected'),
+      );
+
+      await component.processScannedSignature('01020304');
+
+      expect(console.error).toHaveBeenCalledWith(
+        'Failed to parse signed PSBT from scanner',
+        expect.any(Error),
+      );
+    });
+
+    it('should safely execute the catch block if getState throws in stopScanner', () => {
+      component.html5QrCode = {
+        getState: () => {
+          throw new Error('State crash');
+        },
+        clear: vi.fn(),
+      } as any;
+
+      component.stopScanner();
+
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('should safely handle errors when parsing a scanned signature fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await component.processScannedSignature('INVALID_!!!_DATA');
+
+      expect(console.error).toHaveBeenCalledWith(
+        'Failed to parse signed PSBT from scanner',
+        expect.anything(),
+      );
+    });
+
+    it('should handle asynchronous rejection when stopping the scanner', async () => {
+      component.html5QrCode = {
+        getState: () => 2,
+        stop: vi.fn().mockRejectedValue(new Error('Camera stuck')),
+        clear: vi.fn(),
+      } as any;
+
+      component.stopScanner();
+      await Promise.resolve();
+
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('should handle synchronous errors when stopping the scanner', () => {
+      component.html5QrCode = {
+        getState: () => {
+          throw new Error('Sync crash');
+        },
+        clear: vi.fn(),
+      } as any;
+
+      component.stopScanner();
+
+      expect(component.isScanningSigned()).toBe(false);
+    });
+  });
+
+  describe('scanner Function (Callbacks & Edge Cases)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      if (!document.getElementById('signer-reader')) {
+        const div = document.createElement('div');
+        div.id = 'signer-reader';
+        document.body.appendChild(div);
+      }
+    });
+
+    afterEach(() => {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+      const div = document.getElementById('signer-reader');
+      if (div) div.remove();
+    });
+
+    it('should successfully resolve stopScanner and trigger .then() callback', async () => {
+      component.html5QrCode = {
+        getState: () => 2,
+        stop: vi.fn().mockResolvedValue(undefined),
+        clear: vi.fn(),
+      } as any;
+      component.isScanningSigned.set(true);
+
+      component.stopScanner();
+      await Promise.resolve();
+
+      expect(component.html5QrCode.clear).toHaveBeenCalled();
+      expect(component.isScanningSigned()).toBe(false);
+    });
+
+    it('should execute setTimeout callback inside doCopy()', () => {
+      component.copyHex();
+      expect(component.copied()).toBe(true);
+
+      vi.advanceTimersByTime(2000);
+
+      expect(component.copied()).toBe(false);
+    });
+
+    it('should execute interval and timeout callbacks in startFountainAnimation()', () => {
+      const renderSpy = vi
+        .spyOn(component, 'renderFountainFrame')
+        .mockImplementation(async () => {});
+      component.activeFountainFrames = ['frame1', 'frame2'];
+      component.currentFrameIndex.set(0);
+      component.fountainSpeed.set(400);
+
+      component.startFountainAnimation();
+
+      vi.advanceTimersByTime(1);
+      expect(renderSpy).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(400);
+      expect(renderSpy).toHaveBeenCalledTimes(2);
+
+      component.stopFountainAnimation();
+    });
+
+    it('should start and stop animation via toggleFountainReveal()', () => {
+      const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+      const stopSpy = vi.spyOn(component, 'stopFountainAnimation').mockImplementation(() => {});
+
+      component.isFountainRevealed.set(false);
+      component.exportFormat.set('ur');
+
+      component.toggleFountainReveal();
+      expect(startSpy).toHaveBeenCalled();
+
+      component.toggleFountainReveal();
+      expect(stopSpy).toHaveBeenCalled();
+    });
+
+    it('should execute fallback camera start callbacks if high-res fails', async () => {
+      vi.spyOn(component, 'handleScanResult').mockImplementation(() => {});
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { Html5Qrcode } = await import('html5-qrcode');
+
+      let callCount = 0;
+      const startSpy = vi
+        .spyOn(Html5Qrcode.prototype, 'start')
+        .mockImplementation((camId: any, config: any, onSuccess: any, onError: any) => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.reject(new Error('High res fail'));
+          } else {
+            // Fires the anonymous callbacks in the fallback catch block
+            if (onSuccess) onSuccess('UR:CRYPTO-PSBT/1-1/FALLBACK');
+            if (onError) onError('Fallback error');
+            return Promise.resolve();
+          }
+        });
+
+      component.startScanner();
+      vi.advanceTimersByTime(100);
+
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(component.handleScanResult).toHaveBeenCalledWith('UR:CRYPTO-PSBT/1-1/FALLBACK');
+      expect(console.error).toHaveBeenCalledWith('Fallback camera failed to start.');
+
+      startSpy.mockRestore();
+    });
+
+    it('should hit the catch block if the fallback camera ALSO fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const stopSpy = vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
+
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const startSpy = vi
+        .spyOn(Html5Qrcode.prototype, 'start')
+        .mockRejectedValue(new Error('Complete failure'));
+
+      component.startScanner();
+      vi.advanceTimersByTime(100);
+
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(stopSpy).toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalledWith(
+        'Fallback camera start also failed:',
+        expect.any(Error),
+      );
+
+      startSpy.mockRestore();
+    });
+
+    it('setExportFormat: should regenerate frames and restart animation if revealed', () => {
+      const regenSpy = vi.spyOn(component, 'regenerateFrames').mockImplementation(() => {});
+      const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+
+      component.showFountainModal.set(true);
+      component.isFountainRevealed.set(true);
+
+      component.setExportFormat('bbqr');
+
+      expect(component.exportFormat()).toBe('bbqr');
+      expect(regenSpy).toHaveBeenCalled();
+      expect(startSpy).toHaveBeenCalled();
+    });
+
+    it('setExportFormat: should not regenerate frames if modal is closed', () => {
+      const regenSpy = vi.spyOn(component, 'regenerateFrames').mockImplementation(() => {});
+      component.showFountainModal.set(false);
+
+      component.setExportFormat('ur');
+      expect(regenSpy).not.toHaveBeenCalled();
+    });
+
+    it('should cover the empty reset action in closeConfirmModal', () => {
+      component.closeConfirmModal();
+      component.confirmData().action();
+    });
+
+    it('should cover the empty alert action in openAlert', () => {
+      component.openAlert('Test', 'Test Msg');
+      component.confirmData().action();
+    });
+  });
+
+  describe('Modal Toggles and Platform Logic', () => {
+    it('should toggle various modals and dispatch events', () => {
+      const dispatcherSpy = vi.spyOn(component['dispatcher'], 'emitModalView');
+
+      component.openRenameModal();
+      expect(component.showRenameModal()).toBe(true);
+      expect(dispatcherSpy).toHaveBeenCalledWith('Rename Room');
+
+      component.closeRenameModal();
+      expect(component.showRenameModal()).toBe(false);
+
+      component.openShareModal();
+      expect(component.showShareModal()).toBe(true);
+      component.closeShareModal();
+
+      component.openKeyModal();
+      expect(component.showKeyModal()).toBe(true);
+      component.closeKeyModal();
+    });
+
+    it('should handle confirm modal actions', () => {
+      component.openAlert('Title', 'Msg');
+      expect(component.showConfirmModal()).toBe(true);
+      component.executeConfirmAction();
+      expect(component.showConfirmModal()).toBe(false);
+    });
+  });
+
+  describe('Nudge Signer', () => {
+    it('nudgeSigner should copy a formatted nudge message to clipboard and show alert', async () => {
+      vi.useFakeTimers();
+      const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+      const openAlertSpy = vi.spyOn(component, 'openAlert');
+      const logActionSpy = vi.spyOn(mockSocketService, 'logAction');
+
+      const fingerprint = 'fp-abc123';
+      const expectedLabel = 'Alice Hardware (fp-abc123)';
+
+      vi.spyOn(component, 'getSignerLabel').mockReturnValue(expectedLabel);
+      vi.spyOn(component, 'getFullShareLink').mockReturnValue('https://example.com/room#key');
+
+      component.nudgeSigner(fingerprint);
+
+      await vi.advanceTimersByTimeAsync(150);
+
+      expect(clipboardSpy).toHaveBeenCalled();
+      const copiedText = clipboardSpy.mock.calls[0][0];
+      expect(copiedText).toContain('Signature needed from: Alice Hardware (fp-abc123)');
+      expect(copiedText).toContain('https://example.com/room#key');
+
+      expect(openAlertSpy).toHaveBeenCalledWith(
+        'Nudge Message Copied',
+        expect.stringContaining('Alice Hardware'),
+      );
+
+      expect(logActionSpy).toHaveBeenCalledWith(
+        'Nudge Sent',
+        expect.stringContaining('Alice Hardware'),
+      );
+    });
+
+    it('nudgeSigner should handle missing label gracefully', async () => {
+      vi.useFakeTimers();
+      const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+      const openAlertSpy = vi.spyOn(component, 'openAlert');
+
+      const fingerprint = 'unknown-fp-xyz';
+
+      vi.spyOn(component, 'getSignerLabel').mockReturnValue(fingerprint);
+      vi.spyOn(component, 'getFullShareLink').mockReturnValue('https://example.com/room#key');
+
+      component.nudgeSigner(fingerprint);
+      await vi.advanceTimersByTimeAsync(150);
+
+      expect(clipboardSpy).toHaveBeenCalled();
+      const copiedText = clipboardSpy.mock.calls[0][0];
+      expect(copiedText).toContain('Signature needed from: unknown-fp-xyz');
+      expect(openAlertSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('Helper Method Branches', () => {
+    it('getSignerLabel should return fingerprint if label is missing', () => {
+      mockSocketService.roomState.set({ signerLabels: { other: 'Name' } });
+      const result = component.getSignerLabel('missing-fp');
+      expect(result).toBe('missing-fp');
+    });
+
+    it('isSaved should return false if label is not found in address book', () => {
+      mockSocketService.getLocalLabel.mockReturnValue(null);
+      expect(component.isSaved('fp-123')).toBe(false);
     });
   });
 });

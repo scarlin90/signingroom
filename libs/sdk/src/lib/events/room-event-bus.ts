@@ -29,7 +29,8 @@ export type RoomEventType =
   | 'TX_FINALIZED_DECRYPTED'
   | 'STATE_CHANGED'
   | 'TOGGLE_LOCK'
-  | 'UPDATE_LABEL';
+  | 'UPDATE_LABEL'
+  | 'THRESHOLD_MET';
 
 /**
  * Represents an individual event emitted inside a live collaboration room session workspace.

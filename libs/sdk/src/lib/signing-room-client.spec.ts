@@ -238,17 +238,17 @@ describe('SigningRoomClient', () => {
     it('should abort adding an address if it already exists in the whitelist', async () => {
       client.store.set({ whitelist: ['addr1'] } as any);
       const spy = vi.spyOn(client.relay, 'updateWhitelist');
-      await client.addWhitelistAddress('addr1');
+      await client.updateWhitelist(['addr1']);
       expect(spy).not.toHaveBeenCalled();
     });
 
-    it('should execute addWhitelistAddress for new entries', async () => {
+    it('should execute updateWhitelist for new entries', async () => {
       client.store.set({ whitelist: [] } as any);
       const spy = vi.spyOn(client.relay, 'updateWhitelist').mockImplementation(async () => {
         client.relay.events.dispatch('WHITELIST_DECRYPTED');
       });
 
-      await client.addWhitelistAddress('bc1qnewaddress');
+      await client.updateWhitelist(['bc1qnewaddress']);
       expect(spy).toHaveBeenCalledWith(
         ['bc1qnewaddress'],
         'Added ...dress to whitelist',
@@ -262,7 +262,7 @@ describe('SigningRoomClient', () => {
         client.relay.events.dispatch('WHITELIST_DECRYPTED');
       });
 
-      await client.updateWhitelistBatch(['addr2', 'addr3'], false);
+      await client.updateWhitelist(['addr2', 'addr3'], false);
       expect(spy).toHaveBeenCalledWith(
         ['addr1', 'addr2', 'addr3'],
         'Verified 2 batch address(es)',
@@ -271,13 +271,15 @@ describe('SigningRoomClient', () => {
     });
 
     it('should process batch updates securely (Removal)', async () => {
-      client.store.set({ whitelist: ['addr1', 'addr2'] } as any);
+      client.store.set({ whitelist: ['addr1', 'addr2', 'addr3'] } as any);
+
       const spy = vi.spyOn(client.relay, 'updateWhitelist').mockImplementation(async () => {
         client.relay.events.dispatch('WHITELIST_DECRYPTED');
       });
 
-      await client.updateWhitelistBatch(['addr1'], true);
-      expect(spy).toHaveBeenCalledWith(['addr2'], 'Removed 1 batch address(es)', 'Guest (Unknown)');
+      await client.updateWhitelist(['addr1', 'addr2'], true);
+
+      expect(spy).toHaveBeenCalledWith(['addr3'], 'Removed 2 batch address(es)', 'Guest (Unknown)');
     });
   });
 

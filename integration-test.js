@@ -1,3 +1,23 @@
+// =========================================================
+// Demo Commands - run in order
+// =========================================================
+// Open Terminal 1 - Boot up Relay
+// =========================================================
+// npm install
+// cd apps\worker
+// npx wrangler dev
+// =========================================================
+// Open Terminal 2 - Boot up UI
+// =========================================================
+// npx nx run client:serve --configuration=development
+// node integration-test.js
+// =========================================================
+// Open Terminal 3 - Build sdk and Run interactive test
+// =========================================================
+// npx nx build sdk
+// node integration-test.js
+// =========================================================
+
 global.crypto = require('crypto').webcrypto;
 if (typeof TextEncoder === 'undefined') {
   const { TextEncoder, TextDecoder } = require('util');
@@ -104,9 +124,16 @@ async function runIntegratorTest() {
   await coordinatorApp.setSignerLabel('7fd7cacb', "Charlie's Trezor Safe 3");
 
   console.log('Coordinator: Enforcing Output/Input Whitelists...');
-  await coordinatorApp.addWhitelistAddress(WHITELIST_INPUT);
+  await coordinatorApp.updateWhitelist([WHITELIST_INPUT]);
 
-  await coordinatorApp.addWhitelistAddress(WHITELIST_OUTPUT);
+  // Approve output
+  await coordinatorApp.updateWhitelist([WHITELIST_OUTPUT]);
+
+  // Unapprove  output
+  await coordinatorApp.updateWhitelist([WHITELIST_OUTPUT], true);
+
+  // Reapprove output
+  await coordinatorApp.updateWhitelist([WHITELIST_OUTPUT]);
 
   // ---------------------------------------------------------
   // PHASE 2: PARTICIPANT ENTRY & PRESENCE
@@ -175,56 +202,70 @@ async function runIntegratorTest() {
   console.log('--- ERROR HANDLING TESTS PASSED ---\n');
 
   // ---------------------------------------------------------
-  // PHASE 3: THRESHOLD SIGNING (Fully Dynamic)
+  // PHASE 3: THRESHOLD SIGNING (Event-Driven w/ RxJS)
   // ---------------------------------------------------------
+  const { filter, take } = require('rxjs');
 
   const QUORUM_THRESHOLD = 3;
 
-  const logProgress = () => {
-    const progress = coordinatorApp.getSignatureProgress();
-    const remaining = coordinatorApp.getSignaturesRemaining(QUORUM_THRESHOLD);
-    const ready = coordinatorApp.isThresholdMet();
+  console.log('\n--- BEGINNING EVENT-DRIVEN SIGNING PHASE ---');
 
-    console.log(
-      `Progress: ${progress.signaturesReceived} of ${progress.totalSigners} Hardware Signers Submitted`,
-    );
+  // We wrap in a Promise strictly to keep the Node CLI running.
+  await new Promise((resolve) => {
+    // ========================================================
+    // ALARM: Trigger EXACTLY when 2 signatures are collected
+    // ========================================================
+    coordinatorApp
+      .onEvent('SIGNATURE_RECEIVED')
+      .pipe(
+        filter((event) => event.payload.signaturesReceived === 2),
+        take(1), // Automatically unsubscribe after it fires once
+      )
+      .subscribe(() => {
+        console.log(
+          `\n⏰ [ALARM] 2 Signatures collected! Paging Human-in-the-loop for final review...`,
+        );
+      });
 
-    // NEW: Show exactly who we are waiting for!
-    const status = coordinatorApp.getSignersStatus();
-    const pending = status.filter((s) => !s.signed).map((s) => s.fingerprint);
-    if (pending.length > 0) {
-      console.log(`Waiting for: ${pending.join(', ')}`);
-    }
+    // ========================================================
+    // FINALIZATION: Trigger when the PSBT threshold is met
+    // ========================================================
+    coordinatorApp
+      .onEvent('THRESHOLD_MET')
+      .pipe(take(1)) // Only fire once, preventing duplicate finalizations
+      .subscribe((event) => {
+        console.log(
+          `\n✅ Quorum Threshold Met! (${event.payload.signaturesReceived}/${event.payload.threshold})`,
+        );
+        resolve(); // Move to Phase 4
+      });
 
-    if (ready) {
-      console.log(`Threshold Met! Ready to Finalize.`);
-    } else {
-      console.log(`Waiting for ${remaining} more signature(s)...`);
-    }
-  };
-  console.log('\nAlice: Uploading Signature...');
-  const aliceFp = aliceApp.extractFingerprintFromSignature(ALICE_SIGNED_PSBT);
-  await aliceApp.uploadSignature(ALICE_SIGNED_PSBT, aliceFp);
-  // Optional: Wait for coordinator to see it just for clean console logs
-  await coordinatorApp.waitForState((s) => s.signatures.length >= 1);
-  await aliceApp.waitForState((s) => s.signatures.length >= 1);
-  logProgress();
+    // ========================================================
+    // GENERAL LOGGING: Listen to all incoming signatures
+    // ========================================================
+    coordinatorApp.onEvent('SIGNATURE_RECEIVED').subscribe((event) => {
+      console.log(
+        `\n🔔 Signature received. Total: ${event.payload.signaturesReceived}/${event.payload.totalSigners}`,
+      );
 
-  console.log('\nBob: Uploading Signature...');
-  const bobFp = bobApp.extractFingerprintFromSignature(BOB_SIGNED_PSBT);
-  await bobApp.uploadSignature(BOB_SIGNED_PSBT, bobFp);
-  await coordinatorApp.waitForState((s) => s.signatures.length >= 2);
-  await bobApp.waitForState((s) => s.signatures.length >= 2);
-  logProgress();
+      const remaining = coordinatorApp.getSignaturesRemaining(QUORUM_THRESHOLD);
+      if (remaining > 0) console.log(`Waiting for ${remaining} more signature(s)...`);
+    });
 
-  console.log('\nCharlie: Uploading Signature...');
-  const charlieFp = charlieApp.extractFingerprintFromSignature(CHARLIE_SIGNED_PSBT);
-  await charlieApp.uploadSignature(CHARLIE_SIGNED_PSBT, charlieFp);
+    // --------------------------------------------------------
+    // Trigger the actions concurrently
+    // --------------------------------------------------------
+    console.log('\n[Triggering Participants to upload concurrently...]');
 
-  // Ensure the Coordinator has fully synced the 3rd signature
-  // before we attempt to finalize or extract the CSV!
-  await coordinatorApp.waitForState((s) => s.signatures.length >= QUORUM_THRESHOLD);
-  logProgress();
+    const aliceFp = aliceApp.extractFingerprintFromSignature(ALICE_SIGNED_PSBT);
+    aliceApp.uploadSignature(ALICE_SIGNED_PSBT, aliceFp);
+
+    const bobFp = bobApp.extractFingerprintFromSignature(BOB_SIGNED_PSBT);
+    bobApp.uploadSignature(BOB_SIGNED_PSBT, bobFp);
+
+    const charlieFp = charlieApp.extractFingerprintFromSignature(CHARLIE_SIGNED_PSBT);
+    charlieApp.uploadSignature(CHARLIE_SIGNED_PSBT, charlieFp);
+  });
 
   // ---------------------------------------------------------
   // PHASE 4: FINALIZATION & AUDIT & TEARDOWN

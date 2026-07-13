@@ -2,7 +2,7 @@ import { EncryptionEngine } from './crypto/encryption-engine';
 import { RelayClient } from './relay/relay-client';
 import { RoomStateStore, RoomState } from './relay/room-state-store';
 import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
-import { RoomEvent } from './events/room-event-bus';
+import { RoomEvent, RoomEventType } from './events/room-event-bus';
 import { RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils, TxDetails } from './bitcoin/psbt-utils';
 import { Observable, firstValueFrom } from 'rxjs';
@@ -61,6 +61,24 @@ export class SigningRoomClient {
       }
       this._role = newRole;
     });
+
+    this.relay.events.on('NEW_PARTIAL_DECRYPTED').subscribe((e) => {
+      const progress = this.getSignatureProgress();
+      const threshold = this.getThreshold(this.getRoomState());
+
+      this.relay.events.dispatch('SIGNATURE_RECEIVED', {
+        fingerprint: e.payload?.fingerprint,
+        signaturesReceived: progress.signaturesReceived,
+        totalSigners: progress.totalSigners,
+      });
+
+      if (this.isThresholdMet()) {
+        this.relay.events.dispatch('THRESHOLD_MET', {
+          signaturesReceived: progress.signaturesReceived,
+          threshold: threshold,
+        });
+      }
+    });
   }
 
   /**
@@ -75,6 +93,15 @@ export class SigningRoomClient {
    */
   public onStateChange(): Observable<RoomEvent> {
     return this.relay.events.on('STATE_CHANGED');
+  }
+
+  /**
+   * Subscribes to specific room events triggered by network operations.
+   * * @param eventType - The specific event type to listen to (e.g., 'SIGNATURE_RECEIVED')
+   * @returns An RxJS Observable yielding the target events.
+   */
+  public onEvent(eventType: RoomEventType): Observable<RoomEvent> {
+    return this.relay.events.on(eventType);
   }
 
   /**
@@ -283,27 +310,14 @@ export class SigningRoomClient {
     return await RoomAuditor.generateAuditPdf(new jsPDF(), state, tx, signers, finalHex);
   }
 
-  /** * Coordinator: Restricts transactions to a specific allowlist of addresses.
-   * @param address - The target bitcoin address to whitelist.
-   */
-  public async addWhitelistAddress(address: string) {
-    const state = this.getRoomState();
-    const currentList = state?.whitelist || [];
-    if (currentList.includes(address)) return;
-
-    const newList = [...currentList, address];
-    const shortAddr = address.length > 10 ? `...${address.slice(-5)}` : address;
-
-    const confirmation = this.waitForEvent('WHITELIST_DECRYPTED');
-    await this.relay.updateWhitelist(newList, `Added ${shortAddr} to whitelist`, this.userContext);
-    await confirmation;
-  }
-
-  /** * Batch updates the whitelist allowlist.
+  /** * Updates the whitelist allowlist. Handles both single addresses and batches,
+   * automatically formatting the audit log appropriately.
    * @param addresses - Array of addresses to add or remove.
    * @param remove - Toggle to either add (false) or remove (true) addresses.
    */
-  public async updateWhitelistBatch(addresses: string[], remove: boolean = false) {
+  public async updateWhitelist(addresses: string[], remove: boolean = false) {
+    if (!addresses || addresses.length === 0) return;
+
     const state = this.getRoomState();
     const currentList = state?.whitelist || [];
     let newList: string[] = [];
@@ -314,8 +328,19 @@ export class SigningRoomClient {
       newList = Array.from(new Set([...currentList, ...addresses]));
     }
 
-    const actionWord = remove ? 'Removed' : 'Verified';
-    const detail = `${actionWord} ${addresses.length} batch address(es)`;
+    // Prevent unnecessary network calls if the list didn't actually change
+    if (currentList.length === newList.length) return;
+
+    let detail = '';
+    if (addresses.length === 1) {
+      const address = addresses[0];
+      const shortAddr = address.length > 5 ? address.slice(-5) : address;
+      const actionWord = remove ? 'Removed' : 'Added';
+      detail = `${actionWord} ...${shortAddr} to whitelist`;
+    } else {
+      const actionWord = remove ? 'Removed' : 'Verified';
+      detail = `${actionWord} ${addresses.length} batch address(es)`;
+    }
 
     const confirmation = this.waitForEvent('WHITELIST_DECRYPTED');
     await this.relay.updateWhitelist(newList, detail, this.userContext);
