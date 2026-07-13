@@ -6,3 +6,4 @@ export * from './lib/relay/room-factory';
 export * from './lib/relay/room-state-store';
 export * from './lib/bitcoin/psbt-utils';
 export * from './lib/bitcoin/room-auditor';
+export * from './lib/events/room-event-bus';

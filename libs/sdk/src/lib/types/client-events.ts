@@ -29,7 +29,10 @@ export type RoomEventType =
   | 'WHITELIST_DECRYPTED'
   | 'PARTICIPANTS_DECRYPTED'
   | 'TX_FINALIZED_DECRYPTED'
-  | 'STATE_CHANGED';
+  | 'STATE_CHANGED'
+  | 'TOGGLE_LOCK'
+  | 'UPDATE_LABEL'
+  | 'THRESHOLD_MET';
 
 /**
  * Common environmental metadata attached to every room event.
@@ -49,16 +52,11 @@ export interface BaseEventContext {
 }
 
 /**
- * Universal envelope structuring all broadcasted or ingested message traffic.
- * Encapsulates standard network routing contexts alongside dynamic payloads.
+ * Represents an individual event emitted inside a live collaboration room session workspace.
  */
 export interface RoomEvent {
-  /** The strictly typed structural class of this event. */
+  /** The distinct string identifier classifying the event category. */
   type: RoomEventType;
-  /** Sub-action indicator or method string declaring the explicit operational path. */
-  action: string;
-  /** Contextual ambient metadata containing active environment configuration details. */
-  context: BaseEventContext;
-  /** Dynamic payload data structures specific to the designated event type. */
-  payload: any;
+  /** Optional contextual payload structure matching the unique demands of the event type. */
+  payload?: any;
 }

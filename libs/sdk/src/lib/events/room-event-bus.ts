@@ -1,46 +1,6 @@
 import { Subject, Observable } from 'rxjs';
 import { filter } from 'rxjs/operators';
-
-export type RoomEventType =
-  | 'ROOM_CONNECTED'
-  | 'ROOM_DISCONNECTED'
-  | 'ROOM_CREATED'
-  | 'GUEST_JOINED'
-  | 'PARTICIPANT_PRESENCE'
-  | 'SIGNATURE_RECEIVED'
-  | 'TRANSACTION_FINALIZED'
-  | 'SECURITY_ALERT'
-  | 'ERROR'
-  | 'RAW_MESSAGE'
-  | 'STATE_SYNC_DECRYPTED'
-  | 'NEW_PARTIAL_DECRYPTED'
-  | 'DECRYPTION_ERROR'
-  | 'SESSION_CONNECTED'
-  | 'ROLE_UPDATE'
-  | 'ROOM_CLOSED'
-  | 'LOCK_UPDATED'
-  | 'PROTOCOL_ERROR'
-  | 'LABELS_DECRYPTED'
-  | 'ROOM_RENAMED_DECRYPTED'
-  | 'LOG_UPDATE_DECRYPTED'
-  | 'CONNECTIONS_DECRYPTED'
-  | 'WHITELIST_DECRYPTED'
-  | 'PARTICIPANTS_DECRYPTED'
-  | 'TX_FINALIZED_DECRYPTED'
-  | 'STATE_CHANGED'
-  | 'TOGGLE_LOCK'
-  | 'UPDATE_LABEL'
-  | 'THRESHOLD_MET';
-
-/**
- * Represents an individual event emitted inside a live collaboration room session workspace.
- */
-export interface RoomEvent {
-  /** The distinct string identifier classifying the event category. */
-  type: RoomEventType;
-  /** Optional contextual payload structure matching the unique demands of the event type. */
-  payload?: any;
-}
+import { RoomEvent, RoomEventType } from '../types/client-events';
 
 /**
  * Central broker implementation providing decoupled RxJS-based reactive event lines.

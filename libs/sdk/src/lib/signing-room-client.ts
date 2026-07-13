@@ -2,7 +2,7 @@ import { EncryptionEngine } from './crypto/encryption-engine';
 import { RelayClient } from './relay/relay-client';
 import { RoomStateStore, RoomState } from './relay/room-state-store';
 import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
-import { RoomEvent, RoomEventType } from './events/room-event-bus';
+import { RoomEvent, RoomEventType } from './types/client-events';
 import { RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils, TxDetails } from './bitcoin/psbt-utils';
 import { Observable, firstValueFrom } from 'rxjs';
