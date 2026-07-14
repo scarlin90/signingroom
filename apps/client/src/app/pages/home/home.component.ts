@@ -371,7 +371,7 @@ import {
                         <lucide-icon [img]="FileText" class="w-4 h-4"></lucide-icon>
                         Read Docs
                     </a>
-                    <a href="https://github.com/scarlin90/signingroom/blob/main/integration-test.js" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
+                    <a href="https://github.com/scarlin90/signingroom/blob/main/libs/sdk/signingroom-sdk-demo" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
                         <lucide-icon [img]="Github" class="w-4 h-4"></lucide-icon>
                         Examples
                     </a>

@@ -39,7 +39,7 @@ To start a new signing ceremony, instantiate the client and provide an unsigned 
 ```javascript
 import { SigningRoomClient } from '@signing-room/sdk';
 
-const API_URL = 'https://api.signingroom.io';
+const API_URL = 'http://localhost:8787';
 const UNSIGNED_PSBT = 'cHNidP8BA...'; // Your base64 PSBT
 
 const coordinator = new SigningRoomClient({
@@ -80,7 +80,7 @@ await guest.setDisplayName('Alice (Hardware Wallet 1)');
 
 // Listen for live room updates
 guest.onStateChange().subscribe((state) => {
-  console.log(`Connected Participants: ${state.connectedCount}`);
+  console.log(`Connected Participants: ${state.payload.connectedCount}`);
 });
 ```
 

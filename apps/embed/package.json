@@ -1,6 +1,6 @@
 {
   "name": "@signing-room/embed",
-  "version": "2.5.0",
+  "version": "3.0.0",
   "description": "The official Signing Room web component. Licensed under AGPLv3; commercial licenses available.",
   "license": "AGPL-3.0",
   "type": "module",

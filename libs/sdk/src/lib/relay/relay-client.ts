@@ -39,12 +39,10 @@ export class RelayClient {
    * @param url - The absolute target location protocol string (e.g., `wss://relay...`).
    */
   public connect(url: string): void {
-    console.log('Connecting to WS:', url);
     this.disconnect(true);
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {
-      console.log('WS Open Success');
       this.events.dispatch('ROOM_CONNECTED');
     };
     this.ws.onclose = (e) => {
