@@ -5,7 +5,11 @@ export default [
   ...nx.configs['flat/typescript'],
   ...nx.configs['flat/javascript'],
   {
-    ignores: ['**/dist', '**/vitest.config.*.timestamp*'],
+      "ignores": [
+        "**/dist",
+        "**/vitest.config.*.timestamp*",
+        "**/vite.config.*.timestamp*"
+      ]
   },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],

@@ -43,8 +43,8 @@ test.describe('Threshold Finalization and Broadcast', () => {
     await aliceRoom.uploadSignature('3_5_signed_alice.psbt.txt');
     await aliceRoom.expectSignerStatus('fe0fa7b4', 'Signed');
 
-    // Verification: Confirm progress is synced across participants (2/5)
-    await expect(coordPage.getByRole('button', { name: /Waiting for Signatures \(2 \/ 5\)/i })).toBeVisible();
+    // Verification: Confirm progress is synced across participants (2/3)
+    await expect(coordPage.getByRole('button', { name: /Waiting for Signatures \(2 \/ 3\)/i })).toBeVisible();
 
     // 3. Bob uploads third signature (Reaching the required 3/5 threshold)
     await bobRoom.uploadSignature('3_5_signed_bob.psbt.txt');
