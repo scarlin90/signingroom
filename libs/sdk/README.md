@@ -19,6 +19,14 @@ npm install @signing-room/sdk
 
 ---
 
+## Live Demo & Examples
+
+Looking for a working implementation? Check out our **[signingroom-sdk-demo](https://github.com/scarlin90/signingroom/blob/main/libs/sdk/signingroom-sdk-demo)**.
+
+This repository provides a complete, runnable TypeScript project that demonstrates the full SDK lifecycle—from room creation and guest participation to threshold signing and forensic audit verification.
+
+---
+
 # Quick Start & Core API
 
 The SDK is built around the `SigningRoomClient`.

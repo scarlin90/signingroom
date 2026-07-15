@@ -319,36 +319,6 @@ export class RoomComponent implements OnInit, OnDestroy {
       }
     });
 
-    effect(async () => {
-      const state = this.socket.roomState();
-
-      if (
-        state &&
-        state.finalTxId &&
-        state.finalTxHex &&
-        this.isEmbedded &&
-        this.socket.isCoordinator() &&
-        !this.hasEmittedFinalized
-      ) {
-        this.hasEmittedFinalized = true;
-
-        const sanitizedState = { ...state } as any;
-        delete sanitizedState.expectedPass;
-
-        const pdfData = await this.getPdfDocument();
-        const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
-
-        this.dispatcher.emitTransactionFinalized({
-          txId: state.finalTxId,
-          txHex: state.finalTxHex,
-          roomState: sanitizedState,
-          auditLogCsv: this.socket.getAuditLogCsv(),
-          settlementCsv: this.socket.getSettlementCsvData(),
-          auditPdfUri: pdfBase64,
-        });
-      }
-    });
-
     // --- PARTICIPANT PRESENCE TRACKER ---
     effect(() => {
       const currentSessions = this.socket.activeSessions();
@@ -741,25 +711,62 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
   }
 
-  finalize() {
+  async finalize() {
     if (this.isExpired()) return;
-    const state = this.socket.roomState();
 
-    const doFinalize = () => {
-      const hex = this.socket.getFinalTxHex();
-      const txId = this.socket.getFinalTxId();
-      if (hex && txId) {
-        this.socket.finalizeTransaction();
-        this.triggerConfetti();
+    // Capture initial state just for the whitelist check
+    const initialState = this.socket.roomState();
+
+    const doFinalize = async () => {
+      try {
+        // Await the finalization FIRST. The SDK returns the hex and txId.
+        const finalized = await this.socket.finalizeTransaction();
+
+        if (finalized) {
+          // Fetch the FRESH state now that finalization is complete
+          const freshState = this.socket.roomState();
+
+          if (
+            freshState &&
+            freshState.finalTxId &&
+            freshState.finalTxHex &&
+            this.isEmbedded &&
+            this.socket.isCoordinator() &&
+            !this.hasEmittedFinalized
+          ) {
+            this.hasEmittedFinalized = true;
+
+            const sanitizedState = { ...freshState } as any;
+            delete sanitizedState.expectedPass;
+
+            const pdfData = await this.getPdfDocument();
+            const pdfBase64 = pdfData ? pdfData.doc.output('datauristring') : null;
+
+            // Emit using the fresh state
+            this.dispatcher.emitTransactionFinalized({
+              txId: freshState.finalTxId,
+              txHex: freshState.finalTxHex,
+              roomState: sanitizedState,
+              auditLogCsv: this.socket.getAuditLogCsv(),
+              settlementCsv: this.socket.getSettlementCsvData(),
+              auditPdfUri: pdfBase64,
+            });
+          }
+
+          this.triggerConfetti();
+        }
+      } catch (e) {
+        console.error('Failed to finalize transaction', e);
       }
     };
 
-    if (state?.whitelist && state.whitelist.length > 0) {
+    // Whitelist check uses the initialState captured at the top
+    if (initialState?.whitelist && initialState.whitelist.length > 0) {
       const outputs = this.socket.txDetails()?.outputs || [];
 
       const unverified = outputs.filter((out) => {
         if (out.isChange) return false;
-        if (state.whitelist.includes(out.address)) return false;
+        if (initialState.whitelist.includes(out.address)) return false;
         return true;
       });
 
@@ -774,7 +781,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       }
     }
 
-    doFinalize();
+    await doFinalize();
   }
 
   broadcastAndCopy() {
@@ -996,7 +1003,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     }, 1000);
   }
 
-  private triggerConfetti() {
+  public triggerConfetti() {
     import('canvas-confetti').then((c) => c.default());
   }
 

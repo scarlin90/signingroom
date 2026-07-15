@@ -841,6 +841,47 @@ describe('RoomComponent - Setup & Lifecycle', () => {
   });
 
   describe('Finalize Logic Branches', () => {
+    it('should call getAuditLogPdf when finalized in embedded mode', async () => {
+      vi.spyOn(component, 'openConfirm');
+
+      const spyTriggerConfetti = vi.mock('canvas-confetti', () => ({
+        default: vi.fn(),
+      }));
+
+      // Mock embedded mode and coordinator role
+      vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(true);
+      mockSocketService.isCoordinator.mockReturnValue(true);
+
+      // Set initial state
+      mockSocketService.roomState.set({
+        roomId: 'room-123',
+        whitelist: [],
+      });
+
+      // Mock SDK methods
+      mockSocketService.finalizeTransaction.mockImplementation(async () => {
+        mockSocketService.roomState.set({
+          roomId: 'room-123',
+          finalTxId: 'txid_123',
+          finalTxHex: 'hex_abc',
+          whitelist: [],
+        });
+        return { hex: 'hex_abc', txId: 'txid_123' };
+      });
+
+      mockSocketService.getAuditLogPdf.mockResolvedValue({ doc: { output: () => 'mock_pdf_uri' } });
+      mockSocketService.getAuditLogCsv.mockReturnValue('mock_audit_csv');
+      mockSocketService.getSettlementCsvData.mockReturnValue('mock_settlement_csv');
+
+      // Execute
+      await component.finalize();
+
+      // Assert
+      expect(mockSocketService.getAuditLogPdf).toHaveBeenCalled();
+      expect(mockDispatcher.emitTransactionFinalized).toHaveBeenCalled();
+      expect(spyTriggerConfetti).toHaveBeenCalledOnce();
+    });
+
     it('finalize() should show confirm modal if unverified outputs exist', () => {
       // 1. Setup State: Whitelist exists, but outputs are NOT in whitelist
       mockSocketService.roomState.set({
@@ -1412,23 +1453,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       expect(html).toContain('Add Label'); // Fallback for the one without a label
       expect(html).toContain('Signed');
       expect(html).toContain('Waiting...');
-    });
-  });
-
-  describe('Effects & Complex State', () => {
-    it('should call getAuditLogPdf when finalized in embedded mode', async () => {
-      mockDispatcher.isEmbedded = true;
-      mockSocketService.isCoordinator.mockReturnValue(true);
-      mockSocketService.roomState.set({
-        finalTxId: 'tx123',
-        finalTxHex: 'deadbeef',
-      });
-
-      fixture.detectChanges();
-      await fixture.whenStable();
-
-      expect(mockSocketService.getAuditLogPdf).toHaveBeenCalled();
-      expect(mockDispatcher.emitTransactionFinalized).toHaveBeenCalled();
     });
   });
 
