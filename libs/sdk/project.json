@@ -19,7 +19,7 @@
         "outputPath": "dist/libs/sdk",
         "main": "libs/sdk/src/index.ts",
         "tsConfig": "libs/sdk/tsconfig.lib.json",
-        "assets": ["libs/sdk/*.md", "libs/sdk/LICENSE"],
+        "assets": ["libs/sdk/*.md", "libs/sdk/LICENSE", "libs/sdk/package.json"],
         "format": ["esm"]
       }
     },
