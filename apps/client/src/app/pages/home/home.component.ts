@@ -6,12 +6,46 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 
 import { RouterModule } from '@angular/router';
-import { 
-  LucideAngularModule, Zap, Users, Shield, Terminal, ChevronRight, Lock,
-  Github, Code2, Eye, Trash2, UploadCloud, Share2, FileCheck, HelpCircle,
-  Twitter, Heart, Briefcase, Landmark, Globe, XCircle, CheckCircle2,  
-  Clock, AlertTriangle, Network, ArrowRight, FileKey, Cpu, Fingerprint,
-  Crown, Infinity, Check, Maximize, Scale, EyeOff, ShieldCheck, FileText, Building2
+import {
+  LucideAngularModule,
+  Zap,
+  Users,
+  Shield,
+  Terminal,
+  ChevronRight,
+  Lock,
+  Github,
+  Code2,
+  Eye,
+  Trash2,
+  UploadCloud,
+  Share2,
+  FileCheck,
+  HelpCircle,
+  Twitter,
+  Heart,
+  Briefcase,
+  Landmark,
+  Globe,
+  XCircle,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  Network,
+  ArrowRight,
+  FileKey,
+  Cpu,
+  Fingerprint,
+  Crown,
+  Infinity,
+  Check,
+  Maximize,
+  Scale,
+  EyeOff,
+  ShieldCheck,
+  FileText,
+  Building2,
+  ExternalLink,
 } from 'lucide-angular';
 
 @Component({
@@ -55,9 +89,9 @@ import {
           Whitepaper
         </a>
 
-        <a href="https://github.com/scarlin90/SigningRoom" target="_blank" class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
+        <a href="https://github.com/scarlin90/signingroom/tree/main/libs/sdk" target="_blank" class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
           <lucide-icon [img]="Github" class="w-5 h-5"></lucide-icon>
-          View Source
+          TypeScript SDK
         </a>
 
         <a href="/webcomponent-demo.html?ngsw-bypass=true" target="_blank" rel="external noopener noreferrer"  class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
@@ -314,6 +348,48 @@ import {
 
     <div class="max-w-4xl mx-auto mt-24 px-6 relative z-10">
         <div class="text-center mb-10">
+            <h2 class="text-3xl font-bold text-white mb-2">Build with Signing Room SDK</h2>
+            <p class="text-slate-400">Integrate our robust multisig coordination logic into your own applications.</p>
+        </div>
+
+        <div class="p-8 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 flex flex-col md:flex-row items-center gap-8 shadow-2xl">
+            <div class="flex-1 text-left">
+                <h3 class="text-xl font-bold text-white mb-3 flex items-center gap-2">
+                    <lucide-icon [img]="Code2" class="w-6 h-6 text-emerald-400"></lucide-icon>
+                    Signing Room SDK
+                </h3>
+                <p class="text-sm text-slate-400 leading-relaxed mb-6">
+                    A framework-agnostic TypeScript SDK for managing end-to-end encrypted multisig ceremonies. 
+                    Handle room lifecycle, PSBT merging, and audit trail generation programmatically.
+                </p>
+                <div class="flex flex-wrap gap-3">
+                    <a href="https://www.npmjs.com/package/@signing-room/sdk" target="_blank" class="px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition flex items-center gap-2">
+                        <lucide-icon [img]="ExternalLink" class="w-4 h-4"></lucide-icon>
+                        View on NPM
+                    </a>
+                    <a href="https://github.com/scarlin90/signingroom/tree/main/libs/sdk" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
+                        <lucide-icon [img]="FileText" class="w-4 h-4"></lucide-icon>
+                        Read Docs
+                    </a>
+                    <a href="https://github.com/scarlin90/signingroom/blob/main/libs/sdk/signingroom-sdk-demo" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
+                        <lucide-icon [img]="Github" class="w-4 h-4"></lucide-icon>
+                        Examples
+                    </a>
+                </div>
+            </div>
+            <div class="w-full md:w-1/3 bg-black rounded-lg p-4 font-mono text-[10px] text-emerald-400 border border-slate-800 overflow-x-auto">
+                npm install @signing-room/sdk<br><br>
+                const client = new SigningRoomClient(&#123;<br>
+                &nbsp;&nbsp;apiUrl: '...'<br>
+                &#125;);<br><br>
+                await client.createRoomAndJoin(...);
+            </div>
+        </div>
+    </div>
+
+
+    <div class="max-w-4xl mx-auto mt-24 px-6 relative z-10">
+        <div class="text-center mb-10">
             <h2 class="text-3xl font-bold text-white mb-2">Technical Standards</h2>
             <p class="text-slate-400">Built on open Bitcoin protocols and industrial encryption.</p>
         </div>
@@ -426,7 +502,7 @@ import {
           <lucide-icon [img]="ChevronRight" class="w-5 h-5"></lucide-icon>
         </a>
     </div>
-  `
+  `,
 })
 export class HomeComponent implements OnInit {
   readonly Zap = Zap;
@@ -465,13 +541,13 @@ export class HomeComponent implements OnInit {
   readonly ShieldCheck = ShieldCheck;
   readonly FileText = FileText;
   readonly Building2 = Building2;
+  readonly ExternalLink = ExternalLink;
 
-  ngOnInit() {
-  }
+  ngOnInit() {}
 
   toggleFullscreen(element: HTMLElement) {
     if (!document.fullscreenElement) {
-      element.requestFullscreen().catch(err => {
+      element.requestFullscreen().catch((err) => {
         console.error(`Error enabling fullscreen: ${err.message}`);
       });
     } else {

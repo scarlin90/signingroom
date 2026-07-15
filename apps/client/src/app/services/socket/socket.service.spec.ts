@@ -1,943 +1,1312 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SocketService } from './socket.service';
-import { EncryptionService } from '../encryption/encryption.service';
-import { Transaction } from '@scure/btc-signer';
-import { base64, hex, bech32 } from '@scure/base';
-
-let ws: any; 
-
-const MockWebSocket = function(this: any, url: string) {
-  this.url = url;
-  this.onopen = null;
-  this.onmessage = null;
-  this.onclose = null;
-  this.onerror = null;
-  this.send = vi.fn();
-  this.close = vi.fn();
-  this.addEventListener = vi.fn();
-  this.removeEventListener = vi.fn();
-  this.readyState = 1;
-  ws = this; 
-} as any;
-
-MockWebSocket.CONNECTING = 0;
-MockWebSocket.OPEN = 1;
-MockWebSocket.CLOSING = 2;
-MockWebSocket.CLOSED = 3;
-
-vi.stubGlobal('WebSocket', MockWebSocket);
+import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
+import { PsbtUtils } from '@signing-room/sdk';
+import { Subject } from 'rxjs';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 describe('SocketService', () => {
   let service: SocketService;
-  let encryptionMock: any;
+  let sdkFactoryMock: { create: any };
+
+  let roomConnectedSubject: Subject<void>;
+  let sessionConnectedSubject: Subject<any>;
+  let labelsDecryptedSubject: Subject<any>;
+  let roomRenamedDecryptedSubject: Subject<any>;
+  let logUpdateDecryptedSubject: Subject<any>;
+  let connectionsDecryptedSubject: Subject<any>;
+  let whitelistDecryptedSubject: Subject<any>;
+  let participantsDecryptedSubject: Subject<any>;
+  let lockUpdatedSubject: Subject<any>;
+  let toggleLockSubject: Subject<any>;
+  let txFinalizedDecryptedSubject: Subject<any>;
+  let roomClosedSubject: Subject<any>;
+  let protocolErrorSubject: Subject<any>;
+  let roleUpdateSubject: Subject<any>;
+  let decryptionErrorSubject: Subject<any>;
+  let stateChangedSubject: Subject<any>;
+  let stateSyncDecryptedSubject: Subject<any>;
+  let newPartialDecryptedSubject: Subject<any>;
+  let roomDisconnectedSubject: Subject<any>;
+  let sdkStateChangeSubject: Subject<any>;
 
   beforeEach(() => {
-    (globalThis as any).WebSocket = MockWebSocket;
-    (window as any).WebSocket = MockWebSocket;
-
-    encryptionMock = {
-      encrypt: vi.fn().mockResolvedValue('encrypted_data'),
-      decrypt: vi.fn().mockResolvedValue('decrypted_data'),
-      blindData: vi.fn().mockImplementation(async (data) => `blinded_${data}`)
-    };
-
-    TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule],
-      providers: [
-        SocketService,
-        { provide: EncryptionService, useValue: encryptionMock }
-      ]
-    });
-
-    vi.restoreAllMocks();
-    service = TestBed.inject(SocketService);
-
-    const localStorageMock = {
-      getItem: vi.fn(),
-      setItem: vi.fn(),
-      removeItem: vi.fn()
-    };
-    vi.stubGlobal('localStorage', localStorageMock);
-
-    const sessionStorageMock = {
+    globalThis.localStorage = {
       getItem: vi.fn(),
       setItem: vi.fn(),
       removeItem: vi.fn(),
-      clear: vi.fn()
+      clear: vi.fn(),
+    } as any;
+
+    globalThis.sessionStorage = {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    } as any;
+
+    roomConnectedSubject = new Subject<void>();
+    sessionConnectedSubject = new Subject<any>();
+    labelsDecryptedSubject = new Subject<any>();
+    roomRenamedDecryptedSubject = new Subject<any>();
+    logUpdateDecryptedSubject = new Subject<any>();
+    connectionsDecryptedSubject = new Subject<any>();
+    whitelistDecryptedSubject = new Subject<any>();
+    participantsDecryptedSubject = new Subject<any>();
+    lockUpdatedSubject = new Subject<any>();
+    toggleLockSubject = new Subject<any>();
+    txFinalizedDecryptedSubject = new Subject<any>();
+    roomClosedSubject = new Subject<any>();
+    protocolErrorSubject = new Subject<any>();
+    lockUpdatedSubject = new Subject<any>();
+    toggleLockSubject = new Subject<any>();
+    txFinalizedDecryptedSubject = new Subject<any>();
+    roomClosedSubject = new Subject<any>();
+    protocolErrorSubject = new Subject<any>();
+    roleUpdateSubject = new Subject<any>();
+    decryptionErrorSubject = new Subject<any>();
+    stateChangedSubject = new Subject<any>();
+    stateSyncDecryptedSubject = new Subject<any>();
+    newPartialDecryptedSubject = new Subject<any>();
+    roomDisconnectedSubject = new Subject<any>();
+    sdkStateChangeSubject = new Subject<any>();
+
+    sdkFactoryMock = {
+      create: vi.fn().mockReturnValue({
+        logParticipantAction: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn(),
+        closeRoom: vi.fn().mockResolvedValue(undefined),
+        createRoom: vi.fn().mockResolvedValue(undefined),
+        setRoomName: vi.fn().mockResolvedValue(undefined),
+        toggleLock: vi.fn().mockResolvedValue(undefined),
+        updateWhitelist: vi.fn().mockResolvedValue(undefined),
+        claimCoordinator: vi.fn().mockResolvedValue(undefined),
+        getRoomLink: vi.fn(),
+        getAuditLogCsv: vi.fn(),
+        getSettlementCsvData: vi.fn(),
+        getAuditLogPdf: vi.fn().mockResolvedValue(undefined),
+        getRoomState: vi.fn(),
+        onStateChange: vi.fn().mockReturnValue(sdkStateChangeSubject.asObservable()),
+        setSignerLabel: vi.fn().mockResolvedValue(undefined),
+        getSignersStatus: vi.fn().mockReturnValue([]),
+        finalizeTransaction: vi.fn().mockResolvedValue(undefined),
+        setDisplayName: vi.fn().mockResolvedValue(undefined),
+        extractFingerprintFromSignature: vi.fn(),
+        uploadSignature: vi.fn().mockResolvedValue(undefined),
+        joinRoom: vi.fn().mockResolvedValue(undefined),
+        store: { getState: vi.fn().mockReturnValue(null), update: vi.fn() },
+        relay: {
+          events: {
+            on: vi.fn().mockImplementation((eventName: string) => {
+              if (eventName === 'ROOM_CONNECTED') return roomConnectedSubject.asObservable();
+              if (eventName === 'SESSION_CONNECTED') return sessionConnectedSubject.asObservable();
+              if (eventName === 'ROOM_DISCONNECTED') return roomDisconnectedSubject.asObservable();
+              if (eventName === 'LABELS_DECRYPTED') return labelsDecryptedSubject.asObservable();
+              if (eventName === 'ROOM_RENAMED_DECRYPTED')
+                return roomRenamedDecryptedSubject.asObservable();
+              if (eventName === 'LOG_UPDATE_DECRYPTED')
+                return logUpdateDecryptedSubject.asObservable();
+              if (eventName === 'CONNECTIONS_DECRYPTED')
+                return connectionsDecryptedSubject.asObservable();
+              if (eventName === 'WHITELIST_DECRYPTED')
+                return whitelistDecryptedSubject.asObservable();
+              if (eventName === 'PARTICIPANTS_DECRYPTED')
+                return participantsDecryptedSubject.asObservable();
+              if (eventName === 'LOCK_UPDATED') return lockUpdatedSubject.asObservable();
+              if (eventName === 'TOGGLE_LOCK') return toggleLockSubject.asObservable();
+              if (eventName === 'TX_FINALIZED_DECRYPTED')
+                return txFinalizedDecryptedSubject.asObservable();
+              if (eventName === 'ROOM_CLOSED') return roomClosedSubject.asObservable();
+              if (eventName === 'PROTOCOL_ERROR') return protocolErrorSubject.asObservable();
+              if (eventName === 'ROLE_UPDATE') return roleUpdateSubject.asObservable();
+              if (eventName === 'DECRYPTION_ERROR') return decryptionErrorSubject.asObservable();
+              if (eventName === 'STATE_CHANGED') return stateChangedSubject.asObservable();
+              if (eventName === 'STATE_SYNC_DECRYPTED')
+                return stateSyncDecryptedSubject.asObservable();
+              if (eventName === 'NEW_PARTIAL_DECRYPTED')
+                return newPartialDecryptedSubject.asObservable();
+
+              return new Subject().asObservable();
+            }),
+          },
+        },
+      } as any),
     };
-    vi.stubGlobal('sessionStorage', sessionStorageMock);
+
+    TestBed.configureTestingModule({
+      providers: [SocketService, { provide: SDKClientFactoryService, useValue: sdkFactoryMock }],
+    });
+
+    service = TestBed.inject(SocketService);
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    sessionStorage.clear();
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
-  describe('Connection & Core Flow', () => {
-    it('should initialize connection and handle onopen', async () => {
-      await service.connect('room-1', 'key');
-      expect(service.status()).toBe('connecting');
-      
-      if (ws.onopen) ws.onopen({});
-      expect(service.status()).toBe('connected');
+  it('should create the SDK client via factory', () => {
+    expect(sdkFactoryMock.create).toHaveBeenCalled();
+    expect(service.sdk).toBeDefined();
+  });
+
+  it('should be browser-aware', () => {
+    expect(typeof service.isBrowser).toBe('boolean');
+  });
+
+  describe('Event Listeners (registerEventlisteners)', () => {
+    it('should set status to "connected" when ROOM_CONNECTED is emitted', () => {
+      const statusSpy = vi.spyOn(service.status, 'set');
+
+      roomConnectedSubject.next();
+
+      expect(statusSpy).toHaveBeenCalledWith('connected');
+      expect(statusSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('should send AUTH token if present in sessionStorage on connect', async () => {
-      (sessionStorage.getItem as any).mockReturnValue('secret-token');
-      
-      await service.connect('room-1', 'key');
-      
-      if (ws.onopen) await ws.onopen({} as any); 
-      
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"AUTH"'));
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"token":"secret-token"'));
+    it('should set currentSessionId when SESSION_CONNECTED is emitted', () => {
+      const setSpy = vi.spyOn(service.currentSessionId, 'set');
+
+      sessionConnectedSubject.next({ payload: 'session_abc123' });
+
+      expect(setSpy).toHaveBeenCalledWith('session_abc123');
     });
 
-    it('should set error signal on ERROR_NOT_FOUND', async () => {
-      await service.connect('room-1', 'key');
-      if (ws.onmessage) ws.onmessage({ data: JSON.stringify({ type: 'ERROR_NOT_FOUND' }) });
+    it('should update store with signerLabels when LABELS_DECRYPTED is emitted', () => {
+      const updateSpy = vi.spyOn(service['store'], 'update');
+      const mockPayload = { '1234abcd': 'Alice' };
 
-      expect(service.roomNotFound()).toBe(true);
-      expect(service.status()).toBe('disconnected');
+      labelsDecryptedSubject.next({ payload: mockPayload });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      // Extract the callback passed to this.store.update
+      const updateCallback = updateSpy.mock.calls[0][0];
+
+      // Assert behavior when state is null
+      expect(updateCallback(null)).toBeNull();
+
+      // Assert behavior when state exists
+      const existingState = { roomId: 'room_1' } as any;
+      expect(updateCallback(existingState)).toEqual({
+        roomId: 'room_1',
+        signerLabels: mockPayload,
+      });
     });
 
-    it('should clear state on disconnect', () => {
-      service.role.set('admin');
-      service.disconnect(true);
-      
-      expect(service.role()).toBe('guest');
-      expect(service.status()).toBe('disconnected');
+    it('should update store with roomName when ROOM_RENAMED_DECRYPTED is emitted', () => {
+      const updateSpy = vi.spyOn(service['store'], 'update');
+
+      roomRenamedDecryptedSubject.next({ payload: 'New Vault Name' });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      const updateCallback = updateSpy.mock.calls[0][0];
+
+      expect(updateCallback(null)).toBeNull();
+      expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+        roomId: 'room_1',
+        roomName: 'New Vault Name',
+      });
     });
 
-    it('should handle onclose with code 4001 (Room Full)', async () => {
-      await service.connect('room-1', 'key');
-      if (ws.onclose) ws.onclose({ code: 4001, reason: '', wasClean: true } as any);
-      expect(service.isRoomFull()).toBe(true);
+    it('should update store with auditLog when LOG_UPDATE_DECRYPTED is emitted', () => {
+      const updateSpy = vi.spyOn(service['store'], 'update');
+      const mockLog = [{ action: 'JOINED', timestamp: 123 }];
+
+      logUpdateDecryptedSubject.next({ payload: mockLog });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      const updateCallback = updateSpy.mock.calls[0][0];
+
+      expect(updateCallback(null)).toBeNull();
+      expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+        roomId: 'room_1',
+        auditLog: mockLog,
+      });
     });
 
-    it('should handle onclose with code 1006 (Invalid Pass)', async () => {
-      await service.connect('room-1', 'key');
-      if (ws.onclose) ws.onclose({ code: 1006, reason: '', wasClean: false } as any);
-      expect(service.decryptionError()).toContain('Invalid decryption key');
-      expect(service.getRoomKey()).toBeNull();
+    it('should update store connectedCount and activeSessions signal when CONNECTIONS_DECRYPTED is emitted', () => {
+      const updateSpy = vi.spyOn(service['store'], 'update');
+      const activeSessionsSpy = vi.spyOn(service.activeSessions, 'set');
+
+      const mockPayload = { count: 3, sessions: [{ id: 's1', role: 'admin' }] };
+
+      connectionsDecryptedSubject.next({ payload: mockPayload });
+
+      // 1. Verify the Signal update
+      expect(activeSessionsSpy).toHaveBeenCalledWith(mockPayload.sessions);
+
+      // 2. Verify the Store update
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      const updateCallback = updateSpy.mock.calls[0][0];
+
+      expect(updateCallback(null)).toBeNull();
+      expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+        roomId: 'room_1',
+        connectedCount: mockPayload.count,
+      });
+    });
+
+    it('should update store with whitelist when WHITELIST_DECRYPTED is emitted', () => {
+      const updateSpy = vi.spyOn(service['store'], 'update');
+      const mockWhitelist = ['bc1q...', 'bc1p...'];
+
+      whitelistDecryptedSubject.next({ payload: mockWhitelist });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      const updateCallback = updateSpy.mock.calls[0][0];
+
+      expect(updateCallback(null)).toBeNull();
+      expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+        roomId: 'room_1',
+        whitelist: mockWhitelist,
+      });
+    });
+
+    it('should update store with participants when PARTICIPANTS_DECRYPTED is emitted', () => {
+      const updateSpy = vi.spyOn(service['store'], 'update');
+      const mockParticipants = [{ fingerprint: '1234abcd', hasSigned: true }];
+
+      participantsDecryptedSubject.next({ payload: mockParticipants });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      const updateCallback = updateSpy.mock.calls[0][0];
+
+      expect(updateCallback(null)).toBeNull();
+      expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+        roomId: 'room_1',
+        participants: mockParticipants,
+      });
+    });
+
+    describe('LOCK_UPDATED', () => {
+      it('should update store with provided isLocked value', () => {
+        const updateSpy = vi.spyOn(service['store'], 'update');
+
+        lockUpdatedSubject.next({ payload: { isLocked: false } });
+
+        const updateCallback = updateSpy.mock.calls[0][0];
+        expect(updateCallback(null)).toBeNull();
+        expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+          roomId: 'room_1',
+          isLocked: false,
+        });
+      });
+
+      it('should default isLocked to true if payload is missing or empty', () => {
+        const updateSpy = vi.spyOn(service['store'], 'update');
+
+        lockUpdatedSubject.next({});
+
+        const updateCallback = updateSpy.mock.calls[0][0];
+        expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+          roomId: 'room_1',
+          isLocked: true,
+        });
+      });
+    });
+
+    describe('TOGGLE_LOCK', () => {
+      it('should update store with provided isLocked value', () => {
+        const updateSpy = vi.spyOn(service['store'], 'update');
+
+        toggleLockSubject.next({ payload: { isLocked: false } });
+
+        const updateCallback = updateSpy.mock.calls[0][0];
+        expect(updateCallback(null)).toBeNull();
+        expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+          roomId: 'room_1',
+          isLocked: false,
+        });
+      });
+
+      it('should default isLocked to true if payload is missing', () => {
+        const updateSpy = vi.spyOn(service['store'], 'update');
+
+        toggleLockSubject.next({ payload: {} });
+
+        const updateCallback = updateSpy.mock.calls[0][0];
+        expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+          roomId: 'room_1',
+          isLocked: true,
+        });
+      });
+    });
+
+    it('should update store with finalTxHex and finalTxId when TX_FINALIZED_DECRYPTED is emitted', () => {
+      const updateSpy = vi.spyOn(service['store'], 'update');
+      const mockPayload = { finalTxHex: '0100...', finalTxId: 'abcd...' };
+
+      txFinalizedDecryptedSubject.next({ payload: mockPayload });
+
+      const updateCallback = updateSpy.mock.calls[0][0];
+      expect(updateCallback(null)).toBeNull();
+      expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+        roomId: 'room_1',
+        finalTxHex: '0100...',
+        finalTxId: 'abcd...',
+      });
+    });
+
+    describe('ROOM_CLOSED', () => {
+      it('should set isClosed, disconnect, and clear local room data if room state exists', () => {
+        const isClosedSpy = vi.spyOn(service.isClosed, 'set');
+        const disconnectSpy = vi.spyOn(service, 'disconnect').mockImplementation(() => {});
+        const clearDataSpy = vi
+          .spyOn(service as any, 'clearLocalRoomData')
+          .mockImplementation(() => {});
+
+        vi.spyOn(service, 'roomState').mockReturnValue({ roomId: 'room_123' } as any);
+
+        roomClosedSubject.next({});
+
+        expect(isClosedSpy).toHaveBeenCalledWith(true);
+        expect(clearDataSpy).toHaveBeenCalledWith('room_123');
+        expect(disconnectSpy).toHaveBeenCalledTimes(1);
+      });
+
+      it('should set isClosed and disconnect, but skip clearing data if room state is null', () => {
+        const isClosedSpy = vi.spyOn(service.isClosed, 'set');
+        const disconnectSpy = vi.spyOn(service, 'disconnect').mockImplementation(() => {});
+
+        const clearDataSpy = vi
+          .spyOn(service as any, 'clearLocalRoomData')
+          .mockImplementation(() => {});
+
+        vi.spyOn(service, 'roomState').mockReturnValue(null as any);
+
+        roomClosedSubject.next({});
+
+        expect(isClosedSpy).toHaveBeenCalledWith(true);
+        expect(clearDataSpy).not.toHaveBeenCalled();
+        expect(disconnectSpy).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('PROTOCOL_ERROR', () => {
+      it('should handle "locked" error type', () => {
+        const isLockedOutSpy = vi.spyOn(service.isLockedOut, 'set');
+        const disconnectSpy = vi.spyOn(service, 'disconnect').mockImplementation(() => {});
+
+        protocolErrorSubject.next({ payload: { type: 'locked' } });
+
+        expect(isLockedOutSpy).toHaveBeenCalledWith(true);
+        expect(disconnectSpy).toHaveBeenCalledTimes(1);
+      });
+
+      it('should handle "not_found" error type', () => {
+        const roomNotFoundSpy = vi.spyOn(service.roomNotFound, 'set');
+        const disconnectSpy = vi.spyOn(service, 'disconnect').mockImplementation(() => {});
+
+        protocolErrorSubject.next({ payload: { type: 'not_found' } });
+
+        expect(roomNotFoundSpy).toHaveBeenCalledWith(true);
+        expect(disconnectSpy).toHaveBeenCalledTimes(1);
+      });
+
+      it('should handle "version_mismatch" error type', () => {
+        protocolErrorSubject.next({ payload: { type: 'version_mismatch', roomVersion: '1.2.0' } });
+
+        expect((service as any).fallbackVersion).toBe('1.2.0');
+      });
+
+      it('should handle "room_full" error type', () => {
+        const isRoomFullSpy = vi.spyOn(service.isRoomFull, 'set');
+
+        protocolErrorSubject.next({ payload: { type: 'room_full' } });
+
+        expect(isRoomFullSpy).toHaveBeenCalledWith(true);
+      });
+
+      describe('access_denied error type', () => {
+        it('should handle access_denied when user has NOT announced join', () => {
+          (service as any).hasAnnouncedJoin = false;
+          (service as any).failedKeyAttempts = 0;
+
+          // Create dummy subject if it doesn't exist on the service mock yet
+          if (!(service as any).securityAlert$) (service as any).securityAlert$ = new Subject();
+
+          const errorSetSpy = vi.spyOn(service.decryptionError, 'set');
+          const setRoomKeySpy = vi.spyOn(service as any, 'setRoomKey').mockImplementation(() => {});
+          const securityAlertSpy = vi.spyOn((service as any).securityAlert$, 'next');
+
+          protocolErrorSubject.next({ payload: { type: 'access_denied' } });
+
+          expect(errorSetSpy).toHaveBeenCalledWith('Invalid decryption key. Access denied.');
+          expect(setRoomKeySpy).toHaveBeenCalledWith(null);
+          expect((service as any).failedKeyAttempts).toBe(1);
+          expect(securityAlertSpy).toHaveBeenCalledWith({ type: 'access_denied', count: 1 });
+        });
+
+        it('should do nothing for access_denied when user HAS already announced join', () => {
+          (service as any).hasAnnouncedJoin = true;
+          (service as any).failedKeyAttempts = 0;
+
+          if (!(service as any).securityAlert$) (service as any).securityAlert$ = new Subject();
+
+          const errorSetSpy = vi.spyOn(service.decryptionError, 'set');
+          const setRoomKeySpy = vi.spyOn(service as any, 'setRoomKey').mockImplementation(() => {});
+
+          protocolErrorSubject.next({ payload: { type: 'access_denied' } });
+
+          // Should bypass the if block entirely
+          expect(errorSetSpy).not.toHaveBeenCalled();
+          expect(setRoomKeySpy).not.toHaveBeenCalled();
+          expect((service as any).failedKeyAttempts).toBe(0);
+        });
+      });
+    });
+
+    describe('sdk.onStateChange', () => {
+      it('should pull fresh state from getRoomState and update the roomState signal', () => {
+        const mockFreshState = { roomId: 'fresh_room_123' };
+
+        // Ensure getRoomState returns the fresh state
+        const getRoomStateSpy = vi
+          .spyOn(service.sdk, 'getRoomState')
+          .mockReturnValue(mockFreshState as any);
+        const roomStateSetSpy = vi.spyOn(service.roomState, 'set');
+
+        // Emitting an empty/ignored payload since the method ignores it anyway
+        sdkStateChangeSubject.next({ some: 'old_event_data' });
+
+        expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
+        expect(roomStateSetSpy).toHaveBeenCalledWith(mockFreshState);
+      });
+    });
+
+    describe('ROOM_DISCONNECTED', () => {
+      beforeEach(() => {
+        // Enable fake timers for this block so we can fast-forward the 3000ms setTimeout
+        vi.useFakeTimers();
+      });
+
+      afterEach(() => {
+        // Clean up and return to real timers
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
+      });
+
+      it('should set status to disconnected and do nothing else if room is closed', () => {
+        service.isClosed.set(true);
+        const connectSpy = vi.spyOn(service, 'connect').mockResolvedValue();
+
+        roomDisconnectedSubject.next({});
+
+        expect(service.status()).toBe('disconnected');
+
+        // Fast-forward 3 seconds
+        vi.advanceTimersByTime(3000);
+
+        expect(connectSpy).not.toHaveBeenCalled();
+      });
+
+      it('should not reconnect if there is a terminal error present', () => {
+        service.isClosed.set(false);
+        // Simulate a terminal error
+        service.isLockedOut.set(true);
+
+        const connectSpy = vi.spyOn(service, 'connect').mockResolvedValue();
+
+        roomDisconnectedSubject.next({});
+        vi.advanceTimersByTime(3000);
+
+        expect(connectSpy).not.toHaveBeenCalled();
+      });
+
+      it('should not reconnect if status has changed away from disconnected during the timeout', () => {
+        service.isClosed.set(false);
+        service.isLockedOut.set(false);
+        service.roomNotFound.set(false);
+        service.isRoomFull.set(false);
+        service.decryptionError.set(null);
+
+        const connectSpy = vi.spyOn(service, 'connect').mockResolvedValue();
+
+        roomDisconnectedSubject.next({});
+
+        // Advance time partially, simulate someone manually triggering a connection
+        vi.advanceTimersByTime(1000);
+        service.status.set('connecting');
+
+        // Advance the rest of the way
+        vi.advanceTimersByTime(2000);
+
+        expect(connectSpy).not.toHaveBeenCalled();
+      });
+
+      it('should trigger connect with roomId and roomKey after 3 seconds if conditions are met', () => {
+        service.isClosed.set(false);
+        service.isLockedOut.set(false);
+        service.roomNotFound.set(false);
+        service.isRoomFull.set(false);
+        service.decryptionError.set(null);
+
+        service.roomState.set({ roomId: 'auto_reconnect_room' } as any);
+        const getRoomKeySpy = vi.spyOn(service as any, 'getRoomKey').mockReturnValue('saved_key');
+        const connectSpy = vi.spyOn(service, 'connect').mockResolvedValue();
+
+        roomDisconnectedSubject.next({});
+        expect(service.status()).toBe('disconnected');
+
+        vi.advanceTimersByTime(3000);
+
+        expect(getRoomKeySpy).toHaveBeenCalledTimes(1);
+        expect(connectSpy).toHaveBeenCalledWith('auto_reconnect_room', 'saved_key');
+        expect(connectSpy).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('ROLE_UPDATE', () => {
+      it('should set the role and update hasAnnouncedJoin if admin and not yet announced', () => {
+        const roleSetSpy = vi.spyOn(service.role, 'set');
+        (service as any).hasAnnouncedJoin = false;
+
+        roleUpdateSubject.next({ payload: 'admin' });
+
+        expect(roleSetSpy).toHaveBeenCalledWith('admin');
+        expect((service as any).hasAnnouncedJoin).toBe(true);
+      });
+
+      it('should set the role but NOT update hasAnnouncedJoin if role is not admin', () => {
+        const roleSetSpy = vi.spyOn(service.role, 'set');
+        (service as any).hasAnnouncedJoin = false;
+
+        roleUpdateSubject.next({ payload: 'guest' });
+
+        expect(roleSetSpy).toHaveBeenCalledWith('guest');
+        expect((service as any).hasAnnouncedJoin).toBe(false);
+      });
+    });
+
+    describe('DECRYPTION_ERROR', () => {
+      it('should set error, clear key, and disconnect if not locked out, full, or not found', () => {
+        const errorSetSpy = vi.spyOn(service.decryptionError, 'set');
+        const setRoomKeySpy = vi.spyOn(service as any, 'setRoomKey').mockImplementation(() => {});
+        const disconnectSpy = vi.spyOn(service, 'disconnect').mockImplementation(() => {});
+
+        service.isLockedOut.set(false);
+        service.isRoomFull.set(false);
+        service.roomNotFound.set(false);
+
+        decryptionErrorSubject.next({ payload: 'Invalid password' });
+
+        expect(errorSetSpy).toHaveBeenCalledWith('Invalid password');
+        expect(setRoomKeySpy).toHaveBeenCalledWith(null);
+        expect(disconnectSpy).toHaveBeenCalledTimes(1);
+      });
+
+      it('should do nothing if the user is already locked out (or room is full / not found)', () => {
+        const errorSetSpy = vi.spyOn(service.decryptionError, 'set');
+        const disconnectSpy = vi.spyOn(service, 'disconnect').mockImplementation(() => {});
+
+        service.isLockedOut.set(true);
+
+        decryptionErrorSubject.next({ payload: 'Invalid password' });
+
+        expect(errorSetSpy).not.toHaveBeenCalled();
+        expect(disconnectSpy).not.toHaveBeenCalled();
+      });
+    });
+
+    it('should update roomState signal when STATE_CHANGED is emitted', () => {
+      const stateSetSpy = vi.spyOn(service.roomState, 'set');
+      const mockState = { roomId: '123' };
+
+      stateChangedSubject.next({ payload: mockState });
+
+      expect(stateSetSpy).toHaveBeenCalledWith(mockState);
+    });
+
+    describe('STATE_SYNC_DECRYPTED', () => {
+      it('should set hasAnnouncedJoin to true if conditions are met', () => {
+        (service as any).hasAnnouncedJoin = false;
+        service.currentSessionId.set('session_123');
+
+        vi.spyOn(globalThis.sessionStorage, 'getItem').mockReturnValue(null);
+
+        stateSyncDecryptedSubject.next({ payload: { roomId: 'room_1' } });
+
+        expect((service as any).hasAnnouncedJoin).toBe(true);
+      });
+
+      it('should bypass updating hasAnnouncedJoin if an admin token exists', () => {
+        (service as any).hasAnnouncedJoin = false;
+        service.currentSessionId.set('session_123');
+
+        vi.spyOn(globalThis.sessionStorage, 'getItem').mockReturnValue('secure_token');
+
+        stateSyncDecryptedSubject.next({ payload: { roomId: 'room_1' } });
+
+        expect((service as any).hasAnnouncedJoin).toBe(false);
+      });
+    });
+
+    describe('NEW_PARTIAL_DECRYPTED', () => {
+      it('should update the store by merging psbts and appending signatures', () => {
+        const updateSpy = vi.spyOn(service['store'], 'update');
+        const mergeSpy = vi.spyOn(service, 'mergePsbts').mockReturnValue('merged_psbt_string');
+
+        const mockPayload = { decryptedPsbt: 'new_psbt', fingerprint: '1234', sessionId: 's1' };
+
+        newPartialDecryptedSubject.next({ payload: mockPayload });
+
+        const updateCallback = updateSpy.mock.calls[0][0];
+
+        expect(updateCallback(null)).toBeNull();
+
+        const existingState = { psbt: 'base_psbt', signatures: ['old_sig'] };
+        const newState = updateCallback(existingState as any);
+
+        expect(mergeSpy).toHaveBeenCalledWith('base_psbt', 'new_psbt');
+        expect(newState).toEqual({
+          psbt: 'merged_psbt_string',
+          signatures: ['old_sig', 'new_psbt'],
+        });
+      });
+
+      it('should emit to networkSignatureReceived$ if fingerprint and sessionId exist', () => {
+        const nextSpy = vi.spyOn(service.networkSignatureReceived$, 'next');
+
+        newPartialDecryptedSubject.next({
+          payload: { decryptedPsbt: 'psbt', fingerprint: '1234', sessionId: 's1' },
+        });
+
+        expect(nextSpy).toHaveBeenCalledWith({ fingerprint: '1234', sessionId: 's1' });
+      });
+
+      it('should NOT emit to networkSignatureReceived$ if fingerprint or sessionId are missing', () => {
+        const nextSpy = vi.spyOn(service.networkSignatureReceived$, 'next');
+
+        newPartialDecryptedSubject.next({
+          payload: { decryptedPsbt: 'psbt', fingerprint: '1234', sessionId: null },
+        });
+
+        expect(nextSpy).not.toHaveBeenCalled();
+      });
     });
   });
 
-  describe('WebSocket Event Handlers', () => {
-    beforeEach(async () => {
-      await service.connect('room-1', 'key');
+  it('should call sdk disconnect and set status signal to disconnected', () => {
+    const disconnectSpy = vi.spyOn(service.sdk, 'disconnect');
+    const statusSpy = vi.spyOn(service.status, 'set');
+
+    service.disconnect();
+
+    expect(disconnectSpy).toHaveBeenCalledTimes(1);
+    expect(statusSpy).toHaveBeenCalledWith('disconnected');
+  });
+
+  it('should return early if the status is already connecting', async () => {
+    service.status.set('connecting');
+
+    const resetSpy = vi.spyOn(service, 'reset');
+    const joinRoomSpy = vi.spyOn(service.sdk, 'joinRoom');
+
+    await service.connect('room_123', 'my_key');
+
+    expect(resetSpy).not.toHaveBeenCalled();
+    expect(joinRoomSpy).not.toHaveBeenCalled();
+  });
+
+  it('should catch an error and set status to error if no key is provided', async () => {
+    service.status.set('disconnected');
+    const statusSpy = vi.spyOn(service.status, 'set');
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await service.connect('room_123', null);
+
+    expect(statusSpy).toHaveBeenCalledWith('connecting');
+    expect(statusSpy).toHaveBeenCalledWith('error');
+    expect(consoleSpy).toHaveBeenCalled();
+  });
+
+  it('should disconnect and wait if the SDK store state is not null', async () => {
+    service.status.set('disconnected');
+
+    vi.spyOn(service.sdk.store, 'getState').mockReturnValue({ existing: 'state' } as any);
+
+    const disconnectSpy = vi.spyOn(service.sdk, 'disconnect');
+    const joinRoomSpy = vi.spyOn(service.sdk, 'joinRoom');
+
+    await service.connect('room_123', 'my_key');
+
+    expect(disconnectSpy).toHaveBeenCalledTimes(1);
+    expect(joinRoomSpy).toHaveBeenCalledWith('room_123', 'my_key');
+  });
+
+  it('should skip browser-specific logic if not in a browser environment', async () => {
+    service.status.set('disconnected');
+    service.isBrowser = false;
+    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any); // Reset store state
+
+    const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
+    const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
+    const statusSpy = vi.spyOn(service.status, 'set');
+
+    await service.connect('room_123', 'my_key');
+
+    expect(claimCoordinatorSpy).not.toHaveBeenCalled();
+    expect(setDisplayNameSpy).not.toHaveBeenCalled();
+    expect(statusSpy).toHaveBeenCalledWith('connected');
+  });
+
+  it('should claim coordinator and set display name if tokens exist in the browser', async () => {
+    service.status.set('disconnected');
+    service.isBrowser = true;
+    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any);
+
+    vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
+      if (key === 'admin_token_room_123') return 'secure_admin_token';
+      return null;
+    });
+    vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation((key: string) => {
+      if (key === 'display_name_room_123') return 'Alice';
+      return null;
     });
 
-    it('should update role when ROLE_UPDATE message is received', async () => {
-      const mockMsg = { data: JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }) };
-      if (ws.onmessage) ws.onmessage(mockMsg);
+    const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
+    const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
+    const statusSpy = vi.spyOn(service.status, 'set');
 
-      expect(service.role()).toBe('admin');
-      expect(service.isCoordinator()).toBe(true);
+    // 2. Act
+    await service.connect('room_123', 'my_key');
+
+    // 3. Assert
+    expect(claimCoordinatorSpy).toHaveBeenCalledWith('secure_admin_token');
+    expect(setDisplayNameSpy).toHaveBeenCalledWith('Alice');
+    expect(statusSpy).toHaveBeenCalledWith('connected');
+  });
+
+  it('should catch joinRoom failures and set status to error', async () => {
+    service.status.set('disconnected');
+    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any);
+
+    vi.spyOn(service.sdk, 'joinRoom').mockRejectedValue(new Error('Network failure'));
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const statusSpy = vi.spyOn(service.status, 'set');
+
+    await service.connect('room_123', 'my_key');
+
+    expect(consoleSpy).toHaveBeenCalled();
+    expect(statusSpy).toHaveBeenCalledWith('error');
+  });
+
+  it('should delegate createRoom to the SDK', async () => {
+    const createRoomSpy = vi.spyOn(service.sdk, 'createRoom');
+    const psbt = 'Chn...';
+    const network = 'signet';
+    const roomName = 'my room';
+
+    await service.createRoom(psbt, network, roomName);
+
+    expect(createRoomSpy).toHaveBeenCalledWith(psbt, network, roomName);
+    expect(createRoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should delegate renameRoom to the SDK', async () => {
+    const renameRoomSpy = vi.spyOn(service.sdk, 'setRoomName');
+    const roomName = 'my room';
+
+    await service.renameRoom(roomName);
+
+    expect(renameRoomSpy).toHaveBeenCalledWith(roomName);
+    expect(renameRoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should save the name to local storage if room state exists and delegate to SDK', async () => {
+    const getRoomStateSpy = vi
+      .spyOn(service.sdk, 'getRoomState')
+      .mockReturnValue({ roomId: 'room_123' } as any);
+    const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
+
+    const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName').mockResolvedValue(undefined);
+    const newName = 'Alice';
+
+    await service.setDisplayName(newName);
+
+    expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
+    expect(setItemSpy).toHaveBeenCalledWith('display_name_room_123', newName);
+    expect(setDisplayNameSpy).toHaveBeenCalledWith(newName);
+    expect(setDisplayNameSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should NOT save to local storage if room state is null, but still delegate to SDK', async () => {
+    const getRoomStateSpy = vi.spyOn(service.sdk, 'getRoomState').mockReturnValue(null as any);
+    const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
+    const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName').mockResolvedValue(undefined);
+
+    const newName = 'Bob';
+
+    await service.setDisplayName(newName);
+
+    expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setDisplayNameSpy).toHaveBeenCalledWith(newName);
+    expect(setDisplayNameSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should close the room and clear storage when state exists', async () => {
+    const closeRoomSpy = vi.spyOn(service.sdk, 'closeRoom').mockResolvedValue(undefined);
+    const getRoomStateSpy = vi
+      .spyOn(service.sdk, 'getRoomState')
+      .mockReturnValue({ roomId: 'room_123' } as any);
+
+    const sessionRemoveSpy = vi.spyOn(globalThis.sessionStorage, 'removeItem');
+    const localRemoveSpy = vi.spyOn(globalThis.localStorage, 'removeItem');
+
+    await service.closeRoom();
+
+    expect(closeRoomSpy).toHaveBeenCalledTimes(1);
+    expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
+    expect(sessionRemoveSpy).toHaveBeenCalledWith('admin_token_room_123');
+    expect(localRemoveSpy).toHaveBeenCalledWith('display_name_room_123');
+  });
+
+  it('should close the room but NOT clear storage if state is null', async () => {
+    const closeRoomSpy = vi.spyOn(service.sdk, 'closeRoom').mockResolvedValue(undefined);
+    const getRoomStateSpy = vi.spyOn(service.sdk, 'getRoomState').mockReturnValue(null as any);
+
+    const sessionRemoveSpy = vi.spyOn(globalThis.sessionStorage, 'removeItem');
+    const localRemoveSpy = vi.spyOn(globalThis.localStorage, 'removeItem');
+
+    await service.closeRoom();
+
+    expect(closeRoomSpy).toHaveBeenCalledTimes(1);
+    expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
+
+    expect(sessionRemoveSpy).not.toHaveBeenCalled();
+    expect(localRemoveSpy).not.toHaveBeenCalled();
+  });
+
+  it('should delegate toggleLock to the SDK', async () => {
+    const toggleLockSpy = vi.spyOn(service.sdk, 'toggleLock');
+    const isLocked = true;
+
+    await service.toggleLock(isLocked);
+
+    expect(toggleLockSpy).toHaveBeenCalledWith(isLocked);
+    expect(toggleLockSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should delegate updateWhitelist to the SDK', async () => {
+    const updateWhitelistBatchSpy = vi.spyOn(service.sdk, 'updateWhitelist');
+    const addresses = ['bc11', 'bc12'];
+    const remove = false;
+
+    await service.updateWhitelist(addresses, remove);
+
+    expect(updateWhitelistBatchSpy).toHaveBeenCalledWith(addresses, remove);
+    expect(updateWhitelistBatchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should delegate claimCoordinator to the SDK', async () => {
+    const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
+    const secureToken = 'my token';
+
+    await service.claimCoordinator(secureToken);
+
+    expect(claimCoordinatorSpy).toHaveBeenCalledWith(secureToken);
+    expect(claimCoordinatorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should delegate getRoomLink to the SDK', async () => {
+    const appBaseUrl = 'mybaseurl';
+    const includeKey = false;
+    const getRoomLinkSpy = vi.spyOn(service.sdk, 'getRoomLink').mockReturnValue(appBaseUrl);
+
+    const link = service.getRoomLink(appBaseUrl, includeKey);
+
+    expect(link).toBe(appBaseUrl);
+    expect(getRoomLinkSpy).toHaveBeenCalledWith(appBaseUrl, includeKey);
+    expect(getRoomLinkSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should delegate logAction to the SDK', async () => {
+    const logSpy = vi.spyOn(service.sdk, 'logParticipantAction');
+
+    await service.logAction('Test Action', 'Test Detail');
+
+    expect(logSpy).toHaveBeenCalledWith('Test Action', 'Test Detail');
+    expect(logSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should delegate getAuditLogCsv to the SDK', () => {
+    const mockCsvData = 'timestamp,action\n123456,test_action';
+    const getAuditLogCsvSpy = vi.spyOn(service.sdk, 'getAuditLogCsv').mockReturnValue(mockCsvData);
+
+    const result = service.getAuditLogCsv();
+
+    expect(result).toBe(mockCsvData);
+    expect(getAuditLogCsvSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should delegate getSettlementCsvData to the SDK', () => {
+    const mockSettlementData = 'id,amount\n1,5000';
+    const getSettlementCsvDataSpy = vi
+      .spyOn(service.sdk, 'getSettlementCsvData')
+      .mockReturnValue(mockSettlementData);
+
+    const result = service.getSettlementCsvData();
+
+    expect(result).toBe(mockSettlementData);
+    expect(getSettlementCsvDataSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should delegate getAuditLogPdf to the SDK', async () => {
+    const mockPdfBlob = new Blob(['pdf content'], { type: 'application/pdf' }); // Mocking a standard return type
+    const getAuditLogPdfSpy = vi
+      .spyOn(service.sdk, 'getAuditLogPdf')
+      .mockResolvedValue(mockPdfBlob as any);
+
+    const result = await service.getAuditLogPdf();
+
+    expect(result).toBe(mockPdfBlob);
+    expect(getAuditLogPdfSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should reset all state signals to their default values (state assertion)', () => {
+    service.role.set('admin');
+    service.isClosed.set(true);
+    service.decryptionError.set('Invalid key');
+    service.isLockedOut.set(true);
+    service.isRoomFull.set(true);
+    service.roomNotFound.set(true);
+    service.activeSessions.set([{ id: '123', role: 'admin' }]);
+    service.status.set('connected');
+
+    service.reset();
+
+    expect(service.role()).toBe('guest');
+    expect(service.isClosed()).toBe(false);
+    expect(service.decryptionError()).toBeNull();
+    expect(service.isLockedOut()).toBe(false);
+    expect(service.isRoomFull()).toBe(false);
+    expect(service.roomNotFound()).toBe(false);
+    expect(service.activeSessions()).toEqual([]);
+    expect(service.status()).toBe('disconnected');
+  });
+
+  it('should initialize error signals with default values and allow updates', () => {
+    expect(service.isRoomFull()).toBe(false);
+    expect(service.isClosed()).toBe(false);
+    expect(service.isLockedOut()).toBe(false);
+    expect(service.roomNotFound()).toBe(false);
+    expect(service.decryptionError()).toBeNull();
+
+    service.isRoomFull.set(true);
+    service.isClosed.set(true);
+    service.isLockedOut.set(true);
+    service.roomNotFound.set(true);
+    service.decryptionError.set('error');
+    expect(service.isRoomFull()).toBe(true);
+    expect(service.isClosed()).toBe(true);
+    expect(service.isLockedOut()).toBe(true);
+    expect(service.roomNotFound()).toBe(true);
+    expect(service.decryptionError()).toBe('error');
+  });
+
+  it('should retrieve a label from local storage based on fingerprint', () => {
+    vi.spyOn(globalThis.localStorage, 'getItem').mockReturnValue('My Saved Label');
+    const fingerprint = '1234abcd';
+
+    const result = service.getLocalLabel(fingerprint);
+
+    expect(globalThis.localStorage.getItem).toHaveBeenCalledWith(`addr_book_${fingerprint}`);
+    expect(result).toBe('My Saved Label');
+  });
+
+  it('should save a label to local storage based on fingerprint', () => {
+    const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
+    const fingerprint = '1234abcd';
+    const label = 'Alice';
+
+    service.saveToAddressBook(fingerprint, label);
+
+    expect(setItemSpy).toHaveBeenCalledWith(`addr_book_${fingerprint}`, label);
+  });
+
+  it('should remove a label from local storage based on fingerprint', () => {
+    const removeItemSpy = vi.spyOn(globalThis.localStorage, 'removeItem');
+    const fingerprint = '1234abcd';
+
+    service.removeFromAddressBook(fingerprint);
+
+    expect(removeItemSpy).toHaveBeenCalledWith(`addr_book_${fingerprint}`);
+  });
+
+  it('should update signer label in local storage and delegate to the SDK', async () => {
+    const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
+    const getRoomStateSpy = vi
+      .spyOn(service.sdk, 'getRoomState')
+      .mockReturnValue({ roomId: 'room_1' } as any);
+    const setSignerLabelSpy = vi.spyOn(service.sdk, 'setSignerLabel');
+
+    const fingerprint = '1234abcd';
+    const label = 'Bob';
+
+    await service.updateSignerLabel(fingerprint, label);
+
+    expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
+    expect(setItemSpy).toHaveBeenCalledWith(`signer_label_room_1_${fingerprint}`, label);
+    expect(setSignerLabelSpy).toHaveBeenCalledWith(fingerprint, label);
+    expect(setSignerLabelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not call local storage and delegate to the SDK', async () => {
+    const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
+    const getRoomStateSpy = vi.spyOn(service.sdk, 'getRoomState').mockReturnValue(undefined as any);
+    const setSignerLabelSpy = vi.spyOn(service.sdk, 'setSignerLabel');
+
+    const fingerprint = '1234abcd';
+    const label = 'Bob';
+
+    await service.updateSignerLabel(fingerprint, label);
+
+    expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
+    expect(setItemSpy).toHaveBeenCalledTimes(0);
+    expect(setSignerLabelSpy).toHaveBeenCalledWith(fingerprint, label);
+    expect(setSignerLabelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should return early if the user is not a coordinator', () => {
+    service.role.set('guest');
+    const roomStateSpy = vi.spyOn(service, 'roomState');
+
+    service.checkAndApplyLocalLabels();
+
+    // If it returned early, it should never have tried to read roomState
+    expect(roomStateSpy).not.toHaveBeenCalled();
+  });
+
+  it('should return early if roomState is null', () => {
+    service.role.set('admin');
+    service.roomState.set(null);
+    const signersSpy = vi.spyOn(service, 'signers');
+
+    service.checkAndApplyLocalLabels();
+
+    expect(signersSpy).not.toHaveBeenCalled();
+  });
+
+  it('should handle roomState when signerLabels is undefined (fallback to empty object)', () => {
+    service.role.set('admin');
+
+    service.roomState.set({ roomId: 'test_room' } as any);
+
+    vi.spyOn(service, 'signers').mockReturnValue([{ fingerprint: 'fp_1' }] as any[]);
+    vi.spyOn(service, 'getLocalLabel').mockReturnValue('Charlie');
+
+    const updateSignerLabelSpy = vi
+      .spyOn(service, 'updateSignerLabel')
+      .mockResolvedValue(undefined);
+
+    service.checkAndApplyLocalLabels();
+
+    // Should successfully fall back to {} and process the label
+    expect(updateSignerLabelSpy).toHaveBeenCalledWith('fp_1', 'Charlie');
+    expect(updateSignerLabelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should process signers correctly based on existing and local labels', () => {
+    service.role.set('admin');
+    service.roomState.set({ signerLabels: { fp_exists: 'Alice' } } as any);
+
+    vi.spyOn(service, 'signers').mockReturnValue([
+      { fingerprint: 'fp_exists' },
+      { fingerprint: 'fp_no_local' },
+      { fingerprint: 'fp_has_local' },
+    ] as any[]);
+
+    const getLocalLabelSpy = vi.spyOn(service, 'getLocalLabel').mockImplementation((fp) => {
+      if (fp === 'fp_has_local') return 'Bob';
+      return null;
     });
 
-    it('should log "Role Claimed" when a guest successfully claims coordinator role', async () => {
-      // 1. Setup specific state (must be inside a connected session)
+    const updateSignerLabelSpy = vi
+      .spyOn(service, 'updateSignerLabel')
+      .mockResolvedValue(undefined);
+
+    service.checkAndApplyLocalLabels();
+
+    // Assert 'fp_exists' was skipped entirely because it was already in state
+    expect(getLocalLabelSpy).not.toHaveBeenCalledWith('fp_exists');
+
+    // Assert 'fp_no_local' was checked locally, but not updated because no label was returned
+    expect(getLocalLabelSpy).toHaveBeenCalledWith('fp_no_local');
+    expect(updateSignerLabelSpy).not.toHaveBeenCalledWith('fp_no_local', expect.anything());
+
+    // Assert 'fp_has_local' was checked locally and successfully updated
+    expect(getLocalLabelSpy).toHaveBeenCalledWith('fp_has_local');
+    expect(updateSignerLabelSpy).toHaveBeenCalledWith('fp_has_local', 'Bob');
+
+    expect(updateSignerLabelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should extract the fingerprint and upload the signature', async () => {
+    const mockPsbt = 'base64_psbt_string';
+    const mockFingerprint = '1234abcd';
+
+    const extractSpy = vi
+      .spyOn(service.sdk, 'extractFingerprintFromSignature')
+      .mockReturnValue(mockFingerprint);
+    const uploadSpy = vi.spyOn(service.sdk, 'uploadSignature').mockResolvedValue(undefined);
+
+    await service.uploadSignature(mockPsbt);
+
+    expect(extractSpy).toHaveBeenCalledWith(mockPsbt);
+    expect(uploadSpy).toHaveBeenCalledWith(mockPsbt, mockFingerprint);
+    expect(uploadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should throw an error if the fingerprint cannot be extracted', async () => {
+    const mockPsbt = 'invalid_psbt_string';
+
+    const extractSpy = vi
+      .spyOn(service.sdk, 'extractFingerprintFromSignature')
+      .mockReturnValue(null as any);
+    const uploadSpy = vi.spyOn(service.sdk, 'uploadSignature');
+
+    await expect(service.uploadSignature(mockPsbt)).rejects.toThrow(
+      'Could not extract fingerprint from PSBT',
+    );
+
+    expect(extractSpy).toHaveBeenCalledWith(mockPsbt);
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  describe('getFinalTxHex', () => {
+    it('should return null if the user is not an admin', () => {
       service.role.set('guest');
-      (service as any).hasAnnouncedJoin = true; 
-      service.currentSessionId.set('S123');
-      
-      const logSpy = vi.spyOn(service as any, 'createSecureLogBlob');
-      const sendSpy = vi.spyOn(service as any, 'send');
 
-      // 2. Action: Simulate the server message confirming admin role
-      const mockData = JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' });
-      
-      if (ws.onmessage) {
-          ws.onmessage({ data: mockData } as any);
-      }
+      const result = service.getFinalTxHex();
 
-      // 3. Assertions: Wait for BOTH the signal update AND the async send call
-      await vi.waitFor(() => {
-        // Ensure role signal updated
-        expect(service.role()).toBe('admin');
-        
-        // Ensure the WebSocket message was actually sent after the async blob creation
-        expect(sendSpy).toHaveBeenCalledWith('LOG_ACTION', expect.objectContaining({
-            encryptedLogBlob: expect.any(String)
-        }));
-      }, { timeout: 2000 });
-
-      // Final verification of the log content
-      expect(logSpy).toHaveBeenCalledWith(
-        'Role Claimed Coordinator', 
-        expect.stringContaining('upgraded'), 
-        'Coordinator'
-      );
+      expect(result).toBeNull();
     });
 
-    it('should handle STATE_SYNC and decrypt PSBT', async () => {
-      const stateSyncMsg = {
-        data: JSON.stringify({
-          type: 'STATE_SYNC',
-          roomId: 'room-1',
-          encryptedPsbt: 'some_payload',
-          protocolVersion: '1.0.0'
-        })
-      };
-
-      encryptionMock.decrypt.mockResolvedValue('70736274ff010203');
-      if (ws.onmessage) await ws.onmessage(stateSyncMsg);
-
-      expect(encryptionMock.decrypt).toHaveBeenCalled();
-      expect(service.roomState()?.roomId).toBe('room-1');
-    });
-
-    it('should handle LABELS_UPDATED', async () => {
-      const labelMsg = { data: JSON.stringify({ 
-        type: 'LABELS_UPDATED', 
-        signerLabels: { 'fp1': 'encrypted_label' } 
-      })};
-      encryptionMock.decrypt.mockResolvedValue('Plain Label');
-      if (ws.onmessage) await ws.onmessage(labelMsg);
-      expect(service.roomState()?.signerLabels['fp1']).toBe('Plain Label');
-    });
-
-    it('should handle ROOM_CLOSED', () => {
-      const closeMsg = { data: JSON.stringify({ type: 'ROOM_CLOSED' }) };
-      if (ws.onmessage) ws.onmessage(closeMsg);
-      expect(service.isClosed()).toBe(true);
-    });
-
-    it('should handle ROOM_CLOSED and clear local data', () => {
-      service.roomState.set({ roomId: 'room-1' } as any);
-      
-      const closeMsg = { data: JSON.stringify({ type: 'ROOM_CLOSED' }) };
-      if (ws.onmessage) ws.onmessage(closeMsg);
-      
-      expect(service.isClosed()).toBe(true);
-      expect(localStorage.removeItem).toHaveBeenCalledWith('display_name_room-1');
-      expect(service.status()).toBe('disconnected');
-    });
-
-    it('should handle LOG_UPDATE with mixed audit log formats', async () => {
-      const logMsg = { data: JSON.stringify({ 
-        type: 'LOG_UPDATE', 
-        auditLog: [
-          { encryptedLogBlob: 'enc1' },
-          'enc2',
-          { event: 'Raw Event', user: 'Admin', timestamp: 1234 }
-        ] 
-      })};
-      
-      encryptionMock.decrypt
-        .mockResolvedValueOnce('{"event": "Decrypted 1", "user": "Guest"}')
-        .mockResolvedValueOnce('{"event": "Decrypted 2", "user": "Guest"}');
-
-      if (ws.onmessage) await ws.onmessage(logMsg);
-      
-      const logs = service.roomState()?.auditLog;
-      expect(logs).toBeDefined();
-      expect(logs?.length).toBe(3);
-    });
-
-    it('should handle CONNECTIONS_UPDATE and decrypt session names', async () => {
-      const connMsg = { data: JSON.stringify({ 
-        type: 'CONNECTIONS_UPDATE', 
-        count: 2, 
-        sessions: [
-          { id: 'S1', role: 'admin', encryptedDisplayName: 'enc_name_1' },
-          { id: 'S2', role: 'guest' } 
-        ] 
-      })};
-      
-      encryptionMock.decrypt.mockResolvedValueOnce('Decrypted Name');
-      if (ws.onmessage) await ws.onmessage(connMsg);
-      
-      expect(service.roomState()?.connectedCount).toBe(2);
-      expect(service.activeSessions().length).toBe(2);
-      expect(service.activeSessions()[0].displayName).toBe('Decrypted Name');
-      expect(service.activeSessions()[1].displayName).toBeUndefined();
-    });
-
-    it('should handle NEW_PARTIAL_DATA and merge signatures', async () => {
-      service.roomState.set({ psbt: 'AAAA', signatures: [] } as any);
-      const partialMsg = { data: JSON.stringify({
-        type: 'NEW_PARTIAL_DATA',
-        data: { encryptedData: 'enc_partial' },
-        fingerprint: 'blinded_fp'
-      }) };
-      
-      encryptionMock.decrypt.mockResolvedValue('BBBB');
-      const mergeSpy = vi.spyOn(service, 'mergePsbts').mockReturnValue('MERGED_PSBT');
-
-      if (ws.onmessage) await ws.onmessage(partialMsg);
-
-      expect(mergeSpy).toHaveBeenCalledWith('AAAA', 'BBBB');
-      expect(service.roomState()?.psbt).toBe('MERGED_PSBT');
-      expect(service.roomState()?.signatures).toContain('BBBB');
-    });
-
-    it('should handle STATE_SYNC fallback branches (unencrypted psbt, array whitelist)', async () => {
-      const stateSyncMsg = {
-        data: JSON.stringify({
-          type: 'STATE_SYNC',
-          roomId: 'room-1',
-          psbt: 'unencrypted_psbt',
-          whitelist: ['addr1', 'addr2'],
-          signatures: ['plain_sig', { encryptedData: 'enc_sig' }],
-          protocolVersion: '1.0.0'
-        })
-      };
-
-      encryptionMock.decrypt.mockResolvedValue('decrypted_sig');
-      if (ws.onmessage) await ws.onmessage(stateSyncMsg);
-
-      expect(service.roomState()?.psbt).toBeDefined();
-      expect(service.roomState()?.whitelist).toEqual(['addr1', 'addr2']);
-    });
-
-    it('should handle ROOM_RENAMED', async () => {
-      const renameMsg = { data: JSON.stringify({ type: 'ROOM_RENAMED', encryptedName: 'enc' }) };
-      encryptionMock.decrypt.mockResolvedValue('New Room Name');
-      if (ws.onmessage) await ws.onmessage(renameMsg);
-      expect(service.roomState()?.roomName).toBe('New Room Name');
-    });
-
-    it('should handle ERROR_LOCKED', () => {
-      const lockMsg = { data: JSON.stringify({ type: 'ERROR_LOCKED' }) };
-      if (ws.onmessage) ws.onmessage(lockMsg);
-      expect(service.isLockedOut()).toBe(true);
-      expect(service.status()).toBe('disconnected');
-    });
-
-    it('should handle WHITELIST_UPDATED', async () => {
-      const whitelistMsg = { data: JSON.stringify({ type: 'WHITELIST_UPDATED', encryptedWhitelist: 'enc' }) };
-      encryptionMock.decrypt.mockResolvedValue('["addr1", "addr2"]');
-      if (ws.onmessage) await ws.onmessage(whitelistMsg);
-      expect(service.roomState()?.whitelist).toEqual(["addr1", "addr2"]);
-    });
-
-    it('should handle LOCK_UPDATED', () => {
-      const msg = { data: JSON.stringify({ type: 'LOCK_UPDATED', isLocked: true }) };
-      if (ws.onmessage) ws.onmessage(msg);
-      expect(service.roomState()?.isLocked).toBe(true);
-    });
-
-    it('should handle TX_FINALIZED_BROADCAST', async () => {
-      const msg = { data: JSON.stringify({ type: 'TX_FINALIZED_BROADCAST', encryptedFinalTxHex: 'encHex', encryptedFinalTxId: 'encId' }) };
-      encryptionMock.decrypt.mockResolvedValueOnce('final-hex').mockResolvedValueOnce('final-id');
-      if (ws.onmessage) await ws.onmessage(msg);
-      expect(service.roomState()?.finalTxHex).toBe('final-hex');
-      expect(service.roomState()?.finalTxId).toBe('final-id');
-    });
-
-    it('should handle SESSION_CONNECTED', () => {
-      const msg = { data: JSON.stringify({ type: 'SESSION_CONNECTED', sessionId: '12345' }) };
-      if (ws.onmessage) ws.onmessage(msg);
-      expect(service.currentSessionId()).toBe('12345');
-    });
-
-    it('should handle ERROR_VERSION_MISMATCH and fallback', () => {
-      const connectSpy = vi.spyOn(service, 'connect');
-      if (ws.onclose) ws.onclose({ code: 4026 } as any);
-      expect(connectSpy).toHaveBeenCalledWith('room-1', 'key', '1.0.0');
-    });
-
-    it('should block encrypted payloads if no decryption key is present', async () => {
-      service.setRoomKey(null);
-      
-      const msg = { data: JSON.stringify({ type: 'NEW_PARTIAL_DATA', data: { encryptedData: 'enc' } }) };
-      if (ws.onmessage) await ws.onmessage(msg);
-      
-      expect(service.decryptionError()).toContain('Decryption Key Missing');
-    });
-
-    it('should handle STATE_SYNC fatal decryption error and disconnect', async () => {
-      const disconnectSpy = vi.spyOn(service, 'disconnect');
-      
-      encryptionMock.decrypt.mockRejectedValueOnce(new Error('Fatal Key Error'));
-      
-      const msg = { data: JSON.stringify({ type: 'STATE_SYNC', roomId: '1', encryptedPsbt: 'bad_data' }) };
-      if (ws.onmessage) await ws.onmessage(msg);
-      
-      expect(service.decryptionError()).toContain('Invalid decryption key');
-      expect(disconnectSpy).toHaveBeenCalledWith(false);
-    });
-
-    it('should gracefully catch decryption errors on minor room updates', async () => {
-      
-      encryptionMock.decrypt.mockRejectedValue(new Error('Bad Data'));
-      
-      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'ROOM_RENAMED', encryptedName: 'bad' }) });
-      
-      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'LABELS_UPDATED', signerLabels: { 'fp1': 'bad' } }) });
-      
-      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'WHITELIST_UPDATED', encryptedWhitelist: 'bad' }) });
-      
-      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'TX_FINALIZED_BROADCAST', encryptedFinalTxHex: 'bad', encryptedFinalTxId: 'bad' }) });
-      
-      if (ws.onmessage) await ws.onmessage({ data: JSON.stringify({ type: 'CONNECTIONS_UPDATE', count: 1, sessions: [{ id: 'S1', encryptedDisplayName: 'bad' }] }) });
-
-      
-      expect(service.roomState()?.roomName).not.toBe('bad');
-      expect(service.activeSessions()[0].displayName).toBe('Decrypt Error');
-    });
-
-    it('should completely clear local and session storage on ROOM_CLOSED', () => {
-      service.roomState.set({ roomId: 'room-1' } as any);
-      
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      if (ws.onmessage) ws.onmessage({ data: JSON.stringify({ type: 'ROOM_CLOSED' }) });
-
-      expect(localStorage.removeItem).toHaveBeenCalledWith('display_name_room-1');
-      expect(sessionStorage.removeItem).toHaveBeenCalledWith('admin_token_room-1');
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[Privacy] Local identity data for room room-1 has been purged.'));
-    });
-  });
-
-  describe('Public Actions (Sending Data)', () => {
-    beforeEach(async () => {
-      await service.connect('room-1', 'key');
-      if (ws.onopen) ws.onopen({});
-    });
-
-    it('should claimCoordinator', async () => {
-      await service.claimCoordinator('my-secret-token');
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"AUTH"'));
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"token":"my-secret-token"'));
-    });
-
-    it('should closeRoom', () => {
-      service.closeRoom();
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"CLOSE_ROOM"'));
-    });
-
-    it('should renameRoom', async () => {
-      await service.renameRoom('Corporate Vault');
-      expect(encryptionMock.encrypt).toHaveBeenCalled();
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"RENAME_ROOM"'));
-    });
-
-    it('should logAction', async () => {
-      await service.logAction('Test Action', 'Test Details');
-      expect(encryptionMock.encrypt).toHaveBeenCalled();
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"LOG_ACTION"'));
-    });
-
-    it('should updateSignerLabel', async () => {
-      await service.updateSignerLabel('fp123', 'Hardware Wallet');
-      expect(encryptionMock.encrypt).toHaveBeenCalled();
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"UPDATE_LABEL"'));
-    });
-
-    it('should setDisplayName', async () => {
-      await service.setDisplayName('Alice');
-      expect(localStorage.setItem).toHaveBeenCalledWith('display_name_room-1', 'Alice');
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"SET_DISPLAY_NAME"'));
-    });
-
-    it('should clear display name if empty', async () => {
-      await service.setDisplayName('   ');
-      expect(localStorage.removeItem).toHaveBeenCalledWith('display_name_room-1');
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"encryptedDisplayName":null'));
-    });
-
-    it('should updateWhitelist (add)', async () => {
-      service.roomState.set({ whitelist: [] } as any);
-      await service.updateWhitelist('bc1qnew', false);
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"UPDATE_WHITELIST"'));
-    });
-
-    it('should updateWhitelist (remove)', async () => {
-      service.roomState.set({ whitelist: ['bc1qold'] } as any);
-      await service.updateWhitelist('bc1qold', true);
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"UPDATE_WHITELIST"'));
-    });
-
-    it('should updateWhitelistBatch', async () => {
-      service.roomState.set({ whitelist: [] } as any);
-      await service.updateWhitelistBatch(['addr1', 'addr2'], false);
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"UPDATE_WHITELIST"'));
-    });
-
-    it('should updateWhitelist (add & remove)', async () => {
-      service.roomState.set({ whitelist: ['bc1qold'] } as any);
-      
-      await service.updateWhitelist('bc1qnew', false);
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"UPDATE_WHITELIST"'));
-      
-      await service.updateWhitelist('bc1qold', true);
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"UPDATE_WHITELIST"'));
-    });
-
-    it('should toggleLock', () => {
-      service.toggleLock(true);
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"TOGGLE_LOCK"'));
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"locked":true'));
-    });
-
-    it('should broadcastFinalization', async () => {
-      await service.broadcastFinalization('finalHex123', 'finalTxId123');
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"TX_FINALIZED"'));
-    });
-
-    it('should gracefullyDisconnect', async () => {
-      service.currentSessionId.set('S1');
-      const spy = vi.spyOn(service, 'disconnect');
-      vi.useFakeTimers();
-      
-      await service.gracefullyDisconnect();
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"LOG_ACTION"'));
-      
-      vi.advanceTimersByTime(100);
-      expect(spy).toHaveBeenCalled();
-      vi.useRealTimers();
-    });
-
-    it('should exit early from actions if no encryption key is set', async () => {
-      service.setRoomKey(null);
-      
-      await service.uploadSignature('AAAA');
-      await service.renameRoom('New Room');
-      await service.updateSignerLabel('fp1', 'label');
-      await service.updateWhitelist('addr1', true);
-      await service.updateWhitelistBatch(['addr1'], false);
-      await service.broadcastFinalization('hex', 'id');
-      await service.setDisplayName('Name');
-      
-      expect(ws.send).not.toHaveBeenCalled();
-    });
-
-    it('should not send label update if the label is exactly the same', async () => {
-      service.roomState.set({ signerLabels: { 'fp123': 'My Wallet' } } as any);
-      await service.updateSignerLabel('fp123', 'My Wallet');
-      
-      expect(ws.send).not.toHaveBeenCalled();
-    });
-
-    it('should catch errors during gracefullyDisconnect if logging fails', async () => {
-      service.currentSessionId.set('S1');
-      encryptionMock.encrypt.mockRejectedValueOnce(new Error('Encryption failure'));
-      
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      await service.gracefullyDisconnect();
-      
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to send disconnect log');
-    });
-  });
-
-  describe('Address Book Logic', () => {
-    it('should get local label', () => {
-      (localStorage.getItem as any).mockReturnValue('Saved Wallet');
-      const res = service.getLocalLabel('fp123');
-      expect(res).toBe('Saved Wallet');
-      expect(localStorage.getItem).toHaveBeenCalledWith('addr_book_fp123');
-    });
-
-    it('should save to address book', () => {
-      service.saveToAddressBook('fp123', 'My Device');
-      expect(localStorage.setItem).toHaveBeenCalledWith('addr_book_fp123', 'My Device');
-    });
-
-    it('should remove from address book', () => {
-      service.removeFromAddressBook('fp123');
-      expect(localStorage.removeItem).toHaveBeenCalledWith('addr_book_fp123');
-    });
-
-    it('should check and apply local labels if coordinator', () => {
+    it('should return null if the room state or psbt is missing', () => {
       service.role.set('admin');
-      service.roomState.set({ signerLabels: {} } as any);
-      
-      vi.spyOn(service as any, 'signers').mockReturnValue([{ fingerprint: 'fp123', signed: false }]);
-      (localStorage.getItem as any).mockReturnValue('Local Device Name');
-      
-      const updateLabelSpy = vi.spyOn(service, 'updateSignerLabel').mockImplementation(async () => {});
 
-      service.checkAndApplyLocalLabels();
+      service.roomState.set(null);
+      expect(service.getFinalTxHex()).toBeNull();
 
-      expect(localStorage.getItem).toHaveBeenCalledWith('addr_book_fp123');
-      expect(updateLabelSpy).toHaveBeenCalledWith('fp123', 'Local Device Name');
-    });
-
-    it('should not apply local labels if not coordinator', () => {
-      service.role.set('guest');
-      const updateLabelSpy = vi.spyOn(service, 'updateSignerLabel');
-      
-      service.checkAndApplyLocalLabels();
-      
-      expect(updateLabelSpy).not.toHaveBeenCalled();
-    });
-  });
-
-describe('Getters & Crypto Helpers', () => {
-    beforeEach(() => {
-      service.role.set('admin');
-      service.roomState.set({ psbt: 'AAAA' } as any);
-    });
-
-    it('should handle getFinalTxHex securely', () => {
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        finalize: vi.fn(),
-        extract: vi.fn().mockReturnValue(new Uint8Array([1, 2, 3]))
-      } as any);
-
-      const txHex = service.getFinalTxHex();
-      expect(txHex).toBe('010203');
-    });
-
-    it('should return null for getFinalTxHex if not admin', () => {
-      service.role.set('guest');
+      service.roomState.set({ roomId: '123' } as any);
       expect(service.getFinalTxHex()).toBeNull();
     });
 
-    it('should handle getFinalTxId securely', () => {
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        finalize: vi.fn(),
-        id: 'mocked-tx-id'
-      } as any);
-
-      const id = service.getFinalTxId();
-      expect(id).toBe('mocked-tx-id');
-    });
-
-    it('should determine threshold safely', () => {
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        getInput: () => ({ witnessScript: new Uint8Array([82]) }) // 0x52 = OP_2
-      } as any);
-
-      const threshold = service.getThreshold('AAAA');
-      expect(threshold).toBe(2);
-    });
-  });
-
-  describe('PSBT Merging', () => {
-    it('should merge two PSBTs using scure/btc-signer', () => {
-      const psbt = 'cHNidXf0AAA...'; 
-      const result = service.mergePsbts(psbt, psbt);
-      expect(result).toBeDefined();
-    });
-
-    it('should safely return base psbt if merge fails', () => {
-      vi.spyOn(Transaction, 'fromPSBT').mockImplementation(() => { throw new Error('Crash'); });
-      const result = service.mergePsbts('valid-base', 'invalid-next');
-      expect(result).toBe('valid-base');
-    });
-  });
-
-  describe('Advanced PSBT Parsing & Complex Workflows', () => {
-    beforeEach(async () => {
-      await service.connect('room-1', 'key');
-    });
-
-    it('should parse TxDetails and detect change outputs', () => {
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        inputsLength: 1,
-        outputsLength: 2,
-        unsignedTx: { inputs: [{ txid: new Uint8Array([10, 20, 30]), index: 0 }] },
-        getInput: () => ({
-          witnessUtxo: { amount: 2000n, script: new Uint8Array([0, 20, 1, 2, 3]) }
-        }),
-        getOutput: (i: number) => {
-          if (i === 0) return { amount: 1000n, script: new Uint8Array([0, 20, 9, 9]) };
-          return { 
-            amount: 800n, 
-            script: new Uint8Array([0, 20, 8, 8]),
-            bip32Derivation: [[new Uint8Array(), { path: [44, 0, 0, 1, 5] }]] 
-          };
-        },
-        vsize: 150
-      } as any);
-
-      service.roomState.set({ psbt: 'AAAA' } as any);
-      const details = service.txDetails();
-
-      expect(details).toBeDefined();
-      expect(details?.inputs).toBe(1);
-      expect(details?.outputs.length).toBe(2);
-      
-      expect(details?.outputs[0].isChange).toBe(true); 
-      expect(details?.outputs[1].isChange).toBe(false); 
-      expect(details?.fee).toBe(200); // 2000 - (1000 + 800)
-    });
-
-    it('should extract signers successfully', () => {
-      const mockPubkey = new Uint8Array(33).fill(1);
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        inputsLength: 1,
-        getInput: () => ({
-          partialSig: [[mockPubkey, new Uint8Array([2, 2])]],
-          bip32Derivation: [[mockPubkey, { fingerprint: 0x12345678 }]]
-        })
-      } as any);
-
-      service.roomState.set({ psbt: 'AAAA' } as any);
-      const signers = service.signers();
-
-      expect(signers.length).toBe(1);
-      expect(signers[0].fingerprint).toBe('12345678');
-      expect(signers[0].signed).toBe(true);
-    });
-
-    it('should handle uploadSignature with fingerprint extraction', async () => {
-      const mockPubkey = new Uint8Array(33).fill(2);
-      
-      vi.spyOn(Transaction, 'fromPSBT').mockImplementation((bytes: Uint8Array) => {
-        const isUploadedFile = bytes[0] !== 0; 
-        return {
-          inputsLength: 1,
-          getInput: () => ({
-            partialSig: isUploadedFile ? [[mockPubkey, new Uint8Array([3])]] : undefined,
-            bip32Derivation: [[mockPubkey, { fingerprint: 0xaabbccdd }]]
-          })
-        } as any;
-      });
-
-      service.roomState.set({ psbt: 'AAAA', roomId: 'room-1' } as any);
-      
-      (localStorage.getItem as any).mockImplementation((key: string) => {
-        if (key.startsWith('addr_book_')) return 'Saved Label';
-        return null;
-      });
-
-      await service.uploadSignature('BBBB');
-
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"UPLOAD_PARTIAL"'));
-      expect(encryptionMock.blindData).toHaveBeenCalledWith('aabbccdd', 'key');
-      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"SET_DISPLAY_NAME"'));
-    });
-
-    it('should execute registerAllFingerprints internally during STATE_SYNC', async () => {
-      const stateSyncMsg = {
-        data: JSON.stringify({ type: 'STATE_SYNC', roomId: 'room-1', psbt: 'AAAA' })
-      };
-      
-      const mockPubkey = new Uint8Array([1, 2, 3]);
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        inputsLength: 1,
-        getInput: () => ({
-          bip32Derivation: [[mockPubkey, { fingerprint: 0x11223344 }]]
-        })
-      } as any);
-
-      if (ws.onmessage) await ws.onmessage(stateSyncMsg);
-      
-      expect(encryptionMock.blindData).toHaveBeenCalledWith('11223344', 'key');
-    });
-
-    it('should handle legacy inputs and taproot signatures in PSBT parsing', () => {
-      const mockPubkey = new Uint8Array(33).fill(5);
-      
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        inputsLength: 1,
-        outputsLength: 0,
-        unsignedTx: { inputs: [{ index: 0 }] },
-        getInput: () => ({
-          nonWitnessUtxo: new Uint8Array([1, 2, 3]),
-          tapScriptSig: [[{ pubKey: mockPubkey }, new Uint8Array([9, 9])]],
-          bip32Derivation: [[mockPubkey, { fingerprint: 0x99887766 }]]
-        }),
-        getOutput: () => ({}),
-        vsize: 150
-      } as any);
-
-      service.roomState.set({ psbt: 'AAAA' } as any);
-      
-      const details = service.txDetails();
-      expect(details?.inputsList[0].address).toBe('Legacy Input');
-      
-      const signers = service.signers();
-      expect(signers[0].fingerprint).toBe('99887766');
-      expect(signers[0].signed).toBe(true);
-    });
-
-    it('should return 0 for getThreshold if script is empty or invalid', () => {
-      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue({
-        getInput: () => ({ witnessScript: new Uint8Array([0x00]) })
-      } as any);
-
-      const threshold = service.getThreshold('AAAA');
-      expect(threshold).toBe(0);
-    });
-
-    it('should handle PARTICIPANTS_UPDATE and decrypt historical display names', async () => {
-      const partsMsg = { data: JSON.stringify({
-        type: 'PARTICIPANTS_UPDATE',
-        participants: {
-          'S1': { id: 'S1', role: 'admin', encryptedDisplayName: 'enc_name_1' },
-          'S2': { id: 'S2', role: 'guest' }
-        }
-      })};
-
-      encryptionMock.decrypt.mockResolvedValueOnce('Alice Auditor');
-      if (ws.onmessage) await ws.onmessage(partsMsg);
-
-      const participants = service.roomState()?.participants;
-      expect(participants).toBeDefined();
-      expect(participants!['S1'].displayName).toBe('Alice Auditor');
-      expect(participants!['S2'].displayName).toBeUndefined(); 
-    });
-
-    it('should decrypt participants display names during STATE_SYNC', async () => {
-      const syncMsg = { data: JSON.stringify({
-        type: 'STATE_SYNC',
-        roomId: 'room-1',
-        participants: {
-          'S3': { id: 'S3', role: 'guest', encryptedDisplayName: 'enc_name_3' }
-        },
-        protocolVersion: '1.0.0'
-      })};
-
-      encryptionMock.decrypt.mockResolvedValueOnce('Bob Signer');
-      if (ws.onmessage) await ws.onmessage(syncMsg);
-
-      const participants = service.roomState()?.participants;
-      expect(participants).toBeDefined();
-      expect(participants!['S3'].displayName).toBe('Bob Signer');
-    });
-  });
-
-  describe('PSBT Finalization Error Handling', () => {
-    it('should return null from getFinalTxHex and getFinalTxId if parsing fails', () => {
+    it('should return null if PsbtUtils.finalizeTx fails or returns no hex', () => {
       service.role.set('admin');
-      service.roomState.set({ psbt: 'not-a-valid-base64-psbt!' } as any);
-      
-      expect(service.getFinalTxHex()).toBeNull();
+      service.roomState.set({ psbt: 'valid_psbt_base64' } as any);
+
+      const finalizeSpy = vi.spyOn(PsbtUtils, 'finalizeTx').mockReturnValue(null);
+
+      const result = service.getFinalTxHex();
+
+      expect(result).toBeNull();
+      expect(finalizeSpy).toHaveBeenCalledWith('valid_psbt_base64');
+    });
+
+    it('should return the finalized hex string if all conditions are met', () => {
+      service.role.set('admin');
+      service.roomState.set({ psbt: 'valid_psbt_base64' } as any);
+
+      const mockHex = '010000000001...';
+      const finalizeSpy = vi
+        .spyOn(PsbtUtils, 'finalizeTx')
+        .mockReturnValue({ hex: mockHex, txId: 'txid_123' });
+
+      const result = service.getFinalTxHex();
+
+      expect(result).toBe(mockHex);
+      expect(finalizeSpy).toHaveBeenCalledWith('valid_psbt_base64');
+    });
+  });
+
+  describe('getFinalTxId', () => {
+    it('should return null if the user is not an admin', () => {
+      service.role.set('guest');
+
+      const result = service.getFinalTxId();
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null if the room state or psbt is missing', () => {
+      service.role.set('admin');
+      service.roomState.set(null);
+
       expect(service.getFinalTxId()).toBeNull();
     });
 
-    it('should return null from getFinalTxHex and getFinalTxId if state is corrupt', () => {
-      // Forcing roomState to null guarantees a TypeError when methods try to read it
-      service.roomState.set(null as any);
-      
-      expect(service.getFinalTxHex()).toBeNull();
-      expect(service.getFinalTxId()).toBeNull();
+    it('should return null if PsbtUtils.finalizeTx fails or returns no txId', () => {
+      service.role.set('admin');
+      service.roomState.set({ psbt: 'valid_psbt_base64' } as any);
+
+      const finalizeSpy = vi
+        .spyOn(PsbtUtils, 'finalizeTx')
+        .mockReturnValue({ hex: 'some_hex' } as any);
+
+      const result = service.getFinalTxId();
+
+      expect(result).toBeNull();
+      expect(finalizeSpy).toHaveBeenCalledWith('valid_psbt_base64');
+    });
+
+    it('should return the finalized txId string if all conditions are met', () => {
+      service.role.set('admin');
+      service.roomState.set({ psbt: 'valid_psbt_base64' } as any);
+
+      const mockTxId = 'abcd1234efgh5678...';
+      const finalizeSpy = vi
+        .spyOn(PsbtUtils, 'finalizeTx')
+        .mockReturnValue({ hex: 'some_hex', txId: mockTxId });
+
+      const result = service.getFinalTxId();
+
+      expect(result).toBe(mockTxId);
+      expect(finalizeSpy).toHaveBeenCalledWith('valid_psbt_base64');
     });
   });
 
-  describe('Address Encoding (formatScriptAddress)', () => {
-    // Helper to convert raw hex strings to Uint8Array for the encoder
-    const hexToBytes = (hexStr: string) => 
-        new Uint8Array(hexStr.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+  describe('mergePsbts', () => {
+    it('should delegate to PsbtUtils.merge and return the result', () => {
+      const basePsbt = 'base_psbt_string';
+      const nextPsbt = 'next_psbt_string';
+      const mergedResult = 'merged_psbt_string';
 
-    beforeEach(() => {
-      // Default all tests to Mainnet unless overridden
-      service.roomState.set({ network: 'bitcoin' } as any);
-    });
+      const mergeSpy = vi.spyOn(PsbtUtils, 'merge').mockReturnValue(mergedResult);
 
-    it('should encode Mainnet P2WPKH (Native SegWit Single-Sig) correctly', () => {
-      const script = hexToBytes('0014751e76e8199196d454941c45d1b3a323f1433bd6');
-      const result = service['formatScriptAddress'](script);
-      expect(result).toBe('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4');
-    });
+      const result = service.mergePsbts(basePsbt, nextPsbt);
 
-    it('should encode Mainnet P2WSH (Native SegWit Multi-Sig) correctly', () => {
-      const script = hexToBytes('00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262');
-      const result = service['formatScriptAddress'](script);
-      expect(result).toBe('bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3');
-    });
-
-    it('should encode Mainnet P2TR (Taproot) correctly using bech32m', () => {
-      const script = hexToBytes('5120cc8a4bc6416805ac1141fb11508f72382f71694fbbbf017a5223e743a6d96923');
-      const result = service['formatScriptAddress'](script);
-      expect(result).toBe('bc1pej9yh3jpdqz6cy2plvg4prmj8qhhz620hwlsz7jjy0n58fkedy3szerluj');
-    });
-
-    it('should encode Signet/Testnet P2WSH correctly when room network is signet', () => {
-      service.roomState.set({ network: 'signet' } as any);
-      
-      const script = hexToBytes('00203d6bbc9c7ff1c578f24322a1f3b9f78c4646f96a450060c181fec38a3ce41519');
-      const result = service['formatScriptAddress'](script);
-      
-      expect(result).toBe('tb1q844me8rl78zh3ujry2sl8w0h33ryd7t2g5qxpsvplmpc508yz5vslwxw8z');
-    });
-
-    it('should successfully encode Legacy P2PKH scripts to Base58Check addresses', () => {
-      // Standard P2PKH legacy script starting with 76a914...
-      const script = hexToBytes('76a914751e76e8199196d454941c45d1b3a323f1433bd688ac');
-      const result = service['formatScriptAddress'](script);
-      
-      // Mainnet address
-      expect(result).toBe('1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH');
-  });
-
-    it('should return "Unknown" for empty or uninitialized script arrays', () => {
-      const result = service['formatScriptAddress'](new Uint8Array([]));
-      expect(result).toBe('Unknown');
-    });
-
-    it('should fallback to slicing hex if a fatal error occurs during encoding', () => {
-      service.roomState.set({ network: 'bitcoin' } as any);
-      
-      // Create a naturally invalid script (Segwit v0 prefix, but missing the 20-byte hash)
-      // This guarantees that the native scure/base library will throw an error, 
-      const malformedScript = new Uint8Array([0x00, 0x14, 0xAA, 0xBB, 0xCC]); 
-      
-      // Pass it to the formatter
-      const result = service['formatScriptAddress'](malformedScript);
-      
-      // Verify it hit the catch block and executed your hex-slicing fallback
-      expect(result).toBeDefined();
-      expect(result.toLowerCase()).toContain('0014aabbcc');
-    });
-
-    it('should successfully encode Signet/Testnet Legacy P2PKH scripts to Base58Check addresses', () => {
-      // Set network context to trigger the 0x6f Base58 prefix
-      service.roomState.set({ network: 'signet' } as any);
-      
-      const script = hexToBytes('76a914cd3b7aca26208b3239f96fff6a37b8de3ae0915488ac'); 
-      const result = service['formatScriptAddress'](script);
-      
-      // Mathematically verified Testnet/Signet address
-      expect(result).toBe('mzE856cXjeyBt8HY9eNXxW5JYDJp2vmMuU');
-    });
-
-    it('should successfully encode Mainnet P2SH / Nested SegWit scripts to Base58Check addresses', () => {
-      service.roomState.set({ network: 'bitcoin' } as any);
-      
-      // Standard P2SH legacy script starting with a914... ending in 87
-      const script = hexToBytes('a914363c62e38ad4b5550f9b268fc5ab5839613f8c7087');
-      const result = service['formatScriptAddress'](script);
-      
-      // Mainnet P2SH address (starts with 3)
-      expect(result).toBe('36dnkcdnhSpfbb8tCDn49t5gp6ruGUQReo');
-    });
-
-    it('should successfully encode Signet/Testnet P2SH / Nested SegWit scripts to Base58Check addresses', () => {
-      // Set network context to trigger the 0xc4 Base58 prefix for Testnet P2SH
-      service.roomState.set({ network: 'signet' } as any);
-      
-      const script = hexToBytes('a914363c62e38ad4b5550f9b268fc5ab5839613f8c7087'); 
-      const result = service['formatScriptAddress'](script);
-      
-      // Mathematically verified Testnet/Signet address (starts with 2)
-      expect(result).toBe('2MxBzpMZpJuL1oNmRsMPvmq4x2T557PHFFG');
+      expect(result).toBe(mergedResult);
+      expect(mergeSpy).toHaveBeenCalledWith(basePsbt, nextPsbt);
     });
   });
 
-  describe('Helper Methods & Cleanup', () => {
-    it('should return empty string if log entry creation fails (no key)', async () => {
-      vi.spyOn(service, 'getRoomKey').mockReturnValue(null);
-      const result = await service['createSecureLogBlob']('event', 'detail', 'user');
-      expect(result).toBe('');
-    });
+  describe('getThreshold', () => {
+    it('should delegate to PsbtUtils.getThreshold and return the result', () => {
+      const psbtBase64 = 'some_psbt_string';
+      const mockThreshold = 3;
 
-    it('should clear local room data only if localStorage is defined', () => {
-      // Mock localStorage being undefined
-      const originalLocalStorage = (globalThis as any).localStorage;
-      (globalThis as any).localStorage = undefined;
-      
-      expect(() => service['clearLocalRoomData']('room-1')).not.toThrow();
-      
-      // Restore
-      (globalThis as any).localStorage = originalLocalStorage;
-    });
+      const getThresholdSpy = vi.spyOn(PsbtUtils, 'getThreshold').mockReturnValue(mockThreshold);
 
-    it('should handle gracefullyDisconnect when not connected', async () => {
-      vi.spyOn(service, 'status').mockReturnValue('disconnected');
-      await service.gracefullyDisconnect();
-      // Should not call send()
-      expect(ws.send).not.toHaveBeenCalled();
+      const result = service.getThreshold(psbtBase64);
+
+      expect(result).toBe(mockThreshold);
+      expect(getThresholdSpy).toHaveBeenCalledWith(psbtBase64);
     });
+  });
+
+  it('should delegate finalizeTransaction to the SDK', async () => {
+    const expectedValue = { hex: '00200', txId: '123' };
+    const finalizeSpy = vi
+      .spyOn(service.sdk, 'finalizeTransaction')
+      .mockResolvedValue(expectedValue);
+
+    const result = await service.finalizeTransaction();
+
+    expect(result).toBe(expectedValue);
+    expect(finalizeSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,0 +1,25 @@
+{
+  "name": "@signing-room/sdk",
+  "version": "1.0.0-alpha.2",
+  "description": "The official Signing Room SDK. Licensed under AGPLv3; commercial licenses available.",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./src/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "dependencies": {
+    "@scure/btc-signer": "^2.0.1",
+    "rxjs": "7.8.2",
+    "jspdf": "^4.0.0"
+  }
+}

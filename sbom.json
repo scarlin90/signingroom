@@ -74320,9 +74320,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@angular/compiler@21.2.17",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@angular/core@21.2.17",
@@ -74538,9 +74536,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@emnapi/runtime@1.11.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@eslint/js@9.39.4"
@@ -74806,9 +74802,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@playwright/test@1.61.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|playwright@1.61.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|playwright@1.61.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@schematics/angular@21.2.17",
@@ -74861,9 +74855,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@swc/helpers@0.5.23",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@tailwindcss/postcss@4.3.1",
@@ -74877,9 +74869,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@tybys/wasm-util@0.10.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/canvas-confetti@1.9.0"
@@ -74895,15 +74885,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/node@20.19.43",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|undici-types@6.21.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|undici-types@6.21.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/qrcode@1.5.6",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/node@20.19.43"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/node@20.19.43"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@typescript-eslint/utils@8.62.0",
@@ -75036,9 +75022,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|eslint-config-prettier@10.1.8",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|eslint@9.39.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|eslint@9.39.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|eslint-plugin-playwright@1.8.3",
@@ -75175,9 +75159,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|express@4.22.2|debug@2.6.9",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|express@4.22.2|ms@2.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|express@4.22.2|ms@2.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|express@4.22.2|ms@2.0.0"
@@ -75225,15 +75207,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|jsdom@22.1.0|parse5@7.3.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|jsdom@22.1.0|entities@6.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|jsdom@22.1.0|entities@6.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|jsdom@22.1.0|agent-base@6.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|debug@4.4.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|debug@4.4.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|jsdom@22.1.0|entities@6.0.1"
@@ -75395,15 +75373,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|@emnapi/runtime@1.4.5",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|@emnapi/wasi-threads@1.0.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|@jest/diff-sequences@30.0.1"
@@ -75418,9 +75392,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|@tybys/wasm-util@0.9.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|balanced-match@4.0.3"
@@ -75434,15 +75406,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|cli-cursor@3.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|nx@23.0.1|restore-cursor@3.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|nx@23.0.1|restore-cursor@3.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|es-object-atoms@1.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|es-errors@1.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|es-errors@1.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|escape-string-regexp@1.0.5"
@@ -75492,9 +75460,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|which@3.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|isexe@2.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|isexe@2.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|nx@23.0.1|wrap-ansi@7.0.0",
@@ -75586,27 +75552,19 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|qrcode@1.5.4|locate-path@5.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|qrcode@1.5.4|p-locate@4.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|qrcode@1.5.4|p-locate@4.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|qrcode@1.5.4|p-locate@4.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|qrcode@1.5.4|p-limit@2.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|qrcode@1.5.4|p-limit@2.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|qrcode@1.5.4|p-limit@2.3.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|p-try@2.2.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|p-try@2.2.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|rxjs@7.8.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|tailwindcss@4.3.1"
@@ -75813,15 +75771,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-annotate-as-pure@7.27.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-split-export-declaration@7.24.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-transform-async-generator-functions@7.29.0",
@@ -76033,9 +75987,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|karma-source-map-support@1.4.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|source-map-support@0.5.21"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|source-map-support@0.5.21"]
     },
     {
       "ref": "@signing-room/source@2.5.0|less-loader@12.3.1",
@@ -76078,9 +76030,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|license-webpack-plugin@4.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|webpack-sources@3.5.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|webpack-sources@3.5.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|loader-utils@3.3.1"
@@ -76148,9 +76098,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|ora@9.3.0|strip-ansi@7.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|ora@9.3.0|ansi-regex@6.2.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|ora@9.3.0|ansi-regex@6.2.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ora@9.3.0|ansi-regex@6.2.2"
@@ -76160,9 +76108,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|piscina@5.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@napi-rs/nice@1.1.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@napi-rs/nice@1.1.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-loader@8.2.0",
@@ -76187,9 +76133,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-loader@8.2.0|js-yaml@4.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|argparse@2.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|argparse@2.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|resolve-url-loader@5.0.0",
@@ -76233,9 +76177,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|sass@1.97.3|chokidar@4.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|sass@1.97.3|readdirp@4.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|sass@1.97.3|readdirp@4.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|sass@1.97.3|readdirp@4.1.2"
@@ -76253,9 +76195,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|source-map-loader@5.0.0|iconv-lite@0.6.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|safer-buffer@2.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|safer-buffer@2.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|source-map-support@0.5.21",
@@ -76401,9 +76341,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|webpack-dev-server@5.2.5|glob-parent@5.1.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-glob@4.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-glob@4.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|webpack-dev-server@5.2.5|readdirp@3.6.0",
@@ -76425,9 +76363,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|webpack-dev-server@5.2.5|is-wsl@3.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-inside-container@1.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-inside-container@1.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|webpack-merge@6.0.1",
@@ -76489,9 +76425,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|ajv-formats@3.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|ajv@8.18.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|ajv@8.18.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ajv@8.18.0",
@@ -76504,9 +76438,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|chokidar@5.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|readdirp@5.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|readdirp@5.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|source-map@0.7.6"
@@ -76581,9 +76513,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|listr2@9.0.5|strip-ansi@7.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|listr2@9.0.5|ansi-regex@6.2.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|listr2@9.0.5|ansi-regex@6.2.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|listr2@9.0.5|emoji-regex@10.6.0"
@@ -76927,9 +76857,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|yargs@18.0.0|strip-ansi@7.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|yargs@18.0.0|ansi-regex@6.2.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|yargs@18.0.0|ansi-regex@6.2.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|yargs@18.0.0|wrap-ansi@9.0.2",
@@ -77153,9 +77081,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@emnapi/wasi-threads@1.2.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@keystonehq/alias-sampling@0.1.2"
@@ -77178,9 +77104,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|crc@3.8.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|crc@3.8.0|buffer@5.7.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|crc@3.8.0|buffer@5.7.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|crc@3.8.0|buffer@5.7.1",
@@ -77374,27 +77298,21 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|enquirer@2.3.6",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|ansi-colors@4.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|ansi-colors@4.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|picocolors@1.1.1"
     },
     {
       "ref": "@signing-room/source@2.5.0|@zkochan/js-yaml@0.0.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|argparse@2.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|argparse@2.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ejs@5.0.1"
     },
     {
       "ref": "@signing-room/source@2.5.0|minimatch@10.2.5",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|brace-expansion@5.0.6"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|brace-expansion@5.0.6"]
     },
     {
       "ref": "@signing-room/source@2.5.0|yargs-parser@21.1.1"
@@ -77512,9 +77430,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|detect-port@2.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|address@2.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|address@2.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ignore@7.0.5"
@@ -77524,9 +77440,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|npm-run-path@4.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|path-key@3.1.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|path-key@3.1.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@nx/docker@23.0.1",
@@ -77552,9 +77466,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|tcp-port-used@1.0.3|debug@4.3.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tcp-port-used@1.0.3|ms@2.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tcp-port-used@1.0.3|ms@2.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|tcp-port-used@1.0.3|ms@2.1.2"
@@ -77589,9 +77501,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@noble/curves@2.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@noble/hashes@2.2.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@noble/hashes@2.2.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@noble/hashes@2.2.0"
@@ -77601,9 +77511,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|micro-packed@0.9.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@scure/base@2.2.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@scure/base@2.2.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@swc-node/core@1.14.1",
@@ -77624,9 +77532,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|debug@4.4.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|ms@2.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|ms@2.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|oxc-resolver@11.21.3",
@@ -77690,9 +77596,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@swc/types@0.1.27",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@swc/counter@0.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@swc/counter@0.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@alloc/quick-lru@5.2.0"
@@ -78065,15 +77969,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@eslint/config-helpers@0.4.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@eslint/core@0.17.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@eslint/core@0.17.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@eslint/core@0.17.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/json-schema@7.0.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/json-schema@7.0.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@eslint/eslintrc@3.3.5",
@@ -78106,9 +78006,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@eslint/eslintrc@3.3.5|js-yaml@4.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|argparse@2.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|argparse@2.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@eslint/eslintrc@3.3.5|minimatch@3.1.5",
@@ -78177,9 +78075,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|esquery@1.7.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|estraverse@5.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|estraverse@5.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|esutils@2.0.3"
@@ -78189,9 +78085,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|file-entry-cache@8.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|flat-cache@4.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|flat-cache@4.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|find-up@5.0.0",
@@ -78202,18 +78096,14 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|glob-parent@6.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-glob@4.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-glob@4.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|imurmurhash@0.1.4"
     },
     {
       "ref": "@signing-room/source@2.5.0|is-glob@4.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-extglob@2.1.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-extglob@2.1.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|jiti@2.7.0"
@@ -78267,15 +78157,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|body-parser@1.20.5|debug@2.6.9",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|body-parser@1.20.5|ms@2.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|body-parser@1.20.5|ms@2.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|body-parser@1.20.5|iconv-lite@0.4.24",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|safer-buffer@2.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|safer-buffer@2.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|body-parser@1.20.5|raw-body@2.5.3",
@@ -78291,9 +78177,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|content-disposition@0.5.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|safe-buffer@5.2.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|safe-buffer@5.2.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|content-type@1.0.5"
@@ -78330,9 +78214,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|finalhandler@1.3.2|debug@2.6.9",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|finalhandler@1.3.2|ms@2.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|finalhandler@1.3.2|ms@2.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|finalhandler@1.3.2|ms@2.0.0"
@@ -78358,9 +78240,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|on-finished@2.4.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|ee-first@1.1.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|ee-first@1.1.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|parseurl@1.3.3"
@@ -78448,9 +78328,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|cssstyle@3.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|rrweb-cssom@0.6.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|rrweb-cssom@0.6.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|data-urls@4.0.0",
@@ -78465,9 +78343,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|domexception@4.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|webidl-conversions@7.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|webidl-conversions@7.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|form-data@4.0.6",
@@ -78481,9 +78357,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|html-encoding-sniffer@3.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|whatwg-encoding@2.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|whatwg-encoding@2.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|http-proxy-agent@5.0.0",
@@ -78495,9 +78369,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|http-proxy-agent@5.0.0|agent-base@6.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|debug@4.4.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|debug@4.4.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|is-potential-custom-element-name@1.0.1"
@@ -78510,9 +78382,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|saxes@6.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|xmlchars@2.2.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|xmlchars@2.2.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|symbol-tree@3.2.4"
@@ -78531,9 +78401,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|w3c-xmlserializer@4.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|xml-name-validator@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|xml-name-validator@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|webidl-conversions@7.0.0"
@@ -78546,9 +78414,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|whatwg-encoding@2.0.0|iconv-lite@0.6.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|safer-buffer@2.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|safer-buffer@2.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|whatwg-mimetype@3.0.0"
@@ -78581,9 +78447,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|dompurify@3.4.11",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/trusted-types@2.0.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/trusted-types@2.0.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|fast-png@6.4.0",
@@ -78635,9 +78499,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|ansi-styles@4.3.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|color-convert@2.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|color-convert@2.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|argparse@2.0.1"
@@ -78670,9 +78532,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|brace-expansion@5.0.6",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|balanced-match@4.0.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|balanced-match@4.0.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|call-bind-apply-helpers@1.0.2",
@@ -78713,24 +78573,18 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|color-convert@2.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|color-name@1.1.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|color-name@1.1.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|color-name@1.1.4"
     },
     {
       "ref": "@signing-room/source@2.5.0|combined-stream@1.0.8",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|delayed-stream@1.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|delayed-stream@1.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|defaults@1.0.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|clone@1.0.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|clone@1.0.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|define-lazy-prop@2.0.0"
@@ -78740,9 +78594,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|dotenv-expand@12.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|dotenv@16.4.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|dotenv@16.4.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|dotenv@16.4.7"
@@ -78760,9 +78612,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|end-of-stream@1.4.5",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|once@1.4.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|once@1.4.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|es-define-property@1.0.1"
@@ -78839,15 +78689,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|has-tostringtag@1.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|has-symbols@1.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|has-symbols@1.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|hasown@2.0.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|function-bind@1.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|function-bind@1.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|inherits@2.0.4"
@@ -78866,9 +78712,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|is-wsl@2.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-docker@2.2.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-docker@2.2.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|isexe@2.0.0"
@@ -78894,9 +78738,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|mime-types@2.1.35",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|mime-db@1.52.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|mime-db@1.52.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|mimic-fn@2.1.0"
@@ -78906,15 +78748,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|once@1.4.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|wrappy@1.0.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|wrappy@1.0.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|onetime@5.1.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|mimic-fn@2.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|mimic-fn@2.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|path-key@3.1.1"
@@ -78941,21 +78779,15 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|string_decoder@1.3.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|safe-buffer@5.2.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|safe-buffer@5.2.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|strip-ansi@6.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|ansi-regex@5.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|ansi-regex@5.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|supports-color@7.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|has-flag@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|has-flag@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|tar-stream@2.2.0",
@@ -78975,9 +78807,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|wcwidth@1.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|defaults@1.0.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|defaults@1.0.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|wrappy@1.0.2"
@@ -79021,9 +78851,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|tsconfck@3.1.6",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|typescript@5.9.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|typescript@5.9.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|fsevents@2.3.3"
@@ -79077,9 +78905,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|sass-embedded@1.100.0|supports-color@8.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|has-flag@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|has-flag@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@vitest/expect@4.1.9",
@@ -79103,9 +78929,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@vitest/pretty-format@4.1.9",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tinyrainbow@3.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tinyrainbow@3.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@vitest/spy@4.1.9"
@@ -79195,9 +79019,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/parser@7.29.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/template@7.29.7",
@@ -79263,9 +79085,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-remap-async-to-generator@7.29.7|@babel/helper-annotate-as-pure@7.29.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-module-imports@7.29.7",
@@ -79348,9 +79168,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-proposal-private-property-in-object@7.21.0-placeholder-for-preset-env.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/core@7.29.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/core@7.29.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-syntax-import-assertions@7.29.7",
@@ -79417,9 +79235,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-transform-classes@7.29.7|@babel/helper-annotate-as-pure@7.29.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-transform-computed-properties@7.29.7",
@@ -79657,9 +79473,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-transform-private-property-in-object@7.29.7|@babel/helper-annotate-as-pure@7.29.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-transform-property-literals@7.29.7",
@@ -79768,9 +79582,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|core-js-compat@3.49.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|browserslist@4.28.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|browserslist@4.28.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|baseline-browser-mapping@2.10.40"
@@ -79803,9 +79615,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|schema-utils@4.3.3|ajv-formats@2.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|ajv@8.18.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|ajv@8.18.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|serialize-javascript@7.0.6"
@@ -79821,15 +79631,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|icss-utils@5.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-modules-extract-imports@3.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-modules-local-by-default@4.2.0",
@@ -79856,9 +79662,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/http-proxy@1.17.17",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/node@20.19.43"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/node@20.19.43"]
     },
     {
       "ref": "@signing-room/source@2.5.0|http-proxy@1.18.1",
@@ -79883,15 +79687,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|copy-anything@2.0.6",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-what@3.14.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-what@3.14.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|errno@0.1.8",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|prr@1.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|prr@1.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|graceful-fs@4.2.11"
@@ -79911,9 +79711,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|needle@3.5.0|iconv-lite@0.6.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|safer-buffer@2.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|safer-buffer@2.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|parse-node-version@1.0.1"
@@ -79955,15 +79753,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|wsl-utils@0.3.1|is-wsl@3.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-inside-container@1.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-inside-container@1.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|cli-cursor@5.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|restore-cursor@5.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|restore-cursor@5.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|stdin-discarder@0.3.2"
@@ -80051,15 +79845,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|fdir@6.5.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|picomatch@4.0.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|picomatch@4.0.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/bonjour@3.5.13",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/node@20.19.43"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/node@20.19.43"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/connect-history-api-fallback@1.5.4",
@@ -80070,21 +79860,15 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/serve-index@1.9.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/express@4.17.25"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/express@4.17.25"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/sockjs@0.3.36",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/node@20.19.43"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/node@20.19.43"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/ws@8.18.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/node@20.19.43"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/node@20.19.43"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ansi-html-community@0.0.8"
@@ -80110,9 +79894,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|compression@1.8.1|debug@2.6.9",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|compression@1.8.1|ms@2.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|compression@1.8.1|ms@2.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|compression@1.8.1|negotiator@0.6.4"
@@ -80159,9 +79941,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|serve-index@1.9.2|debug@2.6.9",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|serve-index@1.9.2|ms@2.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|serve-index@1.9.2|ms@2.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|serve-index@1.9.2|http-errors@1.8.1",
@@ -80210,9 +79990,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|clone-deep@4.0.1|is-plain-object@2.0.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|isobject@3.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|isobject@3.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|wildcard@2.0.1"
@@ -80263,9 +80041,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|acorn-import-phases@1.0.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|acorn@8.17.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|acorn@8.17.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|chrome-trace-event@1.0.4"
@@ -80306,9 +80082,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|terser-webpack-plugin@5.6.1|supports-color@8.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|has-flag@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|has-flag@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|fast-uri@3.1.2"
@@ -80338,9 +80112,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@inquirer/type@3.0.10",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/node@20.19.43"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/node@20.19.43"]
     },
     {
       "ref": "@signing-room/source@2.5.0|css-select@6.0.0",
@@ -80365,9 +80137,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|domhandler@5.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|domelementtype@2.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|domelementtype@2.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|htmlparser2@10.1.0",
@@ -80386,9 +80156,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-safe-parser@7.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|agent-base@7.1.4"
@@ -80428,9 +80196,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|log-update@6.1.0|ansi-escapes@7.3.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|environment@1.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|environment@1.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|log-update@6.1.0|slice-ansi@7.1.2",
@@ -80458,9 +80224,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|log-update@6.1.0|is-fullwidth-code-point@5.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|get-east-asian-width@1.6.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|get-east-asian-width@1.6.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|log-update@6.1.0|ansi-regex@6.2.2"
@@ -80505,18 +80269,14 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|msgpackr@1.12.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|msgpackr-extract@3.0.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|msgpackr-extract@3.0.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|node-addon-api@6.1.0"
     },
     {
       "ref": "@signing-room/source@2.5.0|node-gyp-build-optional-packages@5.2.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|detect-libc@2.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|detect-libc@2.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ordered-binary@1.6.1"
@@ -80574,9 +80334,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@rolldown/binding-wasm32-wasi@1.0.0-rc.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@napi-rs/wasm-runtime@1.1.6"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@napi-rs/wasm-runtime@1.1.6"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@rolldown/binding-win32-arm64-msvc@1.0.0-rc.4"
@@ -80705,9 +80463,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@hono/node-server@1.19.14",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|hono@4.12.27"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|hono@4.12.27"]
     },
     {
       "ref": "@signing-room/source@2.5.0|cors@2.8.6",
@@ -80721,9 +80477,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|eventsource@3.0.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|eventsource-parser@3.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|eventsource-parser@3.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|express-rate-limit@8.5.2",
@@ -80755,9 +80509,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|zod-to-json-schema@3.25.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|zod@4.3.6"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|zod@4.3.6"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@algolia/abtesting@1.14.1",
@@ -80854,21 +80606,15 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@algolia/requester-browser-xhr@5.48.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@algolia/client-common@5.48.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@algolia/client-common@5.48.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@algolia/requester-fetch@5.48.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@algolia/client-common@5.48.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@algolia/client-common@5.48.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@algolia/requester-node-http@5.48.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@algolia/client-common@5.48.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@algolia/client-common@5.48.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|hosted-git-info@9.0.3",
@@ -80906,9 +80652,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@npmcli/git@7.0.2|which@6.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@npmcli/git@7.0.2|isexe@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@npmcli/git@7.0.2|isexe@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@npmcli/git@7.0.2|isexe@4.0.0"
@@ -81010,9 +80754,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|fs-minipass@3.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|minipass@7.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|minipass@7.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|minipass@7.1.3"
@@ -81059,9 +80801,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|ssri@13.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|minipass@7.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|minipass@7.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|tar@7.5.17",
@@ -81159,9 +80899,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|unenv@2.0.0-rc.24",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|pathe@2.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|pathe@2.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|call-bind@1.0.9",
@@ -81229,9 +80967,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|style-loader@3.3.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|webpack@5.105.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|webpack@5.105.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ts-checker-rspack-plugin@1.5.1",
@@ -81281,9 +81017,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|ts-checker-rspack-plugin@1.5.1|glob-parent@5.1.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-glob@4.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-glob@4.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ts-checker-rspack-plugin@1.5.1|readdirp@3.6.0",
@@ -81363,9 +81097,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|fork-ts-checker-webpack-plugin@9.1.0|js-yaml@4.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|argparse@2.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|argparse@2.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|fork-ts-checker-webpack-plugin@9.1.0|brace-expansion@1.1.15",
@@ -81417,15 +81149,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/esquery@1.5.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/estree@1.0.9"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/estree@1.0.9"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ts-api-utils@2.5.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|typescript@5.9.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|typescript@5.9.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@typescript-eslint/visitor-keys@8.62.0",
@@ -81455,9 +81183,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-create-class-features-plugin@7.29.7|@babel/helper-annotate-as-pure@7.29.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-create-class-features-plugin@7.29.7|semver@6.3.1"
@@ -81489,9 +81215,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-transform-typescript@7.29.7|@babel/helper-annotate-as-pure@7.29.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/plugin-syntax-typescript@7.29.7",
@@ -81561,9 +81285,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|identity-obj-proxy@3.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|harmony-reflect@1.6.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|harmony-reflect@1.6.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|jest-config@30.4.2",
@@ -81662,9 +81384,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|union@0.5.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|qs@6.15.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|qs@6.15.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|url-join@4.0.1"
@@ -81740,9 +81460,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@oxc-resolver/binding-wasm32-wasi@11.21.3|@emnapi/runtime@1.11.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@oxc-resolver/binding-win32-arm64-msvc@11.21.3"
@@ -81796,18 +81514,14 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/connect@3.4.38",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/node@20.19.43"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/node@20.19.43"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/range-parser@1.2.7"
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/send@1.2.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/node@20.19.43"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/node@20.19.43"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/http-errors@2.0.5"
@@ -81823,27 +81537,21 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@typescript-eslint/tsconfig-utils@8.62.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|typescript@5.9.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|typescript@5.9.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jridgewell/resolve-uri@3.1.2"
     },
     {
       "ref": "@signing-room/source@2.5.0|make-dir@4.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|semver@7.7.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|semver@7.7.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|html-escaper@2.0.2"
     },
     {
       "ref": "@signing-room/source@2.5.0|estree-walker@3.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/estree@1.0.9"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/estree@1.0.9"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@polka/url@1.0.0-next.29"
@@ -81903,9 +81611,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@humanfs/core@0.19.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@humanfs/types@0.15.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@humanfs/types@0.15.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@humanfs/types@0.15.0"
@@ -81915,36 +81621,26 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|uri-js@4.4.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|punycode@2.3.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|punycode@2.3.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|shebang-command@2.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|shebang-regex@3.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|shebang-regex@3.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|which@2.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|isexe@2.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|isexe@2.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|esrecurse@4.3.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|estraverse@5.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|estraverse@5.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|estraverse@5.3.0"
     },
     {
       "ref": "@signing-room/source@2.5.0|acorn-jsx@5.3.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|acorn@8.17.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|acorn@8.17.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|flat-cache@4.0.1",
@@ -81955,9 +81651,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|locate-path@6.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|p-locate@5.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|p-locate@5.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|path-exists@4.0.0"
@@ -81976,9 +81670,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|type-check@0.4.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|prelude-ls@1.2.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|prelude-ls@1.2.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|word-wrap@1.2.5"
@@ -82028,9 +81720,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|psl@1.15.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|punycode@2.3.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|punycode@2.3.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|punycode@2.3.1"
@@ -82044,18 +81734,14 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|tr46@4.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|punycode@2.3.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|punycode@2.3.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/raf@3.4.3"
     },
     {
       "ref": "@signing-room/source@2.5.0|raf@3.4.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|performance-now@2.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|performance-now@2.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|regenerator-runtime@0.13.11"
@@ -82083,24 +81769,18 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|css-line-break@2.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|utrie@1.0.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|utrie@1.0.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|text-segmentation@1.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|utrie@1.0.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|utrie@1.0.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|balanced-match@4.0.4"
     },
     {
       "ref": "@signing-room/source@2.5.0|es-object-atoms@1.1.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|es-errors@1.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|es-errors@1.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|decamelize@1.2.0"
@@ -82242,9 +81922,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|sync-child-process@1.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|sync-message-port@1.2.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|sync-message-port@1.2.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|varint@6.0.0"
@@ -82277,9 +81955,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|fast-glob@3.3.3|glob-parent@5.1.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-glob@4.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-glob@4.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|mkdirp@3.0.1"
@@ -82292,9 +81968,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|lru-cache@5.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|yallist@3.1.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|yallist@3.1.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-globals@7.29.7"
@@ -82339,9 +82013,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-create-regexp-features-plugin@7.29.7|@babel/helper-annotate-as-pure@7.29.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-create-regexp-features-plugin@7.29.7|semver@6.3.1"
@@ -82402,9 +82074,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|braces@3.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|fill-range@7.1.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|fill-range@7.1.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|is-what@3.14.1"
@@ -82417,9 +82087,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|bundle-name@4.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|run-applescript@7.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|run-applescript@7.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|default-browser-id@5.0.1"
@@ -82433,9 +82101,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|restore-cursor@5.1.0|onetime@7.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|mimic-function@5.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|mimic-function@5.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|yoctocolors@2.1.2"
@@ -82584,9 +82250,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/fs-node-builtins@4.57.8",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/fs-node-to-fsa@4.57.8",
@@ -82659,15 +82323,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/fs-snapshot@4.57.8|@jsonjoy.com/base64@17.67.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/fs-snapshot@4.57.8|@jsonjoy.com/codegen@17.67.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/fs-snapshot@4.57.8|@jsonjoy.com/json-pointer@17.67.0",
@@ -82692,9 +82352,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/json-pack@1.21.0|@jsonjoy.com/buffers@1.2.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/util@1.9.0",
@@ -82706,27 +82364,19 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/util@1.9.0|@jsonjoy.com/buffers@1.2.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|glob-to-regex.js@1.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|thingies@2.6.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|tree-dump@1.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|multicast-dns@7.2.5",
@@ -82747,15 +82397,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|is-binary-path@2.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|binary-extensions@2.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|binary-extensions@2.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|compressible@2.0.18",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|mime-db@1.52.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|mime-db@1.52.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|on-headers@1.1.0"
@@ -82810,9 +82456,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|faye-websocket@0.11.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|websocket-driver@0.7.5"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|websocket-driver@0.7.5"]
     },
     {
       "ref": "@signing-room/source@2.5.0|uuid@8.3.2"
@@ -82850,9 +82494,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|shallow-clone@3.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|kind-of@6.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|kind-of@6.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/eslint@9.6.1",
@@ -82915,15 +82557,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@webassemblyjs/ieee754@1.13.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@xtuc/ieee754@1.2.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@xtuc/ieee754@1.2.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@webassemblyjs/leb128@1.13.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@xtuc/long@4.2.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@xtuc/long@4.2.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@webassemblyjs/utf8@1.13.2"
@@ -82975,9 +82613,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|nth-check@2.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|boolbase@1.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|boolbase@1.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|domelementtype@2.3.0"
@@ -82997,9 +82633,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|slice-ansi@8.0.0|is-fullwidth-code-point@5.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|get-east-asian-width@1.6.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|get-east-asian-width@1.6.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|msgpackr-extract@3.0.4",
@@ -83117,9 +82751,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|iconv-lite@0.7.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|safer-buffer@2.1.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|safer-buffer@2.1.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|npm-bundled@5.0.0",
@@ -83163,24 +82795,18 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|node-gyp@12.4.0|which@6.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|node-gyp@12.4.0|isexe@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|node-gyp@12.4.0|isexe@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|node-gyp@12.4.0|isexe@4.0.0"
     },
     {
       "ref": "@signing-room/source@2.5.0|@npmcli/fs@5.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|semver@7.7.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|semver@7.7.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|minipass-collect@2.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|minipass@7.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|minipass@7.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|minipass-flush@1.0.7",
@@ -83217,15 +82843,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|ignore-walk@8.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|minimatch@10.2.5"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|minimatch@10.2.5"]
     },
     {
       "ref": "@signing-room/source@2.5.0|npm-install-checks@8.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|semver@7.7.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|semver@7.7.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@npmcli/redact@4.0.0"
@@ -83264,15 +82886,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|minizlib@3.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|minipass@7.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|minipass@7.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@sigstore/bundle@4.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@sigstore/protobuf-specs@0.5.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@sigstore/protobuf-specs@0.5.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@sigstore/core@3.2.1"
@@ -83308,9 +82926,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@isaacs/fs-minipass@4.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|minipass@7.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|minipass@7.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|chownr@3.0.0"
@@ -83410,9 +83026,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@img/sharp-wasm32@0.34.5",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@emnapi/runtime@1.11.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@emnapi/runtime@1.11.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@img/sharp-win32-arm64@0.34.5"
@@ -83440,9 +83054,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@poppinss/colors@4.1.6",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|kleur@4.1.5"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|kleur@4.1.5"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@poppinss/dumper@0.6.5",
@@ -83513,9 +83125,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|is-typed-array@1.1.15",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|which-typed-array@1.1.22"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|which-typed-array@1.1.22"]
     },
     {
       "ref": "@signing-room/source@2.5.0|which-typed-array@1.1.22",
@@ -83542,9 +83152,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|read-cache@1.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|pify@2.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|pify@2.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|find-cache-dir@4.0.0",
@@ -83573,9 +83181,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|jest-worker@30.4.1|supports-color@8.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|has-flag@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|has-flag@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|deepmerge@4.3.1"
@@ -83590,9 +83196,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|memfs@3.5.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|fs-monkey@1.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|fs-monkey@1.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|node-abort-controller@3.1.1"
@@ -83606,9 +83210,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@babel/helper-optimise-call-expression@7.29.7",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/parse-json@4.0.2"
@@ -83618,9 +83220,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|is-core-module@2.16.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|hasown@2.0.4"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|hasown@2.0.4"]
     },
     {
       "ref": "@signing-room/source@2.5.0|path-parse@1.0.7"
@@ -83820,9 +83420,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|jest-docblock@30.4.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|detect-newline@3.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|detect-newline@3.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|jest-environment-node@30.4.1",
@@ -83920,9 +83518,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|jest-pnp-resolver@1.2.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|jest-resolve@30.4.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|jest-resolve@30.4.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|unrs-resolver@1.12.2",
@@ -83969,24 +83565,18 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|parent-module@1.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|callsites@3.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|callsites@3.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|shebang-regex@3.0.0"
     },
     {
       "ref": "@signing-room/source@2.5.0|keyv@4.5.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|json-buffer@3.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|json-buffer@3.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|p-locate@5.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|p-limit@3.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|p-limit@3.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|concat-map@0.0.1"
@@ -84028,9 +83618,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|utrie@1.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|base64-arraybuffer@1.0.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|base64-arraybuffer@1.0.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|camelcase@5.3.1"
@@ -84135,36 +83723,26 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|fill-range@7.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|to-regex-range@5.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|to-regex-range@5.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|run-applescript@7.1.0"
     },
     {
       "ref": "@signing-room/source@2.5.0|error-ex@1.3.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-arrayish@0.2.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-arrayish@0.2.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/buffers@17.67.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/base64@1.1.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/codegen@1.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jsonjoy.com/json-pointer@1.0.2",
@@ -84179,9 +83757,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|dns-packet@5.6.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@leichtgewicht/ip-codec@2.0.5"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@leichtgewicht/ip-codec@2.0.5"]
     },
     {
       "ref": "@signing-room/source@2.5.0|thunky@1.1.0"
@@ -84258,15 +83834,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|pvtsutils@1.3.6",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|tsyringe@4.10.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tsyringe@4.10.0|tslib@1.14.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tsyringe@4.10.0|tslib@1.14.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|tsyringe@4.10.0|tslib@1.14.1"
@@ -84332,9 +83904,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|wbuf@1.7.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|minimalistic-assert@1.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|minimalistic-assert@1.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|isobject@3.0.1"
@@ -84389,9 +83959,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|nopt@9.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|abbrev@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|abbrev@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@npmcli/agent@4.0.2",
@@ -84418,9 +83986,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|minipass-sized@2.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|minipass@7.1.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|minipass@7.1.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|tuf-js@4.1.0",
@@ -84452,9 +84018,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|has-property-descriptors@1.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|es-define-property@1.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|es-define-property@1.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|generator-function@2.0.1"
@@ -84475,9 +84039,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|for-each@0.3.5",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-callable@1.2.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-callable@1.2.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|pify@2.3.0"
@@ -84487,9 +84049,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|pkg-dir@7.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|pkg-dir@7.0.0|find-up@6.3.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|pkg-dir@7.0.0|find-up@6.3.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|pkg-dir@7.0.0|find-up@6.3.0",
@@ -84500,18 +84060,14 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|pkg-dir@7.0.0|locate-path@7.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|pkg-dir@7.0.0|p-locate@6.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|pkg-dir@7.0.0|p-locate@6.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|pkg-dir@7.0.0|path-exists@5.0.0"
     },
     {
       "ref": "@signing-room/source@2.5.0|pkg-dir@7.0.0|p-locate@6.0.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|pkg-dir@7.0.0|p-limit@4.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|pkg-dir@7.0.0|p-limit@4.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|pkg-dir@7.0.0|p-limit@4.0.0",
@@ -84596,9 +84152,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@jest/schemas@30.4.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@sinclair/typebox@0.34.49"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@sinclair/typebox@0.34.49"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/istanbul-reports@3.0.4",
@@ -84608,9 +84162,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/yargs@17.0.35",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/yargs-parser@21.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/yargs-parser@21.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|foreground-child@3.3.1",
@@ -84693,9 +84245,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|dedent@1.7.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|babel-plugin-macros@3.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|babel-plugin-macros@3.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|is-generator-fn@2.1.0"
@@ -84777,9 +84327,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|p-limit@3.1.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|yocto-queue@0.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|yocto-queue@0.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|pure-rand@7.0.1"
@@ -84840,15 +84388,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|fb-watchman@2.0.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|bser@2.1.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|bser@2.1.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|walker@1.0.8",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|makeerror@1.0.12"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|makeerror@1.0.12"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@unrs/resolver-binding-android-arm-eabi@1.12.2"
@@ -84921,15 +84465,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@unrs/resolver-binding-wasm32-wasi@1.12.2|@emnapi/runtime@1.10.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@unrs/resolver-binding-wasm32-wasi@1.12.2|@emnapi/wasi-threads@1.2.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@unrs/resolver-binding-win32-arm64-msvc@1.12.2"
@@ -84961,15 +84501,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|fastq@1.20.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|reusify@1.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|reusify@1.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|regenerate-unicode-properties@10.2.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|regenerate@1.4.2"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|regenerate@1.4.2"]
     },
     {
       "ref": "@signing-room/source@2.5.0|regenerate@1.4.2"
@@ -84979,9 +84515,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|regjsparser@0.13.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|jsesc@3.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|jsesc@3.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|unicode-match-property-ecmascript@2.0.0",
@@ -85008,9 +84542,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|to-regex-range@5.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|is-number@7.0.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|is-number@7.0.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|mimic-function@5.0.1"
@@ -85052,9 +84584,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@peculiar/utils@2.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tslib@2.8.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tslib@2.8.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|minimalistic-assert@1.0.1"
@@ -85094,15 +84624,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|css-declaration-sorter@7.4.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|cssnano-utils@5.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-calc@10.1.1",
@@ -85139,21 +84665,15 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-discard-duplicates@7.0.4",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-discard-empty@7.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-discard-overridden@7.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-merge-longhand@7.0.7",
@@ -85210,9 +84730,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-normalize-charset@7.0.3",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|postcss@8.5.15"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|postcss@8.5.15"]
     },
     {
       "ref": "@signing-room/source@2.5.0|postcss-normalize-display-values@7.0.3",
@@ -85340,9 +84858,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@istanbuljs/load-nyc-config@1.1.0|p-limit@2.3.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|p-try@2.2.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|p-try@2.2.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|test-exclude@6.0.0",
@@ -85427,9 +84943,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/babel__generator@7.27.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/babel__template@7.4.4",
@@ -85440,15 +84954,11 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@types/babel__traverse@7.28.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@babel/types@7.29.7"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@babel/types@7.29.7"]
     },
     {
       "ref": "@signing-room/source@2.5.0|babel-plugin-jest-hoist@30.4.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@types/babel__core@7.20.5"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@types/babel__core@7.20.5"]
     },
     {
       "ref": "@signing-room/source@2.5.0|babel-preset-current-node-syntax@1.2.0",
@@ -85513,9 +85023,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@jest/expect-utils@30.4.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@jest/get-type@30.1.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@jest/get-type@30.1.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|@jest/snapshot-utils@30.4.1",
@@ -85528,42 +85036,30 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|synckit@0.11.13",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@pkgr/core@0.3.6"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@pkgr/core@0.3.6"]
     },
     {
       "ref": "@signing-room/source@2.5.0|yocto-queue@0.1.0"
     },
     {
       "ref": "@signing-room/source@2.5.0|@sinonjs/fake-timers@15.4.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|@sinonjs/commons@3.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|@sinonjs/commons@3.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|ansi-escapes@4.3.2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|type-fest@0.21.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|type-fest@0.21.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|bser@2.1.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|node-int64@0.4.0"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|node-int64@0.4.0"]
     },
     {
       "ref": "@signing-room/source@2.5.0|makeerror@1.0.12",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|tmpl@1.0.5"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|tmpl@1.0.5"]
     },
     {
       "ref": "@signing-room/source@2.5.0|run-parallel@1.2.0",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|queue-microtask@1.2.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|queue-microtask@1.2.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|reusify@1.1.0"
@@ -85650,9 +85146,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|js-yaml@3.14.2|argparse@1.0.10",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|sprintf-js@1.0.3"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|sprintf-js@1.0.3"]
     },
     {
       "ref": "@signing-room/source@2.5.0|resolve-from@5.0.0"
@@ -85687,9 +85181,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|strip-ansi@6.0.1#2",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|ansi-regex@5.0.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|ansi-regex@5.0.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|wrap-ansi@7.0.0",
@@ -85813,9 +85305,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|@sinonjs/commons@3.0.1",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|type-detect@4.0.8"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|type-detect@4.0.8"]
     },
     {
       "ref": "@signing-room/source@2.5.0|type-fest@0.21.3"
@@ -85853,9 +85343,7 @@
     },
     {
       "ref": "@signing-room/source@2.5.0|csso@5.0.5",
-      "dependsOn": [
-        "@signing-room/source@2.5.0|csso@5.0.5|css-tree@2.2.1"
-      ]
+      "dependsOn": ["@signing-room/source@2.5.0|csso@5.0.5|css-tree@2.2.1"]
     },
     {
       "ref": "@signing-room/source@2.5.0|csso@5.0.5|css-tree@2.2.1",
