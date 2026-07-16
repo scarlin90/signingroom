@@ -16,12 +16,21 @@
 
 ---
 
-### 📦 New: The Drop-In Web Component SDK
+### 📦 New: The Official SDK Ecosystem
 
-Integrating non-custodial multisig coordination into your own application is now as easy as adding an HTML tag. We have released the official framework-agnostic **Signing Room Web Component**.
+You can now integrate Signing Room directly into your own infrastructure using our official libraries:
+
+**1. The Core TypeScript SDK**
+A framework-agnostic library for programmatic, event-driven multisig coordination.
+
+- **Official NPM Package:** [`@signing-room/sdk`](https://www.npmjs.com/package/@signing-room/sdk)
+- **Source & Demos:** [SDK GitHub Directory](https://github.com/scarlin90/signingroom/tree/main/libs/sdk)
+
+**2. The Drop-In Web Component**
+Integrating non-custodial multisig UI into your own application is now as easy as adding an HTML tag (`<signing-room>`).
 
 - **Official NPM Package:** [`@signing-room/embed`](https://www.npmjs.com/package/@signing-room/embed)
-- **Interactive Demo & API Docs:** [SigningRoom SDK Sandbox](https://signingroom.io/webcomponent-demo.html)
+- **Interactive Demo:** [SigningRoom Embed SDK Sandbox](https://signingroom.io/webcomponent-demo.html)
 
 ---
 

@@ -46,6 +46,7 @@ import {
   FileText,
   Building2,
   ExternalLink,
+  Youtube, // Added Youtube icon
 } from 'lucide-angular';
 
 @Component({
@@ -371,9 +372,9 @@ import {
                         <lucide-icon [img]="FileText" class="w-4 h-4"></lucide-icon>
                         Read Docs
                     </a>
-                    <a href="https://github.com/scarlin90/signingroom/blob/main/libs/sdk/signingroom-sdk-demo" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
-                        <lucide-icon [img]="Github" class="w-4 h-4"></lucide-icon>
-                        Examples
+                    <a href="https://youtu.be/yzcFlK6c6t0" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
+                        <lucide-icon [img]="Youtube" class="w-4 h-4"></lucide-icon>
+                        Watch
                     </a>
                 </div>
             </div>
@@ -542,6 +543,7 @@ export class HomeComponent implements OnInit {
   readonly FileText = FileText;
   readonly Building2 = Building2;
   readonly ExternalLink = ExternalLink;
+  readonly Youtube = Youtube; // Exposed Youtube icon
 
   ngOnInit() {}
 
