@@ -1,0 +1,39 @@
+{
+  "name": "sdk",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/sdk/src",
+  "projectType": "library",
+  "release": {
+    "version": {
+      "manifestRootsToUpdate": ["dist/{projectRoot}"],
+      "currentVersionResolver": "git-tag",
+      "fallbackCurrentVersionResolver": "disk"
+    }
+  },
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/sdk",
+        "main": "libs/sdk/src/index.ts",
+        "tsConfig": "libs/sdk/tsconfig.lib.json",
+        "assets": ["libs/sdk/*.md", "libs/sdk/LICENSE", "libs/sdk/package.json"],
+        "format": ["esm"]
+      }
+    },
+    "nx-release-publish": {
+      "options": {
+        "packageRoot": "dist/{projectRoot}"
+      }
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/libs/sdk"],
+      "options": {
+        "vitestConfig": "libs/sdk/vite.config.mts"
+      }
+    }
+  }
+}

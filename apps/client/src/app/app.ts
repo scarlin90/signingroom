@@ -14,23 +14,24 @@
 
 import { Component, ViewEncapsulation, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { 
-  LucideAngularModule, 
-  Shield, 
-  Lock, 
-  Zap, 
-  Users, 
-  Terminal, 
-  ChevronRight, 
-  Github, 
+import {
+  LucideAngularModule,
+  Shield,
+  Lock,
+  Zap,
+  Users,
+  Terminal,
+  ChevronRight,
+  Github,
   Twitter,
   Key,
   Mail,
   Globe,
-  Heart
+  Heart,
+  Youtube,
 } from 'lucide-angular';
-import { RouterModule, Router, NavigationEnd } from '@angular/router'; 
-import { filter } from 'rxjs/operators'; 
+import { RouterModule, Router, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
 
 @Component({
   selector: 'app-root',
@@ -38,172 +39,236 @@ import { filter } from 'rxjs/operators';
   imports: [CommonModule, LucideAngularModule, RouterModule],
   encapsulation: ViewEncapsulation.None,
   template: `
-<body class="min-h-screen flex flex-col">
+    <body class="min-h-screen flex flex-col">
+      @if (!isEmbedded) {
+        <nav
+          class="w-full border-b border-slate-800/60 backdrop-blur-md fixed top-0 z-50 bg-slate-950/50">
+          <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div
+              class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+              routerLink="/">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 409 445"
+                class="w-7 h-7 text-emerald-400 fill-current"
+                preserveAspectRatio="xMidYMid meet">
+                <g>
+                  <path
+                    d="M185.5 425.7 c-35.4 -17.3 -72 -43.4 -98.2 -69.9 -31.6 -31.9 -50.3 -62.5 -59.1 -96.8 -5.6 -21.7 -5.7 -23.4 -5.7 -101 0 -66.6 0.1 -71.7 1.8 -75.1 2.3 -4.6 6.1 -6.7 22.2 -12.2 7.2 -2.5 31.9 -11.3 55 -19.7 79.4 -28.7 97.6 -35 100.4 -35 2.8 0 27.5 8.3 53.6 18 21.3 7.9 70.6 25.7 92 33.1 11 3.9 21.4 7.5 23 8.1 4.4 1.6 8.4 5.7 9.5 9.7 1.3 4.9 1.3 136.8 0 148.6 -4.9 42.6 -21.2 76.1 -55.1 113.1 -21 23 -49.7 46 -79.4 63.9 -15.9 9.6 -40.1 21.5 -43.6 21.5 -2.1 0 -8.2 -2.3 -16.4 -6.3z m24.6 -28.8 c31.4 -15.7 71.7 -45.6 92 -68 26.9 -29.8 39.3 -52 47.2 -84.4 2.1 -8.8 2.2 -10.3 2.2 -76.9 l0 -67.9 -17 -6.2 c-48.5 -17.7 -84.6 -30.6 -116 -41.6 l-16.9 -6 -20.1 7.1 c-11 4 -26.5 9.6 -34.5 12.5 -8 2.9 -18.3 6.7 -23 8.3 -11.6 4 -36.2 12.9 -43.5 15.7 -3.3 1.3 -10.9 4 -17 6.1 -6 2.1 -11.2 4.1 -11.5 4.5 -1 1.4 -1 113.3 -0.1 124.9 0.5 6.3 1.7 15.1 2.6 19.5 10.6 52.1 52.2 101.4 119 141 11.4 6.8 27 15.3 28.3 15.5 0.1 0 3.9 -1.8 8.3 -4.1z" />
+                  <path
+                    d="M191.3 318.3 c-7.6 -7.4 -8.1 -8.1 -8.6 -12.8 -0.2 -2.7 -0.5 -27.9 -0.6 -55.9 0 -28 -0.2 -51 -0.3 -51.1 -0.2 -0.1 -2.5 -1.4 -5.1 -2.9 -7 -4 -11.1 -8 -16.1 -15.4 -5.9 -8.9 -8.6 -17.5 -8.6 -27.1 0 -27 19.5 -48.5 45.9 -50.7 13 -1.1 26.1 3.5 36.6 12.9 19.8 17.6 21.8 50.3 4.4 70.1 -4.1 4.6 -14.8 12.6 -16.8 12.6 -0.7 0 -1.1 6.3 -1.1 19 l0 19 -6.1 6.6 -6 6.7 6 6.1 c8.2 8.3 8.2 10.1 0 18.3 l-6 6 6 5.8 6.1 5.8 0 8.3 0 8.2 -9 9.1 c-5 5 -9.9 9.1 -10.9 9.1 -1 0 -5.4 -3.5 -9.8 -7.7z m17.7 -175 c3.6 -2.4 4.8 -4.3 5.5 -8.3 1 -5.7 -1.4 -11.1 -6 -13.7 -4.9 -2.8 -8.4 -2.9 -13.4 -0.3 -3.8 1.9 -4.5 2.8 -6.2 8.4 -1.2 4.1 0.8 10.2 4.4 13.2 3.6 3 11.8 3.4 15.7 0.7z" />
+                  <path
+                    d="M130.1 304.2 l-7.1 -6.7 0 -48.2 0 -48.2 -5.5 -3.5 c-36.6 -23.5 -23.7 -79.4 19.1 -82.4 6.5 -0.4 17.4 1.2 17.4 2.5 0 0.3 -1.5 3.6 -3.2 7.4 -2.4 5 -3.7 6.6 -4.8 6.2 -0.8 -0.4 -3.6 -0.8 -6.3 -1.1 -4.3 -0.4 -5 -0.1 -8.2 3.1 -2.9 2.9 -3.5 4.2 -3.5 7.9 0 2.4 0.7 5.4 1.6 6.6 2 2.9 6.6 5.2 10.4 5.2 2.6 0 3 0.3 3 2.8 0 4.7 4 17.3 7.6 24.2 1.9 3.6 5.4 8.9 7.9 11.7 l4.6 5.2 -3.1 1.6 c-3.3 1.7 -3.4 2.4 -3 24.1 l0.2 9.1 -5.1 5.8 c-2.8 3.2 -5.1 6.1 -5.1 6.4 0 0.4 2.3 3.1 5 6.1 3 3.3 5 6.4 5 7.8 0 1.3 -1.9 4.3 -4.5 7.1 -2.5 2.6 -4.5 5.4 -4.5 6.1 0 0.7 2 3.5 4.5 6.1 4.4 4.7 4.5 4.9 4.5 11.6 l0 6.7 -7.9 7.8 c-4.5 4.4 -8.8 7.8 -9.9 7.8 -1.1 0 -5.2 -3 -9.1 -6.8z" />
+                  <path
+                    d="M254.3 303.8 l-7.3 -7.1 0 -47.9 0 -47.9 -3.5 -2 c-1.9 -1.2 -3.5 -2.2 -3.5 -2.3 0 -0.1 2.1 -2.4 4.8 -5.2 8.2 -8.6 14.1 -22.8 14.2 -34.1 l0 -4.3 4.6 0 c3.9 0 5.1 -0.5 8 -3.4 2.8 -2.8 3.4 -4.2 3.4 -7.6 0 -9.6 -8.1 -14.6 -17.1 -10.6 -1.3 0.6 -2.5 -0.7 -5.3 -6 -3.9 -7.4 -3.8 -7.6 2.4 -9.4 7.4 -2.1 20 -0.5 28.8 3.7 10.4 4.9 20.7 19.4 23.2 32.5 1.5 7.5 0.3 17.7 -3 25.3 -2.7 6.4 -10.5 15.1 -17 19.1 l-6 3.7 0 16.1 0 16.2 -5.5 5.4 -5.5 5.4 5.5 5.6 c7 7.1 7.2 9.3 1 15.9 -2.5 2.6 -4.5 5.5 -4.5 6.2 0 0.8 2 3.5 4.5 5.9 4.5 4.4 4.5 4.4 4.5 11.5 l0 7.2 -7.9 7.6 c-4.3 4.2 -8.7 7.7 -9.7 7.7 -1.1 0 -5.2 -3.2 -9.1 -7.2z" />
+                </g>
+              </svg>
 
-  @if (!isEmbedded) {
-    <nav class="w-full border-b border-slate-800/60 backdrop-blur-md fixed top-0 z-50 bg-slate-950/50">
-        <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-            
-            <div class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" routerLink="/">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 409 445" class="w-7 h-7 text-emerald-400 fill-current" preserveAspectRatio="xMidYMid meet">
-                     <g>
-                      <path d="M185.5 425.7 c-35.4 -17.3 -72 -43.4 -98.2 -69.9 -31.6 -31.9 -50.3 -62.5 -59.1 -96.8 -5.6 -21.7 -5.7 -23.4 -5.7 -101 0 -66.6 0.1 -71.7 1.8 -75.1 2.3 -4.6 6.1 -6.7 22.2 -12.2 7.2 -2.5 31.9 -11.3 55 -19.7 79.4 -28.7 97.6 -35 100.4 -35 2.8 0 27.5 8.3 53.6 18 21.3 7.9 70.6 25.7 92 33.1 11 3.9 21.4 7.5 23 8.1 4.4 1.6 8.4 5.7 9.5 9.7 1.3 4.9 1.3 136.8 0 148.6 -4.9 42.6 -21.2 76.1 -55.1 113.1 -21 23 -49.7 46 -79.4 63.9 -15.9 9.6 -40.1 21.5 -43.6 21.5 -2.1 0 -8.2 -2.3 -16.4 -6.3z m24.6 -28.8 c31.4 -15.7 71.7 -45.6 92 -68 26.9 -29.8 39.3 -52 47.2 -84.4 2.1 -8.8 2.2 -10.3 2.2 -76.9 l0 -67.9 -17 -6.2 c-48.5 -17.7 -84.6 -30.6 -116 -41.6 l-16.9 -6 -20.1 7.1 c-11 4 -26.5 9.6 -34.5 12.5 -8 2.9 -18.3 6.7 -23 8.3 -11.6 4 -36.2 12.9 -43.5 15.7 -3.3 1.3 -10.9 4 -17 6.1 -6 2.1 -11.2 4.1 -11.5 4.5 -1 1.4 -1 113.3 -0.1 124.9 0.5 6.3 1.7 15.1 2.6 19.5 10.6 52.1 52.2 101.4 119 141 11.4 6.8 27 15.3 28.3 15.5 0.1 0 3.9 -1.8 8.3 -4.1z"/>
-                      <path d="M191.3 318.3 c-7.6 -7.4 -8.1 -8.1 -8.6 -12.8 -0.2 -2.7 -0.5 -27.9 -0.6 -55.9 0 -28 -0.2 -51 -0.3 -51.1 -0.2 -0.1 -2.5 -1.4 -5.1 -2.9 -7 -4 -11.1 -8 -16.1 -15.4 -5.9 -8.9 -8.6 -17.5 -8.6 -27.1 0 -27 19.5 -48.5 45.9 -50.7 13 -1.1 26.1 3.5 36.6 12.9 19.8 17.6 21.8 50.3 4.4 70.1 -4.1 4.6 -14.8 12.6 -16.8 12.6 -0.7 0 -1.1 6.3 -1.1 19 l0 19 -6.1 6.6 -6 6.7 6 6.1 c8.2 8.3 8.2 10.1 0 18.3 l-6 6 6 5.8 6.1 5.8 0 8.3 0 8.2 -9 9.1 c-5 5 -9.9 9.1 -10.9 9.1 -1 0 -5.4 -3.5 -9.8 -7.7z m17.7 -175 c3.6 -2.4 4.8 -4.3 5.5 -8.3 1 -5.7 -1.4 -11.1 -6 -13.7 -4.9 -2.8 -8.4 -2.9 -13.4 -0.3 -3.8 1.9 -4.5 2.8 -6.2 8.4 -1.2 4.1 0.8 10.2 4.4 13.2 3.6 3 11.8 3.4 15.7 0.7z"/>
-                      <path d="M130.1 304.2 l-7.1 -6.7 0 -48.2 0 -48.2 -5.5 -3.5 c-36.6 -23.5 -23.7 -79.4 19.1 -82.4 6.5 -0.4 17.4 1.2 17.4 2.5 0 0.3 -1.5 3.6 -3.2 7.4 -2.4 5 -3.7 6.6 -4.8 6.2 -0.8 -0.4 -3.6 -0.8 -6.3 -1.1 -4.3 -0.4 -5 -0.1 -8.2 3.1 -2.9 2.9 -3.5 4.2 -3.5 7.9 0 2.4 0.7 5.4 1.6 6.6 2 2.9 6.6 5.2 10.4 5.2 2.6 0 3 0.3 3 2.8 0 4.7 4 17.3 7.6 24.2 1.9 3.6 5.4 8.9 7.9 11.7 l4.6 5.2 -3.1 1.6 c-3.3 1.7 -3.4 2.4 -3 24.1 l0.2 9.1 -5.1 5.8 c-2.8 3.2 -5.1 6.1 -5.1 6.4 0 0.4 2.3 3.1 5 6.1 3 3.3 5 6.4 5 7.8 0 1.3 -1.9 4.3 -4.5 7.1 -2.5 2.6 -4.5 5.4 -4.5 6.1 0 0.7 2 3.5 4.5 6.1 4.4 4.7 4.5 4.9 4.5 11.6 l0 6.7 -7.9 7.8 c-4.5 4.4 -8.8 7.8 -9.9 7.8 -1.1 0 -5.2 -3 -9.1 -6.8z"/>
-                      <path d="M254.3 303.8 l-7.3 -7.1 0 -47.9 0 -47.9 -3.5 -2 c-1.9 -1.2 -3.5 -2.2 -3.5 -2.3 0 -0.1 2.1 -2.4 4.8 -5.2 8.2 -8.6 14.1 -22.8 14.2 -34.1 l0 -4.3 4.6 0 c3.9 0 5.1 -0.5 8 -3.4 2.8 -2.8 3.4 -4.2 3.4 -7.6 0 -9.6 -8.1 -14.6 -17.1 -10.6 -1.3 0.6 -2.5 -0.7 -5.3 -6 -3.9 -7.4 -3.8 -7.6 2.4 -9.4 7.4 -2.1 20 -0.5 28.8 3.7 10.4 4.9 20.7 19.4 23.2 32.5 1.5 7.5 0.3 17.7 -3 25.3 -2.7 6.4 -10.5 15.1 -17 19.1 l-6 3.7 0 16.1 0 16.2 -5.5 5.4 -5.5 5.4 5.5 5.6 c7 7.1 7.2 9.3 1 15.9 -2.5 2.6 -4.5 5.5 -4.5 6.2 0 0.8 2 3.5 4.5 5.9 4.5 4.4 4.5 4.4 4.5 11.5 l0 7.2 -7.9 7.6 c-4.3 4.2 -8.7 7.7 -9.7 7.7 -1.1 0 -5.2 -3.2 -9.1 -7.2z"/>
-                      </g>
-                </svg>
-                
-                <span class="text-xl font-bold tracking-tight text-slate-100">
-                    Signing Room®<span class="text-emerald-400">.io</span>
-                </span>
-            </div>
-            <div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
-                <span>Stateless</span>
-                <span>Non-Custodial</span>
-                <span>Real-time</span>
-            </div>
-        </div>
-    </nav>
-    }
-
-    @if (isEmbedded && !hideHeader) {
-    <nav class="w-full border-b border-slate-800/60 backdrop-blur-md fixed top-0 z-50 bg-slate-950/50">
-        <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-            
-            <div class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 409 445" class="w-7 h-7 text-emerald-400 fill-current" preserveAspectRatio="xMidYMid meet">
-                     <g>
-                      <path d="M185.5 425.7 c-35.4 -17.3 -72 -43.4 -98.2 -69.9 -31.6 -31.9 -50.3 -62.5 -59.1 -96.8 -5.6 -21.7 -5.7 -23.4 -5.7 -101 0 -66.6 0.1 -71.7 1.8 -75.1 2.3 -4.6 6.1 -6.7 22.2 -12.2 7.2 -2.5 31.9 -11.3 55 -19.7 79.4 -28.7 97.6 -35 100.4 -35 2.8 0 27.5 8.3 53.6 18 21.3 7.9 70.6 25.7 92 33.1 11 3.9 21.4 7.5 23 8.1 4.4 1.6 8.4 5.7 9.5 9.7 1.3 4.9 1.3 136.8 0 148.6 -4.9 42.6 -21.2 76.1 -55.1 113.1 -21 23 -49.7 46 -79.4 63.9 -15.9 9.6 -40.1 21.5 -43.6 21.5 -2.1 0 -8.2 -2.3 -16.4 -6.3z m24.6 -28.8 c31.4 -15.7 71.7 -45.6 92 -68 26.9 -29.8 39.3 -52 47.2 -84.4 2.1 -8.8 2.2 -10.3 2.2 -76.9 l0 -67.9 -17 -6.2 c-48.5 -17.7 -84.6 -30.6 -116 -41.6 l-16.9 -6 -20.1 7.1 c-11 4 -26.5 9.6 -34.5 12.5 -8 2.9 -18.3 6.7 -23 8.3 -11.6 4 -36.2 12.9 -43.5 15.7 -3.3 1.3 -10.9 4 -17 6.1 -6 2.1 -11.2 4.1 -11.5 4.5 -1 1.4 -1 113.3 -0.1 124.9 0.5 6.3 1.7 15.1 2.6 19.5 10.6 52.1 52.2 101.4 119 141 11.4 6.8 27 15.3 28.3 15.5 0.1 0 3.9 -1.8 8.3 -4.1z"/>
-                      <path d="M191.3 318.3 c-7.6 -7.4 -8.1 -8.1 -8.6 -12.8 -0.2 -2.7 -0.5 -27.9 -0.6 -55.9 0 -28 -0.2 -51 -0.3 -51.1 -0.2 -0.1 -2.5 -1.4 -5.1 -2.9 -7 -4 -11.1 -8 -16.1 -15.4 -5.9 -8.9 -8.6 -17.5 -8.6 -27.1 0 -27 19.5 -48.5 45.9 -50.7 13 -1.1 26.1 3.5 36.6 12.9 19.8 17.6 21.8 50.3 4.4 70.1 -4.1 4.6 -14.8 12.6 -16.8 12.6 -0.7 0 -1.1 6.3 -1.1 19 l0 19 -6.1 6.6 -6 6.7 6 6.1 c8.2 8.3 8.2 10.1 0 18.3 l-6 6 6 5.8 6.1 5.8 0 8.3 0 8.2 -9 9.1 c-5 5 -9.9 9.1 -10.9 9.1 -1 0 -5.4 -3.5 -9.8 -7.7z m17.7 -175 c3.6 -2.4 4.8 -4.3 5.5 -8.3 1 -5.7 -1.4 -11.1 -6 -13.7 -4.9 -2.8 -8.4 -2.9 -13.4 -0.3 -3.8 1.9 -4.5 2.8 -6.2 8.4 -1.2 4.1 0.8 10.2 4.4 13.2 3.6 3 11.8 3.4 15.7 0.7z"/>
-                      <path d="M130.1 304.2 l-7.1 -6.7 0 -48.2 0 -48.2 -5.5 -3.5 c-36.6 -23.5 -23.7 -79.4 19.1 -82.4 6.5 -0.4 17.4 1.2 17.4 2.5 0 0.3 -1.5 3.6 -3.2 7.4 -2.4 5 -3.7 6.6 -4.8 6.2 -0.8 -0.4 -3.6 -0.8 -6.3 -1.1 -4.3 -0.4 -5 -0.1 -8.2 3.1 -2.9 2.9 -3.5 4.2 -3.5 7.9 0 2.4 0.7 5.4 1.6 6.6 2 2.9 6.6 5.2 10.4 5.2 2.6 0 3 0.3 3 2.8 0 4.7 4 17.3 7.6 24.2 1.9 3.6 5.4 8.9 7.9 11.7 l4.6 5.2 -3.1 1.6 c-3.3 1.7 -3.4 2.4 -3 24.1 l0.2 9.1 -5.1 5.8 c-2.8 3.2 -5.1 6.1 -5.1 6.4 0 0.4 2.3 3.1 5 6.1 3 3.3 5 6.4 5 7.8 0 1.3 -1.9 4.3 -4.5 7.1 -2.5 2.6 -4.5 5.4 -4.5 6.1 0 0.7 2 3.5 4.5 6.1 4.4 4.7 4.5 4.9 4.5 11.6 l0 6.7 -7.9 7.8 c-4.5 4.4 -8.8 7.8 -9.9 7.8 -1.1 0 -5.2 -3 -9.1 -6.8z"/>
-                      <path d="M254.3 303.8 l-7.3 -7.1 0 -47.9 0 -47.9 -3.5 -2 c-1.9 -1.2 -3.5 -2.2 -3.5 -2.3 0 -0.1 2.1 -2.4 4.8 -5.2 8.2 -8.6 14.1 -22.8 14.2 -34.1 l0 -4.3 4.6 0 c3.9 0 5.1 -0.5 8 -3.4 2.8 -2.8 3.4 -4.2 3.4 -7.6 0 -9.6 -8.1 -14.6 -17.1 -10.6 -1.3 0.6 -2.5 -0.7 -5.3 -6 -3.9 -7.4 -3.8 -7.6 2.4 -9.4 7.4 -2.1 20 -0.5 28.8 3.7 10.4 4.9 20.7 19.4 23.2 32.5 1.5 7.5 0.3 17.7 -3 25.3 -2.7 6.4 -10.5 15.1 -17 19.1 l-6 3.7 0 16.1 0 16.2 -5.5 5.4 -5.5 5.4 5.5 5.6 c7 7.1 7.2 9.3 1 15.9 -2.5 2.6 -4.5 5.5 -4.5 6.2 0 0.8 2 3.5 4.5 5.9 4.5 4.4 4.5 4.4 4.5 11.5 l0 7.2 -7.9 7.6 c-4.3 4.2 -8.7 7.7 -9.7 7.7 -1.1 0 -5.2 -3.2 -9.1 -7.2z"/>
-                      </g>
-                </svg>
-                
-                <span class="text-xl font-bold tracking-tight text-slate-100">
-                    Signing Room®<span class="text-emerald-400">.io</span>
-                </span>
-            </div>
-            <div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
-                <span>Stateless</span>
-                <span>Non-Custodial</span>
-                <span>Real-time</span>
-            </div>
-        </div>
-    </nav>
-    }
-    
-    <div class="flex-grow" [ngClass]="{'pt-20': !isEmbedded || (isEmbedded && !hideHeader)}">
-        <router-outlet></router-outlet>
-    </div>
-
-    @if (!isEmbedded) {
-
-    <footer class="border-t border-slate-800 bg-slate-950 py-12 mt-auto relative z-20">
-      <div class="max-w-5xl mx-auto px-6">
-        
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-10">
-            <div class="text-center md:text-left">
-              <div class="font-bold text-white text-lg mb-1 flex items-center">
+              <span class="text-xl font-bold tracking-tight text-slate-100">
                 Signing Room®<span class="text-emerald-400">.io</span>
-              </div>
-              <p class="text-xs text-slate-500">
-                100% Free &bull; Zero Knowledge &bull; Bitcoin Only
-              </p>
+              </span>
             </div>
-
-            <div class="flex items-center gap-6">
-              
-              <a href="https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo" target="_blank" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-yellow-500/50 hover:bg-yellow-500/10 transition group text-xs font-medium text-slate-400 hover:text-yellow-400">
-                <lucide-icon [img]="Zap" class="w-3.5 h-3.5 text-yellow-500 group-hover:fill-yellow-500 transition"></lucide-icon>
-                <span>Donate</span>
-              </a>
-
-              <a href="mailto:support@signingroom.io" class="text-slate-500 hover:text-white transition">
-                <lucide-icon [img]="Mail" class="w-5 h-5"></lucide-icon>
-              </a>
-
-              <a href="https://github.com/scarlin90/SigningRoom" target="_blank" class="text-slate-500 hover:text-white transition">
-                <lucide-icon [img]="Github" class="w-5 h-5"></lucide-icon>
-              </a>
-              
-              <a href="https://x.com/SigningRoom" target="_blank" class="text-slate-500 hover:text-white transition">
-                <lucide-icon [img]="Twitter" class="w-5 h-5"></lucide-icon>
-              </a>
-
-              <a href="https://njump.me/npub1a6tk6kcs2p40eumeu2mru4jwqssnhvc8xtupwlpc6l3gymjha03sek436a" target="_blank" class="text-slate-500 hover:text-white transition" title="Nostr">
-                <lucide-icon [img]="Globe" class="w-5 h-5"></lucide-icon>
-              </a>
+            <div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
+              <span>Stateless</span>
+              <span>Non-Custodial</span>
+              <span>Real-time</span>
             </div>
-        </div>
+          </div>
+        </nav>
+      }
 
-        <div class="border-t border-slate-900 pt-8">
-            <div class="bg-slate-900/30 p-4 rounded-xl border border-slate-800/50 mb-6">
-                <p class="text-[10px] text-slate-500 leading-relaxed text-justify font-mono">
-                    <strong>DISCLAIMER OF WARRANTY:</strong> This is free, open-source software released under the <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" class="underline hover:text-white">AGPLv3 License</a>. 
-                    It is provided "as is", without warranty of any kind. 
-                    <br><br>
-                    <strong>NON-CUSTODIAL:</strong> SigningRoom.io is a stateless coordination tool, not a wallet or financial institution. 
-                    We do not have access to your private keys, funds, or unencrypted transaction data. 
-                    We do not maintain user accounts or historical logs.
-                    <br><br>
-                    <strong>USER RESPONSIBILITY:</strong> You are solely responsible for verifying transaction details (addresses, amounts, fees) on your hardware device screen before signing. 
-                    The developers assume no liability for lost funds or software errors.
-                </p>
+      @if (isEmbedded && !hideHeader) {
+        <nav
+          class="w-full border-b border-slate-800/60 backdrop-blur-md fixed top-0 z-50 bg-slate-950/50">
+          <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 409 445"
+                class="w-7 h-7 text-emerald-400 fill-current"
+                preserveAspectRatio="xMidYMid meet">
+                <g>
+                  <path
+                    d="M185.5 425.7 c-35.4 -17.3 -72 -43.4 -98.2 -69.9 -31.6 -31.9 -50.3 -62.5 -59.1 -96.8 -5.6 -21.7 -5.7 -23.4 -5.7 -101 0 -66.6 0.1 -71.7 1.8 -75.1 2.3 -4.6 6.1 -6.7 22.2 -12.2 7.2 -2.5 31.9 -11.3 55 -19.7 79.4 -28.7 97.6 -35 100.4 -35 2.8 0 27.5 8.3 53.6 18 21.3 7.9 70.6 25.7 92 33.1 11 3.9 21.4 7.5 23 8.1 4.4 1.6 8.4 5.7 9.5 9.7 1.3 4.9 1.3 136.8 0 148.6 -4.9 42.6 -21.2 76.1 -55.1 113.1 -21 23 -49.7 46 -79.4 63.9 -15.9 9.6 -40.1 21.5 -43.6 21.5 -2.1 0 -8.2 -2.3 -16.4 -6.3z m24.6 -28.8 c31.4 -15.7 71.7 -45.6 92 -68 26.9 -29.8 39.3 -52 47.2 -84.4 2.1 -8.8 2.2 -10.3 2.2 -76.9 l0 -67.9 -17 -6.2 c-48.5 -17.7 -84.6 -30.6 -116 -41.6 l-16.9 -6 -20.1 7.1 c-11 4 -26.5 9.6 -34.5 12.5 -8 2.9 -18.3 6.7 -23 8.3 -11.6 4 -36.2 12.9 -43.5 15.7 -3.3 1.3 -10.9 4 -17 6.1 -6 2.1 -11.2 4.1 -11.5 4.5 -1 1.4 -1 113.3 -0.1 124.9 0.5 6.3 1.7 15.1 2.6 19.5 10.6 52.1 52.2 101.4 119 141 11.4 6.8 27 15.3 28.3 15.5 0.1 0 3.9 -1.8 8.3 -4.1z" />
+                  <path
+                    d="M191.3 318.3 c-7.6 -7.4 -8.1 -8.1 -8.6 -12.8 -0.2 -2.7 -0.5 -27.9 -0.6 -55.9 0 -28 -0.2 -51 -0.3 -51.1 -0.2 -0.1 -2.5 -1.4 -5.1 -2.9 -7 -4 -11.1 -8 -16.1 -15.4 -5.9 -8.9 -8.6 -17.5 -8.6 -27.1 0 -27 19.5 -48.5 45.9 -50.7 13 -1.1 26.1 3.5 36.6 12.9 19.8 17.6 21.8 50.3 4.4 70.1 -4.1 4.6 -14.8 12.6 -16.8 12.6 -0.7 0 -1.1 6.3 -1.1 19 l0 19 -6.1 6.6 -6 6.7 6 6.1 c8.2 8.3 8.2 10.1 0 18.3 l-6 6 6 5.8 6.1 5.8 0 8.3 0 8.2 -9 9.1 c-5 5 -9.9 9.1 -10.9 9.1 -1 0 -5.4 -3.5 -9.8 -7.7z m17.7 -175 c3.6 -2.4 4.8 -4.3 5.5 -8.3 1 -5.7 -1.4 -11.1 -6 -13.7 -4.9 -2.8 -8.4 -2.9 -13.4 -0.3 -3.8 1.9 -4.5 2.8 -6.2 8.4 -1.2 4.1 0.8 10.2 4.4 13.2 3.6 3 11.8 3.4 15.7 0.7z" />
+                  <path
+                    d="M130.1 304.2 l-7.1 -6.7 0 -48.2 0 -48.2 -5.5 -3.5 c-36.6 -23.5 -23.7 -79.4 19.1 -82.4 6.5 -0.4 17.4 1.2 17.4 2.5 0 0.3 -1.5 3.6 -3.2 7.4 -2.4 5 -3.7 6.6 -4.8 6.2 -0.8 -0.4 -3.6 -0.8 -6.3 -1.1 -4.3 -0.4 -5 -0.1 -8.2 3.1 -2.9 2.9 -3.5 4.2 -3.5 7.9 0 2.4 0.7 5.4 1.6 6.6 2 2.9 6.6 5.2 10.4 5.2 2.6 0 3 0.3 3 2.8 0 4.7 4 17.3 7.6 24.2 1.9 3.6 5.4 8.9 7.9 11.7 l4.6 5.2 -3.1 1.6 c-3.3 1.7 -3.4 2.4 -3 24.1 l0.2 9.1 -5.1 5.8 c-2.8 3.2 -5.1 6.1 -5.1 6.4 0 0.4 2.3 3.1 5 6.1 3 3.3 5 6.4 5 7.8 0 1.3 -1.9 4.3 -4.5 7.1 -2.5 2.6 -4.5 5.4 -4.5 6.1 0 0.7 2 3.5 4.5 6.1 4.4 4.7 4.5 4.9 4.5 11.6 l0 6.7 -7.9 7.8 c-4.5 4.4 -8.8 7.8 -9.9 7.8 -1.1 0 -5.2 -3 -9.1 -6.8z" />
+                  <path
+                    d="M254.3 303.8 l-7.3 -7.1 0 -47.9 0 -47.9 -3.5 -2 c-1.9 -1.2 -3.5 -2.2 -3.5 -2.3 0 -0.1 2.1 -2.4 4.8 -5.2 8.2 -8.6 14.1 -22.8 14.2 -34.1 l0 -4.3 4.6 0 c3.9 0 5.1 -0.5 8 -3.4 2.8 -2.8 3.4 -4.2 3.4 -7.6 0 -9.6 -8.1 -14.6 -17.1 -10.6 -1.3 0.6 -2.5 -0.7 -5.3 -6 -3.9 -7.4 -3.8 -7.6 2.4 -9.4 7.4 -2.1 20 -0.5 28.8 3.7 10.4 4.9 20.7 19.4 23.2 32.5 1.5 7.5 0.3 17.7 -3 25.3 -2.7 6.4 -10.5 15.1 -17 19.1 l-6 3.7 0 16.1 0 16.2 -5.5 5.4 -5.5 5.4 5.5 5.6 c7 7.1 7.2 9.3 1 15.9 -2.5 2.6 -4.5 5.5 -4.5 6.2 0 0.8 2 3.5 4.5 5.9 4.5 4.4 4.5 4.4 4.5 11.5 l0 7.2 -7.9 7.6 c-4.3 4.2 -8.7 7.7 -9.7 7.7 -1.1 0 -5.2 -3.2 -9.1 -7.2z" />
+                </g>
+              </svg>
+
+              <span class="text-xl font-bold tracking-tight text-slate-100">
+                Signing Room®<span class="text-emerald-400">.io</span>
+              </span>
             </div>
-            
-            <div class="flex flex-col items-center justify-center gap-4">
-              <div class="flex flex-col items-center gap-1 text-xs text-slate-600">
-                <div class="flex flex-wrap justify-center items-center gap-x-4">
-                  <p>&copy; {{ currentYear }} <strong><a href="https://statelessresearch.com" target="_blank" class="hover:text-emerald-400 transition">Stateless Research Ltd</a></strong></p>
-                  <span class="hidden sm:inline">&bull;</span>
-                  <p>Signing Room® is a registered trademark of Stateless Research Ltd.</p>
-                  <span class="hidden sm:inline">&bull;</span>
-                  <p>Made for Bitcoiners</p>
-                  <span class="hidden sm:inline">&bull;</span>
-                  <p>No Tracking / No Cookies</p>
+            <div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
+              <span>Stateless</span>
+              <span>Non-Custodial</span>
+              <span>Real-time</span>
+            </div>
+          </div>
+        </nav>
+      }
+
+      <div class="flex-grow" [ngClass]="{ 'pt-20': !isEmbedded || (isEmbedded && !hideHeader) }">
+        <router-outlet></router-outlet>
+      </div>
+
+      @if (!isEmbedded) {
+        <footer class="border-t border-slate-800 bg-slate-950 py-12 mt-auto relative z-20">
+          <div class="max-w-5xl mx-auto px-6">
+            <div
+              class="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-10">
+              <div class="text-center md:text-left">
+                <div class="font-bold text-white text-lg mb-1 flex items-center">
+                  Signing Room®<span class="text-emerald-400">.io</span>
                 </div>
-                <p class="text-[10px] opacity-60">Registered in England & Wales (No. 16990515)</p>
+                <p class="text-xs text-slate-500">
+                  100% Free &bull; Zero Knowledge &bull; Bitcoin Only
+                </p>
               </div>
 
-              <div class="flex items-center gap-4 opacity-70 hover:opacity-100 transition">
-                  <a href="/security.txt" target="_blank" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600 hover:text-emerald-400 transition group">
-                    <lucide-icon [img]="Shield" class="w-3 h-3 group-hover:text-emerald-400 transition"></lucide-icon>
+              <div class="flex items-center gap-6">
+                <a
+                  href="https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo"
+                  target="_blank"
+                  class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-yellow-500/50 hover:bg-yellow-500/10 transition group text-xs font-medium text-slate-400 hover:text-yellow-400">
+                  <lucide-icon
+                    [img]="Zap"
+                    class="w-3.5 h-3.5 text-yellow-500 group-hover:fill-yellow-500 transition"></lucide-icon>
+                  <span>Donate</span>
+                </a>
+
+                <a
+                  href="mailto:support@signingroom.io"
+                  class="text-slate-500 hover:text-white transition">
+                  <lucide-icon [img]="Mail" class="w-5 h-5"></lucide-icon>
+                </a>
+
+                <a
+                  href="https://github.com/scarlin90/SigningRoom"
+                  target="_blank"
+                  class="text-slate-500 hover:text-white transition">
+                  <lucide-icon [img]="Github" class="w-5 h-5"></lucide-icon>
+                </a>
+
+                <a
+                  href="https://x.com/SigningRoom"
+                  target="_blank"
+                  class="text-slate-500 hover:text-white transition">
+                  <lucide-icon [img]="Twitter" class="w-5 h-5"></lucide-icon>
+                </a>
+
+                <a
+                  href="https://www.youtube.com/@SigningRoom"
+                  target="_blank"
+                  class="text-slate-500 hover:text-white transition">
+                  <lucide-icon [img]="Youtube" class="w-5 h-5"></lucide-icon>
+                </a>
+
+                <a
+                  href="https://njump.me/npub1a6tk6kcs2p40eumeu2mru4jwqssnhvc8xtupwlpc6l3gymjha03sek436a"
+                  target="_blank"
+                  class="text-slate-500 hover:text-white transition"
+                  title="Nostr">
+                  <lucide-icon [img]="Globe" class="w-5 h-5"></lucide-icon>
+                </a>
+              </div>
+            </div>
+
+            <div class="border-t border-slate-900 pt-8">
+              <div class="bg-slate-900/30 p-4 rounded-xl border border-slate-800/50 mb-6">
+                <p class="text-[10px] text-slate-500 leading-relaxed text-justify font-mono">
+                  <strong>DISCLAIMER OF WARRANTY:</strong> This is free, open-source software
+                  released under the
+                  <a
+                    href="https://www.gnu.org/licenses/agpl-3.0.html"
+                    target="_blank"
+                    class="underline hover:text-white"
+                    >AGPLv3 License</a
+                  >. It is provided "as is", without warranty of any kind. <br /><br />
+                  <strong>NON-CUSTODIAL:</strong> SigningRoom.io is a stateless coordination tool,
+                  not a wallet or financial institution. We do not have access to your private keys,
+                  funds, or unencrypted transaction data. We do not maintain user accounts or
+                  historical logs. <br /><br />
+                  <strong>USER RESPONSIBILITY:</strong> You are solely responsible for verifying
+                  transaction details (addresses, amounts, fees) on your hardware device screen
+                  before signing. The developers assume no liability for lost funds or software
+                  errors.
+                </p>
+              </div>
+
+              <div class="flex flex-col items-center justify-center gap-4">
+                <div class="flex flex-col items-center gap-1 text-xs text-slate-600">
+                  <div class="flex flex-wrap justify-center items-center gap-x-4">
+                    <p>
+                      &copy; {{ currentYear }}
+                      <strong
+                        ><a
+                          href="https://statelessresearch.com"
+                          target="_blank"
+                          class="hover:text-emerald-400 transition"
+                          >Stateless Research Ltd</a
+                        ></strong
+                      >
+                    </p>
+                    <span class="hidden sm:inline">&bull;</span>
+                    <p>Signing Room® is a registered trademark of Stateless Research Ltd.</p>
+                    <span class="hidden sm:inline">&bull;</span>
+                    <p>Made for Bitcoiners</p>
+                    <span class="hidden sm:inline">&bull;</span>
+                    <p>No Tracking / No Cookies</p>
+                  </div>
+                  <p class="text-[10px] opacity-60">Registered in England & Wales (No. 16990515)</p>
+                </div>
+
+                <div class="flex items-center gap-4 opacity-70 hover:opacity-100 transition">
+                  <a
+                    href="/security.txt"
+                    target="_blank"
+                    class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600 hover:text-emerald-400 transition group">
+                    <lucide-icon
+                      [img]="Shield"
+                      class="w-3 h-3 group-hover:text-emerald-400 transition"></lucide-icon>
                     Warrant Canary
                   </a>
-                  
+
                   <span class="text-slate-800 text-[10px]">&bull;</span>
 
-                  <a href="/pgp-key.asc" target="_blank" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600 hover:text-cyan-400 transition group">
-                    <lucide-icon [img]="Key" class="w-3 h-3 group-hover:text-cyan-400 transition"></lucide-icon>
+                  <a
+                    href="/pgp-key.asc"
+                    target="_blank"
+                    class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600 hover:text-cyan-400 transition group">
+                    <lucide-icon
+                      [img]="Key"
+                      class="w-3 h-3 group-hover:text-cyan-400 transition"></lucide-icon>
                     PGP Key
                   </a>
+                </div>
               </div>
             </div>
-        </div>
+          </div>
+        </footer>
+      }
 
-      </div>
-    </footer>
-    }
-
-    @if (isEmbedded) {
+      @if (isEmbedded) {
         <div class="w-full py-3 flex justify-center mt-auto pb-4">
-            <a href="https://signingroom.io?utm_source=widget&utm_medium=embed" 
-               target="_blank" 
-               rel="noopener noreferrer" 
-               class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-emerald-400 transition-colors opacity-80 hover:opacity-100">
-                <lucide-icon [img]="Shield" class="w-3.5 h-3.5"></lucide-icon>
-                Powered by Signing Room
-            </a>
+          <a
+            href="https://signingroom.io?utm_source=widget&utm_medium=embed"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-emerald-400 transition-colors opacity-80 hover:opacity-100">
+            <lucide-icon [img]="Shield" class="w-3.5 h-3.5"></lucide-icon>
+            Powered by Signing Room
+          </a>
         </div>
-    }
-
-  </body>
-  `
+      }
+    </body>
+  `,
 })
 export class App implements OnInit {
-
   isEmbedded = false;
   hideHeader = false;
 
@@ -215,69 +280,68 @@ export class App implements OnInit {
     Terminal,
     ChevronRight,
     Github,
-    Twitter
+    Twitter,
   };
   readonly Github = Github;
   readonly Twitter = Twitter;
-  readonly Shield = Shield; 
+  readonly Shield = Shield;
   readonly Key = Key;
   readonly Mail = Mail;
   readonly Globe = Globe;
   readonly Zap = Zap;
   readonly Heart = Heart;
+  readonly Youtube = Youtube;
 
   readonly currentYear = new Date().getFullYear();
 
   private router = inject(Router);
 
   constructor() {
-    this.router.events.pipe(
-        filter(event => event instanceof NavigationEnd)
-    ).subscribe(() => {
-        if (typeof window !== 'undefined') {
-            window.scrollTo(0, 0);
-        }
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => {
+      if (typeof window !== 'undefined') {
+        window.scrollTo(0, 0);
+      }
     });
   }
 
   ngOnInit() {
     if (typeof window !== 'undefined') {
-        this.isEmbedded = window !== window.parent || window !== window.top;
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        this.hideHeader = urlParams.get('hideHeader') === 'true';
+      this.isEmbedded = window !== window.parent || window !== window.top;
 
-        if (!window.isSecureContext) {
-            document.body.innerHTML = `
+      const urlParams = new URLSearchParams(window.location.search);
+      this.hideHeader = urlParams.get('hideHeader') === 'true';
+
+      if (!window.isSecureContext) {
+        document.body.innerHTML = `
                 <div style="background:#020617; color:#f43f5e; height:100vh; display:flex; flex-direction:column; items-center; justify-content:center; font-family:sans-serif; text-align:center; padding:20px;">
                     <h1 style="margin-bottom:10px;">Security Error</h1>
                     <p>SigningRoom requires a Secure Context (HTTPS).</p>
                     <p style="color:#94a3b8; font-size:14px;">The Web Cryptography API is disabled in insecure environments.</p>
                 </div>
             `;
-            throw new Error("Insecure Context - Crypto API disabled");
-        }
+        throw new Error('Insecure Context - Crypto API disabled');
+      }
     }
   }
 
   readonly features = [
     {
-      title: "Stateless Architecture",
+      title: 'Stateless Architecture',
       desc: "We don't store your data. Rooms exist in RAM and vanish after 1 hour. Zero database liability.",
       icon: Zap,
-      iconColor: "text-amber-400"
+      iconColor: 'text-amber-400',
     },
     {
-      title: "Real-Time Sync",
-      desc: "See signatures appear instantly. No more refreshing, no more emailing .psbt files back and forth.",
+      title: 'Real-Time Sync',
+      desc: 'See signatures appear instantly. No more refreshing, no more emailing .psbt files back and forth.',
       icon: Users,
-      iconColor: "text-cyan-400"
+      iconColor: 'text-cyan-400',
     },
     {
-      title: "Audit Ready",
-      desc: "Generate cryptographically verifiable PDF audit logs client-side for your compliance team.",
+      title: 'Audit Ready',
+      desc: 'Generate cryptographically verifiable PDF audit logs client-side for your compliance team.',
       icon: Shield,
-      iconColor: "text-emerald-400"
-    }
+      iconColor: 'text-emerald-400',
+    },
   ];
 }

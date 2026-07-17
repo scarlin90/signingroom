@@ -12,16 +12,25 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-21_June_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-13_July_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
-### 📦 New: The Drop-In Web Component SDK
+### 📦 New: The Official SDK Ecosystem
 
-Integrating non-custodial multisig coordination into your own application is now as easy as adding an HTML tag. We have released the official framework-agnostic **Signing Room Web Component**.
+You can now integrate Signing Room directly into your own infrastructure using our official libraries:
 
-* **Official NPM Package:** [`@signing-room/embed`](https://www.npmjs.com/package/@signing-room/embed)
-* **Interactive Demo & API Docs:** [SigningRoom SDK Sandbox](https://signingroom.io/webcomponent-demo.html)
+**1. The Core TypeScript SDK**
+A framework-agnostic library for programmatic, event-driven multisig coordination.
+
+- **Official NPM Package:** [`@signing-room/sdk`](https://www.npmjs.com/package/@signing-room/sdk)
+- **Source & Demos:** [SDK GitHub Directory](https://github.com/scarlin90/signingroom/tree/main/libs/sdk)
+
+**2. The Drop-In Web Component**
+Integrating non-custodial multisig UI into your own application is now as easy as adding an HTML tag (`<signing-room>`).
+
+- **Official NPM Package:** [`@signing-room/embed`](https://www.npmjs.com/package/@signing-room/embed)
+- **Interactive Demo:** [SigningRoom Embed SDK Sandbox](https://signingroom.io/webcomponent-demo.html)
 
 ---
 
@@ -32,9 +41,10 @@ Integrating non-custodial multisig coordination into your own application is now
 **THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.**
 
 SigningRoom is an open-source coordination tool, **not** a wallet, custodian, or financial institution.
-* **We do not** hold your private keys.
-* **We do not** hold your funds.
-* **We cannot** recover lost data (rooms are ephemeral and exist only in RAM).
+
+- **We do not** hold your private keys.
+- **We do not** hold your funds.
+- **We cannot** recover lost data (rooms are ephemeral and exist only in RAM).
 
 You are solely responsible for verifying the details of any transaction (address, amount, fees) on your hardware device screen before signing.
 
@@ -53,15 +63,18 @@ You are solely responsible for verifying the details of any transaction (address
 
 As a privacy-focused public good, we believe in complete operational transparency. Rather than asking for blind trust, we regularly publish verifiable site metrics to demonstrate the scale, efficiency, and real-world usage of the relay infrastructure.
 
-Based on our latest 30-day forensic audit (June 21, 2026):
-- **Total Requests Handled:** 79,516
-- **Total Network Bandwidth:** 4.89 GB
-- **Community Adoption:** 5,953 aggregated monthly unique visitors.
+Based on our latest 30-day forensic audit (period ending July 12, 2026):
+
+- **Total Requests Handled:** 88,057
+- **Total Network Bandwidth:** 3.58 GB
+- **Community Adoption:** : 5,803 aggregated monthly unique visitors.
 
 ### 🔍 Forensic Highlight
-**Edge Caching Efficiency:** In the last 30 days, nearly **3.00 GB (61.02% of total bandwidth)** was served directly from the edge cache. The network effectively sustained global traffic with 24-hour efficiency spikes hitting up to **97.97%** during static application delivery. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency (proven by 0.00% cache events during live syncs) for users worldwide.
+
+**Edge Caching Efficiency:** In the last 30 days, 1.76 GB (49.06% of total bandwidth) was served directly from the edge cache. Our global CDN architecture actively minimizes origin load, ensuring instantaneous coordination and absolute zero-latency for users worldwide. By optimizing static content delivery at the edge, we ensure the relay remains performant even during peak traffic periods, maintaining the "blind" and ephemeral nature of our coordination protocol.
 
 ### 🛡️ Transparency & Audits
+
 To maintain strict compliance and absolute operational transparency, all core metrics, dependency structures, and security audits are preserved as verifiable assets directly within this repository:
 
 📊 **Infrastructure Integrity:** Raw exported logs and historical performance data are logged publicly.
@@ -76,21 +89,21 @@ This software serves as the reference implementation for **"The Stateless Patter
 
 > 📜 **Bitcoin Improvement Proposal (BIP)**
 > **[Draft: Stateless PSBT Coordination Relay](https://github.com/scarlin90/bip-stateless-psbt-coordination/blob/main/bip-draft.md)**
-> *This proposal defines a standard for ephemeral, encrypted PSBT transport to ensure interoperability between stateless relays and coordinators.*
+> _This proposal defines a standard for ephemeral, encrypted PSBT transport to ensure interoperability between stateless relays and coordinators._
 
 > 🎓 **Academic Whitepaper**
-> *Carlin, S. & Curran, K. (2026).* **The Stateless Pattern: Ephemeral Coordination as the Third Pillar of Digital Sovereignty.** *arXiv preprint arXiv:2601.17875.*
+> _Carlin, S. & Curran, K. (2026)._ **The Stateless Pattern: Ephemeral Coordination as the Third Pillar of Digital Sovereignty.** _arXiv preprint arXiv:2601.17875._
 >
 > [![Whitepaper](https://img.shields.io/badge/Whitepaper-arXiv%3A2601.17875-B31B1B.svg?style=for-the-badge)](https://arxiv.org/abs/2601.17875)
 
 ## ⚡ Features
 
-* **Multi-Network Support:** Full support for **Mainnet**, **Testnet**, and **Signet** for safe testing and development.
-* **PWA (Progressive Web App):** Installable on iOS/Android directly from the browser. Censorship-resistant mobile access without the App Store.
-* **Real-Time Sync:** Utilizing WebSockets for instant state propagation between signers.
-* **Hardware Agnostic:** Works with Coldcard, Sparrow, Electrum, Ledger, Trezor, and any BIP-174 compatible wallet.
-* **Ephemeral Rooms:** All rooms and data self-destruct after **24 hours**.
-* **Audit Logs:** Automatically generates a client-side, cryptographically verifiable PDF audit trail of the signing ceremony, now featuring persistent witness tracking for disconnected signers.
+- **Multi-Network Support:** Full support for **Mainnet**, **Testnet**, and **Signet** for safe testing and development.
+- **PWA (Progressive Web App):** Installable on iOS/Android directly from the browser. Censorship-resistant mobile access without the App Store.
+- **Real-Time Sync:** Utilizing WebSockets for instant state propagation between signers.
+- **Hardware Agnostic:** Works with Coldcard, Sparrow, Electrum, Ledger, Trezor, and any BIP-174 compatible wallet.
+- **Ephemeral Rooms:** All rooms and data self-destruct after **24 hours**.
+- **Audit Logs:** Automatically generates a client-side, cryptographically verifiable PDF audit trail of the signing ceremony, now featuring persistent witness tracking for disconnected signers.
 
 ## 🛠️ Architecture
 
@@ -103,28 +116,32 @@ sequenceDiagram
     participant B as Bob (Signer)
 
     Note over S: 0KB Database (Stateless)
-    
+
     A->>A: Encrypt PSBT (Client-Side)
     A->>S: Upload Encrypted Blob
     S->>S: Store in RAM (24h Max or Close)
-    
+
     B->>S: Fetch Blob
     S->>B: Send Encrypted Blob
     B->>B: Decrypt (Key in URL hash)
-    
+
     B->>S: Upload Signed Blob
     S->>A: Relay Signature
-    
+
     Note over S: Room Destroys Itself (Immediate Wipe)
 ```
+
 ## 🗺️ Roadmap (2026)
+
 We are actively seeking funding and grants to evolve **SigningRoom** from a standalone tool into ubiquitous Bitcoin multisig infrastructure.
 
 ### Phase 1: The Core — ✅ Completed
+
 - [x] Launch `signingroom-core` on Mainnet, Testnet, and Signet (v1.0)
 - [x] Deploy censorship-resistant Progressive Web App (PWA) that bypasses app stores
 
 ### Phase 2: Ubiquity — 🔴 Active Grant Target (Q2 2026)
+
 - [x] **BIP Draft Submitted**: Standardizing Stateless Encrypted WebSocket Coordination for PSBTs
 - [x] **Web Component (`<signing-room>`)**: Drop-in HTML element for easy third-party integration
 - [x] **Extand Web Component Events**: Expose all events inside room for compliance and governance
@@ -132,6 +149,7 @@ We are actively seeking funding and grants to evolve **SigningRoom** from a stan
 - [ ] **Stealth Room**: Prototype OHTTP with Web Transport and MASQUE
 
 ### Phase 3: The UX Upgrade (Q3/Q4 2026)
+
 - [ ] **Public API**: Well-documented WebSocket API for automated agents and services
 - [ ] Third-party security audit of all cryptographic primitives and implementation
 
@@ -140,6 +158,7 @@ We are actively seeking funding and grants to evolve **SigningRoom** from a stan
 **Status**: Phase 1 complete. Phase 2 is the current focus and primary grant target.
 
 ## 💰 Support Public Infrastructure
+
 SigningRoom is Free and Open Source Software (FOSS), maintained for the public good. If this tool helps you or your organization, please consider supporting its maintenance.
 
 [Support on OpenSats] (Application Initial Rejection Q1 - Feedback go BIP — Actively drafting BIP)
@@ -151,6 +170,7 @@ SigningRoom is Free and Open Source Software (FOSS), maintained for the public g
 [![Lightning](https://img.shields.io/badge/Lightning_Donate-⚡-yellow.svg?style=for-the-badge)](https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo)
 
 ## 🚀 Quick Start (Development)
+
 Prerequisites: Node.js v20+.
 
 ```
@@ -179,6 +199,7 @@ npx nx run client:serve --configuration=development
 ```
 
 ## 🏰 Self-Hosting (Sovereign)
+
 We believe in true sovereignty. You should never be locked into a platform. While SigningRoom.io offers a hosted demo for convenience, you are free to inspect the code and run your own infrastructure.
 
 Cloudflare Workers You need a Cloudflare account to deploy the backend.
@@ -198,39 +219,47 @@ ALLOWED_ORIGIN: Your frontend URL (e.g., https://my-signing-room.com).
 ```
 
 ## 🧪 Testing & Quality Assurance
+
 The most reliable way to run these tests—including Unit, Worker, and Playwright E2E flows—is via Docker to ensure environment isolation.
 
 ### Run All Tests (Unit + E2E)
+
 Execute these two commands to build the test environment and run the full suite:
 
-
 #### 1. Build the test image
+
 ```Bash
 docker build -t signing-room-tests -f Dockerfile.test .
 ```
 
 #### 2. Run the suite (Unit + E2E)
+
 ```Bash
 docker run --rm signing-room-tests
 ```
 
 ### Local Development Commands
+
 If you prefer running specific layers during active development:
 
-#### Unit Tests (Client): 
+#### Unit Tests (Client):
+
 ```Bash
 npx nx run client:test
 ```
 
-#### Worker Tests (Server): 
+#### Worker Tests (Server):
+
 ```Bash
 npx nx run worker:test
 ```
 
-#### Interactive E2E (Playwright UI): 
+#### Interactive E2E (Playwright UI):
+
 > Note : To run the UI you need to remove the docker configuration from the playwright.config.ts
 
 In playwright.config.ts remove --ip 0.0.0.0 --port 8787 before running the e2e command
+
 ```
 Before - With Docker configuration
 command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787'
@@ -240,14 +269,17 @@ command: 'npx wrangler dev apps/worker/src/index.ts'
 ```
 
 Run the e2e command after config change
+
 ```Bash
 npx nx e2e client-e2e --ui
 ```
 
 ## 🤝 Contributing
+
 We welcome code, documentation, translations, and security audits.
 
 ## ⚠️ The "Blind Server" Rule
+
 Before contributing, please understand our core constraint:
 
 The server must NEVER know the content of the room. Any PR that introduces server-side logging, analytics, or persistent storage of user data will be rejected immediately.
@@ -264,6 +296,7 @@ Push to the Branch (git push origin feature/AmazingFeature).
 Open a Pull Request.
 
 ## ⚡ Priority Needs
+
 We are currently looking for help with:
 
 [ ] Translations: Adding new languages for the UI.
@@ -273,17 +306,20 @@ We are currently looking for help with:
 [ ] Accessibility: improving ARIA labels for screen readers.
 
 ## 🏢 Enterprise & Commercial Licensing
-**SigningRoom.io** is fully open-source under the **AGPLv3 License**. 
 
-* **Community Use:** Free for everyone. If you modify the code and host it publicly, you must open-source your changes.
-* **Commercial Use:** Institutions requiring a **Commercial License (AGPL Waiver)** to integrate this technology into proprietary, closed-source infrastructure (e.g., internal banking systems, custodial platforms) must contact **Stateless Research Ltd**.
+**SigningRoom.io** is fully open-source under the **AGPLv3 License**.
+
+- **Community Use:** Free for everyone. If you modify the code and host it publicly, you must open-source your changes.
+- **Commercial Use:** Institutions requiring a **Commercial License (AGPL Waiver)** to integrate this technology into proprietary, closed-source infrastructure (e.g., internal banking systems, custodial platforms) must contact **Stateless Research Ltd**.
 
 > 🔗 **[Contact Stateless Research for Licensing](https://statelessresearch.com)**
 
 ## 📄 License
+
 Distributed under the GNU Affero General Public License v3.0 (AGPL-3.0). If you modify this code and run it over a network, you must release your source code. See LICENSE for more information.
 
 ## 🔐 Security
+
 If you discover a vulnerability, please do NOT open a public issue. Email the maintainer directly or use PGP.
 
 PGP Fingerprint: C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56

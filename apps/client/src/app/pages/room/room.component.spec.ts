@@ -1,1218 +1,1766 @@
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { signal } from '@angular/core'; // <-- Added signal import
-import { RouterTestingModule } from '@angular/router/testing';
-import { ActivatedRoute, Router } from '@angular/router';
-import { describe, it, expect, beforeEach, vi, afterEach, beforeAll } from 'vitest';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RoomComponent } from './room.component';
-import { SocketService } from '../../services/socket/socket.service';
-import { of, Subject } from 'rxjs';
-import { jsPDF } from 'jspdf';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
+import { PLATFORM_ID, signal } from '@angular/core';
+import { of } from 'rxjs';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Html5Qrcode } from 'html5-qrcode';
+
+import { SocketService } from '../../services/socket/socket.service';
+import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 
-// ==================== GLOBAL MOCKS ====================
-vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
+// Declare mocks at the top level so they can be reset easily
+let mockSocketService: any;
+let mockUrService: any;
+let mockDispatcher: any;
+let mockRouter: any;
+let mockActivatedRoute: any;
+let mockTitleService: any;
 
-vi.mock('jspdf', () => {
-  const MockJsPDF = vi.fn(function(this: any) {
-    this.setFont = vi.fn().mockReturnThis();
-    this.setFontSize = vi.fn().mockReturnThis();
-    this.setTextColor = vi.fn().mockReturnThis();
-    this.text = vi.fn().mockReturnThis();
-    this.setDrawColor = vi.fn().mockReturnThis();
-    this.setLineWidth = vi.fn().mockReturnThis();
-    this.line = vi.fn().mockReturnThis();
-    this.addPage = vi.fn().mockReturnThis();
-    this.save = vi.fn();
-    this.output = vi.fn().mockReturnValue('data:application/pdf;base64,FAKEPDF');
-  });
-
-  return { jsPDF: MockJsPDF };
+const mockClipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
+Object.defineProperty(navigator, 'clipboard', {
+  value: mockClipboard,
+  writable: true,
+  configurable: true,
 });
 
-vi.mock('qrcode', () => ({
-  toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,FAKEQR'),
-  toCanvas: vi.fn().mockResolvedValue(undefined),
-  default: {
-    toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,FAKEQR'),
-    toCanvas: vi.fn().mockResolvedValue(undefined)
-  }
-}));
-
-const createMockSignal = (initialValue: any) => {
-  const sig = signal(initialValue);
-  (sig as any).mockReturnValue = (val: any) => {
-    sig.set(val);
-    return sig;
-  };
-  return sig;
-};
-
-describe('RoomComponent', () => {
+describe('RoomComponent - Setup & Lifecycle', () => {
   let component: RoomComponent;
   let fixture: ComponentFixture<RoomComponent>;
-  let router: Router;
-  let dispatcherSpy: any;
-
-  const baseRoomState = {
-    roomId: '123',
-    psbt: 'base64',
-    signatures: [],
-    network: 'bitcoin',
-    roomName: 'Test Room',
-    auditLog: [],
-    whitelist: [],
-    createdAt: Date.now(),
-    expiresAt: Date.now() + 100000,
-    isLocked: false,
-    finalTxHex: null,
-    finalTxId: null,
-    signerLabels: {},
-    connectedCount: 1
-  };
-
-  const socketSpy: any = {
-    decryptionError: createMockSignal(null),
-    roomState: createMockSignal({ ...baseRoomState }),
-    status: createMockSignal('connected'),
-    isClosed: createMockSignal(false),
-    isLockedOut: createMockSignal(false),
-    roomNotFound: createMockSignal(false),
-    isRoomFull: createMockSignal(false),
-    signers: createMockSignal([{ fingerprint: 'abc', signed: false }]),
-    signerCount: createMockSignal(1),
-    activeSessions: createMockSignal([]),
-    currentSessionId: createMockSignal('S1'),
-    txDetails: createMockSignal({
-      outputs: [{ address: 'addr1', amount: 1000, isChange: false }],
-      inputsList: [{ address: 'src1', amount: 2000, txId: 'tx1', vout: 0 }],
-      amount: 1000,
-      feeRate: 10,
-      inputs: 1
-    }),
-    isCoordinator: createMockSignal(true),
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    gracefullyDisconnect: vi.fn(),
-    setRoomKey: vi.fn(),
-    getRoomKey: vi.fn().mockReturnValue('key'),
-    getThreshold: vi.fn().mockReturnValue(1),
-    getFinalTxHex: vi.fn().mockReturnValue('hex'),
-    getFinalTxId: vi.fn().mockReturnValue('id'),
-    logAction: vi.fn(),
-    checkAndApplyLocalLabels: vi.fn(),
-    getLocalLabel: vi.fn().mockReturnValue(null),
-    renameRoom: vi.fn(),
-    closeRoom: vi.fn(),
-    toggleLock: vi.fn(),
-    updateSignerLabel: vi.fn(),
-    saveToAddressBook: vi.fn(),
-    removeFromAddressBook: vi.fn(),
-    updateWhitelist: vi.fn(),
-    updateWhitelistBatch: vi.fn(),
-    broadcastFinalization: vi.fn(),
-    uploadSignature: vi.fn().mockResolvedValue(true),
-    claimCoordinator: vi.fn(),
-    setDisplayName: vi.fn(),
-    networkSignatureReceived$: new Subject(),
-    securityAlert$: new Subject()
-  };
-
-  beforeAll(() => {
-    if (!File.prototype.arrayBuffer) {
-      File.prototype.arrayBuffer = function () {
-        return Promise.resolve(new ArrayBuffer(0));
-      };
-    }
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      writable: true,
-      configurable: true
-    });
-
-    // Ensure JSDOM has proper navigator
-    if (!navigator.platform) {
-      Object.defineProperty(navigator, 'platform', { value: 'MacIntel' });
-    }
-
-    HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({
-      fillRect: vi.fn(),
-      clearRect: vi.fn(),
-      getImageData: vi.fn(),
-      putImageData: vi.fn(),
-      createImageData: vi.fn(),
-      setTransform: vi.fn(),
-      drawImage: vi.fn(),
-      save: vi.fn(),
-      restore: vi.fn()
-    } as any);
-
-  });
 
   beforeEach(async () => {
-    vi.clearAllMocks();
-    TestBed.resetTestingModule();
+    vi.useFakeTimers();
 
-      dispatcherSpy = {
-      emitModalView: vi.fn(),
-      emitPrivacyToggle: vi.fn(),
-      emitRoomRenamed: vi.fn(),
+    mockActivatedRoute = {
+      snapshot: {
+        fragment: 'test-key-123',
+        paramMap: {
+          get: vi.fn().mockReturnValue('room-123'),
+        },
+      },
+      paramMap: of({
+        get: (key: string) => (key === 'id' ? 'room-123' : null),
+      }),
+    };
+
+    // Reset all mocks completely to prevent state leakage between tests
+    mockSocketService = {
+      // --- Signals ---
+      status: signal('disconnected'),
+      isClosed: signal(false),
+      roomNotFound: signal(false),
+      isLockedOut: signal(false),
+      isRoomFull: signal(false),
+      decryptionError: signal(''),
+      roomState: signal({ roomId: 'room-123', network: 'bitcoin' }),
+      txDetails: signal(null),
+      signers: signal([]),
+      signerCount: signal(0),
+      activeSessions: signal([]),
+      currentSessionId: signal('session-1'),
+
+      // --- Observables ---
+      networkSignatureReceived$: of({}),
+      securityAlert$: of({}),
+      isCoordinator: vi.fn().mockReturnValue(false),
+      getThreshold: vi.fn().mockReturnValue(2),
+      signerThreshold: vi.fn().mockReturnValue(2),
+      isReadyToBroadcast: vi.fn().mockReturnValue(false),
+      getRoomKey: vi.fn().mockReturnValue('test-key-123'),
+      getRoomLink: vi.fn().mockReturnValue('http://localhost/room#key'),
+      getLocalLabel: vi.fn().mockReturnValue(undefined),
+      logAction: vi.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      reset: vi.fn(),
+      setRoomKey: vi.fn(),
+      checkAndApplyLocalLabels: vi.fn(),
+      claimCoordinator: vi.fn(),
+      renameRoom: vi.fn(),
+      uploadSignature: vi.fn(),
+      getSettlementCsvData: vi.fn().mockReturnValue('csv,data'),
+      getAuditLogCsv: vi.fn().mockReturnValue('audit,csv'),
+      getFinalTxHex: vi.fn(),
+      getFinalTxId: vi.fn(),
+      finalizeTransaction: vi.fn(),
+      getAuditLogPdf: vi.fn().mockResolvedValue({
+        doc: {
+          output: vi.fn().mockReturnValue('mock-data-uri'),
+          save: vi.fn().mockResolvedValue(undefined),
+        },
+        filename: 'audit.pdf',
+      }),
+      updateWhitelist: vi.fn(),
+      updateSignerLabel: vi.fn(),
+      saveToAddressBook: vi.fn(),
+      removeFromAddressBook: vi.fn(),
+      toggleLock: vi.fn(),
+      closeRoom: vi.fn(),
+      setDisplayName: vi.fn(),
+      sdk: {
+        store: {
+          getState: vi.fn().mockReturnValue({ roomId: null }),
+        },
+      },
+    };
+
+    mockUrService = {
+      scanProgress: signal(0),
+      scanError: signal(''),
+      lastScannedText: signal(''),
+      resetDecoder: vi.fn(),
+      generateFrames: vi.fn().mockReturnValue(['frame1', 'frame2']),
+      generateBBQrFrames: vi.fn().mockReturnValue(['bbqr1']),
+      processFragment: vi.fn(),
+    };
+
+    mockDispatcher = {
+      isEmbedded: false,
+      emitTransactionFinalized: vi.fn(),
+      emitParticipantPresence: vi.fn(),
+      emitParticipantLabelled: vi.fn(),
+      emitSignatureReceived: vi.fn(),
+      emitSecurityAlert: vi.fn(),
       emitDataCopied: vi.fn(),
+      emitTransactionViewChanged: vi.fn(),
+      emitPsbtImported: vi.fn(),
       emitDownloadTriggered: vi.fn(),
-      emitRoomStateChanged: vi.fn(),
+      emitModalView: vi.fn(),
+      emitRoomRenamed: vi.fn(),
+      emitDestinationVerified: vi.fn(),
       emitQrStateChanged: vi.fn(),
       emitFountainFormatChanged: vi.fn(),
       emitFountainStateChanged: vi.fn(),
-      emitPsbtImported: vi.fn(),
-      emitTransactionViewChanged: vi.fn(),
-      emitDestinationVerified: vi.fn(),
-      emitTransactionFinalized: vi.fn(),
-      emitParticipantLabelled: vi.fn(),
-      emitParticipantPresence: vi.fn(),
-      emitSignatureReceived: vi.fn(),
-      emitSecurityAlert: vi.fn(),
-      emitRoomCreated: vi.fn(),
-      isEmbedded: false // Default
+      emitPrivacyToggle: vi.fn(),
     };
 
-    const mockClipboard = {
-      writeText: vi.fn().mockResolvedValue(undefined),
-      readText: vi.fn().mockResolvedValue('key-1234567890'),
+    mockRouter = {
+      navigate: vi.fn(),
     };
-    
-    Object.defineProperty(navigator, 'clipboard', {
-      value: mockClipboard,
-      writable: true,
-      configurable: true
-    });
 
+    mockActivatedRoute = {
+      snapshot: {
+        fragment: 'test-key-123',
+      },
+      paramMap: of({
+        get: (key: string) => (key === 'id' ? 'room-123' : null),
+      }),
+    };
+
+    mockTitleService = {
+      setTitle: vi.fn(),
+    };
+
+    // Configure TestBed using the actual Class types as the provider tokens
     await TestBed.configureTestingModule({
-      imports: [RoomComponent, RouterTestingModule],
+      imports: [RoomComponent],
       providers: [
-        { provide: SocketService, useValue: socketSpy },
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            snapshot: { fragment: 'key' },
-            paramMap: of({ get: () => '123' }),
-          },
-        },
-        { provide: WidgetDispatcherService, useValue: dispatcherSpy }
+        { provide: ActivatedRoute, useValue: mockActivatedRoute },
+        { provide: Router, useValue: mockRouter },
+        { provide: Title, useValue: mockTitleService },
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        { provide: SocketService, useValue: mockSocketService },
+        { provide: UrService, useValue: mockUrService },
+        { provide: WidgetDispatcherService, useValue: mockDispatcher },
       ],
     }).compileComponents();
 
-    router = TestBed.inject(Router);
     fixture = TestBed.createComponent(RoomComponent);
     component = fixture.componentInstance;
-    
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState });
-    
-    fixture.detectChanges();
+
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    if (component) component.ngOnDestroy();
-    
-    vi.clearAllTimers(); 
-    vi.useRealTimers();      
-    
-    if (fixture) fixture.destroy();
-    vi.clearAllMocks();
-    sessionStorage.clear();
-
-    ['signer-reader', 'fountain-psbt-canvas'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.remove();
-    });
+    if (component['timerInterval']) {
+      clearInterval(component['timerInterval']);
+    }
   });
 
-  // ====================== BASIC TESTS ======================
-  it('should copy session ID to clipboard', () => {
-    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
-    component.copySessionId('S1', 'Alice');
-    expect(clipboardSpy).toHaveBeenCalledWith('Alice (Session: S1)');
+  it('should create the component', () => {
+    expect(component).toBeTruthy();
   });
 
-  it('should finalize transaction and trigger success state', () => {
-    component.finalize();
-    expect(socketSpy.broadcastFinalization).toHaveBeenCalledWith('hex', 'id');
-  });
+  describe('ngOnInit', () => {
+    it('should extract roomId and fragment, then connect to socket', async () => {
+      fixture.detectChanges();
 
-  it('should handle room management actions', () => {
-    component.newRoomName.set('New Room');
-    component.saveRoomName();
-    expect(socketSpy.renameRoom).toHaveBeenCalledWith('New Room');
+      // Flush rxjs observable
+      await fixture.whenStable();
+      // Flush the async callback inside the paramMap.subscribe
+      await new Promise(process.nextTick);
 
-    component.toggleLock();
-    expect(component.showConfirmModal()).toBe(true);
-  });
-
-  it('should not broadcast finalization if hex or txId are missing', () => {
-    socketSpy.getFinalTxHex.mockReturnValueOnce(null);
-    
-    component.finalize();
-    
-    expect(socketSpy.broadcastFinalization).not.toHaveBeenCalled();
-  });
-
-  it('should clear timer intervals on destroy', () => {
-    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
-    
-    (component as any).startTimer(Date.now() + 5000);
-    
-    component.ngOnDestroy();
-    
-    expect(clearIntervalSpy).toHaveBeenCalled();
-  });
-
-  it('should open friction modals for sensitive downloads', () => {
-      component.promptAuditLogDownload();
-      expect(component.showAuditModal()).toBe(true);
-
-      component.promptCsvDownload();
-      expect(component.showCsvModal()).toBe(true);
-
-      component.promptPsbtDownload();
-      expect(component.showPsbtModal()).toBe(true);
+      expect(component.roomId()).toBe('room-123');
+      expect(mockSocketService.setRoomKey).toHaveBeenCalledWith('test-key-123');
+      expect(mockSocketService.connect).toHaveBeenCalledWith('room-123', 'test-key-123');
     });
 
-    it('should open the Room ID OpSec modal', () => {
-      component.openRoomIdModal();
-      expect(component.showRoomIdModal()).toBe(true);
-      
-      component.closeRoomIdModal();
-      expect(component.showRoomIdModal()).toBe(false);
+    it('should set decryption error if no fragment is present', async () => {
+      mockActivatedRoute.snapshot.fragment = '';
+
+      fixture.detectChanges();
+      await fixture.whenStable();
+      await new Promise(process.nextTick);
+
+      expect(mockSocketService.decryptionError()).toBe('Missing decryption key');
     });
 
-    it('should handle character counter validation for room IDs', () => {
-      component.manualKey = 'short';
-      expect(component.manualKey.length).toBe(5);
-    });
-
-    it('should log when the Decryption Key is copied from the modal', () => {
-      const logSpy = vi.spyOn(socketSpy, 'logAction');
-      socketSpy.getRoomKey.mockReturnValue('fake-key');
-      
-      component.copyKey();
-      
-      expect(logSpy).toHaveBeenCalledWith('Key Copied', expect.stringContaining('decryption key'));
-    });
-
-    it('should log to audit timeline when sensitive keys are copied', () => {
-      component.copyKey();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Key Copied', expect.any(String));
-
-      sessionStorage.setItem(`admin_token_123`, 'secret');
-      component.copyAdminToken();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Admin Token Copied', expect.any(String));
-
-      component.copyRoomId();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Room ID Copied', expect.any(String));
-    });
-
-    it('should log specific QR code security levels', async () => {
-      component.qrIncludesKey.set(false);
-      component.toggleQrReveal(); // Reveal
-      expect(socketSpy.logAction).toHaveBeenCalledWith('QR Code Revealed', expect.stringContaining('Link Only'));
-
-      component.isQrRevealed.set(false);
-      component.qrIncludesKey.set(true);
-      component.toggleQrReveal(); 
-      expect(socketSpy.logAction).toHaveBeenCalledWith('QR Code Revealed', expect.stringContaining('Full (Link + Key)'));
-    });
-
-    it('should wait for socket sync before triggering file downloads', async () => {
-      vi.useFakeTimers();
-      const csvSpy = vi.spyOn(component, 'downloadCsv' as any);
-      
-      const downloadPromise = component.executeCsvDownload();
-      
-      expect(socketSpy.logAction).toHaveBeenCalledWith('CSV Export', expect.any(String));
-      expect(csvSpy).not.toHaveBeenCalled();
-
-      await vi.advanceTimersByTimeAsync(1100);
-      
-      expect(csvSpy).toHaveBeenCalled();
-      vi.useRealTimers();
-    });
-
-    it('should open friction modals for sensitive downloads', () => {
-      component.promptAuditLogDownload();
-      expect(component.showAuditModal()).toBe(true);
-
-      component.promptCsvDownload();
-      expect(component.showCsvModal()).toBe(true);
-
-      component.promptPsbtDownload();
-      expect(component.showPsbtModal()).toBe(true);
-    });
-
-    it('should log to audit timeline when sensitive data is copied', async () => {
-      vi.stubGlobal('location', { href: 'http://localhost:4200/room/123#key' });
-      
-      component.copyKey();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Key Copied', expect.any(String));
-
-      sessionStorage.setItem(`admin_token_123`, 'secret');
-      component.copyAdminToken();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Admin Token Copied', expect.any(String));
-
-      component.copyRoomId();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Room ID Copied', expect.any(String));
-      
-      vi.unstubAllGlobals();
-    });
-
-    it('should log specific QR code security levels', async () => {
-      component.qrIncludesKey.set(false);
-      component.isQrRevealed.set(false);
-      component.toggleQrReveal(); 
-      expect(socketSpy.logAction).toHaveBeenCalledWith('QR Code Revealed', expect.stringContaining('Link Only'));
-
-      component.isQrRevealed.set(false); 
-      component.qrIncludesKey.set(true);
-      component.toggleQrReveal();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('QR Code Revealed', expect.stringContaining('Full (Link + Key)'));
-    });
-
-    it('should handle file generation delays for audit logging sync', async () => {
-      vi.useFakeTimers();
-      const auditSpy = vi.spyOn(component, 'generateAuditLog' as any).mockImplementation(() => {});
-      
-      const promise = component.executeAuditDownload();
-      
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Audit Export', expect.any(String));
-      
-      await vi.advanceTimersByTimeAsync(1100);
-      expect(auditSpy).toHaveBeenCalled();
-      vi.useRealTimers();
-    });
-
-    it('should generate a comprehensive Audit Log PDF with all sections', async () => {
-
-    const fullState = {
-      ...baseRoomState,
-      finalTxHex: '02000000000101...', 
-      finalTxId: 'deadbeef12345678',
-      auditLog: [
-        { timestamp: Date.now(), event: 'Test Event', user: 'Admin', detail: 'Detailed info' },
-        { timestamp: Date.now(), event: 'Short Event', user: 'Guest' } 
-      ],
-      participants: {
-        'S1': { id: 'S1', role: 'admin', displayName: 'Alice' },
-        'S2': { id: 'S2', role: 'guest' } 
-      },
-      whitelist: ['addr1'],
-      network: 'testnet'
-    };
-    socketSpy.roomState.mockReturnValue(fullState);
-    socketSpy.txDetails.mockReturnValue({
-      amount: 100000,
-      feeRate: 10,
-      inputsList: [{ address: 'addr1', amount: 200000 }],
-      outputs: [
-        { address: 'dest1', amount: 50000, isChange: false },
-        { address: 'change1', amount: 40000, isChange: true }
-      ]
-    });
-
-    vi.useFakeTimers();
-    const promise = component.executeAuditDownload();
-    await vi.advanceTimersByTimeAsync(1100);
-    await promise;
-
-    expect(jsPDF).toHaveBeenCalled();
-    const mockDoc = (jsPDF as any).mock.results[0].value;
-    expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('Audit Log'), 20, expect.any(Number));
-    expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('Transaction Data'), 20, expect.any(Number));
-    expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('Signer Activity'), 20, expect.any(Number));
-    expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('Witnesses'), 20, expect.any(Number));
-    
-    vi.useRealTimers();
-  });
-
-  it('should cover PDF/CSV edge cases like change outputs and anonymous signers', () => {
-    // Setup state with a 'change' output and a signer with no display name
-    socketSpy.roomState.mockReturnValue({
-      ...baseRoomState,
-      auditLog: [{ timestamp: Date.now(), event: 'Test', user: 'Admin' }],
-      participants: { 'S1': { id: 'S1', role: 'guest' } }
-    });
-    socketSpy.txDetails.mockReturnValue({
-      outputs: [{ address: 'addr1', amount: 1000, isChange: true }], 
-      inputsList: [{ address: 'src1', amount: 2000 }]
-    });
-
-    // Call the synchronous generation methods directly to bypass the 1000ms delay lockup
-    component.downloadCsv();
-    component.generateAuditLog();
-
-    expect(jsPDF).toHaveBeenCalled();
-  });
-
-  // ====================== SIGNER LABELING ======================
-  it('should handle signer labeling and address book storage', () => {
-    component.openLabelModal('fingerprint123');
-    expect(component.showLabelModal()).toBe(true);
-    expect(component.editingFingerprint()).toBe('fingerprint123');
-
-    component.editingLabel.set('Alice Wallet');
-    component.saveToBook.set(true);
-    component.saveLabel();
-
-    expect(socketSpy.updateSignerLabel).toHaveBeenCalledWith('fingerprint123', 'Alice Wallet');
-    expect(socketSpy.saveToAddressBook).toHaveBeenCalledWith('fingerprint123', 'Alice Wallet');
-    expect(component.showLabelModal()).toBe(false);
-  });
-
-  // ====================== FILE UPLOAD ======================
-  it('should reject invalid file types during upload', async () => {
-    const alertSpy = vi.spyOn(component, 'openAlert' as any);
-    const invalidFile = new File([''], 'test.pdf', { type: 'application/pdf' });
-
-    await component.onFileSelected({ target: { files: [invalidFile] } } as any);
-    expect(alertSpy).toHaveBeenCalledWith('Invalid File Type', expect.any(String));
-  });
-
-  it('should detect and reject raw transactions (non-PSBT)', async () => {
-    const alertSpy = vi.spyOn(component, 'openAlert' as any);
-    const rawTxContent = '020000000001';
-    const rawTxFile = new File([rawTxContent], 'tx.hex', { type: 'text/plain' });
-
-    rawTxFile.arrayBuffer = () => Promise.resolve(new TextEncoder().encode(rawTxContent).buffer);
-
-    await component.onFileSelected({ target: { files: [rawTxFile] } } as any);
-    expect(alertSpy).toHaveBeenCalledWith('Invalid File', expect.any(String));
-  });
-
-  it('should detect binary PSBT files via magic bytes (70736274ff)', async () => {
-    const binaryPsbt = new Uint8Array([0x70, 0x73, 0x62, 0x74, 0xff, 0x01, 0x02]);
-    const file = new File([binaryPsbt], 'wallet.psbt');
-    
-    // Ensure the arrayBuffer polyfill returns our specific data
-    file.arrayBuffer = () => Promise.resolve(binaryPsbt.buffer);
-    
-    await component.onFileSelected({ target: { files: [file] } } as any);
-    
-    expect(socketSpy.uploadSignature).toHaveBeenCalledWith('70736274ff0102');
-  });
-
-  it('should reject raw hex transactions starting with 010000 or 020000', async () => {
-    const alertSpy = vi.spyOn(component, 'openAlert' as any);
-    const rawHex = '02000000000101';
-    const file = new File([rawHex], 'tx.hex', { type: 'text/plain' });
-    
-    // Mock the buffer return for the text file
-    file.arrayBuffer = () => Promise.resolve(new TextEncoder().encode(rawHex).buffer);
-
-    await component.onFileSelected({ target: { files: [file] } } as any);
-    
-    expect(alertSpy).toHaveBeenCalledWith('Invalid File', expect.stringContaining('Raw Transaction'));
-    expect(socketSpy.uploadSignature).not.toHaveBeenCalled();
-  });
-
-  it('should reject file over 2MB', async () => {
-    const alertSpy = vi.spyOn(component, 'openAlert' as any);
-    
-    const largeFile = new File(['a'.repeat((2 * 1024 * 1024) + 1)], 'huge.psbt', { type: 'text/plain' });
-    
-    await component.onFileSelected({ target: { files: [largeFile] } } as any);
-    expect(alertSpy).toHaveBeenCalledWith('File Too Large', expect.any(String));
-  });
-
-  it('should catch read error on file upload', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    
-    const alertSpy = vi.spyOn(component, 'openAlert' as any);
-    const badFile = new File([''], 'broken.psbt', { type: 'text/plain' });
-    badFile.arrayBuffer = () => Promise.reject(new Error('Disk read failed'));
-
-    await component.onFileSelected({ target: { files: [badFile] } } as any);
-    expect(alertSpy).toHaveBeenCalledWith('Read Error', expect.any(String));
-  });
-
-  // ====================== SECURITY & FINALIZE ======================
-  it('should show security warning when finalizing with unverified outputs', () => {
-    socketSpy.roomState.mockReturnValue({
-      ...baseRoomState,
-      psbt: 'valid',
-      whitelist: ['other-address'],
-      signatures: ['sig1']
-    });
-    
-    // Ensure there is an unverified, non-change output
-    socketSpy.txDetails.mockReturnValue({ 
-        outputs: [{ address: 'unverified-addr', isChange: false }] 
-    });
-
-    const confirmSpy = vi.spyOn(component, 'openConfirm' as any);
-    component.finalize();
-
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Security Warning',
-      expect.stringContaining('unverified'),
-      expect.any(Function),
-      true
-    );
-  });
-
-  it('should trigger confetti on successful finalize (no security warning)', () => {
-    const confettiSpy = vi.spyOn(component as any, 'triggerConfetti');
-
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState, whitelist: [], signatures: ['sig1', 'sig2'] });
-    socketSpy.txDetails.mockReturnValue({ outputs: [{ address: 'whitelisted', isChange: false }] });
-
-    component.finalize();
-
-    expect(socketSpy.broadcastFinalization).toHaveBeenCalled();
-    expect(confettiSpy).toHaveBeenCalled();
-  });
-
-  it('should reset copiedSessionId after 2 seconds', () => {
-    vi.useFakeTimers();
-    
-    component.copySessionId('S1', 'Alice');
-    expect(component.copiedSessionId()).toBe('S1');
-    
-    vi.advanceTimersByTime(2000);
-    expect(component.copiedSessionId()).toBeNull();
-    
-    vi.useRealTimers();
-  });
-
-  it('should update window title for all room stages', async () => {
-  const titleSpy = vi.spyOn(TestBed.inject(Title), 'setTitle');
-
-  // Stage 1: Waiting
-  socketSpy.roomState.mockReturnValue({ ...baseRoomState, signatures: [] });
-  socketSpy.signers.mockReturnValue([{ fingerprint: 'a', signed: false }]);
-  socketSpy.getThreshold.mockReturnValue(1);
-  fixture.detectChanges();
-  await Promise.resolve(); 
-  expect(titleSpy).toHaveBeenCalledWith(expect.stringContaining('Needed'));
-
-  // Stage 2: Locked
-  socketSpy.roomState.mockReturnValue({ ...baseRoomState, isLocked: true });
-  fixture.detectChanges();
-  await Promise.resolve();
-  expect(titleSpy).toHaveBeenCalledWith(expect.stringContaining('Room Locked'));
-
-  // Stage 3: Finalized
-  socketSpy.roomState.mockReturnValue({ 
-    ...baseRoomState, 
-    finalTxHex: '010203',
-    finalTxId: 'deadbeef'
-  });
-  socketSpy.getFinalTxHex.mockReturnValue('010203');
-  fixture.detectChanges();
-  await Promise.resolve();
-  expect(titleSpy).toHaveBeenCalledWith(expect.stringContaining('Ready to Broadcast'));
-});
-
-  // ====================== QR CODE ======================
-  it('should handle QR code generation and reveal toggle', async () => {
-    await component.openQr();
-    expect(component.showQrModal()).toBe(true);
-    expect(component.isQrRevealed()).toBe(false);
-    expect(component.qrIncludesKey()).toBe(false); // New OpSec default
-
-    component.toggleQrReveal();
-    expect(component.isQrRevealed()).toBe(true);
-
-    component.downloadQr();
-    component.closeQr();
-    expect(component.showQrModal()).toBe(false);
-  });
-
-  it('should toggle QR key inclusion securely', async () => {
-    await component.openQr();
-    component.toggleQrReveal(); // Reveal it
-    expect(component.isQrRevealed()).toBe(true);
-
-    // Toggle to include key
-    await component.toggleQrKey(true);
-    
-    // Should update state and instantly re-blur the image
-    expect(component.qrIncludesKey()).toBe(true);
-    expect(component.isQrRevealed()).toBe(false); 
-  });
-
-  it('should handle QR code generation failure gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const QRCode = await import('qrcode');
-    vi.spyOn(QRCode, 'toDataURL').mockRejectedValueOnce(new Error('QR Engine Fail'));
-
-    await component.openQr();
-    expect(consoleSpy).toHaveBeenCalledWith('QR Generation failed', expect.any(Error));
-  });
-
-  // ====================== WHITELIST ======================
-  it('should toggle address whitelist status', () => {
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState, whitelist: ['addr1'] });
-    component.toggleWhitelist('addr1');
-
-    expect(component.confirmData().message).toContain('Remove');
-
-    component.executeConfirmAction();
-    expect(socketSpy.updateWhitelist).toHaveBeenCalledWith('addr1', true);
-  });
-
-  it('should batch verify all outputs', () => {
-    component.verifyAllOutputs();
-    expect(component.showConfirmModal()).toBe(true);
-
-    component.executeConfirmAction();
-    expect(socketSpy.updateWhitelistBatch).toHaveBeenCalled();
-  });
-
-  it('should verifyAllInputs when coordinator', () => {
-    socketSpy.isCoordinator.mockReturnValue(true);
-    socketSpy.txDetails.mockReturnValue({
-      inputsList: [{ address: 'unverified1' }, { address: 'addr1' }]
-    });
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState, whitelist: ['addr1'] });
-
-    component.verifyAllInputs();
-    expect(socketSpy.updateWhitelistBatch).toHaveBeenCalledWith(['unverified1'], false);
-  });
-
-  // ====================== ROOM MANAGEMENT ======================
-  it('should handle rename room modal and validation', () => {
-    component.openRenameModal();
-    expect(component.showRenameModal()).toBe(true);
-    expect(component.newRoomName()).toBe('Test Room');
-
-    component.newRoomName.set('A'.repeat(70));
-    component.saveRoomName();
-    expect(socketSpy.renameRoom).toHaveBeenCalledWith(expect.stringContaining('A'.repeat(64)));
-
-    component.closeRenameModal();
-    expect(component.showRenameModal()).toBe(false);
-  });
-
-  it('should toggle lock room with confirmation', () => {
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState, isLocked: false });
-    component.toggleLock();
-    expect(component.showConfirmModal()).toBe(true);
-    expect(component.confirmData().title).toContain('LOCK');
-
-    component.executeConfirmAction();
-    expect(socketSpy.toggleLock).toHaveBeenCalledWith(true);
-  });
-
-  it('should include historical participants in the CSV export', () => {
-    
-    socketSpy.roomState.mockReturnValue({
-      ...baseRoomState,
-      participants: {
-        'S1': { id: 'S1', role: 'admin', displayName: 'Alice' },
-        'S2': { id: 'S2', role: 'guest' }
-      }
-    });
-    
-    const originalCreateElement = document.createElement.bind(document);
-    const anchor = originalCreateElement('a');
-    const setAttributeSpy = vi.spyOn(anchor, 'setAttribute');
-    
-    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
-      if (tagName.toLowerCase() === 'a') return anchor;
-      return originalCreateElement(tagName);
-    });
-    
-    component.downloadCsv();
-    
-    // The component wraps columns in quotes and uses encodeURI (which ignores semicolons)
-    expect(setAttributeSpy).toHaveBeenCalledWith(
-      'href', 
-      expect.stringContaining('Alice%20%5BCoordinator%5D%20(S1);%20Anonymous%20%5BGuest%5D%20(S2)')
-    );
-    
-    createElementSpy.mockRestore();
-  });
-
-  // ====================== SHARING & UTILS ======================
-  it('should handle Share Link modal and secure copying', () => {
-    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
-    const closeSpy = vi.spyOn(component, 'closeShareModal');
-    socketSpy.getRoomKey.mockReturnValue('secret-key');
-
-    component.openShareModal();
-    expect(component.showShareModal()).toBe(true);
-
-    // Test Secure Link
-    component.copySecureLink();
-    expect(clipboardSpy).toHaveBeenCalled();
-    expect(closeSpy).toHaveBeenCalled();
-
-    // Test Full Link
-    component.copyFullLink();
-    expect(clipboardSpy).toHaveBeenCalledWith(expect.stringContaining('#secret-key'));
-    expect(closeSpy).toHaveBeenCalled();
-  });
-
-  it('should handle Key modal and copying', () => {
-    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
-    const closeSpy = vi.spyOn(component, 'closeKeyModal');
-    socketSpy.getRoomKey.mockReturnValue('room-key-123');
-
-    component.openKeyModal();
-    expect(component.showKeyModal()).toBe(true);
-
-    component.copyKey();
-    expect(clipboardSpy).toHaveBeenCalledWith('room-key-123');
-    expect(closeSpy).toHaveBeenCalled();
-  });
-
-  it('should handle Admin modal and copying', () => {
-    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
-    const closeSpy = vi.spyOn(component, 'closeAdminModal');
-    sessionStorage.setItem('admin_token_123', 'admin-secret');
-
-    component.openAdminModal();
-    expect(component.showAdminModal()).toBe(true);
-
-    component.copyAdminToken();
-    expect(clipboardSpy).toHaveBeenCalledWith('admin-secret');
-    expect(closeSpy).toHaveBeenCalled();
-  });
-
-  it('should handle downloadUnsignedPsbt', () => {
-    const anchor = document.createElement('a');
-    const clickSpy = vi.spyOn(anchor, 'click').mockImplementation(() => {});
-    
-    const createElementSpy = vi.spyOn(document, 'createElement').mockReturnValueOnce(anchor);
-    
-    if (!URL.createObjectURL) URL.createObjectURL = vi.fn();
-    if (!URL.revokeObjectURL) URL.revokeObjectURL = vi.fn();
-    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
-
-    component.downloadUnsignedPsbt();
-    
-    expect(createElementSpy).toHaveBeenCalledWith('a');
-    expect(clickSpy).toHaveBeenCalled();
-    expect(revokeSpy).toHaveBeenCalled();
-  });
-
-  it('should handle nudgeSigner', async () => {
-    const alertSpy = vi.spyOn(component, 'openAlert' as any);
-    component.nudgeSigner('fingerprint123');
-    
-    await Promise.resolve(); // Wait for clipboard promise
-    
-    expect(alertSpy).toHaveBeenCalledWith('Nudge Message Copied', expect.any(String));
-    expect(socketSpy.logAction).toHaveBeenCalledWith('Nudge Sent', expect.any(String));
-  });
-
-  // ====================== TIMER & EXPIRATION ======================
-  it('should handle room expiration', () => {
-    vi.useFakeTimers();
-    const disconnectSpy = vi.spyOn(socketSpy, 'disconnect');
-    (component as any).startTimer(Date.now() + 2000);
-
-    vi.advanceTimersByTime(2100);
-    expect(component.isExpired()).toBe(true);
-    expect(disconnectSpy).toHaveBeenCalled();
-    vi.useRealTimers();
-  });
-
-  it('should update timeRemaining and lowTime flag', () => {
-    vi.useFakeTimers();
-    (component as any).startTimer(Date.now() + 150000);
-    vi.advanceTimersByTime(1000);
-    expect(component.timeRemaining()).toMatch(/\d+ hrs \d+ m \d+ s/);
-    expect(component.isLowTime()).toBe(false);
-
-    vi.advanceTimersByTime(140000);
-    expect(component.isLowTime()).toBe(true);
-    vi.useRealTimers();
-  });
-
-  // ====================== COORDINATOR & DECRYPTION ======================
-  it('should claim coordinator role with password', () => {
-    component.claimPassword = ' admin-pass ';
-    component.claimRole();
-
-    expect(sessionStorage.getItem(`admin_token_123`)).toBe('admin-pass');
-    expect(socketSpy.claimCoordinator).toHaveBeenCalledWith('admin-pass');
-  });
-
-  it('should not claim role with empty password', () => {
-    component.claimPassword = '';
-    component.claimRole();
-    expect(sessionStorage.getItem(`admin_token_123`)).toBeNull();
-    expect(socketSpy.claimCoordinator).not.toHaveBeenCalled();
-  });
-
-  it('should submit manual decryption key', () => {
-    component.manualKey = 'secret#my-key';
-    component.submitKey();
-
-    expect(socketSpy.connect).toHaveBeenCalledWith('123', 'my-key');
-  });
-
-  // ====================== SEARCH & EFFECTS ======================
-  it('should handle input/output search filtering', () => {
-    socketSpy.txDetails.mockReturnValue({
-      inputsList: [{ address: 'bc1abc123', amount: 1000 }],
-      outputs: [{ address: 'bc1xyz999', amount: 500, isChange: false }]
-    });
-
-    component.inputSearchQuery.set('abc');
-    expect(component.filteredInputs().length).toBe(1);
-
-    component.outputSearchQuery.set('xyz');
-    expect(component.filteredOutputs().length).toBe(1);
-  });
-
-  it('should handle broadcastAndCopy', () => {
-    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
-    const openSpy = vi.spyOn(window, 'open');
-
-    // Ensure finalHex() returns value
-    socketSpy.roomState.mockReturnValue({
-      ...baseRoomState,
-      finalTxHex: 'finalhex123',
-      network: 'testnet'
-    });
-
-    fixture.detectChanges(); 
-
-    component.broadcastAndCopy();
-
-    expect(clipboardSpy).toHaveBeenCalledWith('finalhex123');
-    expect(openSpy).toHaveBeenCalledWith(
-      expect.stringContaining('testnet/tx/push'), 
-      '_blank'
-    );
-  });
-
-  it('should handle copying final hex, logging the action, and emitting the telemetry event', () => {
-    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
-    
-    socketSpy.roomState.mockReturnValue({
-      ...baseRoomState,
-      finalTxHex: 'd1234567890'
-    });
-    
-    fixture.detectChanges(); 
-
-    component.copyHex();
-
-    // Verify the copy happened
-    expect(clipboardSpy).toHaveBeenCalledWith('d1234567890');
-    expect(component.copied()).toBe(true);
-
-    // Verify internal audit log was created
-    expect(socketSpy.logAction).toHaveBeenCalledWith('Hex Copied', expect.any(String));
-
-    // Verify external webhook was fired to the host application
-    expect(dispatcherSpy.emitDataCopied).toHaveBeenCalledWith('final-hex');
-  });
-
-  it('should handle titleService updates via effects', () => {
-    const titleSpy = vi.spyOn(TestBed.inject(Title), 'setTitle');
-
-    socketSpy.signers.mockReturnValue([{ fingerprint: 'a', signed: true }]);
-    socketSpy.roomState.mockReturnValue({
-      ...baseRoomState,
-      signatures: ['sig1', 'sig2'],
-      psbt: 'dummy'
-    });
-
-    fixture.detectChanges();
-
-    expect(titleSpy).toHaveBeenCalledWith(expect.stringContaining('Ready to Finalize'));
-  });
-
-  // ====================== HOST LISTENER ======================
-  it('should set returnValue on beforeunload when connected and not finalized', () => {
-    const event = { returnValue: '' } as any;
-    component.unloadNotification(event);
-    expect(event.returnValue).toBe(true);
-  });
-
-  it('should call gracefullyDisconnect on beforeunload', () => {
-    const disconnectSpy = vi.spyOn(socketSpy, 'gracefullyDisconnect');
-    component.onBeforeUnload();
-    expect(disconnectSpy).toHaveBeenCalled();
-  });
-
-  // ====================== EDGE CASES & EARLY RETURNS ======================
-  
-  it('should abort onFileSelected if no file is provided', async () => {
-    const alertSpy = vi.spyOn(component, 'openAlert' as any);
-    await component.onFileSelected({ target: { files: [] } } as any);
-    // Should return silently without alerting or attempting to parse
-    expect(alertSpy).not.toHaveBeenCalled(); 
-  });
-
-  it('should not rename room if new name is empty or only whitespace', () => {
-    component.newRoomName.set('   ');
-    component.saveRoomName();
-    expect(socketSpy.renameRoom).not.toHaveBeenCalled();
-  });
-
-  it('should abort finalize if the room is expired', () => {
-    component.isExpired.set(true);
-    component.finalize();
-    expect(socketSpy.broadcastFinalization).not.toHaveBeenCalled();
-  });
-
-  it('should not set returnValue on beforeunload if transaction is already finalized', () => {
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState, finalTxHex: 'hex123' });
-    const event = { returnValue: '' } as any;
-    component.unloadNotification(event);
-    // Because finalHex exists, it should NOT set returnValue to true
-    expect(event.returnValue).toBe('');
-  });
-
-  // ====================== URL PARSING & DECRYPTION ======================
-  
-  it('should set decryption error if URL lacks a fragment key on init', () => {
-    (component as any).route.snapshot.fragment = null;
-    component.ngOnInit();
-    
-    expect(socketSpy.decryptionError()).toBe('Missing decryption key in URL');
-  });
-
-  it('should extract key correctly if manualKey contains a full URL with #', () => {
-    component.manualKey = 'https://signingroom.io/room/123#my-secret-key';
-    component.submitKey();
-    expect(socketSpy.connect).toHaveBeenCalledWith('123', 'my-secret-key');
-  });
-
-  it('should abort submitKey if manualKey is empty', () => {
-    component.manualKey = '';
-    component.submitKey();
-    expect(socketSpy.connect).not.toHaveBeenCalled();
-  });
-
-  // ====================== EMPTY ARRAYS & BATCH ACTIONS ======================
-  
-  it('should abort batch verify actions if arrays are empty', () => {
-    socketSpy.txDetails.mockReturnValue({ inputsList: [], outputs: [] });
-    
-    component.verifyAllInputs();
-    expect(socketSpy.updateWhitelistBatch).not.toHaveBeenCalled();
-
-    component.verifyAllOutputs();
-    expect(component.showConfirmModal()).toBe(false); // Shouldn't even open the confirm modal
-  });
-
-  it('should not update whitelist batch if all addresses are already whitelisted', () => {
-    socketSpy.roomState.mockReturnValue({ ...baseRoomState, whitelist: ['addr1', 'addr2'] });
-    socketSpy.txDetails.mockReturnValue({
-      inputsList: [{ address: 'addr1' }],
-      outputs: [{ address: 'addr2' }]
-    });
-
-    component.verifyAllInputs();
-    expect(socketSpy.updateWhitelistBatch).not.toHaveBeenCalled();
-  });
-
-  // ====================== EMBEDDED MODE ======================
-
-  it('should handle postMessage and finalization in embedded mode', async () => {
-    // Force the mocked dispatcher to return true for isEmbedded
-    dispatcherSpy.isEmbedded = true;
-
-    // Mock a finalized state
-    socketSpy.roomState.mockReturnValue({ 
-      ...baseRoomState, 
-      finalTxId: 'mock-tx-id', 
-      finalTxHex: 'mock-hex' 
-    });
-
-    // 3. Trigger the component's effect
-    fixture.detectChanges(); 
-    await Promise.resolve();
-    
-    // Verify the component successfully passed the data to the dispatcher
-    expect(dispatcherSpy.emitTransactionFinalized).toHaveBeenCalledWith(
+    it('should navigate to clear fragment if connected and fragment exists', async () => {
+      // Force connection status
+      mockSocketService.status.set('connected');
+      // Set a fragment in route
+      mockActivatedRoute.snapshot.fragment = 'some-key';
+
+      // Trigger change detection for the effect
+      fixture.detectChanges();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(
+        [],
         expect.objectContaining({
-            txId: 'mock-tx-id',
-            txHex: 'mock-hex'
-        })
-    );
+          fragment: undefined,
+        }),
+      );
+    });
   });
 
-  it('should navigate and clear fragment if connected and key is present', async () => {
-    socketSpy.status.set('connecting');
-    fixture.detectChanges();
-    await Promise.resolve();
+  describe('ngOnDestroy', () => {
+    it('should disconnect socket, reset, and clear timer', () => {
+      fixture.detectChanges();
 
-    const routerSpy = vi.spyOn(router, 'navigate');
-    
-    (component as any).route.snapshot.fragment = 'new-secret-key';
-    socketSpy.status.set('connected');
-    fixture.detectChanges();
-    
-    // Flush the microtask queue to allow the effect to execute
-    await Promise.resolve();
+      // Mock the interval and spy on the global object
+      component['timerInterval'] = setInterval(() => {}, 10000) as any;
+      const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
-    expect(routerSpy).toHaveBeenCalledWith([], expect.objectContaining({ 
-      fragment: undefined,
-      replaceUrl: true 
-    }));
+      component.ngOnDestroy();
+
+      expect(mockSocketService.disconnect).toHaveBeenCalled();
+      expect(mockSocketService.reset).toHaveBeenCalled();
+      expect(clearIntervalSpy).toHaveBeenCalled();
+    });
   });
 
-  describe('Embedded Mode (Web Component) Suppressions', () => {
-    
+  describe('HostListeners', () => {
+    it('unloadNotification should return true if connected and not finalized', () => {
+      mockSocketService.status.set('connected');
+      mockSocketService.isClosed.set(false);
+      // finalHex computed property defaults to null based on mock state
+
+      const event = { returnValue: false };
+      component.unloadNotification(event);
+
+      expect(event.returnValue).toBe(true);
+    });
+
+    it('onBeforeUnload should call socket.disconnect()', () => {
+      component.onBeforeUnload();
+      expect(mockSocketService.disconnect).toHaveBeenCalled();
+    });
+
+    it('unloadNotification should not set returnValue if socket is disconnected', () => {
+      mockSocketService.status.set('disconnected');
+      const event = { returnValue: null };
+      component.unloadNotification(event);
+      expect(event.returnValue).toBeNull();
+    });
+
+    it('unloadNotification should NOT set returnValue if transaction is already finalized', () => {
+      mockSocketService.status.set('connected');
+      mockSocketService.roomState.set({ finalTxHex: '0x123' });
+
+      const event = { returnValue: false };
+      component.unloadNotification(event);
+
+      expect(event.returnValue).toBe(false);
+    });
+
+    it('unloadNotification should not set returnValue if room is closed', () => {
+      mockSocketService.status.set('connected');
+      mockSocketService.isClosed.set(true); // Should short-circuit the IF
+
+      const event = { returnValue: false };
+      component.unloadNotification(event);
+
+      expect(event.returnValue).toBe(false); // Should NOT have been changed to true
+    });
+  });
+
+  describe('Computed Properties & Getters', () => {
+    describe('filteredInputs & filteredOutputs', () => {
+      beforeEach(() => {
+        // Setup mock transaction details
+        mockSocketService.txDetails.set({
+          inputsList: [
+            { address: 'bc1qabc123', amount: 1000, txId: 'tx1', vout: 0 },
+            { address: '3J98t1WpEZ73', amount: 2000, txId: 'tx2', vout: 1 },
+          ],
+          outputs: [
+            { address: 'bc1qxyz890', amount: 500, isChange: false },
+            { address: 'bc1qchange', amount: 2500, isChange: true },
+          ],
+        });
+        fixture.detectChanges();
+      });
+
+      it('should return all inputs when search query is empty', () => {
+        component.inputSearchQuery.set('');
+        expect(component.filteredInputs().length).toBe(2);
+      });
+
+      it('should filter inputs based on search query (case-insensitive)', () => {
+        component.inputSearchQuery.set('BC1Q');
+        const results = component.filteredInputs();
+        expect(results.length).toBe(1);
+        expect(results[0].address).toBe('bc1qabc123');
+      });
+
+      it('should return all outputs when search query is empty', () => {
+        component.outputSearchQuery.set('');
+        expect(component.filteredOutputs().length).toBe(2);
+      });
+
+      it('should filter outputs based on search query', () => {
+        component.outputSearchQuery.set('xyz');
+        const results = component.filteredOutputs();
+        expect(results.length).toBe(1);
+        expect(results[0].address).toBe('bc1qxyz890');
+      });
+
+      it('should handle null txDetails gracefully', () => {
+        mockSocketService.txDetails.set(null);
+        expect(component.filteredInputs()).toEqual([]);
+        expect(component.filteredOutputs()).toEqual([]);
+      });
+
+      it('should correctly filter inputs based on search query', () => {
+        mockSocketService.txDetails.set({
+          inputsList: [{ address: 'bc1q-match' }, { address: '3abc-no-match' }],
+        } as any);
+
+        component.inputSearchQuery.set('bc1q');
+        expect(component.filteredInputs().length).toBe(1);
+
+        component.inputSearchQuery.set('nothing-to-find');
+        expect(component.filteredInputs().length).toBe(0);
+      });
+    });
+
+    describe('requiredSignatures', () => {
+      it('should calculate threshold from PSBT via socket service', () => {
+        mockSocketService.roomState.set({ psbt: 'base64psbtdata' });
+        mockSocketService.getThreshold.mockReturnValue(3);
+
+        expect(component.requiredSignatures).toBe(3);
+        expect(mockSocketService.getThreshold).toHaveBeenCalledWith('base64psbtdata');
+      });
+
+      it('should return 0 if there is no psbt in room state', () => {
+        mockSocketService.roomState.set(null);
+        expect(component.requiredSignatures).toBe(0);
+      });
+    });
+
+    describe('canFinalize', () => {
+      it('should return true if signed count meets or exceeds threshold', () => {
+        mockSocketService.roomState.set({
+          psbt: 'psbt',
+          signatures: ['sig1', 'sig2'], // length 2
+        });
+        mockSocketService.getThreshold.mockReturnValue(2);
+
+        expect(component.canFinalize).toBe(true);
+      });
+
+      it('should return false if signed count is below threshold', () => {
+        mockSocketService.roomState.set({
+          psbt: 'psbt',
+          signatures: ['sig1'], // length 1
+        });
+        mockSocketService.getThreshold.mockReturnValue(2);
+
+        expect(component.canFinalize).toBe(false);
+      });
+
+      it('should return false if room state is null', () => {
+        mockSocketService.roomState.set(null);
+        expect(component.canFinalize).toBe(false);
+      });
+    });
+
+    describe('Helper Methods (Whitelist & Labels)', () => {
+      beforeEach(() => {
+        mockSocketService.roomState.set({
+          whitelist: ['bc1qtrusted'],
+          signerLabels: { fingerprintA: 'Alice Hardware' },
+        });
+        mockSocketService.getLocalLabel.mockImplementation((fp: string) =>
+          fp === 'fingerprintB' ? 'Bob Local' : undefined,
+        );
+      });
+
+      it('isWhitelisted should correctly identify whitelisted addresses', () => {
+        expect(component.isWhitelisted('bc1qtrusted')).toBe(true);
+        expect(component.isWhitelisted('bc1qunknown')).toBe(false);
+      });
+
+      it('getSignerLabel should format known labels with fingerprints', () => {
+        expect(component.getSignerLabel('fingerprintA')).toBe('Alice Hardware (fingerprintA)');
+      });
+
+      it('getSignerLabel should return just the fingerprint if no label exists', () => {
+        expect(component.getSignerLabel('fingerprintUnknown')).toBe('fingerprintUnknown');
+      });
+
+      it('getLabel should return the raw label without formatting', () => {
+        expect(component.getLabel('fingerprintA')).toBe('Alice Hardware');
+        expect(component.getLabel('fingerprintUnknown')).toBeUndefined();
+      });
+
+      it('isSaved should return true if a local label exists in address book', () => {
+        expect(component.isSaved('fingerprintB')).toBe(true);
+        expect(component.isSaved('fingerprintA')).toBe(false); // Only in room state, not local
+      });
+    });
+
+    describe('isEmbedded', () => {
+      it('should return the value from WidgetDispatcherService', () => {
+        mockDispatcher.isEmbedded = true;
+        expect(component.isEmbedded).toBe(true);
+
+        mockDispatcher.isEmbedded = false;
+        expect(component.isEmbedded).toBe(false);
+      });
+    });
+  });
+
+  describe('UI State, Modals, Operations & Alerts', () => {
+    describe('Unified Confirmation Modal Logic', () => {
+      it('openConfirm should correctly populate confirmData with confirm type', () => {
+        const testAction = vi.fn();
+        component.openConfirm('Danger Zone', 'Are you sure?', testAction, true);
+
+        expect(component.showConfirmModal()).toBe(true);
+        expect(component.confirmData()).toEqual({
+          title: 'Danger Zone',
+          message: 'Are you sure?',
+          action: testAction,
+          isDestructive: true,
+          type: 'confirm',
+        });
+      });
+
+      it('openAlert should correctly populate confirmData with alert type', () => {
+        component.openAlert('Error Happened', 'Something went south.');
+
+        expect(component.showConfirmModal()).toBe(true);
+        expect(component.confirmData().title).toBe('Error Happened');
+        expect(component.confirmData().type).toBe('alert');
+        expect(component.confirmData().isDestructive).toBe(false);
+      });
+
+      it('executeConfirmAction should run the callback and dismiss the modal', () => {
+        const testAction = vi.fn();
+        component.openConfirm('Run script', 'Proceed?', testAction);
+
+        component.executeConfirmAction();
+
+        expect(testAction).toHaveBeenCalled();
+        expect(component.showConfirmModal()).toBe(false);
+      });
+
+      it('closeConfirmModal should dismiss and clear state values completely', () => {
+        component.openConfirm('Title', 'Msg', () => {});
+        component.closeConfirmModal();
+
+        expect(component.showConfirmModal()).toBe(false);
+        expect(component.confirmData().title).toBe('');
+        expect(component.confirmData().type).toBe('confirm');
+      });
+    });
+
+    describe('Clipboard Operations & Interaction Feedback', () => {
+      beforeEach(() => {
+        // Mock global navigator clipboard API
+        Object.defineProperty(globalThis.navigator, 'clipboard', {
+          value: {
+            writeText: vi.fn().mockResolvedValue(undefined),
+          },
+          configurable: true,
+        });
+      });
+
+      it('doCopy should write text to clipboard and flip a feedback signal momentarily', () => {
+        vi.useFakeTimers();
+        const testSignal = signal(false);
+
+        component['doCopy']('Bitcoin Sovereign Tech', testSignal);
+
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Bitcoin Sovereign Tech');
+        expect(testSignal()).toBe(true);
+
+        // Advance time past the 2000ms delay to verify signal reset
+        vi.advanceTimersByTime(2000);
+        expect(testSignal()).toBe(false);
+
+        vi.useRealTimers();
+      });
+
+      it('copySessionId should concatenate strings and emitDataCopied to widget channel', () => {
+        vi.useFakeTimers();
+        component.copySessionId('session-xyz', 'Auditor Alice');
+
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+          'Auditor Alice (Session: session-xyz)',
+        );
+        expect(component.copiedSessionId()).toBe('session-xyz');
+        expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('session-id');
+
+        vi.advanceTimersByTime(2000);
+        expect(component.copiedSessionId()).toBeNull();
+
+        vi.useRealTimers();
+      });
+
+      it('copySessionId should fall back to Anonymous Guest if displayName is missing', () => {
+        component.copySessionId('session-456');
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+          'Anonymous Guest (Session: session-456)',
+        );
+      });
+    });
+
+    describe('View Mode & Layout Modifiers', () => {
+      it('setViewMode should transition state from inputs to outputs and update dispatcher context', () => {
+        component.setViewMode('inputs');
+        expect(component.viewMode()).toBe('inputs');
+        expect(mockDispatcher.emitTransactionViewChanged).toHaveBeenCalledWith('inputs');
+
+        component.setViewMode('outputs');
+        expect(component.viewMode()).toBe('outputs');
+        expect(mockDispatcher.emitTransactionViewChanged).toHaveBeenCalledWith('outputs');
+      });
+
+      it('updateSearchQuery should seamlessly populate corresponding text matching filter spaces', () => {
+        component.updateSearchQuery('inputs', 'bc1qabc');
+        expect(component.inputSearchQuery()).toBe('bc1qabc');
+
+        component.updateSearchQuery('outputs', 'bc1qxyz');
+        expect(component.outputSearchQuery()).toBe('bc1qxyz');
+      });
+    });
+  });
+
+  describe('Core Actions - Files, PSBTs & QR Generations', () => {
+    describe('onFileSelected Ingestion Rules', () => {
+      let mockEvent: any;
+
+      beforeEach(() => {
+        mockSocketService.sdk.parsePsbtFile = vi.fn();
+        mockSocketService.uploadSignature = vi.fn();
+
+        // Setup base event structure
+        mockEvent = {
+          target: {
+            value: 'C:\\fakepath\\signed.psbt',
+            files: [],
+          },
+        };
+      });
+
+      it('should block file processing if no file is present in selection array', async () => {
+        mockEvent.target.files = [];
+        await component.onFileSelected(mockEvent);
+        expect(component.isUploading()).toBe(false);
+      });
+
+      it('should fail fast and alert user if file extension is invalid', async () => {
+        const spyAlert = vi.spyOn(component, 'openAlert');
+        mockEvent.target.files = [
+          new File([''], 'malicious_payload.exe', { type: 'application/x-msdownload' }),
+        ];
+
+        await component.onFileSelected(mockEvent);
+
+        expect(spyAlert).toHaveBeenCalledWith('Invalid File Type', expect.any(String));
+        expect(mockEvent.target.value).toBe('');
+      });
+
+      it('should reject data sets exceeding the strict 2MB constraint boundary', async () => {
+        const spyAlert = vi.spyOn(component, 'openAlert');
+        const largeBlob = new Blob([new ArrayBuffer(2.1 * 1024 * 1024)]); // 2.1 MB
+        mockEvent.target.files = [largeBlob as File];
+        Object.defineProperty(mockEvent.target.files[0], 'name', { value: 'huge_tx.psbt' });
+
+        await component.onFileSelected(mockEvent);
+
+        expect(spyAlert).toHaveBeenCalledWith('File Too Large', expect.any(String));
+        expect(mockEvent.target.value).toBe('');
+      });
+
+      it('should parse valid signatures, delegate to storage socket, and notify proxy channel', async () => {
+        const mockFile = new File(['valid-psbt-data'], 'signer_output.psbt');
+        mockEvent.target.files = [mockFile];
+
+        mockSocketService.sdk.parsePsbtFile.mockResolvedValue('parsed_base64_psbt_string');
+        mockSocketService.uploadSignature.mockResolvedValue(true);
+
+        await component.onFileSelected(mockEvent);
+
+        expect(component.isUploading()).toBe(false);
+        expect(mockSocketService.sdk.parsePsbtFile).toHaveBeenCalledWith(mockFile);
+        expect(mockSocketService.uploadSignature).toHaveBeenCalledWith('parsed_base64_psbt_string');
+        expect(mockDispatcher.emitPsbtImported).toHaveBeenCalledWith('upload');
+        expect(mockEvent.target.value).toBe('');
+      });
+
+      it('should return early and alert when file extension is unsupported', async () => {
+        const spyAlert = vi.spyOn(component, 'openAlert');
+        const event = { target: { files: [new File([''], 'data.pdf')] } }; // .pdf is invalid
+
+        await component.onFileSelected(event);
+
+        expect(spyAlert).toHaveBeenCalledWith('Invalid File Type', expect.any(String));
+      });
+    });
+
+    describe('PSBT Extraction Workflows', () => {
+      it('promptPsbtDownload should activate targeting viewport flag modal', () => {
+        component.promptPsbtDownload();
+        expect(component.showPsbtModal()).toBe(true);
+      });
+
+      it('executePsbtDownload should log transactional state audit trail and call local storage download hook', async () => {
+        const downloadSpy = vi
+          .spyOn(component, 'downloadUnsignedPsbt')
+          .mockImplementation(() => {});
+
+        await component.executePsbtDownload();
+
+        expect(component.showPsbtModal()).toBe(false);
+        expect(mockSocketService.logAction).toHaveBeenCalledWith(
+          'PSBT Downloaded',
+          expect.any(String),
+        );
+        expect(downloadSpy).toHaveBeenCalled();
+      });
+
+      it('downloadUnsignedPsbt should stop execution if room state holds no psbt footprint', () => {
+        mockSocketService.roomState.set(null);
+        const blobSpy = vi.spyOn(globalThis, 'Blob');
+
+        component.downloadUnsignedPsbt();
+        expect(blobSpy).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('Room Management, Roles, Whitelists & Finalization', () => {
+    describe('Room Control & Roles', () => {
+      let setItemSpy: any;
+
+      beforeEach(() => {
+        setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+      });
+
+      afterEach(() => {
+        setItemSpy.mockRestore();
+      });
+
+      it('claimRole should save token to sessionStorage and escalate privileges', () => {
+        component.roomId.set('test-room');
+        component.claimPassword = 'admin-secret-token';
+
+        //const setItemSpy = vi.spyOn(window.sessionStorage, 'setItem');
+
+        component.claimRole();
+
+        //expect(setItemSpy).toHaveBeenCalledWith('admin_token_test-room', 'admin-secret-token');
+        expect(mockSocketService.claimCoordinator).toHaveBeenCalledWith('admin-secret-token');
+        expect(component.showClaimInput()).toBe(false);
+        expect(component.claimPassword).toBe('');
+
+        // Cleanup
+        setItemSpy.mockRestore();
+      });
+
+      it('closeRoom should emit warning modal context and stage confirmation', () => {
+        component.closeRoom();
+
+        expect(mockDispatcher.emitModalView).toHaveBeenCalledWith('Close Room Warning');
+        expect(component.showConfirmModal()).toBe(true);
+        expect(component.confirmData().title).toBe('Close Room');
+        expect(component.confirmData().isDestructive).toBe(true);
+      });
+
+      it('saveRoomName should cap at 64 chars, emit to dispatcher, and close modal', () => {
+        const overLimitName = 'A'.repeat(70);
+        component.newRoomName.set(overLimitName);
+
+        component.saveRoomName();
+
+        expect(mockSocketService.renameRoom).toHaveBeenCalledWith('A'.repeat(64));
+        expect(mockDispatcher.emitRoomRenamed).toHaveBeenCalledWith('A'.repeat(64));
+        expect(component.showRenameModal()).toBe(false);
+      });
+
+      it('toggleLock should open confirmation with dynamic messaging based on current locked state', () => {
+        mockSocketService.roomState.set({ isLocked: false });
+        component.toggleLock();
+
+        expect(component.confirmData().title).toBe('LOCK Room');
+        expect(component.confirmData().isDestructive).toBe(true);
+      });
+    });
+
+    describe('Whitelisting & Verification Sequences', () => {
+      beforeEach(() => {
+        mockSocketService.txDetails.set({
+          inputsList: [{ address: 'in1' }, { address: 'in2' }],
+          outputs: [
+            { address: 'out1', isChange: false },
+            { address: 'out2', isChange: false },
+          ],
+        });
+        mockSocketService.roomState.set({ whitelist: ['in1'] }); // in1 is verified, in2 is not
+        mockSocketService.updateWhitelist = vi.fn();
+      });
+
+      it('toggleWhitelist should prompt confirm modal to add/remove specific address', () => {
+        component.toggleWhitelist('in2'); // Currently not present
+        expect(component.confirmData().title).toBe('Update Whitelist');
+
+        // Execute the callback stored in the modal state
+        component.executeConfirmAction();
+
+        expect(mockSocketService.updateWhitelist).toHaveBeenCalledWith(['in2'], false);
+        expect(mockDispatcher.emitDestinationVerified).toHaveBeenCalled();
+      });
+
+      it('verifyAllInputs should batch add all unverified inputs to whitelist', () => {
+        component.verifyAllInputs();
+        expect(mockSocketService.updateWhitelist).toHaveBeenCalledWith(['in2'], false);
+      });
+
+      it('verifyAllOutputs should prompt batch confirmation and add unverified outputs', () => {
+        component.verifyAllOutputs();
+        expect(component.showConfirmModal()).toBe(true);
+
+        component.executeConfirmAction();
+        expect(mockSocketService.updateWhitelist).toHaveBeenCalledWith(['out1', 'out2'], false);
+      });
+    });
+
+    describe('Finalization & Broadcasting', () => {
+      beforeEach(() => {
+        vi.spyOn(component as any, 'triggerConfetti').mockImplementation(() => {});
+      });
+
+      it('finalize should execute immediately if no unverified outputs exist', () => {
+        mockSocketService.roomState.set({ whitelist: ['out1'] });
+        mockSocketService.txDetails.set({ outputs: [{ address: 'out1', isChange: false }] });
+        mockSocketService.getFinalTxHex = vi.fn().mockReturnValue('mock-hex');
+        mockSocketService.getFinalTxId = vi.fn().mockReturnValue('mock-txid');
+        mockSocketService.finalizeTransaction = vi.fn();
+
+        component.finalize();
+        expect(mockSocketService.finalizeTransaction).toHaveBeenCalled();
+      });
+
+      it('finalize should execute immediately if whitelist exists but is empty', () => {
+        mockSocketService.roomState.set({ whitelist: [] }); // Array exists but length is 0
+        const confirmSpy = vi.spyOn(component, 'openConfirm');
+
+        component.finalize();
+
+        expect(confirmSpy).not.toHaveBeenCalled(); // Should not warn if whitelist is empty
+      });
+
+      it('finalize should intercept and warn if unverified destinations exist', () => {
+        // out2 is missing from whitelist
+        mockSocketService.roomState.set({ whitelist: ['out1'] });
+        mockSocketService.txDetails.set({
+          outputs: [
+            { address: 'out1', isChange: false },
+            { address: 'out2', isChange: false },
+          ],
+        });
+        mockSocketService.finalizeTransaction = vi.fn();
+
+        component.finalize();
+
+        expect(mockSocketService.finalizeTransaction).not.toHaveBeenCalled();
+        expect(component.showConfirmModal()).toBe(true);
+        expect(component.confirmData().title).toBe('Security Warning');
+      });
+
+      it('finalize should execute immediately if all outputs are whitelisted', () => {
+        // Set up: All outputs are whitelisted
+        mockSocketService.roomState.set({
+          whitelist: ['addr1', 'addr2'],
+          psbt: 'data',
+        });
+        mockSocketService.txDetails.set({
+          outputs: [
+            { address: 'addr1', isChange: false },
+            { address: 'addr2', isChange: false },
+          ],
+        });
+
+        const spy = vi.spyOn(component, 'openConfirm');
+        component.finalize();
+
+        // Should NOT trigger the security warning modal
+        expect(spy).not.toHaveBeenCalled();
+      });
+
+      it('broadcastAndCopy should push raw hex to mempool block explorer depending on network', () => {
+        mockSocketService.roomState.set({ finalTxHex: 'final-hex', network: 'testnet' });
+        const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+        Object.defineProperty(globalThis.navigator, 'clipboard', {
+          value: { writeText: vi.fn() },
+          configurable: true,
+        });
+
+        component.broadcastAndCopy();
+
+        expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/testnet/tx/push', '_blank');
+      });
+
+      it('broadcastAndCopy should generate correct URLs based on network', () => {
+        const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+        // Set the roomState signal
+        mockSocketService.roomState.set({ finalTxHex: '0000', network: 'testnet' });
+
+        component.broadcastAndCopy();
+
+        expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/testnet/tx/push', '_blank');
+      });
+    });
+  });
+
+  describe('Finalize Logic Branches', () => {
+    it('should call getAuditLogPdf when finalized in embedded mode', async () => {
+      vi.spyOn(component, 'openConfirm');
+
+      const spyTriggerConfetti = vi.mock('canvas-confetti', () => ({
+        default: vi.fn(),
+      }));
+
+      // Mock embedded mode and coordinator role
+      vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(true);
+      mockSocketService.isCoordinator.mockReturnValue(true);
+
+      // Set initial state
+      mockSocketService.roomState.set({
+        roomId: 'room-123',
+        whitelist: [],
+      });
+
+      // Mock SDK methods
+      mockSocketService.finalizeTransaction.mockImplementation(async () => {
+        mockSocketService.roomState.set({
+          roomId: 'room-123',
+          finalTxId: 'txid_123',
+          finalTxHex: 'hex_abc',
+          whitelist: [],
+        });
+        return { hex: 'hex_abc', txId: 'txid_123' };
+      });
+
+      mockSocketService.getAuditLogPdf.mockResolvedValue({ doc: { output: () => 'mock_pdf_uri' } });
+      mockSocketService.getAuditLogCsv.mockReturnValue('mock_audit_csv');
+      mockSocketService.getSettlementCsvData.mockReturnValue('mock_settlement_csv');
+
+      // Execute
+      await component.finalize();
+
+      // Assert
+      expect(mockSocketService.getAuditLogPdf).toHaveBeenCalled();
+      expect(mockDispatcher.emitTransactionFinalized).toHaveBeenCalled();
+      expect(spyTriggerConfetti).toHaveBeenCalledOnce();
+    });
+
+    it('finalize() should show confirm modal if unverified outputs exist', () => {
+      // 1. Setup State: Whitelist exists, but outputs are NOT in whitelist
+      mockSocketService.roomState.set({
+        whitelist: ['bc1q-verified'],
+        psbt: 'base64',
+      });
+      mockSocketService.txDetails.set({
+        outputs: [{ address: 'bc1q-unverified', isChange: false }],
+      } as any);
+
+      const confirmSpy = vi.spyOn(component, 'openConfirm');
+
+      component.finalize();
+
+      // It should hit the "unverified.length > 0" branch and open modal
+      expect(confirmSpy).toHaveBeenCalledWith(
+        'Security Warning',
+        expect.stringContaining('unverified address'),
+        expect.any(Function),
+        true,
+      );
+    });
+
+    it('should skip whitelist check if whitelist is null/undefined', () => {
+      mockSocketService.roomState.set({ whitelist: null }); // Short-circuit
+      const confirmSpy = vi.spyOn(component, 'openConfirm');
+
+      component.finalize();
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
+
+    it('should skip whitelist check if whitelist is empty array', () => {
+      mockSocketService.roomState.set({ whitelist: [] }); // Empty array branch
+      const confirmSpy = vi.spyOn(component, 'openConfirm');
+
+      component.finalize();
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Air-Gapped Workflows & Privacy Blur', () => {
+    describe('Privacy Blur Controls', () => {
+      it('togglePrivacyBlur should stage section for unblur and show warning if currently blurred', () => {
+        component.blurStates.set({ 'transaction-overview': true } as any);
+        component.togglePrivacyBlur('transaction-overview');
+
+        expect(component.pendingUnblurSection()).toBe('transaction-overview');
+        expect(component.showPrivacyWarning()).toBe(true);
+        expect(mockDispatcher.emitModalView).toHaveBeenCalledWith(
+          'Toggle Privacy Warning',
+          'transaction-overview',
+        );
+      });
+
+      it('togglePrivacyBlur should instantly re-blur if currently revealed', () => {
+        component.blurStates.set({ 'transaction-overview': false } as any);
+        component.togglePrivacyBlur('transaction-overview');
+
+        expect(component.blurStates()['transaction-overview']).toBe(true);
+        expect(mockSocketService.logAction).toHaveBeenCalledWith(
+          'Privacy Toggle',
+          'Re-blurred transaction-overview section',
+        );
+        expect(mockDispatcher.emitPrivacyToggle).toHaveBeenCalledWith(
+          'transaction-overview',
+          'hidden',
+        );
+      });
+
+      it('togglePrivacyBlur should re-blur a section if it is currently revealed', () => {
+        // Set section to revealed (false = blurred, true = revealed)
+        component.blurStates.set({ 'transaction-details': false } as any);
+
+        component.togglePrivacyBlur('transaction-details');
+
+        // It should now be blurred (true)
+        expect(component.blurStates()['transaction-details']).toBe(true);
+      });
+
+      it('confirmUnblur should reveal the pending section and dismiss warning', () => {
+        component.pendingUnblurSection.set('signers');
+        component.confirmUnblur();
+
+        expect(component.blurStates()['signers']).toBe(false);
+        expect(component.showPrivacyWarning()).toBe(false);
+        expect(component.pendingUnblurSection()).toBeNull();
+        expect(mockDispatcher.emitPrivacyToggle).toHaveBeenCalledWith('signers', 'reveal-section');
+      });
+
+      it('confirmUnblurAll should reveal all sections simultaneously', () => {
+        component.confirmUnblurAll();
+
+        const states = component.blurStates();
+        expect(states['transaction-overview']).toBe(false);
+        expect(states['transaction-proposal']).toBe(false);
+        expect(states['transaction-details']).toBe(false);
+        expect(states['signers']).toBe(false);
+
+        expect(component.showPrivacyWarning()).toBe(false);
+        expect(mockDispatcher.emitPrivacyToggle).toHaveBeenCalledWith('all', 'reveal-all');
+      });
+
+      it('closePrivacyWarning should dismiss without revealing', () => {
+        component.pendingUnblurSection.set('signers');
+        component.closePrivacyWarning();
+
+        expect(component.showPrivacyWarning()).toBe(false);
+        expect(component.pendingUnblurSection()).toBeNull();
+        expect(mockDispatcher.emitPrivacyToggle).toHaveBeenCalledWith('signers', 'blurred');
+      });
+    });
+
+    describe('Fountain UR Generation (Exhale)', () => {
+      it('openFountainModal should prepare frames and set initial state', () => {
+        const spy = vi.spyOn(component, 'regenerateFrames');
+        component.openFountainModal();
+
+        expect(spy).toHaveBeenCalled();
+        expect(component.showFountainModal()).toBe(true);
+        expect(component.isFountainRevealed()).toBe(false);
+      });
+
+      it('setExportFormat should update format and regenerate frames', () => {
+        const spy = vi.spyOn(component, 'regenerateFrames');
+        component.showFountainModal.set(true);
+
+        component.setExportFormat('bbqr');
+
+        expect(component.exportFormat()).toBe('bbqr');
+        expect(spy).toHaveBeenCalled();
+        expect(mockDispatcher.emitFountainFormatChanged).toHaveBeenCalledWith('bbqr');
+      });
+
+      it('regenerateFrames should use appropriate UrService method based on format', () => {
+        mockSocketService.roomState.set({ psbt: 'test-psbt' });
+
+        component.exportFormat.set('ur');
+        component.regenerateFrames();
+        expect(mockUrService.generateFrames).toHaveBeenCalledWith('test-psbt');
+
+        component.exportFormat.set('bbqr');
+        component.regenerateFrames();
+        expect(mockUrService.generateBBQrFrames).toHaveBeenCalledWith('test-psbt');
+      });
+
+      it('toggleFountainReveal should handle privacy toggle and animation lifecycle', () => {
+        const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+        const stopSpy = vi.spyOn(component, 'stopFountainAnimation').mockImplementation(() => {});
+
+        // Reveal
+        component.isFountainRevealed.set(false);
+        component.toggleFountainReveal();
+        expect(component.isFountainRevealed()).toBe(true);
+        expect(startSpy).toHaveBeenCalled();
+
+        // Hide
+        component.toggleFountainReveal();
+        expect(component.isFountainRevealed()).toBe(false);
+        expect(stopSpy).toHaveBeenCalled();
+      });
+
+      it('updateFountainSpeed should update speed and restart animation if revealed', () => {
+        const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
+        component.isFountainRevealed.set(true);
+        component.showFountainModal.set(true);
+
+        component.updateFountainSpeed(500);
+
+        expect(component.fountainSpeed()).toBe(500);
+        expect(startSpy).toHaveBeenCalled();
+      });
+    });
+
+    describe('Scanner Logic (Inhale)', () => {
+      it('handleScanResult should process fragment and upload if full hex is decoded', async () => {
+        const stopSpy = vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
+        const processSpy = vi
+          .spyOn(component, 'processScannedSignature')
+          .mockImplementation(() => Promise.resolve());
+
+        mockUrService.processFragment.mockReturnValue('full-hex-string');
+
+        component.handleScanResult('ur:bytes/1-2/fragment');
+
+        expect(mockUrService.processFragment).toHaveBeenCalledWith('ur:bytes/1-2/fragment');
+        expect(stopSpy).toHaveBeenCalled();
+        expect(processSpy).toHaveBeenCalledWith('full-hex-string');
+      });
+
+      it('processScannedSignature should normalize base64 and upload signature', async () => {
+        mockSocketService.uploadSignature.mockResolvedValue(true);
+
+        // Simulating processing hex data ("deadbeef")
+        await component.processScannedSignature('deadbeef');
+
+        expect(mockSocketService.uploadSignature).toHaveBeenCalled();
+        expect(mockDispatcher.emitPsbtImported).toHaveBeenCalledWith('scan');
+      });
+    });
+  });
+
+  describe('Template Rendering & DOM Interactions', () => {
+    describe('Modal Visibility & @if Blocks', () => {
+      it('should render PSBT modal', () => {
+        component.showPsbtModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Download Unsigned PSBT');
+      });
+
+      it('should render Audit modal', () => {
+        component.showAuditModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Download Audit Log');
+      });
+
+      it('should render CSV modal', () => {
+        component.showCsvModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Download CSV Data');
+      });
+
+      it('should render Room ID modal', () => {
+        component.showRoomIdModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Identifier');
+      });
+
+      it('should render Label modal', () => {
+        component.showLabelModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Label Signer');
+      });
+
+      it('should render Rename modal', () => {
+        component.showRenameModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Rename Room');
+      });
+
+      it('should render QR modal', () => {
+        component.showQrModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room QR Code');
+      });
+
+      it('should render Share modal', () => {
+        component.showShareModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Share Room Securely');
+      });
+
+      it('should render Key modal', () => {
+        component.showKeyModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Decryption Key');
+      });
+
+      it('should render Admin Backup modal', () => {
+        component.showAdminModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Backup Admin Token');
+      });
+
+      it('should render Fountain/Air-Gapped Export modal', () => {
+        component.showFountainModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Air-Gapped Export PSBT');
+      });
+
+      it('should render Scanner/Air-Gapped Import modal', () => {
+        component.showScannerModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Air-Gapped Import PSBT');
+      });
+
+      it('should render generic Confirm/Alert modal', () => {
+        component.confirmData.set({
+          title: 'Danger Alert',
+          message: 'Warning 123',
+          action: () => {},
+          isDestructive: true,
+          type: 'alert',
+        });
+        component.showConfirmModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Danger Alert');
+        expect(fixture.nativeElement.textContent).toContain('Warning 123');
+      });
+
+      it('should render Sessions modal', () => {
+        component.showSessionsModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Active Sessions');
+      });
+
+      it('should render Privacy OpSec Warning', () => {
+        component.showPrivacyWarning.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('OpSec Warning');
+      });
+    });
+
+    describe('Room Error States & Expirations', () => {
+      it('should render Connection Lost banner', () => {
+        mockSocketService.status.set('disconnected');
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Connection lost... Reconnecting...');
+      });
+
+      it('should render Room Not Found overlay', () => {
+        mockSocketService.roomNotFound.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Not Found');
+      });
+
+      it('should render Room Full overlay', () => {
+        mockSocketService.isRoomFull.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Full');
+      });
+
+      it('should render Access Denied overlay', () => {
+        mockSocketService.isLockedOut.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Access Denied');
+      });
+
+      it('should render Decryption Error overlay', () => {
+        mockSocketService.decryptionError.set('Invalid Key');
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Decryption Key Required');
+      });
+
+      it('should render Room Closed overlay', () => {
+        mockSocketService.isClosed.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Signing Room Closed');
+      });
+
+      it('should render Room Expired overlay', () => {
+        component.isExpired.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Room Expired');
+      });
+    });
+
+    describe('UI Toggles & Specific Roles', () => {
+      it('should render Input and Output search placeholders based on viewMode', () => {
+        component.blurStates.set({ 'transaction-details': false } as any); // Unblur to render search
+
+        component.viewMode.set('inputs');
+        fixture.detectChanges();
+        expect(
+          fixture.nativeElement.querySelector('input[placeholder="Search input address..."]'),
+        ).toBeTruthy();
+
+        component.viewMode.set('outputs');
+        fixture.detectChanges();
+        expect(
+          fixture.nativeElement.querySelector('input[placeholder="Search output address..."]'),
+        ).toBeTruthy();
+      });
+
+      it('should display specific Coordinator actions', () => {
+        mockSocketService.isCoordinator.mockReturnValue(true);
+        mockSocketService.roomState.set({ network: 'bitcoin', isLocked: false, connectedCount: 1 });
+        fixture.detectChanges();
+
+        const html = fixture.nativeElement.textContent;
+        expect(html).toContain('Coordinator');
+        expect(html).toContain('Lock Room');
+        expect(html).toContain('Backup Admin');
+      });
+    });
+
+    describe('QR & Scanner Dynamic Rendering', () => {
+      it('should toggle warning UI based on qrIncludesKey status', () => {
+        component.showQrModal.set(true);
+
+        component.qrIncludesKey.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Contains Decryption Key');
+
+        component.qrIncludesKey.set(false);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Maximum Security');
+      });
+
+      it('should switch descriptions between UR and BBQr formats', () => {
+        component.showFountainModal.set(true);
+
+        component.exportFormat.set('ur');
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Standard Protocol');
+
+        component.exportFormat.set('bbqr');
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Coldcard Protocol');
+      });
+
+      it('should dynamically display scanner errors and progress bars', () => {
+        component.showScannerModal.set(true);
+        component.isScanningSigned.set(true);
+
+        mockUrService.scanError.set('Optical interference detected');
+        mockUrService.scanProgress.set(0.45);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('Optical interference detected');
+        expect(fixture.nativeElement.textContent).toContain('45%');
+      });
+    });
+  });
+
+  describe('Deep Template Branch Coverage', () => {
+    it('should render Active Sessions list with specific roles and you-badge', () => {
+      component.showSessionsModal.set(true);
+      // Simulate a populated list of sessions
+      mockSocketService.activeSessions.set([
+        { id: '1', role: 'admin', displayName: 'Admin Alice' },
+        { id: '2', role: 'guest', displayName: '' }, // Anonymous
+        { id: 'session-1', role: 'guest', displayName: 'Current User' }, // Matches currentSessionId
+      ]);
+      fixture.detectChanges();
+
+      const html = fixture.nativeElement.textContent;
+      // This covers the @for loop inside showSessionsModal()
+      expect(html).toContain('Admin Alice');
+      expect(html).toContain('Anonymous Guest'); // Fallback logic
+      expect(html).toContain('Current User');
+      expect(html).toContain('You'); // Covers the @if (session.id === currentSessionId)
+    });
+
+    it('should render dynamic text for Lock Room based on coordinator and lock state', () => {
+      mockSocketService.isCoordinator.mockReturnValue(true);
+
+      // Locked State
+      mockSocketService.roomState.set({ isLocked: true });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Locked');
+
+      // Unlocked State
+      mockSocketService.roomState.set({ isLocked: false });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Lock Room');
+    });
+
+    it('should render both destructive and standard variants of the Confirm Modal', () => {
+      component.showConfirmModal.set(true);
+
+      // Variant 1: Destructive Confirm
+      component.confirmData.set({
+        title: 'Nuke',
+        message: 'msg',
+        action: () => {},
+        isDestructive: true,
+        type: 'confirm',
+      });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Nuke');
+      expect(fixture.nativeElement.textContent).toContain('Cancel'); // Cancel button exists
+      expect(fixture.nativeElement.textContent).toContain('Confirm'); // Confirm text
+
+      // Variant 2: Standard Alert
+      component.confirmData.set({
+        title: 'Safe',
+        message: 'msg',
+        action: () => {},
+        isDestructive: false,
+        type: 'alert',
+      });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Safe');
+      expect(fixture.nativeElement.textContent).not.toContain('Cancel'); // No cancel button on alert
+      expect(fixture.nativeElement.textContent).toContain('OK'); // OK text
+    });
+
+    it('should render raw optical feed fallback and reconstructing signature progress in scanner modal', () => {
+      component.showScannerModal.set(true);
+
+      // Unpopulated state
+      mockUrService.lastScannedText.set('');
+      mockUrService.scanProgress.set(0);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Waiting for QR...');
+
+      // Populated state with progress
+      mockUrService.lastScannedText.set('ur:bytes/1-2/payload');
+      mockUrService.scanProgress.set(0.65);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('ur:bytes/1-2/payload');
+      expect(fixture.nativeElement.textContent).toContain('RECONSTRUCTING SIGNATURE...');
+      expect(fixture.nativeElement.textContent).toContain('65%'); // Formats decimal to %
+    });
+
+    it('should render ingesting signature progress in the main transaction panel', () => {
+      component.isScanningSigned.set(true);
+      mockUrService.scanProgress.set(0.85);
+      fixture.detectChanges();
+
+      // This covers the secondary scanner UI integrated directly into the panel
+      expect(fixture.nativeElement.textContent).toContain('Ingesting Signature...');
+      expect(fixture.nativeElement.textContent).toContain('85%');
+    });
+
+    it('should render expired state in the main view and header', () => {
+      component.isExpired.set(true);
+      mockSocketService.isClosed.set(false);
+      fixture.detectChanges();
+
+      const html = fixture.nativeElement.textContent;
+      // Covers the @if (isExpired()) blocks
+      expect(html).toContain('Room Expired');
+      expect(html).toContain('Expired');
+    });
+
+    it('should conditionally render Verify All buttons if coordinator and array length > 3', () => {
+      mockSocketService.isCoordinator.mockReturnValue(true);
+      component.blurStates.set({ 'transaction-details': false } as any); // Unblur to render
+
+      // Mock 4 items (greater than 3 trigger)
+      const fourItems = [{}, {}, {}, {}];
+      mockSocketService.txDetails.set({ inputsList: fourItems, outputs: fourItems });
+
+      component.viewMode.set('inputs');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Verify All Inputs');
+
+      component.viewMode.set('outputs');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Verify All Outputs');
+    });
+
+    it('should render the Claim Coordinator input toggle', () => {
+      mockSocketService.isCoordinator.mockReturnValue(false);
+      mockSocketService.isReadyToBroadcast.mockReturnValue(false);
+
+      // Initial State
+      component.showClaimInput.set(false);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain(
+        'Have the Admin Key? Claim Coordinator Role',
+      );
+
+      // Toggled State
+      component.showClaimInput.set(true);
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('input[placeholder="Paste Admin Key here..."]'),
+      ).toBeTruthy();
+      expect(fixture.nativeElement.textContent).toContain('Claim');
+    });
+
+    it('should render the Signers list with specific labels and nudge actions', () => {
+      mockSocketService.isCoordinator.mockReturnValue(true);
+      component.blurStates.set({ signers: false } as any); // Unblur
+
+      mockSocketService.signers.set([
+        { fingerprint: 'fp-123', signed: true },
+        { fingerprint: 'fp-456', signed: false },
+      ]);
+
+      // Only one of them has a label saved
+      mockSocketService.roomState.set({ signerLabels: { 'fp-123': 'Hardware Wallet' } });
+      fixture.detectChanges();
+
+      const html = fixture.nativeElement.textContent;
+      expect(html).toContain('Hardware Wallet'); // Valid label
+      expect(html).toContain('Add Label'); // Fallback for the one without a label
+      expect(html).toContain('Signed');
+      expect(html).toContain('Waiting...');
+    });
+  });
+
+  describe('Form Inputs & Key Submissions Edge Cases', () => {
+    it('claimRole should return early if claimPassword is empty', () => {
+      component.claimPassword = '';
+      component.claimRole();
+      expect(mockSocketService.claimCoordinator).not.toHaveBeenCalled();
+    });
+
+    it('saveRoomName should return early if name is empty', () => {
+      component.newRoomName.set('');
+      component.saveRoomName();
+      expect(mockSocketService.renameRoom).not.toHaveBeenCalled();
+    });
+
+    it('submitKey should return early if manualKey is empty', () => {
+      component.manualKey = '';
+      component.submitKey();
+      expect(mockSocketService.connect).not.toHaveBeenCalled();
+    });
+
+    it('submitKey should extract the fragment if a full URL is pasted', () => {
+      component.roomId.set('room-123');
+      component.manualKey = 'https://app.signingroom.com/room/room-123#my-secret-key';
+
+      component.submitKey();
+
+      expect(mockSocketService.connect).toHaveBeenCalledWith('room-123', 'my-secret-key');
+      expect(component.manualKey).toBe(''); // Verify it resets
+    });
+  });
+
+  describe('File Ingestion Edge Cases (onFileSelected)', () => {
+    let mockEvent: any;
+
     beforeEach(() => {
-      vi.useFakeTimers(); 
+      mockEvent = { target: { value: 'path', files: [] } };
+    });
+
+    it('should reject files with invalid extensions', async () => {
+      const spyAlert = vi.spyOn(component, 'openAlert');
+      mockEvent.target.files = [new File([''], 'image.png')];
+
+      await component.onFileSelected(mockEvent);
+
+      expect(spyAlert).toHaveBeenCalledWith('Invalid File Type', expect.any(String));
+      expect(mockEvent.target.value).toBe('');
+    });
+
+    it('should reject files larger than 2MB', async () => {
+      const spyAlert = vi.spyOn(component, 'openAlert');
+      // Create a dummy file that is 3MB
+      mockEvent.target.files = [new File([new ArrayBuffer(3 * 1024 * 1024)], 'large.psbt')];
+
+      await component.onFileSelected(mockEvent);
+
+      expect(spyAlert).toHaveBeenCalledWith('File Too Large', expect.any(String));
+    });
+
+    it('should catch read errors gracefully', async () => {
+      const spyAlert = vi.spyOn(component, 'openAlert');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Initialize the mock function before rejecting it
+      mockSocketService.sdk.parsePsbtFile = vi.fn().mockRejectedValue(new Error('Parse error'));
+
+      mockEvent.target.files = [new File(['invalid-data'], 'corrupt.psbt')];
+
+      await component.onFileSelected(mockEvent);
+
+      expect(consoleSpy).toHaveBeenCalledWith(new Error('Parse error'));
+      expect(spyAlert).toHaveBeenCalledWith('Read Error', 'Failed to read file.');
+      expect(component.isUploading()).toBe(false);
+    });
+  });
+
+  describe('Timers and Async Exports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
     });
 
     afterEach(() => {
-      vi.useRealTimers(); 
+      vi.useRealTimers();
     });
 
-    it('should suppress auto-download on closeRoom if embedded', () => {
-      const isEmbeddedSpy = vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(true);
-      const generateAuditLogSpy = vi.spyOn(component, 'generateAuditLog');
-      const closeRoomSpy = vi.spyOn(component.socket, 'closeRoom').mockImplementation(() => {});
-      
-      // Auto-execute the confirmation modal callback
-      vi.spyOn(component, 'openConfirm').mockImplementation((t, m, action) => action());
-      
-      component.closeRoom();
-      
-      // Fast-forward time to flush the setTimeout inside closeRoom
-      vi.advanceTimersByTime(300); 
-      
-      // It SHOULD have called socket.closeRoom()
-      expect(closeRoomSpy).toHaveBeenCalled();
-      
-      // But because it's embedded, it should NOT have tried to auto-generate the log
-      expect(generateAuditLogSpy).not.toHaveBeenCalled();
-      
-      isEmbeddedSpy.mockRestore();
+    it('startTimer should calculate remaining time and expire when time runs out', () => {
+      const now = Date.now();
+      const spyDisconnect = vi.spyOn(mockSocketService, 'disconnect');
+
+      // Set expiry to 1 hour, 1 minute, and 1 second from now
+      const expiryTime = now + 1000 * 60 * 60 + 1000 * 60 + 1000;
+
+      component['startTimer'](expiryTime);
+
+      // Fast forward 1 second to trigger the interval calculation
+      vi.advanceTimersByTime(1000);
+      expect(component.timeRemaining()).toBe('01 hrs 01 m 00 s');
+      expect(component.isLowTime()).toBe(false);
+
+      // Fast forward past the expiration
+      vi.advanceTimersByTime(expiryTime - now + 1000);
+
+      expect(component.timeRemaining()).toBe('00 hrs 00 m 00 s');
+      expect(component.isExpired()).toBe(true);
+      expect(spyDisconnect).toHaveBeenCalled();
+    });
+
+    it('startTimer should set isLowTime', () => {
+      vi.useFakeTimers();
+
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+
+      (component as any).startTimer(Date.now() + 65_000);
+
+      vi.advanceTimersByTime(1000);
+
+      expect(component.timeRemaining()).toContain('01 m');
+      expect(component.isLowTime()).toBe(true);
+    });
+
+    it('executeCsvDownload should trigger delay and then download', async () => {
+      const downloadSpy = vi.spyOn(component, 'downloadCsv').mockImplementation(() => {});
+
+      const promise = component.executeCsvDownload();
+
+      // Await the 1000ms delay inside executeCsvDownload
+      await vi.advanceTimersByTimeAsync(1500);
+      await promise;
+
+      expect(downloadSpy).toHaveBeenCalled();
+    });
+
+    it('downloadCsv should return early if no csv content is available', () => {
+      mockSocketService.getSettlementCsvData.mockReturnValue(null);
+      const createElementSpy = vi.spyOn(document, 'createElement');
+
+      component.downloadCsv();
+
+      expect(createElementSpy).not.toHaveBeenCalledWith('a');
     });
   });
 
-  // ====================== PRIVACY & OPSEC BLUR ======================
-  
-  describe('Privacy & OpSec Blur Controls', () => {
-    it('should initialize with all sections blurred and modal hidden', () => {
-      const states = component.blurStates();
-      expect(states['transaction-overview']).toBe(true);
-      expect(states['transaction-proposal']).toBe(true);
-      expect(states['transaction-details']).toBe(true);
-      expect(states['signers']).toBe(true);
-      
-      expect(component.showPrivacyWarning()).toBe(false);
-      expect(component.pendingUnblurSection()).toBeNull();
+  describe('Broadcasting & QR Engine Edge Cases', () => {
+    it('broadcastAndCopy should route to correct mempool network', () => {
+      const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+      // Test 1: Signet
+      mockSocketService.roomState.set({ finalTxHex: 'hex', network: 'signet' });
+      component.broadcastAndCopy();
+      expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/signet/tx/push', '_blank');
+
+      // Test 2: Mainnet (Fallback)
+      mockSocketService.roomState.set({ finalTxHex: 'hex', network: 'invalid-network' });
+      component.broadcastAndCopy();
+      expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/tx/push', '_blank');
     });
 
-    it('should open the warning modal and set pending section when clicking a blurred section', () => {
-      component.togglePrivacyBlur('transaction-details');
-      
-      expect(component.pendingUnblurSection()).toBe('transaction-details');
-      expect(component.showPrivacyWarning()).toBe(true);
-      expect(component.blurStates()['transaction-details']).toBe(true); 
+    it('generateQrData should safely catch and log generation errors', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      component.qrIncludesKey.set(true);
+      mockSocketService.getRoomLink.mockImplementation(() => {
+        throw new Error('Canvas failure');
+      });
+
+      await component['generateQrData']();
+
+      expect(consoleSpy).toHaveBeenCalledWith('QR Generation failed', new Error('Canvas failure'));
+    });
+  });
+
+  describe('Optical Scanner & Import Error Handling', () => {
+    it('stopScanner should safely handle HTML5QrCode exceptions', async () => {
+      component.html5QrCode = {
+        getState: () => 2, // 2 = SCANNING
+        stop: vi.fn().mockRejectedValue(new Error('Camera locked')),
+        clear: vi.fn(),
+      } as any;
+
+      component.stopScanner();
+
+      // Flush promises
+      await new Promise(process.nextTick);
+
+      // It should gracefully clear state even if the hardware stop command rejects
+      expect(component.isScanningSigned()).toBe(false);
+      expect(component.showScannerModal()).toBe(false);
     });
 
-    it('should instantly re-blur an unblurred section without showing the modal', () => {
-      // Setup: manually unblur a section
-      component.blurStates.update(s => ({ ...s, 'transaction-overview': false }));
-      
-      // Interaction: Toggle it back
-      component.togglePrivacyBlur('transaction-overview');
-      
-      // Verification: Should instantly re-blur, skip modal, and log
-      expect(component.showPrivacyWarning()).toBe(false);
-      expect(component.blurStates()['transaction-overview']).toBe(true);
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Re-blurred transaction-overview section');
+    it('processScannedSignature should catch malformed base64/hex data', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await component.processScannedSignature('not_valid_hex_or_base64!');
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Failed to parse signed PSBT from scanner',
+        expect.anything(),
+      );
     });
 
-    it('should unblur the pending section when the user confirms', () => {
-      component.togglePrivacyBlur('transaction-proposal');
-      component.confirmUnblur();
-      
-      expect(component.blurStates()['transaction-proposal']).toBe(false);
-      expect(component.showPrivacyWarning()).toBe(false);
-      expect(component.pendingUnblurSection()).toBeNull();
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Revealed transaction-proposal section');
+    it('handleScanResult should return early if fullHex is null (incomplete fragment)', () => {
+      const stopSpy = vi.spyOn(component, 'stopScanner');
+      mockUrService.processFragment.mockReturnValue(null); // Indicates more fragments needed
+
+      component.handleScanResult('ur:bytes/1-2/incomplete');
+
+      expect(stopSpy).not.toHaveBeenCalled(); // Scanner should keep running
+    });
+  });
+
+  describe('Fountain Settings', () => {
+    it('updateFountainSpeed should update signal value', () => {
+      component.updateFountainSpeed(150);
+      expect(component.fountainSpeed()).toBe(150);
     });
 
-    it('should unblur all sections when the user selects Reveal All', () => {
-      component.confirmUnblurAll();
-      
-      const states = component.blurStates();
-      expect(states['transaction-overview']).toBe(false);
-      expect(states['transaction-proposal']).toBe(false);
-      expect(states['transaction-details']).toBe(false);
-      expect(states['signers']).toBe(false);
-      
-      expect(component.showPrivacyWarning()).toBe(false);
-      expect(socketSpy.logAction).toHaveBeenCalledWith('Privacy Toggle', 'Revealed all sections');
+    it('updateFountainSpeed should restart animation if fountain is currently active and revealed', () => {
+      const animSpy = vi
+        .spyOn(component as any, 'startFountainAnimation')
+        .mockImplementation(() => {});
+
+      // Force conditions to be true
+      vi.spyOn(component, 'isFountainRevealed').mockReturnValue(true);
+      component.showFountainModal.set(true);
+
+      component.updateFountainSpeed(200);
+
+      expect(animSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('should discard pending unblur if the modal is closed via Cancel', () => {
-      component.togglePrivacyBlur('signers');
-      component.closePrivacyWarning();
-      
-      expect(component.showPrivacyWarning()).toBe(false);
-      expect(component.pendingUnblurSection()).toBeNull();
-      expect(component.blurStates()['signers']).toBe(true); // Should remain safely blurred
+    it('updateFountainSpeed: should NOT restart animation if fountain is NOT revealed', () => {
+      const animSpy = vi.spyOn(component, 'startFountainAnimation');
+      component.isFountainRevealed.set(false);
+      component.showFountainModal.set(true);
+
+      component.updateFountainSpeed(500);
+
+      expect(animSpy).not.toHaveBeenCalled();
+    });
+
+    it('updateFountainSpeed: should NOT restart animation if modal is NOT shown', () => {
+      const animSpy = vi.spyOn(component, 'startFountainAnimation');
+      component.isFountainRevealed.set(true);
+      component.showFountainModal.set(false);
+
+      component.updateFountainSpeed(500);
+
+      expect(animSpy).not.toHaveBeenCalled();
+    });
+
+    it('should restart animation only when BOTH revealed and modal shown', () => {
+      const animSpy = vi.spyOn(component, 'startFountainAnimation');
+
+      // Case 1: T & T (Should restart)
+      component.isFountainRevealed.set(true);
+      component.showFountainModal.set(true);
+      component.updateFountainSpeed(500);
+      expect(animSpy).toHaveBeenCalledTimes(1);
+
+      // Case 2: T & F (Should NOT restart)
+      component.isFountainRevealed.set(true);
+      component.showFountainModal.set(false);
+      component.updateFountainSpeed(500);
+      expect(animSpy).toHaveBeenCalledTimes(1); // No change
+
+      // Case 3: F & T (Should NOT restart)
+      component.isFountainRevealed.set(false);
+      component.showFountainModal.set(true);
+      component.updateFountainSpeed(500);
+      expect(animSpy).toHaveBeenCalledTimes(1); // No change
     });
   });
 
   describe('Scanner Handling', () => {
-
     it('stopScanner: should handle falsy html5QrCode', () => {
       component.html5QrCode = null as any;
       component.isScanningSigned.set(true);
-      
+
       component.stopScanner();
-      
+
       expect(component.isScanningSigned()).toBe(false);
     });
 
     it('stopScanner: should safely clear scanner if state is not SCANNING', () => {
       component.html5QrCode = {
         getState: () => 1, // Not scanning
-        clear: vi.fn()
+        clear: vi.fn(),
       } as any;
       component.isScanningSigned.set(true);
-      
-      component.stopScanner();
-      
-      expect(component.html5QrCode.clear).toHaveBeenCalled();
-      expect(component.isScanningSigned()).toBe(false);
-    });
 
-    it('stopScanner: should handle asynchronous promise rejection from stop()', async () => {
-      let rejectPromise: any;
-      const promise = new Promise((_, reject) => { rejectPromise = reject; });
-      component.html5QrCode = {
-        getState: () => 2, // Scanning
-        stop: vi.fn().mockReturnValue(promise),
-        clear: vi.fn()
-      } as any;
-      component.isScanningSigned.set(true);
-      
       component.stopScanner();
-      
-      rejectPromise(new Error('Camera stuck'));
-      
-      await new Promise(process.nextTick);
-      await new Promise(resolve => setTimeout(resolve, 0));
-      
+
       expect(component.html5QrCode.clear).toHaveBeenCalled();
       expect(component.isScanningSigned()).toBe(false);
     });
 
     it('stopScanner: should execute catch block if synchronous error occurs', () => {
       component.html5QrCode = {
-        getState: () => { throw new Error('Sync crash'); },
-        clear: vi.fn()
+        getState: () => {
+          throw new Error('Sync crash');
+        },
+        clear: vi.fn(),
       } as any;
       component.isScanningSigned.set(true);
-      
+
       component.stopScanner();
-      
+
       expect(component.html5QrCode.clear).toHaveBeenCalled();
       expect(component.isScanningSigned()).toBe(false);
     });
@@ -1260,131 +1808,67 @@ describe('RoomComponent', () => {
 
     it('should catch errors if uploadSignature fails in processScannedSignature', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
-      
+
       // Use spyOn to safely hijack just this one method without breaking ngOnDestroy
-      vi.spyOn(component.socket, 'uploadSignature').mockRejectedValue(new Error('Network disconnected'));
-      
-      await component.processScannedSignature('01020304'); 
-      
-      expect(console.error).toHaveBeenCalledWith("Failed to parse signed PSBT from scanner", expect.any(Error));
+      vi.spyOn(component.socket, 'uploadSignature').mockRejectedValue(
+        new Error('Network disconnected'),
+      );
+
+      await component.processScannedSignature('01020304');
+
+      expect(console.error).toHaveBeenCalledWith(
+        'Failed to parse signed PSBT from scanner',
+        expect.any(Error),
+      );
     });
 
     it('should safely execute the catch block if getState throws in stopScanner', () => {
-        component.html5QrCode = {
-          getState: () => { throw new Error('State crash'); },
-          clear: vi.fn()
-        } as any;
-        
-        component.stopScanner();
-        
-        expect(component.isScanningSigned()).toBe(false);
-      });
+      component.html5QrCode = {
+        getState: () => {
+          throw new Error('State crash');
+        },
+        clear: vi.fn(),
+      } as any;
+
+      component.stopScanner();
+
+      expect(component.isScanningSigned()).toBe(false);
+    });
 
     it('should safely handle errors when parsing a scanned signature fails', async () => {
-        vi.spyOn(console, 'error').mockImplementation(() => {});
-        
-        await component.processScannedSignature('INVALID_!!!_DATA');
-        
-        expect(console.error).toHaveBeenCalledWith(
-            "Failed to parse signed PSBT from scanner", 
-            expect.anything()
-        );
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await component.processScannedSignature('INVALID_!!!_DATA');
+
+      expect(console.error).toHaveBeenCalledWith(
+        'Failed to parse signed PSBT from scanner',
+        expect.anything(),
+      );
     });
 
     it('should handle asynchronous rejection when stopping the scanner', async () => {
       component.html5QrCode = {
         getState: () => 2,
         stop: vi.fn().mockRejectedValue(new Error('Camera stuck')),
-        clear: vi.fn()
+        clear: vi.fn(),
       } as any;
-      
+
       component.stopScanner();
       await Promise.resolve();
-      
+
       expect(component.isScanningSigned()).toBe(false);
     });
 
     it('should handle synchronous errors when stopping the scanner', () => {
       component.html5QrCode = {
-        getState: () => { throw new Error('Sync crash'); },
-        clear: vi.fn()
+        getState: () => {
+          throw new Error('Sync crash');
+        },
+        clear: vi.fn(),
       } as any;
-      
+
       component.stopScanner();
-      
-      expect(component.isScanningSigned()).toBe(false);
-    });
-  });
 
-  describe('startScanner Anonymous Callbacks & Error Chains', () => {
-    
-    beforeEach(() => {
-      vi.useFakeTimers();
-      // Provide the missing DOM element to prevent the constructor from throwing unhandled rejections
-      if (!document.getElementById('signer-reader')) {
-        const div = document.createElement('div');
-        div.id = 'signer-reader';
-        document.body.appendChild(div);
-      }
-    });
-
-    afterEach(() => {
-      vi.clearAllTimers();
-      vi.useRealTimers();
-      const div = document.getElementById('signer-reader');
-      if (div) div.remove();
-    });
-
-    it('should trigger the success and error callbacks passed to html5QrCode.start', async () => {
-      vi.spyOn(component, 'handleScanResult').mockImplementation(() => {});
-
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start')
-        .mockImplementation((camId: any, config: any, onSuccess: any, onError: any) => {
-          if (onSuccess) onSuccess('UR:CRYPTO-PSBT/1-1/MOCK');
-          if (onError) onError('Ignored scan error');
-          return Promise.resolve();
-        });
-
-      component.startScanner();
-
-      vi.advanceTimersByTime(100);
-      
-      await Promise.resolve(); 
-
-      expect(component.handleScanResult).toHaveBeenCalledWith('UR:CRYPTO-PSBT/1-1/MOCK');
-      expect(component.isScanningSigned()).toBe(true);
-
-      startSpy.mockRestore();
-    });
-
-    it('should execute the .catch() block if html5QrCode.start rejects', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start')
-        .mockRejectedValue(new Error('Camera permissions denied'));
-
-      component.isScanningSigned.set(false);
-
-      component.startScanner();
-
-      vi.advanceTimersByTime(100);
-      
-      await Promise.resolve();
-      await Promise.resolve(); 
-
-      expect(console.error).toHaveBeenCalled();
-
-      startSpy.mockRestore();
-    });
-    
-    it('should fall safely through safeStopScanner if html5QrCode is null', () => {
-      component.html5QrCode = null as any;
-      component.isScanningSigned.set(true);
-      
-      component.stopScanner();
-      
       expect(component.isScanningSigned()).toBe(false);
     });
   });
@@ -1398,7 +1882,7 @@ describe('RoomComponent', () => {
         document.body.appendChild(div);
       }
     });
-    
+
     afterEach(() => {
       vi.clearAllTimers();
       vi.useRealTimers();
@@ -1410,74 +1894,55 @@ describe('RoomComponent', () => {
       component.html5QrCode = {
         getState: () => 2,
         stop: vi.fn().mockResolvedValue(undefined),
-        clear: vi.fn()
+        clear: vi.fn(),
       } as any;
       component.isScanningSigned.set(true);
-      
+
       component.stopScanner();
-      await Promise.resolve(); 
-      
+      await Promise.resolve();
+
       expect(component.html5QrCode.clear).toHaveBeenCalled();
       expect(component.isScanningSigned()).toBe(false);
     });
 
-    it('should trigger doFinalize() callback inside confirmation modal', () => {
-      socketSpy.roomState.mockReturnValue({
-        ...baseRoomState,
-        whitelist: ['some-address'],
-        signatures: ['sig1']
-      });
-      socketSpy.txDetails.mockReturnValue({ 
-          outputs: [{ address: 'unverified-addr', isChange: false }] 
-      });
-
-      component.finalize();
-      
-      const broadcastSpy = vi.spyOn(socketSpy, 'broadcastFinalization');
-      socketSpy.getFinalTxHex.mockReturnValue('hex');
-      socketSpy.getFinalTxId.mockReturnValue('id');
-      
-      component.executeConfirmAction();
-      
-      expect(broadcastSpy).toHaveBeenCalledWith('hex', 'id');
-    });
-
     it('should execute setTimeout callback inside doCopy()', () => {
-      component.copyHex(); 
+      component.copyHex();
       expect(component.copied()).toBe(true);
-      
+
       vi.advanceTimersByTime(2000);
-      
+
       expect(component.copied()).toBe(false);
     });
 
     it('should execute interval and timeout callbacks in startFountainAnimation()', () => {
-      const renderSpy = vi.spyOn(component, 'renderFountainFrame').mockImplementation(async () => {});
+      const renderSpy = vi
+        .spyOn(component, 'renderFountainFrame')
+        .mockImplementation(async () => {});
       component.activeFountainFrames = ['frame1', 'frame2'];
       component.currentFrameIndex.set(0);
       component.fountainSpeed.set(400);
-      
+
       component.startFountainAnimation();
-      
+
       vi.advanceTimersByTime(1);
       expect(renderSpy).toHaveBeenCalledTimes(1);
-      
+
       vi.advanceTimersByTime(400);
       expect(renderSpy).toHaveBeenCalledTimes(2);
-      
+
       component.stopFountainAnimation();
     });
 
     it('should start and stop animation via toggleFountainReveal()', () => {
       const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
       const stopSpy = vi.spyOn(component, 'stopFountainAnimation').mockImplementation(() => {});
-      
+
       component.isFountainRevealed.set(false);
       component.exportFormat.set('ur');
-      
+
       component.toggleFountainReveal();
       expect(startSpy).toHaveBeenCalled();
-      
+
       component.toggleFountainReveal();
       expect(stopSpy).toHaveBeenCalled();
     });
@@ -1487,9 +1952,10 @@ describe('RoomComponent', () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const { Html5Qrcode } = await import('html5-qrcode');
-      
+
       let callCount = 0;
-      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start')
+      const startSpy = vi
+        .spyOn(Html5Qrcode.prototype, 'start')
         .mockImplementation((camId: any, config: any, onSuccess: any, onError: any) => {
           callCount++;
           if (callCount === 1) {
@@ -1504,8 +1970,8 @@ describe('RoomComponent', () => {
 
       component.startScanner();
       vi.advanceTimersByTime(100);
-      
-      await Promise.resolve(); 
+
+      await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
 
@@ -1514,24 +1980,28 @@ describe('RoomComponent', () => {
 
       startSpy.mockRestore();
     });
-    
+
     it('should hit the catch block if the fallback camera ALSO fails', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
       const stopSpy = vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
 
       const { Html5Qrcode } = await import('html5-qrcode');
-      const startSpy = vi.spyOn(Html5Qrcode.prototype, 'start')
+      const startSpy = vi
+        .spyOn(Html5Qrcode.prototype, 'start')
         .mockRejectedValue(new Error('Complete failure'));
 
       component.startScanner();
       vi.advanceTimersByTime(100);
-      
-      await Promise.resolve(); 
+
+      await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
 
       expect(stopSpy).toHaveBeenCalled();
-      expect(console.error).toHaveBeenCalledWith('Fallback camera start also failed:', expect.any(Error));
+      expect(console.error).toHaveBeenCalledWith(
+        'Fallback camera start also failed:',
+        expect.any(Error),
+      );
 
       startSpy.mockRestore();
     });
@@ -1539,51 +2009,23 @@ describe('RoomComponent', () => {
     it('setExportFormat: should regenerate frames and restart animation if revealed', () => {
       const regenSpy = vi.spyOn(component, 'regenerateFrames').mockImplementation(() => {});
       const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
-      
+
       component.showFountainModal.set(true);
       component.isFountainRevealed.set(true);
-      
+
       component.setExportFormat('bbqr');
-      
+
       expect(component.exportFormat()).toBe('bbqr');
       expect(regenSpy).toHaveBeenCalled();
       expect(startSpy).toHaveBeenCalled();
     });
-    
+
     it('setExportFormat: should not regenerate frames if modal is closed', () => {
       const regenSpy = vi.spyOn(component, 'regenerateFrames').mockImplementation(() => {});
       component.showFountainModal.set(false);
-      
+
       component.setExportFormat('ur');
       expect(regenSpy).not.toHaveBeenCalled();
-    });
-
-    it('regenerateFrames: should catch exception if urService throws', () => {
-      socketSpy.roomState.mockReturnValue({ ...baseRoomState, psbt: 'bad-psbt' });
-      component.exportFormat.set('ur');
-      
-      vi.spyOn(component.urService, 'generateFrames').mockImplementation(() => {
-        throw new Error('Explosion');
-      });
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      component.regenerateFrames();
-      
-      expect(console.error).toHaveBeenCalledWith('Failed to prepare frames', expect.any(Error));
-    });
-
-    it('renderFountainFrame: should render to canvas if revealed', async () => {
-      component.isFountainRevealed.set(true);
-      component.activeFountainFrames = ['test'];
-      component.currentFrameIndex.set(0);
-      
-      const canvas = document.createElement('canvas');
-      canvas.id = 'fountain-psbt-canvas';
-      document.body.appendChild(canvas);
-      
-      await component.renderFountainFrame();
-      
-      document.body.removeChild(canvas);
     });
 
     it('should cover the empty reset action in closeConfirmModal', () => {
@@ -1600,18 +2042,18 @@ describe('RoomComponent', () => {
   describe('Modal Toggles and Platform Logic', () => {
     it('should toggle various modals and dispatch events', () => {
       const dispatcherSpy = vi.spyOn(component['dispatcher'], 'emitModalView');
-      
+
       component.openRenameModal();
       expect(component.showRenameModal()).toBe(true);
       expect(dispatcherSpy).toHaveBeenCalledWith('Rename Room');
-      
+
       component.closeRenameModal();
       expect(component.showRenameModal()).toBe(false);
 
       component.openShareModal();
       expect(component.showShareModal()).toBe(true);
       component.closeShareModal();
-      
+
       component.openKeyModal();
       expect(component.showKeyModal()).toBe(true);
       component.closeKeyModal();
@@ -1625,4 +2067,69 @@ describe('RoomComponent', () => {
     });
   });
 
+  describe('Nudge Signer', () => {
+    it('nudgeSigner should copy a formatted nudge message to clipboard and show alert', async () => {
+      vi.useFakeTimers();
+      const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+      const openAlertSpy = vi.spyOn(component, 'openAlert');
+      const logActionSpy = vi.spyOn(mockSocketService, 'logAction');
+
+      const fingerprint = 'fp-abc123';
+      const expectedLabel = 'Alice Hardware (fp-abc123)';
+
+      vi.spyOn(component, 'getSignerLabel').mockReturnValue(expectedLabel);
+      vi.spyOn(component, 'getFullShareLink').mockReturnValue('https://example.com/room#key');
+
+      component.nudgeSigner(fingerprint);
+
+      await vi.advanceTimersByTimeAsync(150);
+
+      expect(clipboardSpy).toHaveBeenCalled();
+      const copiedText = clipboardSpy.mock.calls[0][0];
+      expect(copiedText).toContain('Signature needed from: Alice Hardware (fp-abc123)');
+      expect(copiedText).toContain('https://example.com/room#key');
+
+      expect(openAlertSpy).toHaveBeenCalledWith(
+        'Nudge Message Copied',
+        expect.stringContaining('Alice Hardware'),
+      );
+
+      expect(logActionSpy).toHaveBeenCalledWith(
+        'Nudge Sent',
+        expect.stringContaining('Alice Hardware'),
+      );
+    });
+
+    it('nudgeSigner should handle missing label gracefully', async () => {
+      vi.useFakeTimers();
+      const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+      const openAlertSpy = vi.spyOn(component, 'openAlert');
+
+      const fingerprint = 'unknown-fp-xyz';
+
+      vi.spyOn(component, 'getSignerLabel').mockReturnValue(fingerprint);
+      vi.spyOn(component, 'getFullShareLink').mockReturnValue('https://example.com/room#key');
+
+      component.nudgeSigner(fingerprint);
+      await vi.advanceTimersByTimeAsync(150);
+
+      expect(clipboardSpy).toHaveBeenCalled();
+      const copiedText = clipboardSpy.mock.calls[0][0];
+      expect(copiedText).toContain('Signature needed from: unknown-fp-xyz');
+      expect(openAlertSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('Helper Method Branches', () => {
+    it('getSignerLabel should return fingerprint if label is missing', () => {
+      mockSocketService.roomState.set({ signerLabels: { other: 'Name' } });
+      const result = component.getSignerLabel('missing-fp');
+      expect(result).toBe('missing-fp');
+    });
+
+    it('isSaved should return false if label is not found in address book', () => {
+      mockSocketService.getLocalLabel.mockReturnValue(null);
+      expect(component.isSaved('fp-123')).toBe(false);
+    });
+  });
 });

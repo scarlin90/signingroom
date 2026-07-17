@@ -40,7 +40,7 @@ export default defineConfig({
       timeout: 120000,
       stdout: 'pipe',
       stderr: 'pipe',
-    }
+    },
   ],
   expect: {
     timeout: 10000,

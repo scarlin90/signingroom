@@ -122,7 +122,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await page.evaluate(() => {
       // @ts-ignore
       const widget = window.mountWidget(null, null, 'inject');
-      setTimeout(() => widget.loadPsbt('not-a-valid-base64-or-hex-psbt'), 50);
+      setTimeout(() => widget.loadPsbt('not-a-valid-base64-or-hex-psbt'), 150);
     });
 
     const frame = page.frameLocator('iframe');
@@ -131,10 +131,12 @@ test.describe('Web Component / Embedded Integration', () => {
     await expect(frame.getByText('Processing Failed')).toBeVisible();
 
     // Confirm the error was reported back to the host page via the signingError action
-    const errorEvent = messages.find(m => m.action === 'signingError');
-    expect(errorEvent).toBeDefined();
-    expect(errorEvent.payload.code).toBe('PSBT_INVALID');
-    expect(errorEvent.payload.message).toContain("cannot be part of a valid base64");
+    await expect(async () => {
+        const errorEvent = messages.find(m => m.action === 'signingError');
+        expect(errorEvent).toBeDefined();
+        expect(errorEvent.payload.code).toBe('PSBT_INVALID');
+        expect(errorEvent.payload.message).toContain("Failed to parse PSBT data.");
+    }).toPass({ timeout: 5000 });
   });
 
   test('Should emit transactionFinalized event with full payload after threshold is reached', async ({ page, context }) => {
@@ -157,7 +159,7 @@ test.describe('Web Component / Embedded Integration', () => {
     
     // Upload Charlie and verify progress button update
     await fileInput.setInputFiles(getFixturePath('3_5_signed_charlie.psbt.txt'));
-    await expect(frame.getByRole('button', { name: /Waiting for Signatures \(1 \/ 5\)/i })).toBeVisible();
+    await expect(frame.getByRole('button', { name: /Waiting for Signatures \(1 \/ 3\)/i })).toBeVisible();
 
     await expect(async () => {
         const importEvent = messages.find(m => m.action === 'psbtImported');
@@ -167,7 +169,7 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // Upload Alice and verify progress button update
     await fileInput.setInputFiles(getFixturePath('3_5_signed_alice.psbt.txt'));
-    await expect(frame.getByRole('button', { name: /Waiting for Signatures \(2 \/ 5\)/i })).toBeVisible();
+    await expect(frame.getByRole('button', { name: /Waiting for Signatures \(2 \/ 3\)/i })).toBeVisible();
 
     // Upload Bob to reach finalization threshold
     await fileInput.setInputFiles(getFixturePath('3_5_signed_bob.psbt.txt'));

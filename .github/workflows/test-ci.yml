@@ -2,9 +2,9 @@ name: CI Test Suite
 
 on:
   push:
-    branches: [ "main", "development" ]
+    branches: ['main', 'development']
   pull_request:
-    branches: [ "main", "development" ]
+    branches: ['main', 'development']
 
 permissions:
   contents: write
@@ -27,20 +27,28 @@ jobs:
         run: |
           docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json
           docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json
+          docker cp test-container:/app/coverage/libs/sdk/coverage-summary.json ./sdk-summary.json
 
       - name: Post Worker Coverage to Summary
         if: always()
         uses: davelosert/vitest-coverage-report-action@v2
         with:
-          name: "Worker Relay Coverage"
+          name: 'Worker Relay Coverage'
           json-summary-path: ./worker-summary.json
 
       - name: Post Client Coverage to Summary
         if: always()
         uses: davelosert/vitest-coverage-report-action@v2
         with:
-          name: "Client Dashboard Coverage"
+          name: 'Client Dashboard Coverage'
           json-summary-path: ./client-summary.json
+
+      - name: Post SDK Coverage to Summary
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: 'SDK Coverage'
+          json-summary-path: ./sdk-summary.json
 
       - name: Cleanup Docker
         if: always()
@@ -57,7 +65,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
+
           # Only stage changes if the sbom.json file has actually mutated
           if ! git diff --exit-code sbom.json; then
             git add sbom.json
@@ -66,4 +74,3 @@ jobs:
           else
             echo "No dependencies changed. SBOM is completely up to date."
           fi
-          
