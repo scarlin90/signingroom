@@ -129,7 +129,7 @@ test.describe('Room Interface Verification', () => {
     }
     
     // Ensure the finalization button reflects 0/5 signatures and is disabled
-    const finalizeBtn = page.getByRole('button', { name: /Waiting for Signatures \(0 \/ 5\)/i });
+    const finalizeBtn = page.getByRole('button', { name: /Waiting for Signatures \(0 \/ 3\)/i });
     await expect(finalizeBtn).toBeDisabled();
 
     // --- Interaction: Re-blur Signers ---

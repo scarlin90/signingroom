@@ -12,16 +12,25 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-21_June_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-13_July_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
-### 📦 New: The Drop-In Web Component SDK
+### 📦 New: The Official SDK Ecosystem
 
-Integrating non-custodial multisig coordination into your own application is now as easy as adding an HTML tag. We have released the official framework-agnostic **Signing Room Web Component**.
+You can now integrate Signing Room directly into your own infrastructure using our official libraries:
+
+**1. The Core TypeScript SDK**
+A framework-agnostic library for programmatic, event-driven multisig coordination.
+
+- **Official NPM Package:** [`@signing-room/sdk`](https://www.npmjs.com/package/@signing-room/sdk)
+- **Source & Demos:** [SDK GitHub Directory](https://github.com/scarlin90/signingroom/tree/main/libs/sdk)
+
+**2. The Drop-In Web Component**
+Integrating non-custodial multisig UI into your own application is now as easy as adding an HTML tag (`<signing-room>`).
 
 - **Official NPM Package:** [`@signing-room/embed`](https://www.npmjs.com/package/@signing-room/embed)
-- **Interactive Demo & API Docs:** [SigningRoom SDK Sandbox](https://signingroom.io/webcomponent-demo.html)
+- **Interactive Demo:** [SigningRoom Embed SDK Sandbox](https://signingroom.io/webcomponent-demo.html)
 
 ---
 
@@ -54,15 +63,15 @@ You are solely responsible for verifying the details of any transaction (address
 
 As a privacy-focused public good, we believe in complete operational transparency. Rather than asking for blind trust, we regularly publish verifiable site metrics to demonstrate the scale, efficiency, and real-world usage of the relay infrastructure.
 
-Based on our latest 30-day forensic audit (June 21, 2026):
+Based on our latest 30-day forensic audit (period ending July 12, 2026):
 
-- **Total Requests Handled:** 79,516
-- **Total Network Bandwidth:** 4.89 GB
-- **Community Adoption:** 5,953 aggregated monthly unique visitors.
+- **Total Requests Handled:** 88,057
+- **Total Network Bandwidth:** 3.58 GB
+- **Community Adoption:** : 5,803 aggregated monthly unique visitors.
 
 ### 🔍 Forensic Highlight
 
-**Edge Caching Efficiency:** In the last 30 days, nearly **3.00 GB (61.02% of total bandwidth)** was served directly from the edge cache. The network effectively sustained global traffic with 24-hour efficiency spikes hitting up to **97.97%** during static application delivery. This proves our global CDN architecture successfully protects the Durable Object from load spikes, ensuring instantaneous coordination and absolute zero-latency (proven by 0.00% cache events during live syncs) for users worldwide.
+**Edge Caching Efficiency:** In the last 30 days, 1.76 GB (49.06% of total bandwidth) was served directly from the edge cache. Our global CDN architecture actively minimizes origin load, ensuring instantaneous coordination and absolute zero-latency for users worldwide. By optimizing static content delivery at the edge, we ensure the relay remains performant even during peak traffic periods, maintaining the "blind" and ephemeral nature of our coordination protocol.
 
 ### 🛡️ Transparency & Audits
 

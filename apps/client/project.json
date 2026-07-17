@@ -8,16 +8,12 @@
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": [
-        "{options.outputPath}"
-      ],
+      "outputs": ["{options.outputPath}"],
       "defaultConfiguration": "production",
       "options": {
         "outputPath": "dist/apps/client",
         "browser": "apps/client/src/main.ts",
-        "polyfills": [
-          "zone.js"
-        ],
+        "polyfills": ["zone.js"],
         "tsConfig": "apps/client/tsconfig.app.json",
         "assets": [
           {
@@ -25,9 +21,7 @@
             "input": "apps/client/public"
           }
         ],
-        "styles": [
-          "apps/client/src/styles.css"
-        ],
+        "styles": ["apps/client/src/styles.css"],
         "server": "apps/client/src/main.server.ts",
         "ssr": {
           "entry": "apps/client/src/server.ts"
@@ -101,9 +95,7 @@
     },
     "test": {
       "executor": "@nx/vitest:test",
-      "outputs": [
-        "{options.reportsDirectory}"
-      ],
+      "outputs": ["{options.reportsDirectory}"],
       "options": {
         "reportsDirectory": "{projectRoot}/../../coverage/apps/client"
       }
