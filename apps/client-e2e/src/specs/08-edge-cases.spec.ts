@@ -7,14 +7,13 @@ import * as path from 'path';
 
 /**
  * Suite: Edge Cases, Errors, and UX Features
- * Focuses on error resilience, participant management tools (labeling/nudging), 
+ * Focuses on error resilience, participant management tools (labeling/nudging),
  * batch operations, and the immediate enforcement of room destruction across active sessions.
- * Also covers parsing and rendering of various Bitcoin address types from PSBT fixtures, including legacy P2PKH, nested SegWit P2SH, and 
+ * Also covers parsing and rendering of various Bitcoin address types from PSBT fixtures, including legacy P2PKH, nested SegWit P2SH, and
  * Taproot P2TR formats.
  * These should be revisited once the corresponding functionality is developed.
  */
 test.describe('Edge Cases, Errors, and UX Features', () => {
-
   test('Should handle invalid file uploads gracefully on Create Page', async ({ page }) => {
     // --- Interaction: Setup failure state ---
     const createPage = new CreatePage(page);
@@ -47,7 +46,7 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
     // --- Interaction: Apply custom identity label ---
     await roomPage.getEditLabelButton(aliceFingerprint).click();
     await expect(roomPage.page.getByText('Label Signer')).toBeVisible();
-    
+
     await roomPage.labelNameInput.fill('Vault Key A');
     await roomPage.saveLabelButton.click();
 
@@ -56,10 +55,10 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
 
     // --- Interaction: Trigger participant nudge ---
     await roomPage.getNudgeButton(aliceFingerprint).click();
-    
+
     // --- Verification: Assert feedback and clipboard content ---
     await expect(page.getByText('Nudge Message Copied')).toBeVisible();
-    
+
     await roomPage.okButton.click();
 
     // Confirm the clipboard contains the personalized nudge message
@@ -69,14 +68,14 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
 
   test.skip('Should allow Batch Whitelisting of outputs', async ({ page }) => {
     // --- Interaction: Load complex transaction ---
-    const roomPage = await launchRoomFromFixture(page, 'many_outputs_fixture.psbt.txt'); 
-    
+    const roomPage = await launchRoomFromFixture(page, 'many_outputs_fixture.psbt.txt');
+
     await roomPage.switchTab('Outputs');
-    
+
     // --- Interaction: Trigger batch verification ---
     await expect(roomPage.verifyAllOutputsButton).toBeVisible();
     await roomPage.verifyAllOutputsButton.click();
-    
+
     // --- Verification: Assert confirmation modal ---
     await expect(page.getByText(/Are you sure you want to verify all/i)).toBeVisible();
     await roomPage.confirmButton.click();
@@ -84,83 +83,107 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
     // --- Verification: Assert state change for all items ---
     const outputCards = roomPage.page.locator('div.p-3').filter({ hasText: 'BTC' });
     const count = await outputCards.count();
-    
+
     for (let i = 0; i < count; i++) {
-        await expect(outputCards.nth(i)).toHaveClass(/border-emerald-500/);
+      await expect(outputCards.nth(i)).toHaveClass(/border-emerald-500/);
     }
   });
 
-  test('should correctly parse and render Legacy P2PKH (m/n...) addresses from a PSBT fixture', async ({ page }) => {
+  test('should correctly parse and render Legacy P2PKH (m/n...) addresses from a PSBT fixture', async ({
+    page,
+  }) => {
     // --- Interaction: Setup room via helper ---
     const roomPage = await launchRoomFromFixture(page, '2_2_unsigned_legacy_p2pkh.psbt.txt');
 
     await roomPage.switchTab('Inputs');
 
     // --- Verification: Assert the Input (Native SegWit) ---
-    await expect(page.getByText('tb1qad0sjnzrj3puap2l5acl8gsmwuzytp5rz4scdxc4wgcrgzt9u7nsv0xrs2')).toBeVisible();
-    await expect(page.getByText('Approve Source')).toBeVisible();
+    await expect(
+      page.getByText('tb1qad0sjnzrj3puap2l5acl8gsmwuzytp5rz4scdxc4wgcrgzt9u7nsv0xrs2'),
+    ).toBeVisible();
+    await expect(page.getByText('Verify', { exact: true })).toBeVisible();
 
     await roomPage.switchTab('Outputs');
 
     // --- Verification: Assert the Change Output (Native SegWit) ---
     await expect(page.getByText('Change')).toBeVisible();
-    await expect(page.getByText('tb1quz570pv4e0g2p0qlz4h9m7wcxzzz0566w0d5z4mmtxzsahdmpnksjv3j3e')).toBeVisible();
+    await expect(
+      page.getByText('tb1quz570pv4e0g2p0qlz4h9m7wcxzzz0566w0d5z4mmtxzsahdmpnksjv3j3e'),
+    ).toBeVisible();
 
     // --- Verification: Assert the Destination Output (Legacy P2PKH Base58) ---
     await expect(page.getByText('mzE856cXjeyBt8HY9eNXxW5JYDJp2vmMuU')).toBeVisible();
-    
+
     // Legacy tests check for multiple output rows
-    await expect(page.getByText('Approve Destination')).toHaveCount(2);
+    await expect(page.getByText('Verify', { exact: true })).toHaveCount(2);
   });
 
-  test('should correctly parse and render Nested SegWit P2SH (2/3...) addresses from a PSBT fixture', async ({ page }) => {
+  test('should correctly parse and render Nested SegWit P2SH (2/3...) addresses from a PSBT fixture', async ({
+    page,
+  }) => {
     // --- Interaction: Setup room via helper ---
     const roomPage = await launchRoomFromFixture(page, '2_2_unsigned_nested_segwit_p2sh.psbt.txt');
 
     await roomPage.switchTab('Inputs');
 
     // --- Verification: Assert the Input (Native SegWit) ---
-    await expect(page.getByText('tb1qad0sjnzrj3puap2l5acl8gsmwuzytp5rz4scdxc4wgcrgzt9u7nsv0xrs2')).toBeVisible();
-    await expect(page.getByText('Approve Source')).toBeVisible();
+    await expect(
+      page.getByText('tb1qad0sjnzrj3puap2l5acl8gsmwuzytp5rz4scdxc4wgcrgzt9u7nsv0xrs2'),
+    ).toBeVisible();
+    await expect(page.getByText('Verify', { exact: true })).toBeVisible();
 
     await roomPage.switchTab('Outputs');
 
     // --- Verification: Assert the Change Output (Native SegWit) ---
     await expect(page.getByText('Change')).toBeVisible();
-    await expect(page.getByText('tb1quz570pv4e0g2p0qlz4h9m7wcxzzz0566w0d5z4mmtxzsahdmpnksjv3j3e')).toBeVisible();
+    await expect(
+      page.getByText('tb1quz570pv4e0g2p0qlz4h9m7wcxzzz0566w0d5z4mmtxzsahdmpnksjv3j3e'),
+    ).toBeVisible();
 
     // --- Verification: Assert the Destination Output (Nested SegWit Base58) ---
     // This mathematically confirms the 'a914...87' parser block is working end-to-end
     await expect(page.getByText('2MxBzpMZpJuL1oNmRsMPvmq4x2T557PHFFG')).toBeVisible();
   });
 
-  test('should correctly parse and render Taproot P2TR (tb1p...) addresses using bech32m', async ({ page }) => {
+  test('should correctly parse and render Taproot P2TR (tb1p...) addresses using bech32m', async ({
+    page,
+  }) => {
     // --- Interaction: Setup room via helper ---
     const roomPage = await launchRoomFromFixture(page, '2_2_unsigned_taproot_p2tr.psbt.txt');
 
     await roomPage.switchTab('Inputs');
 
     // --- Verification: Assert the Input (Native SegWit) ---
-    await expect(page.getByText('tb1qad0sjnzrj3puap2l5acl8gsmwuzytp5rz4scdxc4wgcrgzt9u7nsv0xrs2')).toBeVisible();
-    await expect(page.getByText('Approve Source')).toBeVisible();
+    await expect(
+      page.getByText('tb1qad0sjnzrj3puap2l5acl8gsmwuzytp5rz4scdxc4wgcrgzt9u7nsv0xrs2'),
+    ).toBeVisible();
+    await expect(page.getByText('Verify', { exact: true })).toBeVisible();
 
     await roomPage.switchTab('Outputs');
 
     // --- Verification: Assert the Change Output (Native SegWit) ---
-    await expect(page.getByText('tb1quz570pv4e0g2p0qlz4h9m7wcxzzz0566w0d5z4mmtxzsahdmpnksjv3j3e')).toBeVisible();
+    await expect(
+      page.getByText('tb1quz570pv4e0g2p0qlz4h9m7wcxzzz0566w0d5z4mmtxzsahdmpnksjv3j3e'),
+    ).toBeVisible();
 
     // --- Verification: Assert the Destination Output (Taproot bech32m) ---
     // This confirms the version >= 0x51 logic block is working
-    await expect(page.getByText('tb1p6239qc5cmrl9zd9lzjc5p59lxznayp258nyxqhfx7zullqstn3hsg789xh')).toBeVisible();
+    await expect(
+      page.getByText('tb1p6239qc5cmrl9zd9lzjc5p59lxznayp258nyxqhfx7zullqstn3hsg789xh'),
+    ).toBeVisible();
   });
 
-  test('should completely clear SPA state between sequential room creations (No State Bleed)', async ({ page }) => {
+  test('should completely clear SPA state between sequential room creations (No State Bleed)', async ({
+    page,
+  }) => {
     // --- Interaction: Launch First Room (2-of-2) ---
     await launchRoomFromFixture(page, '2_2_unsigned_taproot_p2tr.psbt.txt');
 
     // --- Verification: First Room State ---
     // Verify the threshold evaluated to 2
-    await expect(page.getByRole('button', { name: /Waiting for Signatures\s*\(\s*0\s*\/\s*2\s*\)/i })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Waiting for Signatures\s*\(\s*0\s*\/\s*2\s*\)/i }),
+    ).toBeVisible();
 
     // Count the physical hardware cards rendered (Expect exactly 2)
     // We target the "Add Label" span which uniquely identifies a signer card row
@@ -171,7 +194,9 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
 
     // --- Verification: Second Room State (Assert Memory Cleanup) ---
     // Verify the new threshold is 3
-    await expect(page.getByRole('button', { name: /Waiting for Signatures\s*\(\s*0\s*\/\s*3\s*\)/i })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Waiting for Signatures\s*\(\s*0\s*\/\s*3\s*\)/i }),
+    ).toBeVisible();
 
     // Count the physical hardware cards rendered (Expect exactly 5)
     // If state bled, this would be 2 (stuck) or 7 (merged arrays). 5 proves perfect cleanup.

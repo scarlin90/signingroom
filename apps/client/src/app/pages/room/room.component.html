@@ -1182,7 +1182,9 @@
                 <div class="flex justify-between items-end">
                     <div>
                         <div class="text-4xl font-bold text-white mb-1">{{ (socket.txDetails()?.amount || 0) / 100000000 | number:'1.8-8' }} <span class="text-slate-500 text-xl">BTC</span></div>
-                        <div class="text-emerald-400 text-sm">~{{ ((socket.txDetails()?.amount || 0) / 100000000 * 95000) | currency:'USD' }}</div>
+                        <div class="text-emerald-400 text-sm font-mono font-medium">
+                            {{ socket.txDetails()?.amount || 0 | number }} sats
+                        </div>
                     </div>
                     <div class="text-right">
                         <div class="text-slate-400 text-sm">Network Fee</div>
@@ -1339,13 +1341,13 @@
 
                 @if (socket.isCoordinator()) {
                 <div class="flex justify-end mb-2">
-                    @if (viewMode() === 'inputs' && (socket.txDetails()?.inputsList?.length || 0) > 3) {
+                    @if (viewMode() === 'inputs') {
                         <button (click)="verifyAllInputs()" class="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-2 py-1 rounded transition border border-transparent hover:border-emerald-500/20 flex items-center gap-1">
                             <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Inputs
                         </button>
                     }
-                    @if (viewMode() === 'outputs' && (socket.txDetails()?.outputs?.length || 0) > 3) {
-                        <button (click)="verifyAllOutputs()" class="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 px-2 py-1 rounded transition border border-transparent hover:border-cyan-500/20 flex items-center gap-1">
+                    @if (viewMode() === 'outputs') {
+                        <button (click)="verifyAllOutputs()" class="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-2 py-1 rounded transition border border-transparent hover:border-emerald-500/20 flex items-center gap-1">
                             <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Outputs
                         </button>
                     }
@@ -1355,33 +1357,73 @@
                 <div class="space-y-3 flex-grow overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
                     @if (viewMode() === 'inputs') {
                         @for (input of filteredInputs(); track $index) {
-                            <div class="p-3 bg-slate-950 rounded border transition-all" [class.border-emerald-500]="isWhitelisted(input.address)" [class.border-slate-800]="!isWhitelisted(input.address)">
-                                <div class="flex justify-between items-start mb-2">
-                                    <div class="flex items-center gap-2 text-slate-400 text-xs">
-                                    <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
-                                    @if (input.txId && input.txId !== '????') {
-                                        <span class="font-mono text-[10px] text-slate-600 truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
+                            <!-- Input Card Container -->
+                            <div class="flex flex-col sm:flex-row items-stretch bg-slate-950 rounded-xl border transition-all overflow-hidden address-card" 
+                                [class.border-emerald-500]="isWhitelisted(input.address)" 
+                                [class.border-slate-800]="!isWhitelisted(input.address)">
+                                
+                                <!-- Left/Top Column: Status -->
+                                <div class="verification-badge flex sm:flex-col items-center justify-center p-3 w-full sm:w-28 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-800/80 gap-2 sm:gap-0">
+                                    @if (isWhitelisted(input.address)) {
+                                        <lucide-icon [img]="ShieldCheck" class="w-5 h-5 text-emerald-500 sm:mb-1.5"></lucide-icon>
+                                        <span class="text-[9px] font-bold text-emerald-500 uppercase tracking-wider text-center">Verified Input</span>
+                                    } @else {
+                                        <lucide-icon [img]="ShieldAlert" class="w-5 h-5 text-slate-600 sm:mb-1.5"></lucide-icon>
+                                        <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">UnVerified Input</span>
                                     }
                                 </div>
-                                <div class="text-white font-bold text-sm">{{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
-                                </div>
-                                <div class="flex items-start gap-2">
-                                    <lucide-icon [img]="ArrowDown" class="w-4 h-4 text-slate-600 mt-0.5 shrink-0"></lucide-icon>
-                                    <div class="flex-grow">
-                                        <div class="font-mono text-xs text-slate-400 break-all leading-relaxed select-all">{{ input.address }}</div>
+
+                                <!-- Middle & Right Content Wrapper -->
+                                <div class="flex flex-1 items-center justify-between p-3 gap-4">
+                                    
+                                    <!-- Middle Column: Details -->
+                                    <div class="flex flex-col gap-2 flex-1 min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            <!-- Label Badge -->
+                                            <span class="text-xs text-slate-300 bg-slate-900 px-3 py-1 rounded border border-slate-800 font-medium shadow-sm">
+                                                Input #{{ $index }}
+                                            </span>
+                                            @if (input.txId && input.txId !== '????') {
+                                                <span class="font-mono text-[10px] text-slate-500 truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
+                                            }
+                                        </div>
+                                        
+                                        <!-- Address Box -->
+                                        <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg pl-3 pr-3 py-2 group">
+                                            <span class="font-mono text-xs text-slate-400 break-all select-all mr-2">{{ input.address }}</span>
+                                            
+                                            <button (click)="copyAddress(input.address)" class="relative group/tooltip shrink-0 focus:outline-none cursor-pointer">
+                                                <lucide-icon 
+                                                    [img]="copiedAddress() === input.address ? Check : Copy" 
+                                                    class="w-4 h-4 transition-all duration-300"
+                                                    [class.text-emerald-400]="copiedAddress() === input.address"
+                                                    [class.scale-110]="copiedAddress() === input.address"
+                                                    [class.text-slate-600]="copiedAddress() !== input.address"
+                                                    [class.group-hover:text-slate-400]="copiedAddress() !== input.address">
+                                                </lucide-icon>
+
+                                                <!-- Tooltip -->
+                                                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                                                    {{ copiedAddress() === input.address ? 'Copied!' : 'Copy Address' }}
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Right Column: Amount & Action -->
+                                    <div class="flex flex-col items-end justify-between gap-3 shrink-0 min-w-[130px]">
+                                        <div class="text-white font-medium text-sm text-right">
+                                            {{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-500">BTC</span>
+                                        </div>
+                                        
                                         @if (socket.isCoordinator()) {
-                                            <div class="mt-2 flex items-center gap-2">
-                                                @if (isWhitelisted(input.address)) {
-                                                    <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                                                        <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Source
-                                                    </span>
-                                                    <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">Revoke</button>
-                                                } @else {
-                                                    <button (click)="toggleWhitelist(input.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
-                                                        <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Source
-                                                    </button>
-                                                }
-                                            </div>
+                                            <button (click)="toggleWhitelist(input.address)" 
+                                                    class="w-full py-1.5 px-4 rounded-lg transition-all text-xs font-bold text-center shadow-sm border cursor-pointer"
+                                                    [class]="isWhitelisted(input.address) 
+                                                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50' 
+                                                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50'">
+                                                {{ isWhitelisted(input.address) ? 'Revoke' : 'Verify' }}
+                                            </button>
                                         }
                                     </div>
                                 </div>
@@ -1396,39 +1438,78 @@
 
                     @if (viewMode() === 'outputs') {
                         @for (out of filteredOutputs(); track $index) {
-                        <div class="p-3 bg-slate-950 rounded border transition-all" [class.border-emerald-500]="isWhitelisted(out.address)" [class.border-amber-500]="out.isChange" [class.border-rose-900]="!out.isChange && !isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0" [class.border-slate-800]="!out.isChange && !isWhitelisted(out.address) && (!socket.roomState()?.whitelist || socket.roomState()?.whitelist?.length === 0)">
-                            <div class="flex justify-between items-start mb-2">
-                                <div class="flex items-center gap-2 text-slate-400 text-xs">
-                                    <span class="font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">#{{ $index }}</span>
-                                    @if (out.isChange) {
-                                        <span class="flex items-center gap-1 text-[10px] text-amber-500 font-bold uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                                            <lucide-icon [img]="RefreshCw" class="w-3 h-3"></lucide-icon> Change
-                                        </span>
-                                    } @else if (!isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0) {
-                                        <span class="flex items-center gap-1 text-[10px] text-rose-500 font-bold uppercase tracking-wider">
-                                            <lucide-icon [img]="AlertTriangle" class="w-3 h-3"></lucide-icon> Unverified
-                                        </span>
-                                    }
-                                </div>
-                                <div class="text-white font-bold text-sm">{{ out.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-600 text-xs">BTC</span></div>
+                        <!-- Output Card Container -->
+                        <div class="flex flex-col sm:flex-row items-stretch bg-slate-950 rounded-xl border transition-all overflow-hidden address-card" 
+                            [class.border-emerald-500]="isWhitelisted(out.address)" 
+                            [class.border-amber-500]="out.isChange" 
+                            [class.border-rose-900]="!out.isChange && !isWhitelisted(out.address) && (socket.roomState()?.whitelist?.length || 0) > 0" 
+                            [class.border-slate-800]="!out.isChange && !isWhitelisted(out.address) && (!socket.roomState()?.whitelist || socket.roomState()?.whitelist?.length === 0)">
+                            
+                            <!-- Left/Top Column: Status -->
+                            <div class="verification-badge flex sm:flex-col items-center justify-center p-3 w-full sm:w-28 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-800/80 gap-2 sm:gap-0">
+                                @if (out.isChange) {
+                                    <lucide-icon [img]="ShieldOff" class="w-5 h-5 text-amber-500 sm:mb-1.5"></lucide-icon>
+                                    <span class="text-[9px] font-bold text-amber-500 uppercase tracking-wider text-center">Change Output</span>
+                                } @else if (isWhitelisted(out.address)) {
+                                    <lucide-icon [img]="ShieldCheck" class="w-5 h-5 text-emerald-500 sm:mb-1.5"></lucide-icon>
+                                    <span class="text-[9px] font-bold text-emerald-500 uppercase tracking-wider text-center">Verified Output</span>
+                                } @else if ((socket.roomState()?.whitelist?.length || 0) > 0) {
+                                    <lucide-icon [img]="ShieldAlert" class="w-5 h-5 text-rose-500 sm:mb-1.5"></lucide-icon>
+                                    <span class="text-[9px] font-bold text-rose-500 uppercase tracking-wider text-center">Unverified Output</span>
+                                } @else {
+                                    <lucide-icon [img]="ShieldAlert" class="w-5 h-5 text-slate-600 sm:mb-1.5"></lucide-icon>
+                                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Unverified Output</span>
+                                }
                             </div>
-                            <div class="flex items-start gap-2">
-                                <lucide-icon [img]="out.isChange ? RefreshCw : ArrowRight" class="w-4 h-4 mt-0.5 shrink-0" [class.text-amber-500]="out.isChange" [class.text-emerald-500]="!out.isChange"></lucide-icon>
-                                <div class="flex-grow">
-                                    <div class="font-mono text-xs text-slate-300 break-all leading-relaxed select-all">{{ out.address }}</div>
+
+                            <!-- Middle & Right Content Wrapper -->
+                            <div class="flex flex-1 items-center justify-between p-3 gap-4">
+                                    
+                                <!-- Middle Column: Details -->
+                                <div class="flex flex-col gap-2 flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <!-- Label Badge -->
+                                        <span class="text-xs text-slate-300 bg-slate-900 px-3 py-1 rounded border border-slate-800 font-medium shadow-sm">
+                                            Output #{{ $index }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Address Box -->
+                                    <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg pl-3 pr-3 py-2 group">
+                                        <span class="font-mono text-xs text-slate-400 break-all select-all mr-2">{{ out.address }}</span>
+                                        
+                                        <button (click)="copyAddress(out.address)" class="relative group/tooltip shrink-0 focus:outline-none cursor-pointer">
+                                            <lucide-icon 
+                                                [img]="copiedAddress() === out.address ? Check : Copy" 
+                                                class="w-4 h-4 transition-all duration-300"
+                                                [class.text-emerald-400]="copiedAddress() === out.address"
+                                                [class.scale-110]="copiedAddress() === out.address"
+                                                [class.text-slate-600]="copiedAddress() !== out.address"
+                                                [class.group-hover:text-slate-400]="copiedAddress() !== out.address">
+                                            </lucide-icon>
+
+                                            <!-- Tooltip -->
+                                            <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
+                                                {{ copiedAddress() === out.address ? 'Copied!' : 'Copy Address' }}
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Right Column: Amount & Action -->
+                                <div class="flex flex-col items-end justify-between gap-3 shrink-0 min-w-[130px]">
+                                    <div class="text-white font-medium text-sm text-right">
+                                        {{ out.amount / 100000000 | number:'1.8-8' }} <span class="text-slate-500">BTC</span>
+                                    </div>
+                                    
                                     @if (socket.isCoordinator()) {
-                                        <div class="mt-2 flex items-center gap-2">
-                                            @if (isWhitelisted(out.address)) {
-                                                <span class="flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                                                    <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Verified Destination
-                                                </span>
-                                                <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-600 hover:text-rose-400 underline decoration-slate-800 underline-offset-2">Revoke</button>
-                                            } @else {
-                                                <button (click)="toggleWhitelist(out.address)" class="text-[10px] text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
-                                                    <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon> Approve Destination
-                                                </button>
-                                            }
-                                        </div>
+                                        <button (click)="toggleWhitelist(out.address)" 
+                                                class="w-full py-1.5 px-4 rounded-lg transition-all text-xs font-bold text-center shadow-sm border cursor-pointer"
+                                                [class]="isWhitelisted(out.address) 
+                                                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50' 
+                                                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50'">
+                                            {{ isWhitelisted(out.address) ? 'Revoke' : 'Verify' }}
+                                        </button>
                                     }
                                 </div>
                             </div>

@@ -1,7 +1,6 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { getFixturePath } from './room-helper';
 
-
 export class RoomPage {
   readonly page: Page;
   readonly activeIndicator: Locator;
@@ -34,7 +33,7 @@ export class RoomPage {
   readonly sessionSaveButton: Locator;
   readonly decryptionKeyInput: Locator;
   readonly decryptRoomButton: Locator;
-  readonly keyActionButton: Locator;    
+  readonly keyActionButton: Locator;
   readonly copyKeyButton: Locator;
   readonly closeSessionsModalButton: Locator;
   readonly sessionList: Locator;
@@ -75,7 +74,7 @@ export class RoomPage {
   // Privacy & OpSec Controls
   readonly privacyModalRevealSection: Locator;
   readonly privacyModalRevealAll: Locator;
-  
+
   readonly headerHiddenBadge: Locator;
   readonly headerEyeToggle: Locator;
   readonly proposalHiddenBadge: Locator;
@@ -85,22 +84,24 @@ export class RoomPage {
   readonly detailsEyeToggle: Locator;
   readonly signersHiddenBadge: Locator;
   readonly signersEyeToggle: Locator;
-  
 
   constructor(page: Page) {
     this.page = page;
     this.activeIndicator = page.locator('span[title="Room Active"]');
     this.roomTitle = page.locator('h1');
     this.lockedIndicator = page.locator('span[title="Room Locked"]');
-    
+
     // Scoped locators using the tooltips we identified earlier
-    this.timer = page.locator('div.relative.group')
+    this.timer = page
+      .locator('div.relative.group')
       .filter({ hasText: 'Room auto-expires' })
       .locator('span.font-mono.font-bold');
-      
-    this.sessionIdButton = page.locator('div.relative.group')
+
+    this.sessionIdButton = page
+      .locator('div.relative.group')
       .filter({ hasText: 'View Active Sessions' })
-      .locator('button').first();
+      .locator('button')
+      .first();
 
     this.shareLinkButton = page.getByRole('button', { name: /Share Link/i });
     this.closeButton = page.getByRole('button', { name: 'Close', exact: true });
@@ -118,10 +119,18 @@ export class RoomPage {
     this.csvDownloadButton = page.getByRole('button', { name: 'Download CSV', exact: true });
     this.connectionLostBanner = page.getByText(/Connection lost... Reconnecting/i);
     this.signerList = page.locator('div.space-y-4');
-    this.signedCountBadge = page.locator('h2').filter({ hasText: 'Signers' }).locator('span.text-slate-500');
-    this.roomIdButton = page.locator('div.relative.group').filter({ hasText: 'View Room ID' }).locator('button');
+    this.signedCountBadge = page
+      .locator('h2')
+      .filter({ hasText: 'Signers' })
+      .locator('span.text-slate-500');
+    this.roomIdButton = page
+      .locator('div.relative.group')
+      .filter({ hasText: 'View Room ID' })
+      .locator('button');
     this.roomIdModalCopyButton = page.getByRole('button', { name: /Copy Room ID/i });
-    this.sessionsModal = page.locator('div.max-w-md').filter({ has: page.getByRole('heading', { name: 'Active Sessions' }) });
+    this.sessionsModal = page
+      .locator('div.max-w-md')
+      .filter({ has: page.getByRole('heading', { name: 'Active Sessions' }) });
     this.sessionNameInput = page.getByPlaceholder(/e.g. Auditor Bob/i);
     this.sessionSaveButton = page.getByRole('button', { name: 'Save', exact: true });
     this.decryptionKeyInput = page.getByPlaceholder('Enter decryption key...');
@@ -152,12 +161,14 @@ export class RoomPage {
     // Admin Locators
     this.backupAdminActionButton = page.getByRole('button', { name: 'Backup Admin' });
     this.copyAdminTokenButton = page.getByRole('button', { name: 'Copy Admin Token' });
-    this.claimCoordinatorLink = page.getByRole('button', { name: 'Have the Admin Key? Claim Coordinator Role' });
+    this.claimCoordinatorLink = page.getByRole('button', {
+      name: 'Have the Admin Key? Claim Coordinator Role',
+    });
     this.claimPasswordInput = page.getByPlaceholder('Paste Admin Key here...');
     this.claimRoleButton = page.getByRole('button', { name: 'Claim' });
 
     this.verifyAllOutputsButton = page.getByRole('button', { name: /Verify All Outputs/i });
-    
+
     // Labeling Modals
     this.labelNameInput = page.getByPlaceholder('e.g. Alice (Ledger)');
     this.saveLabelButton = page.getByRole('button', { name: 'Save Label' });
@@ -169,31 +180,53 @@ export class RoomPage {
     this.privacyModalRevealAll = this.page.getByRole('button', { name: 'Reveal All' });
 
     // Header: Scoped to the first rounded card that contains the Room Overview
-    const headerContainer = page.locator('div.bg-slate-900\\/80').filter({ hasText: 'Room Overview' }).first();
+    const headerContainer = page
+      .locator('div.bg-slate-900\\/80')
+      .filter({ hasText: 'Room Overview' })
+      .first();
     this.headerHiddenBadge = headerContainer.getByRole('button', { name: 'Hidden for Privacy' });
 
     // Proposal: Scoped to the specific Proposal container card
-    this.proposalContainer = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: 'Transaction Proposal' }) }).first();
-    this.proposalHiddenBadge = this.proposalContainer.getByRole('button', { name: 'Hidden for Privacy' });
+    this.proposalContainer = page
+      .locator('div.bg-slate-900')
+      .filter({ has: page.getByRole('heading', { name: 'Transaction Proposal' }) })
+      .first();
+    this.proposalHiddenBadge = this.proposalContainer.getByRole('button', {
+      name: 'Hidden for Privacy',
+    });
 
     // Details: Scoped to the Details container card
-    const detailsContainer = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: 'Transaction Details' }) }).first();
+    const detailsContainer = page
+      .locator('div.bg-slate-900')
+      .filter({ has: page.getByRole('heading', { name: 'Transaction Details' }) })
+      .first();
     this.detailsHiddenBadge = detailsContainer.getByRole('button', { name: 'Hidden for Privacy' });
 
     // Signers: Scoped to the Signers container card
-    const signersContainer = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: /Signers/i }) }).first();
+    const signersContainer = page
+      .locator('div.bg-slate-900')
+      .filter({ has: page.getByRole('heading', { name: /Signers/i }) })
+      .first();
     this.signersHiddenBadge = signersContainer.getByRole('button', { name: 'Hidden for Privacy' });
 
     // The Eye Toggles (Also scoped to their specific containers for maximum resilience)
-    this.headerEyeToggle = headerContainer.locator('button[title="Reveal Header"], button[title="Hide Header"]');
-    this.proposalEyeToggle = this.proposalContainer.locator('button[title="Reveal Proposal"], button[title="Hide Proposal"]');
-    this.detailsEyeToggle = detailsContainer.locator('button[title="Reveal Details"], button[title="Hide Details"]');
-    this.signersEyeToggle = signersContainer.locator('button[title="Reveal Signers"], button[title="Hide Signers"]');
-    
+    this.headerEyeToggle = headerContainer.locator(
+      'button[title="Reveal Header"], button[title="Hide Header"]',
+    );
+    this.proposalEyeToggle = this.proposalContainer.locator(
+      'button[title="Reveal Proposal"], button[title="Hide Proposal"]',
+    );
+    this.detailsEyeToggle = detailsContainer.locator(
+      'button[title="Reveal Details"], button[title="Hide Details"]',
+    );
+    this.signersEyeToggle = signersContainer.locator(
+      'button[title="Reveal Signers"], button[title="Hide Signers"]',
+    );
   }
 
   async getRoomId(): Promise<string> {
-    const btn = this.page.locator('div.relative.group')
+    const btn = this.page
+      .locator('div.relative.group')
       .filter({ hasText: 'View Room ID' })
       .locator('button');
     return (await btn.innerText()).trim();
@@ -203,15 +236,16 @@ export class RoomPage {
     await this.page.getByRole('button', { name: new RegExp(`${tab} \\(\\d+\\)`, 'i') }).click();
   }
 
-  getCard(index: number, amount: string): Locator {
-    return this.page.locator('div.p-3')
-      .filter({ hasText: `#${index}` })
-      .filter({ hasText: amount });
+  getOutputCard(index: number) {
+    return this.page.locator('.address-card');
+  }
+
+  getVerificationBadgeCard(index: number) {
+    return this.page.locator('.verification-badge');
   }
 
   getSignerRow(fingerprint: string): Locator {
-    return this.signerList.locator('div.p-4.rounded-xl')
-      .filter({ hasText: fingerprint });
+    return this.signerList.locator('div.p-4.rounded-xl').filter({ hasText: fingerprint });
   }
 
   /**
@@ -223,12 +257,12 @@ export class RoomPage {
       await expect(row).toHaveClass(/bg-emerald-900_30/);
       await expect(row).toHaveClass(/border-emerald-500_30/);
       await expect(row.getByText('Signed')).toBeVisible();
-      
+
       await expect(row.locator('lucide-icon.animate-spin')).toBeHidden();
     } else {
       await expect(row).toHaveClass(/bg-slate-950/);
       await expect(row.getByText('Waiting...')).toBeVisible();
-      
+
       await expect(row.locator('lucide-icon.animate-spin')).toBeVisible();
     }
   }
@@ -259,7 +293,8 @@ export class RoomPage {
    * Scoping to 'this.sessionList' prevents accidental matches with the input field.
    */
   getSessionRow(displayName: string) {
-    return this.sessionList.locator('div.flex.items-center.justify-between.p-3')
+    return this.sessionList
+      .locator('div.flex.items-center.justify-between.p-3')
       .filter({ has: this.page.locator('span', { hasText: displayName }) });
   }
 

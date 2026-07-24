@@ -2132,4 +2132,67 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       expect(component.isSaved('fp-123')).toBe(false);
     });
   });
+
+  describe('RoomComponent - copyAddress', () => {
+    it('should exit early and not call clipboard if address is empty', () => {
+      component.copyAddress('');
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    });
+
+    it('should copy address, update signal, and clear it after exactly 2 seconds', async () => {
+      const testAddress = 'bc1q_test_address_mock';
+
+      // Execute the function
+      component.copyAddress(testAddress);
+
+      // Verify the clipboard API was called with the correct string
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(testAddress);
+
+      // Flush the Promise queue so the .then() block executes
+      await Promise.resolve();
+
+      // Verify the signal is set immediately after promise resolves
+      expect(component.copiedAddress()).toBe(testAddress);
+
+      // Fast-forward time by 1999ms (just before the timeout triggers)
+      vi.advanceTimersByTime(1999);
+      expect(component.copiedAddress()).toBe(testAddress); // Should still be the address
+
+      // Fast-forward 1 more millisecond to trigger the 2000ms timeout
+      vi.advanceTimersByTime(1);
+
+      // Verify the signal has been reset to null
+      expect(component.copiedAddress()).toBeNull();
+    });
+
+    it('should not clear the signal if a new address is copied during the 2-second window', async () => {
+      const address1 = 'address_1';
+      const address2 = 'address_2';
+
+      // Copy the first address
+      component.copyAddress(address1);
+      await Promise.resolve(); // Flush promises
+      expect(component.copiedAddress()).toBe(address1);
+
+      // Wait 1 second (halfway through the first timeout)
+      vi.advanceTimersByTime(1000);
+
+      // Copy the second address
+      component.copyAddress(address2);
+      await Promise.resolve(); // Flush promises
+      expect(component.copiedAddress()).toBe(address2);
+
+      // Wait 1 more second.
+      // This hits the 2-second mark for the FIRST copy, but the signal should NOT clear
+      // because it no longer matches address1
+      vi.advanceTimersByTime(1000);
+      expect(component.copiedAddress()).toBe(address2);
+
+      // Wait 1 final second to hit the 2-second mark for the SECOND copy
+      vi.advanceTimersByTime(1000);
+
+      // Now it should be cleared
+      expect(component.copiedAddress()).toBeNull();
+    });
+  });
 });
