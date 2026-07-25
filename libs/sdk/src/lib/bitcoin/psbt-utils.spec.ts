@@ -126,6 +126,7 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
 
   it('should extract the multisig threshold from witness script', () => {
     const mockTx = {
+      inputsLength: 1,
       getInput: vi.fn().mockReturnValue({
         witnessScript: new Uint8Array([0x52, 0x21]), // OP_2 (0x52)
       }),

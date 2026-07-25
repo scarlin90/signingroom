@@ -57,6 +57,9 @@ import {
   Search,
   FileText,
   Network,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldOff,
 } from 'lucide-angular';
 import { SocketService } from '../../services/socket/socket.service';
 import * as QRCode from 'qrcode';
@@ -122,6 +125,9 @@ export class RoomComponent implements OnInit, OnDestroy {
   readonly Search = Search;
   readonly FileText = FileText;
   readonly Network = Network;
+  readonly ShieldAlert = ShieldAlert;
+  readonly ShieldCheck = ShieldCheck;
+  readonly ShieldOff = ShieldOff;
 
   public roomId = signal<string | null>(null);
   public viewMode = signal<'inputs' | 'outputs'>('outputs');
@@ -236,6 +242,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   showFountainModal = signal<boolean>(false);
   isFountainRevealed = signal<boolean>(false);
   showScannerModal = signal<boolean>(false);
+  copiedAddress = signal<string | null>(null);
   exportFormat = signal<'ur' | 'bbqr'>('ur');
   activeFountainFrames: string[] = [];
   currentFrameIndex = signal<number>(0);
@@ -636,6 +643,25 @@ export class RoomComponent implements OnInit, OnDestroy {
       },
       false,
     );
+  }
+
+  copyAddress(address: string): void {
+    if (!address) return;
+
+    navigator.clipboard
+      .writeText(address)
+      .then(() => {
+        this.copiedAddress.set(address);
+
+        setTimeout(() => {
+          if (this.copiedAddress() === address) {
+            this.copiedAddress.set(null);
+          }
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy address: ', err);
+      });
   }
 
   openSessionsModal() {

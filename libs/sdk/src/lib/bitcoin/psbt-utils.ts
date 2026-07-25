@@ -114,11 +114,23 @@ export class PsbtUtils {
   static getThreshold(psbtBase64: string): number {
     try {
       const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
-      const input = tx.getInput(0);
-      const script = input.witnessScript || input.redeemScript;
-      if (!script || script.length === 0) return 0;
-      const firstOp = script[0];
-      return firstOp >= 0x51 && firstOp <= 0x60 ? firstOp - 0x50 : 0;
+
+      // Iterate through all inputs in the transaction
+      for (let i = 0; i < tx.inputsLength; i++) {
+        const input = tx.getInput(i);
+        if (!input) continue;
+
+        const script = input.witnessScript || input.redeemScript;
+        if (!script || script.length === 0) continue;
+
+        const firstOp = script[0];
+        // Check if the first opcode is a valid push for a threshold (OP_1 to OP_16)
+        if (firstOp >= 0x51 && firstOp <= 0x60) {
+          return firstOp - 0x50;
+        }
+      }
+
+      return 0;
     } catch {
       return 0;
     }

@@ -4,8 +4,8 @@ import { launchRoomFromFixture } from '../support/room-helper';
 
 /**
  * Suite: Room Management and OpSec
- * Focuses on administrative actions available to the coordinator, 
- * including room configuration, security locks, address verification, 
+ * Focuses on administrative actions available to the coordinator,
+ * including room configuration, security locks, address verification,
  * and data export functionality.
  */
 test.describe('Room Management and OpSec', () => {
@@ -21,7 +21,7 @@ test.describe('Room Management and OpSec', () => {
     // --- Interaction: Trigger the rename workflow ---
     // Use { force: true } to bypass sticky top-nav occlusion during automated scrolling
     await roomPage.renameButton.click({ force: true });
-    
+
     // --- Verification: Assert modal presence and functionality ---
     await expect(roomPage.renameInput).toBeVisible();
     await roomPage.renameInput.fill('Project Omega Signing');
@@ -34,11 +34,11 @@ test.describe('Room Management and OpSec', () => {
   test('should toggle room lock status', async () => {
     // --- Interaction: Initiate Lock Sequence ---
     await roomPage.lockButton.click({ force: true });
-    
+
     // --- Verification: Assert destructive action confirmation ---
     await expect(roomPage.page.getByText(/Are you sure you want to LOCK/i)).toBeVisible();
     await roomPage.confirmButton.click();
-    
+
     // --- Verification: Confirm Locked state indicators ---
     await expect(roomPage.page.getByTitle('Room Locked')).toBeVisible();
     await expect(roomPage.page.getByTitle('Room Active')).toBeHidden();
@@ -61,8 +61,29 @@ test.describe('Room Management and OpSec', () => {
 
     // --- Setup: Identify target address and associated UI card ---
     const address = 'tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc';
-    const outputCard = roomPage.getCard(0, '0.00100913 BTC');
-    const approveBtn = outputCard.getByRole('button', { name: /Approve Destination/i });
+    // 1. Get the card by row number
+    const outputCard = roomPage.getOutputCard(0);
+    await expect(outputCard).toBeVisible();
+
+    // 2. Check for the Verified text (using \s+ to handle the <br> tag)
+    const verificationBadge = outputCard.locator('.verification-badge');
+    await expect(verificationBadge).toContainText('Unverified Output', { ignoreCase: true });
+
+    // 3. Check for the specific BTC amount
+    await expect(outputCard.getByText('0.00100913 BTC')).toBeVisible();
+
+    // 4. Check for the specific address
+    await expect(
+      outputCard.getByText('tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc'),
+    ).toBeVisible();
+
+    // 6. Check that the clipboard button is available
+    // The button contains the tooltip text "Copy Address" inside a hidden div
+    const clipboardBtn = outputCard.locator('button').filter({ hasText: /Copy Address/i });
+    await expect(clipboardBtn).toBeVisible();
+    await expect(clipboardBtn).toBeEnabled();
+
+    const approveBtn = outputCard.getByRole('button', { name: /Verify/i });
 
     // --- Interaction: Approve the destination ---
     await approveBtn.click({ force: true });
@@ -71,7 +92,11 @@ test.describe('Room Management and OpSec', () => {
 
     // --- Verification: Confirm visual proof of verification and status persistence ---
     await expect(outputCard).toHaveClass(/border-emerald-500/, { timeout: 10000 });
-    await expect(outputCard.getByText(/Verified Destination/i)).toBeVisible();
+
+    await expect(outputCard.locator('.verification-badge')).toContainText('Verified Output', {
+      ignoreCase: true,
+    });
+
     await expect(outputCard.getByText(address)).toBeVisible();
 
     // Ensure the CTA button is replaced by the 'Revoke' action
@@ -85,7 +110,9 @@ test.describe('Room Management and OpSec', () => {
 
     // --- Verification: Confirm state reversion ---
     await expect(approveBtn).toBeVisible();
-    await expect(outputCard.getByText(/Verified Destination/i)).toBeHidden();
+    await expect(outputCard.locator('.verification-badge')).toContainText('Unverified Output', {
+      ignoreCase: true,
+    });
   });
 
   test('should record actions in the Audit Log and trigger download', async () => {
@@ -94,7 +121,7 @@ test.describe('Room Management and OpSec', () => {
     // --- Interaction: Open audit modal and prepare download listener ---
     await roomPage.auditLogButton.click({ force: true });
     const downloadPromise = roomPage.page.waitForEvent('download');
-    
+
     // Trigger PDF generation
     await roomPage.downloadPdfButton.click();
     const download = await downloadPromise;
@@ -107,7 +134,7 @@ test.describe('Room Management and OpSec', () => {
   test('should trigger the settlement data CSV download', async () => {
     // --- Interaction: Open CSV export options ---
     await roomPage.csvActionButton.click({ force: true });
-    
+
     // --- Verification: Assert data confidentiality warnings ---
     const csvModalHeader = roomPage.page.getByRole('heading', { name: /Download CSV Data/i });
     await expect(csvModalHeader).toBeVisible();
