@@ -4,8 +4,8 @@ import { launchRoomFromFixture } from '../support/room-helper';
 
 /**
  * Suite: Room Interface Verification
- * Comprehensive validation of the post-creation environment. 
- * Ensures all headers, metadata, transaction proposal data, 
+ * Comprehensive validation of the post-creation environment.
+ * Ensures all headers, metadata, transaction proposal data,
  * tabbed details, and signer tracking are rendered correctly.
  */
 test.describe('Room Interface Verification', () => {
@@ -24,9 +24,9 @@ test.describe('Room Interface Verification', () => {
     // --- Verification: UnBlur, Active Status & Branding ---
     await roomPage.headerHiddenBadge.click({ force: true });
     await roomPage.privacyModalRevealSection.click();
-    
+
     // CRITICAL: Force Playwright to wait for the CSS animation to complete
-    await expect(roomPage.headerHiddenBadge).toBeHidden(); 
+    await expect(roomPage.headerHiddenBadge).toBeHidden();
 
     await expect(roomPage.activeIndicator).toBeVisible();
     await expect(roomPage.roomTitle).toContainText('Untitled Room');
@@ -50,11 +50,11 @@ test.describe('Room Interface Verification', () => {
     // --- Verification: Countdown Timer Logic ---
     await expect(roomPage.timer).not.toHaveText('Loading...');
     await expect(roomPage.timer).toContainText(/hrs/);
-    
+
     const timerText = await roomPage.timer.innerText();
     const timeMatches = timerText.match(/\d+/g);
     if (!timeMatches) throw new Error(`Could not parse timer text: ${timerText}`);
-    
+
     const [hrs, mins, secs] = timeMatches.map(Number);
     expect(hrs).toBe(23);
     expect(mins).toBeGreaterThanOrEqual(58);
@@ -75,7 +75,7 @@ test.describe('Room Interface Verification', () => {
 
     // --- Verification: Proposal Financials ---
     await expect(roomPage.proposalContainer).toContainText('0.00100913 BTC');
-    await expect(roomPage.proposalContainer).toContainText('$95.87');
+    await expect(roomPage.proposalContainer).toContainText('100,913 sats');
     await expect(roomPage.proposalContainer).toContainText('1.37 sats/vB');
 
     // --- Interaction: Re-blur Proposal ---
@@ -85,26 +85,41 @@ test.describe('Room Interface Verification', () => {
     // ==========================================
     // PHASE 4: TRANSACTION DETAILS (TABS) VERIFICATION
     // ==========================================
-    
+
     // --- Interaction: Reveal Details ---
     await roomPage.detailsHiddenBadge.click({ force: true });
     await roomPage.privacyModalRevealSection.click();
     await expect(roomPage.detailsHiddenBadge).toBeHidden(); // Prevents the intercept error
 
     // --- Verification: Outputs (Default View) ---
-    const outputCard = roomPage.getCard(0, '0.00100913 BTC');
-    await expect(outputCard).toContainText('tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc');
-    await expect(outputCard.getByRole('button', { name: /Approve Destination/i })).toBeVisible();
+    const outputCard = roomPage.getOutputCard(0);
+    await expect(outputCard).toBeVisible();
+
+    const verificationBadge = outputCard.locator('.verification-badge');
+    await expect(verificationBadge).toContainText('Unverified Output', { ignoreCase: true });
+
+    // 3. Check for the specific BTC amount
+    await expect(outputCard.getByText('0.00100913 BTC')).toBeVisible();
+    await expect(outputCard).toContainText(
+      'tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc',
+    );
+    await expect(outputCard.getByRole('button', { name: /Verify/i })).toBeVisible();
 
     // --- Interaction: Switch to Inputs Tab ---
-    // Note: Bypassing roomPage.switchTab() to explicitly apply { force: true } 
+    // Note: Bypassing roomPage.switchTab() to explicitly apply { force: true }
     // This prevents the sticky z-50 navbar from intercepting the click on scroll
     await page.getByRole('button', { name: /Inputs \(\d+\)/i }).click({ force: true });
-    
+
     // --- Verification: Inputs Details ---
-    const inputCard = roomPage.getCard(0, '0.00101106 BTC');
-    await expect(inputCard).toContainText('tb1qww078psjaee79gh0cfrqpf6gtzvxzk7gcfs869vnxtruhj6xj03qjfdnh8');
-    await expect(inputCard.getByRole('button', { name: /Approve Source/i })).toBeVisible();
+    const inputCard = roomPage.getOutputCard(0);
+    await expect(outputCard).toBeVisible();
+
+    const inputVerificationBadge = inputCard.locator('.verification-badge');
+    await expect(inputVerificationBadge).toContainText('Unverified Input', { ignoreCase: true });
+    await expect(inputCard).toContainText(
+      'tb1qww078psjaee79gh0cfrqpf6gtzvxzk7gcfs869vnxtruhj6xj03qjfdnh8',
+    );
+    await expect(inputCard.getByRole('button', { name: /Verify/i })).toBeVisible();
 
     // --- Interaction: Re-blur Details ---
     await roomPage.detailsEyeToggle.click({ force: true });
@@ -121,13 +136,13 @@ test.describe('Room Interface Verification', () => {
 
     // --- Verification: Progress Tracking ---
     await expect(page.getByText('0 Signed')).toBeVisible();
-    
+
     // Verify each fingerprint from the 3-of-5 multisig is rendered
     const fingerprints = ['fe0fa7b4', '57308a20', '7fd7cacb', 'af4b013d', 'a423185b'];
     for (const fp of fingerprints) {
       await expect(roomPage.getSignerRow(fp)).toBeVisible();
     }
-    
+
     // Ensure the finalization button reflects 0/5 signatures and is disabled
     const finalizeBtn = page.getByRole('button', { name: /Waiting for Signatures \(0 \/ 3\)/i });
     await expect(finalizeBtn).toBeDisabled();
@@ -141,7 +156,16 @@ test.describe('Room Interface Verification', () => {
     // ==========================================
 
     // --- Verification: Utility Button Presence ---
-    const actions = ['Audit Log', 'CSV', 'Link Key', 'Backup Admin', 'Share Link', 'QR Code', 'Lock Room', 'Close'];
+    const actions = [
+      'Audit Log',
+      'CSV',
+      'Link Key',
+      'Backup Admin',
+      'Share Link',
+      'QR Code',
+      'Lock Room',
+      'Close',
+    ];
     for (const actionName of actions) {
       await expect(page.getByRole('button', { name: actionName, exact: false })).toBeVisible();
     }
