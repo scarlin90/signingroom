@@ -21,4 +21,9 @@ ENV API_PUBLIC_URL="http://0.0.0.0:8787"
 
 # 4. Run Wrangler from within the worker workspace scope
 WORKDIR /app/apps/worker
-CMD ["npx", "wrangler", "dev", "src/index.ts", "--ip", "0.0.0.0", "--port", "8787"]
+
+# Write injected Docker environment variables to .dev.vars, then launch the server
+CMD echo "ALLOWED_ORIGIN=${ALLOWED_ORIGIN}" > .dev.vars && \
+    echo "ENVIRONMENT=${ENVIRONMENT}" >> .dev.vars && \
+    echo "API_PUBLIC_URL=${API_PUBLIC_URL}" >> .dev.vars && \
+    npx wrangler dev src/index.ts --ip 0.0.0.0 --port 8787
