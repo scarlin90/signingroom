@@ -3,15 +3,15 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "version": 1,
-  "serialNumber": "urn:uuid:958b2545-f03b-4f1c-bd0a-36f808508de9",
+  "serialNumber": "urn:uuid:994bd211-8dd8-4c9d-92f6-5fd1445d9174",
   "metadata": {
-    "timestamp": "2026-07-25T07:02:31.554Z",
+    "timestamp": "2026-07-27T14:29:30.255Z",
     "tools": {
       "components": [
         {
           "type": "application",
           "name": "npm",
-          "version": "10.9.8"
+          "version": "11.17.0"
         },
         {
           "type": "application",
