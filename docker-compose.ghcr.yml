@@ -1,0 +1,17 @@
+services:
+  worker:
+    image: ghcr.io/scarlin90/signingroom/worker:dev
+    container_name: signingroom-worker
+    ports:
+      - '8787:8787'
+    environment:
+      - ALLOWED_ORIGIN=http://localhost:4200
+      - ENVIRONMENT=development
+
+  client:
+    image: ghcr.io/scarlin90/signingroom/client:dev
+    container_name: signingroom-client
+    ports:
+      - '4200:80'
+    depends_on:
+      - worker
