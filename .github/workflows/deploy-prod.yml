@@ -1,8 +1,8 @@
-name: Deploy Development Environment
+name: Deploy Production Environment & Publish Docker
 
 on:
   push:
-    branches: ['development']
+    branches: ['main']
 
 permissions:
   contents: read
@@ -10,9 +10,9 @@ permissions:
   packages: write
 
 jobs:
-  deploy-dev-environment:
+  deploy-prod-environment:
     runs-on: ubuntu-latest
-    environment: development
+    environment: production
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -25,25 +25,25 @@ jobs:
       - name: Install Dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Build Angular Client (Nx)
-        run: npx nx build client --configuration=hosted-dev
+      - name: Build Angular Client (Nx Production)
+        run: npx nx build client --configuration=production
 
-      - name: Deploy Frontend to Cloudflare Pages
+      - name: Deploy Frontend to Cloudflare Pages (Prod)
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web-dev'
+          projectName: 'signingroom-web'
           directory: 'dist/apps/client/browser'
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'development'
+          branch: 'main'
 
-      - name: Deploy Backend to Cloudflare Workers
+      - name: Deploy Backend to Cloudflare Workers (Prod)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env development
+          command: deploy
           workingDirectory: 'apps/worker'
 
       - name: Log in to GitHub Container Registry
@@ -60,8 +60,8 @@ jobs:
           file: ./Dockerfile.worker
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/worker:dev
-            ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/worker:latest
+            ghcr.io/${{ github.repository }}/worker:${{ github.sha }}
 
       - name: Build and Push Client Docker Image
         uses: docker/build-push-action@v5
@@ -70,5 +70,5 @@ jobs:
           file: ./Dockerfile.client
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/client:dev
-            ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/client:latest
+            ghcr.io/${{ github.repository }}/client:${{ github.sha }}

@@ -1,0 +1,24 @@
+FROM node:26-bookworm-slim
+
+WORKDIR /app
+
+# Set production Node environment
+ENV NODE_ENV=production
+
+# Install dependencies (utilizing Layer Caching)
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps --only=production
+
+# Copy full application source code
+COPY . .
+
+# Expose Cloudflare Wrangler dev port
+EXPOSE 8787
+
+# Configure environment variables required by Wrangler
+ENV ALLOWED_ORIGIN="*"
+ENV ENVIRONMENT="production"
+ENV API_PUBLIC_URL="http://0.0.0.0:8787"
+
+# Run wrangler dev listening on all network interfaces
+CMD ["npx", "wrangler", "dev", "apps/worker/src/index.ts", "--ip", "0.0.0.0", "--port", "8787"]
