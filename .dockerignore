@@ -1,5 +1,23 @@
-node_modules
-dist
 .angular
-.nx/cache
-.git
+
+# Dependencies & Package Caches
+node_modules/
+.npm/
+
+# Build & Dist Outputs
+dist/
+.nx/
+.cache/
+coverage/
+
+# Git & Docker
+.git/
+.gitignore
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+
+# Logs & Environment
+*.log
+.env
+.dev.vars

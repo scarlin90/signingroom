@@ -2,23 +2,23 @@ FROM node:26-bookworm-slim
 
 WORKDIR /app
 
-# Set production Node environment
-ENV NODE_ENV=production
-
-# Install dependencies (utilizing Layer Caching)
+# 1. Copy root and worker package manifests to their exact monorepo paths
 COPY package*.json ./
+COPY apps/worker/package*.json ./apps/worker/
+
+# 2. Install dependencies across the monorepo (including apps/worker)
 RUN npm ci --legacy-peer-deps
 
-# Copy full application source code
+# 3. Copy full application source code
 COPY . .
 
-# Expose Cloudflare Wrangler dev port
 EXPOSE 8787
 
-# Configure environment variables required by Wrangler
+# Configure environment variables
 ENV ALLOWED_ORIGIN="*"
-ENV ENVIRONMENT="production"
+ENV ENVIRONMENT="development"
 ENV API_PUBLIC_URL="http://0.0.0.0:8787"
 
-# Run wrangler dev listening on all network interfaces
-CMD ["npx", "wrangler", "dev", "apps/worker/src/index.ts", "--ip", "0.0.0.0", "--port", "8787"]
+# 4. Run Wrangler from within the worker workspace scope
+WORKDIR /app/apps/worker
+CMD ["npx", "wrangler", "dev", "src/index.ts", "--ip", "0.0.0.0", "--port", "8787"]
