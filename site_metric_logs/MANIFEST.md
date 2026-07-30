@@ -19,13 +19,14 @@ To ensure immutable audit trails, logs are grouped by their specific Audit Date.
 - `./2026-05-01_audit/` - (v2.1.0 Architecture & Edge Cache Validation)
 - `./2026-05-16_audit/` - (Optical Air-Gapped Release & 30-Day Performance Audit)
 - `./2026-07-13_audit/` - (v2.5.0)
+- `./2026-07-30_audit/` - (Post v3.0.0 and sdk v1.0.1)
 
 ## 📊 Performance Metrics (Global Aggregate)
 
 | Metric                            | Value | Interpretation                                                            |
 | :-------------------------------- | :---- | :------------------------------------------------------------------------ |
 | **Database Footprint**            | 0 KB  | **Absolute Statelessness:** No user metadata or PSBTs are stored.         |
-| **Current Cache Ratio (Avg 30d)** | 58.5% | **Healthy Equilibrium:** Balancing static delivery with dynamic relaying. |
+| **Current Cache Ratio (Avg 30d)** | 40.9% | **Healthy Equilibrium:** Balancing static delivery with dynamic relaying. |
 
 ---
 
@@ -352,3 +353,46 @@ This snapshot captures the transition to high-density coordination ceremonies an
 ### Audit Verdict
 
 **Passed.** The July 13th audit confirms that SigningRoom.io continues to scale as a performant public good. The infrastructure processes significant bandwidth while maintaining strict architectural statelessness, validating the core promise of ephemeral, zero-knowledge coordination.
+
+### 📂 ./2026-07-30_audit/
+
+#### 🔍 Daily Snapshot: July 30, 2026 (Last 24 Hours)
+
+| Category       | Metric               | Value     | Forensic Conclusion                                                              |
+| :------------- | :------------------- | :-------- | :------------------------------------------------------------------------------- |
+| **Traffic**    | Total Requests       | 3,935     | Elevated interaction volume across the full day.                                 |
+| **Throughput** | Total Data Served    | 188.97 MB | Strong daily coordination weight.                                                |
+| **Relay**      | Peak Dynamic Event   | 31.06 MB  | **~0.26% Cache at 9:00 AM.** Pure RAM-only vacuum relay of high-density payload. |
+| **Frontend**   | Static Asset Ratio   | 26.10%    | Dynamic-heavy day; edge still efficiently handled major static bursts.           |
+| **Visitors**   | Unique Hourly Visits | 901       | Aggregated hourly footprint showing sustained multi-timezone engagement.         |
+
+#### 🔍 7-Day & 30-Day Aggregates
+
+| Metric                | 7-Day Value | 30-Day Value | Forensic Implication                                                     |
+| :-------------------- | :---------- | :----------- | :----------------------------------------------------------------------- |
+| **Total Requests**    | 27,491      | 82,364       | Sustained high-frequency usage and institutional-grade polling.          |
+| **Total Data Served** | 0.81 GB     | 3.36 GB      | Significant coordination throughput handled without bottlenecking.       |
+| **Edge Cached Data**  | 0.25 GB     | 1.37 GB      | Global CDN continuing to offload the static application shell.           |
+| **Cache Ratio (Avg)** | 31.32%      | 40.88%       | Healthy equilibrium biased toward active WebSocket relays (Vacuum mode). |
+| **Unique Visitors**   | 2,216       | 8,785        | Confirms the relay remains a highly utilized public good.                |
+
+### Forensic Notes
+
+> **The "Stateless Vacuum" Peak (9:00 AM)**  
+> At **9:00 AM** the relay moved **31.14 MB** of data with only **0.26%** cache utilization (~31.06 MB purely uncached). This is a textbook high-density coordination signature: ephemeral transaction metadata streamed entirely through volatile RAM and destroyed on session close. Zero disk persistence was maintained.
+
+> **Secondary Vacuum Events**  
+> Additional near-zero-cache high-bandwidth windows occurred at **8:00 AM** (~16.38 MB uncached) and **10:00–11:00 AM** (combined ~29.3 MB uncached). These reinforce the architecture’s ability to sustain multiple concurrent live ceremonies without state accumulation.
+
+> **Vending Machine Confirmation**  
+> At **1:00 PM** the edge delivered **26.45 MB** at **92.04%** cache hit rate, and at **4:00 PM** **12.32 MB** at **97.68%**. These spikes map cleanly to static PWA / shell asset distribution, fully offloaded from the Durable Object.
+
+> **High-Frequency Dynamic Window**  
+> **2:00 PM** produced the day’s highest request count (**835**) at essentially **0%** cache. This pattern is consistent with rapid WebSocket polling / synchronization rounds rather than static asset fetches.
+
+> **30-Day Stateless Verification**  
+> Across the full window the system routed **3.36 GB** of data over **82,364** requests while the database footprint remained **0 KB**. Average edge cache ratio of **40.88%** demonstrates continued healthy balance between static delivery and live relay traffic.
+
+### Audit Verdict
+
+**Passed.** The July 30th snapshot confirms that SigningRoom.io continues to operate as a strictly stateless, high-throughput public good. Multi-megabyte vacuum events, efficient edge offload of static assets, and sustained multi-gigabyte monthly throughput were all handled with zero persistent storage, validating the core architectural claims at current production scale.

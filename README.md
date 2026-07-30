@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-13_July_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-30_July_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -63,15 +63,15 @@ You are solely responsible for verifying the details of any transaction (address
 
 As a privacy-focused public good, we believe in complete operational transparency. Rather than asking for blind trust, we regularly publish verifiable site metrics to demonstrate the scale, efficiency, and real-world usage of the relay infrastructure.
 
-Based on our latest 30-day forensic audit (period ending July 12, 2026):
+Based on our latest 30-day forensic audit (period ending July 29, 2026):
 
-- **Total Requests Handled:** 88,057
-- **Total Network Bandwidth:** 3.58 GB
-- **Community Adoption:** 5,803 aggregated monthly unique visitors.
+- **Total Requests Handled:** 82,364
+- **Total Network Bandwidth:** 3.36 GB
+- **Community Adoption:** 8,785 aggregated monthly unique visitors.
 
 ### 🔍 Forensic Highlight
 
-**Edge Caching Efficiency:** In the last 30 days, 1.76 GB (49.06% of total bandwidth) was served directly from the edge cache. Our global CDN architecture actively minimizes origin load, ensuring instantaneous coordination and absolute zero-latency for users worldwide. By optimizing static content delivery at the edge, we ensure the relay remains performant even during peak traffic periods, maintaining the "blind" and ephemeral nature of our coordination protocol.
+**Edge Caching Efficiency:** In the last 30 days, 1.37 GB (40.88% of total bandwidth) was served directly from the edge cache. Our global CDN architecture actively minimizes origin load, ensuring instantaneous coordination and absolute zero-latency for users worldwide. By optimizing static content delivery at the edge, we ensure the relay remains performant even during peak traffic periods, maintaining the "blind" and ephemeral nature of our coordination protocol
 
 ### 🛡️ Transparency & Audits
 
