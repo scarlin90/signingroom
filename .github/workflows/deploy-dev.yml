@@ -1,8 +1,11 @@
 name: Deploy Development Environment
 
 on:
-  push:
+  workflow_run:
+    workflows: ['CI Test Suite']
     branches: ['development']
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -13,6 +16,8 @@ jobs:
   deploy-dev-environment:
     runs-on: ubuntu-latest
     environment: development
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

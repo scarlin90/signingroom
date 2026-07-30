@@ -1,8 +1,11 @@
 name: Deploy Staging Environment
 
 on:
-  push:
+  workflow_run:
+    workflows: ['CI Test Suite']
     branches: ['staging']
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -13,6 +16,8 @@ jobs:
   deploy-staging-environment:
     runs-on: ubuntu-latest
     environment: staging
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
