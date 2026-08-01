@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: signingroom-worker
+    ports:
+      - '8787:8787'
+    environment:
+      - ALLOWED_ORIGIN=http://localhost:4200
+      - API_PUBLIC_URL=http://localhost:8787
+      - ENVIRONMENT=development
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      args:
+        BUILD_ENV: development
+    container_name: signingroom-client
+    ports:
+      - '4200:80'
+    depends_on:
+      - worker

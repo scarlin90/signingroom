@@ -1,0 +1,29 @@
+FROM node:26-bookworm-slim
+
+WORKDIR /app
+
+# 1. Copy root and worker package manifests to their exact monorepo paths
+COPY package*.json ./
+COPY apps/worker/package*.json ./apps/worker/
+
+# 2. Install dependencies across the monorepo (including apps/worker)
+RUN npm ci --legacy-peer-deps
+
+# 3. Copy full application source code
+COPY . .
+
+EXPOSE 8787
+
+# Configure environment variables
+ENV ALLOWED_ORIGIN="*"
+ENV ENVIRONMENT="development"
+ENV API_PUBLIC_URL="http://0.0.0.0:8787"
+
+# 4. Run Wrangler from within the worker workspace scope
+WORKDIR /app/apps/worker
+
+# Write injected Docker environment variables to .dev.vars, then launch the server
+CMD echo "ALLOWED_ORIGIN=${ALLOWED_ORIGIN}" > .dev.vars && \
+    echo "ENVIRONMENT=${ENVIRONMENT}" >> .dev.vars && \
+    echo "API_PUBLIC_URL=${API_PUBLIC_URL}" >> .dev.vars && \
+    npx wrangler dev src/index.ts --ip 0.0.0.0 --port 8787

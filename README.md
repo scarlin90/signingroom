@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-13_July_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-30_July_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 
 ---
 
@@ -63,15 +63,15 @@ You are solely responsible for verifying the details of any transaction (address
 
 As a privacy-focused public good, we believe in complete operational transparency. Rather than asking for blind trust, we regularly publish verifiable site metrics to demonstrate the scale, efficiency, and real-world usage of the relay infrastructure.
 
-Based on our latest 30-day forensic audit (period ending July 12, 2026):
+Based on our latest 30-day forensic audit (period ending July 29, 2026):
 
-- **Total Requests Handled:** 88,057
-- **Total Network Bandwidth:** 3.58 GB
-- **Community Adoption:** : 5,803 aggregated monthly unique visitors.
+- **Total Requests Handled:** 82,364
+- **Total Network Bandwidth:** 3.36 GB
+- **Community Adoption:** 8,785 aggregated monthly unique visitors.
 
 ### 🔍 Forensic Highlight
 
-**Edge Caching Efficiency:** In the last 30 days, 1.76 GB (49.06% of total bandwidth) was served directly from the edge cache. Our global CDN architecture actively minimizes origin load, ensuring instantaneous coordination and absolute zero-latency for users worldwide. By optimizing static content delivery at the edge, we ensure the relay remains performant even during peak traffic periods, maintaining the "blind" and ephemeral nature of our coordination protocol.
+**Edge Caching Efficiency:** In the last 30 days, 1.37 GB (40.88% of total bandwidth) was served directly from the edge cache. Our global CDN architecture actively minimizes origin load, ensuring instantaneous coordination and absolute zero-latency for users worldwide. By optimizing static content delivery at the edge, we ensure the relay remains performant even during peak traffic periods, maintaining the "blind" and ephemeral nature of our coordination protocol
 
 ### 🛡️ Transparency & Audits
 
@@ -80,8 +80,8 @@ To maintain strict compliance and absolute operational transparency, all core me
 📊 **Infrastructure Integrity:** Raw exported logs and historical performance data are logged publicly.
 [View the Site Metrics Manifest](./site_metric_logs/MANIFEST.md)
 
-📦 **Software Bill of Materials (SBOM):** In alignment with European Cyber Resilience Act (CRA) guidelines, we maintain a comprehensive machine-readable vulnerability mapping of our software supply chain.
-[Verify our Security Supply Chain](./sbom.json)
+📦 **Software Bill of Materials (SBOM):** In alignment with European Cyber Resilience Act (CRA) guidelines, every automated release dynamically generates a CycloneDX machine-readable vulnerability mapping of our software supply chain, preserved directly as an immutable GitHub Build Artifact.
+[Download Latest Deployment SBOM Artifacts](https://github.com/scarlin90/signingroom/actions/workflows/ci-cd.yml)
 
 ## 🔬 Research & Standards
 
@@ -140,22 +140,23 @@ We are actively seeking funding and grants to evolve **SigningRoom** from a stan
 - [x] Launch `signingroom-core` on Mainnet, Testnet, and Signet (v1.0)
 - [x] Deploy censorship-resistant Progressive Web App (PWA) that bypasses app stores
 
-### Phase 2: Ubiquity — 🔴 Active Grant Target (Q2 2026)
+### Phase 2: Ubiquity — ✅ Completed
 
 - [x] **BIP Draft Submitted**: Standardizing Stateless Encrypted WebSocket Coordination for PSBTs
 - [x] **Web Component (`<signing-room>`)**: Drop-in HTML element for easy third-party integration
-- [x] **Extand Web Component Events**: Expose all events inside room for compliance and governance
-- [ ] **Build Typescript Client Library**: Create Typescript Client to simplify integrations to relay
-- [ ] **Stealth Room**: Prototype OHTTP with Web Transport and MASQUE
+- [x] **Extend Web Component Events**: Expose all events inside room for compliance and governance
 
-### Phase 3: The UX Upgrade (Q3/Q4 2026)
+### Phase 3: 🔴 Active Grant Target (Q3 2026)
 
-- [ ] **Public API**: Well-documented WebSocket API for automated agents and services
-- [ ] Third-party security audit of all cryptographic primitives and implementation
+- [x] **Build Typescript Client Library**: Create Typescript Client to simplify integrations to relay
+- [x] **Youtube**: Create SDK walkthrough
+- [x] **Dockerise**: Create docker images and setup
+- [ ] **Stealth Room**: Prototype OHTTP with Web Transport or QUIC and MASQUE
+- [ ] **Public API**: Well-documented API for automated agents and services
 
 ---
 
-**Status**: Phase 1 complete. Phase 2 is the current focus and primary grant target.
+**Status**: Phase 1 complete. Phase 2 complete. Phase 3 is the current focus and primary grant target.
 
 ## 💰 Support Public Infrastructure
 
@@ -171,52 +172,96 @@ SigningRoom is Free and Open Source Software (FOSS), maintained for the public g
 
 ## 🚀 Quick Start (Development)
 
-Prerequisites: Node.js v20+.
+**Prerequisites:** Docker Desktop **OR** Node.js v20+.
 
+### Option A: Docker Compose (Recommended)
+
+Spin up the entire stack (Worker API + Angular Client served via Nginx) in isolated containers with a single command:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/scarlin90/signingroom.git
+cd signingroom
+
+# 2. Build and start containers
+docker compose up --build
 ```
 
-# 1. Clone the repo
-git clone [https://github.com/scarlin90/signingroom.git](https://github.com/scarlin90/signingroom.git)
+**Frontend Client:** http://localhost:4200  
+**Worker Relay:** http://localhost:8787
+
+> To stop the containers, press <kbd>Ctrl</kbd> + <kbd>C</kbd> and run:
+>
+> ```bash
+> docker compose down
+> ```
+
+### Option B: Native Local Setup
+
+If you prefer running services directly on your host machine:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/scarlin90/signingroom.git
 cd signingroom
 
 # 2. Install dependencies
 npm install
 
-# 3. Start the Development Server
-# You will need two terminals:
-
-# Terminal A: Start the Backend (Worker)
+# 3. Start the Backend (Worker) in Terminal A
 cd apps/worker
 npx wrangler dev
 
-# Terminal B: Start the Frontend (Client)
-# (Run this from the project root)
+# 4. Start the Frontend (Client) in Terminal B (from project root)
 npx nx run client:serve --configuration=development
-
-# Access the Application:
-# Frontend: http://localhost:4200
-# Worker:   http://localhost:8787
 ```
+
+**Frontend Client:** http://localhost:4200  
+**Worker Relay:** http://localhost:8787
+
+---
 
 ## 🏰 Self-Hosting (Sovereign)
 
-We believe in true sovereignty. You should never be locked into a platform. While SigningRoom.io offers a hosted demo for convenience, you are free to inspect the code and run your own infrastructure.
+We believe in true sovereignty. You should never be locked into a platform. While SigningRoom.io offers a hosted demo for convenience, you are free to inspect the code and run your own infrastructure anywhere.
 
-Cloudflare Workers You need a Cloudflare account to deploy the backend.
+### Option 1: Docker Containers (Fully Independent / Any VPS)
 
+Run the entire blind relay stack on your own Linux server, home node, or cloud provider without external serverless dependencies:
+
+```bash
+# 1. Clone your repository
+git clone https://github.com/scarlin90/signingroom.git
+cd signingroom
+
+# 2. Start the stack in detached mode
+docker compose up -d --build
 ```
 
-# Deploy the Worker (Backend)
+#### Custom Domain / Reverse Proxy Setup
+
+Point your Nginx, Caddy, or Traefik reverse proxy to:
+
+- **Client (UI):** http://localhost:4200
+- **Worker (Relay API):** http://localhost:8787
+
+### Option 2: Managed Edge (Cloudflare Workers & Pages)
+
+If you prefer deploying directly to Cloudflare's global edge network, you will need a Cloudflare account:
+
+```bash
+# Deploy the Worker (Backend API)
 npm run deploy:worker
 
-# Deploy the Client (Frontend)
+# Deploy the Client (Frontend UI)
 npm run deploy:client
-
-Environment Variables Set these in your wrangler.jsonc or Cloudflare Dashboard:
-
-ALLOWED_ORIGIN: Your frontend URL (e.g., https://my-signing-room.com).
-
 ```
+
+**Environment Variables**
+
+Set these in your `wrangler.jsonc` or the Cloudflare Dashboard:
+
+- `ALLOWED_ORIGIN`: Your frontend URL (e.g. `https://my-signing-room.com`)
 
 ## 🧪 Testing & Quality Assurance
 
@@ -260,11 +305,11 @@ npx nx run worker:test
 
 In playwright.config.ts remove --ip 0.0.0.0 --port 8787 before running the e2e command
 
-```
+```Bash
 Before - With Docker configuration
 command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787'
 
-After - After withoutt Docker configuration - ready for playwright UI
+After - After without Docker configuration - ready for playwright UI
 command: 'npx wrangler dev apps/worker/src/index.ts'
 ```
 
@@ -273,37 +318,6 @@ Run the e2e command after config change
 ```Bash
 npx nx e2e client-e2e --ui
 ```
-
-## 🤝 Contributing
-
-We welcome code, documentation, translations, and security audits.
-
-## ⚠️ The "Blind Server" Rule
-
-Before contributing, please understand our core constraint:
-
-The server must NEVER know the content of the room. Any PR that introduces server-side logging, analytics, or persistent storage of user data will be rejected immediately.
-
-🛠️ How to Contribute
-Fork the project on GitHub.
-
-Create your Feature Branch (git checkout -b feature/AmazingFeature).
-
-Commit your changes (git commit -m 'Add some AmazingFeature').
-
-Push to the Branch (git push origin feature/AmazingFeature).
-
-Open a Pull Request.
-
-## ⚡ Priority Needs
-
-We are currently looking for help with:
-
-[ ] Translations: Adding new languages for the UI.
-
-[ ] Wallet Support: Testing and verifying new hardware wallets.
-
-[ ] Accessibility: improving ARIA labels for screen readers.
 
 ## 🏢 Enterprise & Commercial Licensing
 
