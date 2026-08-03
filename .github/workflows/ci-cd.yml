@@ -137,24 +137,6 @@ jobs:
       - name: Build Angular Client (Nx)
         run: npx nx build client --configuration=hosted-dev
 
-      - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web-dev'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'development'
-
-      - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env development
-          workingDirectory: 'apps/worker'
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -212,6 +194,24 @@ jobs:
           sarif_file: 'trivy-client-dev.sarif'
           category: trivy-client-dev
 
+      - name: Deploy Frontend to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: 'signingroom-web-dev'
+          directory: 'dist/apps/client/browser'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: 'development'
+
+      - name: Deploy Backend to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env development
+          workingDirectory: 'apps/worker'
+
   deploy-staging:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
@@ -242,24 +242,6 @@ jobs:
 
       - name: Build Angular Client (Nx)
         run: npx nx build client --configuration=hosted-staging
-
-      - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web-staging'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'staging'
-
-      - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env staging
-          workingDirectory: 'apps/worker'
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -318,6 +300,24 @@ jobs:
           sarif_file: 'trivy-client-staging.sarif'
           category: trivy-client-staging
 
+      - name: Deploy Frontend to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: 'signingroom-web-staging'
+          directory: 'dist/apps/client/browser'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: 'staging'
+
+      - name: Deploy Backend to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env staging
+          workingDirectory: 'apps/worker'
+
   deploy-prod:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
@@ -348,24 +348,6 @@ jobs:
 
       - name: Build Angular Client (Nx Production)
         run: npx nx build client --configuration=production
-
-      - name: Deploy Frontend to Cloudflare Pages (Prod)
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'main'
-
-      - name: Deploy Backend to Cloudflare Workers (Prod)
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-          workingDirectory: 'apps/worker'
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -423,3 +405,21 @@ jobs:
         with:
           sarif_file: 'trivy-client-prod.sarif'
           category: trivy-client-prod
+
+      - name: Deploy Frontend to Cloudflare Pages (Prod)
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: 'signingroom-web'
+          directory: 'dist/apps/client/browser'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: 'main'
+
+      - name: Deploy Backend to Cloudflare Workers (Prod)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          workingDirectory: 'apps/worker'
