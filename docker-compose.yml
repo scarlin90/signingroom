@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     container_name: signingroom-worker
+    command: ['serve', 'worker.capnp', '--verbose']
     ports:
       - '8787:8787'
     environment:
