@@ -15,8 +15,6 @@
 [![Last Audit](https://img.shields.io/badge/Last_Audit-30_July_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/scarlin90/signingroom/badge)](https://scorecard.dev/viewer/?uri=github.com/scarlin90/signingroom)
 
----
-
 ### 📦 New: The Official SDK Ecosystem
 
 You can now integrate Signing Room directly into your own infrastructure using our official libraries:
