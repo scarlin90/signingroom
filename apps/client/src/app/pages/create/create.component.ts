@@ -3,7 +3,7 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Component, OnInit, signal, inject, HostListener } from '@angular/core';
+import { Component, OnInit, signal, inject, HostListener, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -131,11 +131,14 @@ export class CreateComponent implements OnInit {
     this.viewMode = (this.route.snapshot.queryParamMap.get('view') as any) || 'default';
 
     this.expectedHost = this.route.snapshot.queryParamMap.get('host') || '';
+    console.log('Expected host for postMessage:', this.expectedHost);
 
     if (typeof window !== 'undefined') {
       if (!this.expectedHost) {
         this.expectedHost = window.location.origin;
       }
+
+      console.log('Expected host for postMessage (after fallback):', this.expectedHost);
 
       this.isEmbedded = window !== window.parent || window !== window.top;
 
@@ -145,7 +148,7 @@ export class CreateComponent implements OnInit {
             type: 'SIGNING_ROOM_EVENT',
             action: 'WIDGET_READY',
           },
-          '*',
+          this.expectedHost,
         );
       }
     }
@@ -255,7 +258,7 @@ export class CreateComponent implements OnInit {
               message: 'Failed to parse PSBT data.',
             },
           },
-          '*',
+          this.expectedHost,
         );
       }
     }

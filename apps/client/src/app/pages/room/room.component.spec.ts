@@ -39,10 +39,25 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         paramMap: {
           get: vi.fn().mockReturnValue('room-123'),
         },
+        queryParamMap: {
+          get: (key: string) => {
+            if (key === 'host') return 'http://localhost:4200';
+            if (key === 'embedded') return 'true';
+            return null;
+          },
+        },
       },
       paramMap: of({
         get: (key: string) => (key === 'id' ? 'room-123' : null),
       }),
+      // keep the top-level queryParamMap if other code still uses it
+      queryParamMap: {
+        get: (key: string) => {
+          if (key === 'host') return 'http://localhost:4200';
+          if (key === 'embedded') return 'true';
+          return null;
+        },
+      },
     };
 
     // Reset all mocks completely to prevent state leakage between tests
@@ -118,6 +133,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     mockDispatcher = {
       isEmbedded: false,
+      setTargetOrigin: vi.fn(),
       emitTransactionFinalized: vi.fn(),
       emitParticipantPresence: vi.fn(),
       emitParticipantLabelled: vi.fn(),
@@ -138,15 +154,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     mockRouter = {
       navigate: vi.fn(),
-    };
-
-    mockActivatedRoute = {
-      snapshot: {
-        fragment: 'test-key-123',
-      },
-      paramMap: of({
-        get: (key: string) => (key === 'id' ? 'room-123' : null),
-      }),
     };
 
     mockTitleService = {

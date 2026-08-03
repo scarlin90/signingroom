@@ -1,12 +1,27 @@
 import { Injectable } from '@angular/core';
 import { SocketService } from '../socket/socket.service';
-import { ModalViewedPayload, PrivacyToggledPayload, PrivacySection, PrivacyState, DataCopiedPayload, RoomRenamedPayload, ParticipantLabelledPayload, DownloadTriggeredPayload, RoomStateChangedPayload, QrStateChangedPayload, FountainFormatChangedPayload, PsbtImportedPayload, TransactionViewChangedPayload, BaseEventContext, SecurityAlertPayload } from '../../models/widget-events.model';
+import {
+  ModalViewedPayload,
+  PrivacyToggledPayload,
+  PrivacySection,
+  PrivacyState,
+  DataCopiedPayload,
+  RoomRenamedPayload,
+  ParticipantLabelledPayload,
+  DownloadTriggeredPayload,
+  RoomStateChangedPayload,
+  QrStateChangedPayload,
+  FountainFormatChangedPayload,
+  PsbtImportedPayload,
+  TransactionViewChangedPayload,
+  BaseEventContext,
+  SecurityAlertPayload,
+} from '../../models/widget-events.model';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class WidgetDispatcherService {
-
   constructor(private socket: SocketService) {}
 
   /**
@@ -16,8 +31,17 @@ export class WidgetDispatcherService {
     try {
       return window !== window.top;
     } catch (e) {
-      return true; 
+      return true;
     }
+  }
+
+  private targetOrigin: string = typeof window !== 'undefined' ? window.location.origin : '';
+
+  /**
+   * Sets the strict origin for all outgoing window.postMessage events.
+   */
+  public setTargetOrigin(origin: string): void {
+    this.targetOrigin = origin;
   }
 
   /**
@@ -28,32 +52,34 @@ export class WidgetDispatcherService {
     return {
       roomId: state?.roomId || null,
       sessionId: this.socket.currentSessionId() || null,
-      role: this.socket.isCoordinator() ? 'coordinator' : (state ? 'guest' : 'unknown'),
+      role: this.socket.isCoordinator() ? 'coordinator' : state ? 'guest' : 'unknown',
       network: state?.network || null,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
   }
-  
+
   /**
    * Core dispatcher that emits events to the parent window (signing room) with a consistent structure. All widget events should funnel through this method.
    */
   private dispatchEvent(action: string, payload: any): void {
     if (!this.isEmbedded) {
-        return; 
+      return;
     }
 
     if (window && window.parent) {
-
       const enrichedPayload = {
         ...this.getBaseContext(),
-        ...payload
+        ...payload,
       };
 
-      window.parent.postMessage({
-        type: 'SIGNING_ROOM_EVENT',
-        action: action,
-        payload: enrichedPayload
-      }, '*');
+      window.parent.postMessage(
+        {
+          type: 'SIGNING_ROOM_EVENT',
+          action: action,
+          payload: enrichedPayload,
+        },
+        this.targetOrigin,
+      );
     }
   }
 
@@ -114,7 +140,11 @@ export class WidgetDispatcherService {
     this.dispatchEvent('transactionViewChanged', { view });
   }
 
-  emitDestinationVerified(type: 'inputs' | 'outputs', address: string | 'batch', isVerified: boolean): void {
+  emitDestinationVerified(
+    type: 'inputs' | 'outputs',
+    address: string | 'batch',
+    isVerified: boolean,
+  ): void {
     this.dispatchEvent('destinationVerified', { type, address, isVerified });
   }
 
@@ -123,12 +153,12 @@ export class WidgetDispatcherService {
   }
 
   // --- TRANSACTION FINALIZATION ---
-  emitTransactionFinalized(payload: { 
-    txId: string; 
-    txHex: string; 
-    roomState: any; 
-    auditLogCsv: string; 
-    settlementCsv: string | undefined; 
+  emitTransactionFinalized(payload: {
+    txId: string;
+    txHex: string;
+    roomState: any;
+    auditLogCsv: string;
+    settlementCsv: string | undefined;
     auditPdfUri: string | null;
   }): void {
     this.dispatchEvent('transactionFinalized', payload);
@@ -136,30 +166,48 @@ export class WidgetDispatcherService {
 
   // --- PARTICIPANT PRESENCE ---
   emitParticipantPresence(
-    action: 'joined' | 'left', 
-    participantId: string, 
-    participantRole: string, 
-    displayName?: string
+    action: 'joined' | 'left',
+    participantId: string,
+    participantRole: string,
+    displayName?: string,
   ): void {
-    this.dispatchEvent('participantPresence', { action, participantId, participantRole, displayName });
+    this.dispatchEvent('participantPresence', {
+      action,
+      participantId,
+      participantRole,
+      displayName,
+    });
   }
 
   // --- SIGNATURES ---
-  emitSignatureReceived(fingerprint: string, signerLabel?: string, signerSessionId?: string, signerName?: string): void {
-    this.dispatchEvent('signatureReceived', { fingerprint, signerLabel, signerSessionId, signerName });
+  emitSignatureReceived(
+    fingerprint: string,
+    signerLabel?: string,
+    signerSessionId?: string,
+    signerName?: string,
+  ): void {
+    this.dispatchEvent('signatureReceived', {
+      fingerprint,
+      signerLabel,
+      signerSessionId,
+      signerName,
+    });
   }
 
   emitParticipantLabelled(
-    target: 'self' | 'participant' | 'signer', 
-    label: string, 
-    fingerprint?: string, 
-    participantId?: string
+    target: 'self' | 'participant' | 'signer',
+    label: string,
+    fingerprint?: string,
+    participantId?: string,
   ): void {
     this.dispatchEvent('participantLabelled', { target, label, fingerprint, participantId });
   }
 
-  emitSecurityAlert(alertType: SecurityAlertPayload['alertType'], severity: SecurityAlertPayload['severity'], message: string): void {
+  emitSecurityAlert(
+    alertType: SecurityAlertPayload['alertType'],
+    severity: SecurityAlertPayload['severity'],
+    message: string,
+  ): void {
     this.dispatchEvent('securityAlert', { alertType, severity, message });
   }
-  
 }

@@ -202,6 +202,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   public saveToBook = signal(true);
 
   private hasEmittedFinalized = false;
+  public expectedHost = '';
 
   readonly icons = {
     Shield,
@@ -396,6 +397,15 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.route.paramMap.subscribe(async (params) => {
         const id = params.get('id');
         const fragmentKey = this.route.snapshot.fragment;
+        const hostParam = this.route.snapshot.queryParamMap.get('host');
+
+        if (hostParam) {
+          this.expectedHost = decodeURIComponent(hostParam);
+
+          this.dispatcher.setTargetOrigin(this.expectedHost);
+        } else if (typeof window !== 'undefined') {
+          this.expectedHost = window.location.origin;
+        }
 
         if (!id) return;
         this.roomId.set(id);
