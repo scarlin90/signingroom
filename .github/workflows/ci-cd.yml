@@ -47,7 +47,7 @@ jobs:
         run: semgrep scan --config p/typescript --sarif --output semgrep.sarif
 
       - name: Upload Semgrep SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: semgrep.sarif
@@ -66,12 +66,17 @@ jobs:
       - name: Run Tests
         run: docker run --name test-container signingroom-ci:latest
 
-      - name: Extract Coverage Summaries
+      - name: Extract Coverage Reports
         if: always()
         run: |
           docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json || true
+          docker cp test-container:/app/coverage/apps/worker/coverage-final.json ./worker-final.json || true
+
           docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json || true
+          docker cp test-container:/app/coverage/apps/client/coverage-final.json ./client-final.json || true
+
           docker cp test-container:/app/coverage/libs/sdk/coverage-summary.json ./sdk-summary.json || true
+          docker cp test-container:/app/coverage/libs/sdk/coverage-final.json ./sdk-final.json || true
 
       - name: Post Worker Coverage to Summary
         if: always()
@@ -79,6 +84,7 @@ jobs:
         with:
           name: 'Worker Relay Coverage'
           json-summary-path: ./worker-summary.json
+          json-final-path: ./worker-final.json
 
       - name: Post Client Coverage to Summary
         if: always()
@@ -86,6 +92,7 @@ jobs:
         with:
           name: 'Client Dashboard Coverage'
           json-summary-path: ./client-summary.json
+          json-final-path: ./client-final.json
 
       - name: Post SDK Coverage to Summary
         if: always()
@@ -93,6 +100,7 @@ jobs:
         with:
           name: 'SDK Coverage'
           json-summary-path: ./sdk-summary.json
+          json-final-path: ./sdk-final.json
 
       - name: Cleanup Docker
         if: always()
@@ -165,7 +173,7 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}
 
       - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}'
           format: 'sarif'
@@ -173,7 +181,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-dev.sarif'
@@ -190,7 +198,7 @@ jobs:
             ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}
 
       - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}'
           format: 'sarif'
@@ -198,7 +206,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-client-dev.sarif'
@@ -271,7 +279,7 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:staging-${{ github.sha }}
 
       - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/worker:staging-${{ github.sha }}'
           format: 'sarif'
@@ -279,7 +287,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-staging.sarif'
@@ -296,7 +304,7 @@ jobs:
             ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}
 
       - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}'
           format: 'sarif'
@@ -304,7 +312,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-client-staging.sarif'
@@ -377,7 +385,7 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:${{ github.sha }}
 
       - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/worker:${{ github.sha }}'
           format: 'sarif'
@@ -385,7 +393,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-prod.sarif'
@@ -402,7 +410,7 @@ jobs:
             ghcr.io/${{ github.repository }}/client:${{ github.sha }}
 
       - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/client:${{ github.sha }}'
           format: 'sarif'
@@ -410,7 +418,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-client-prod.sarif'
