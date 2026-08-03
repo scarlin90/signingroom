@@ -663,6 +663,12 @@ export class RoomComponent implements OnInit, OnDestroy {
       .then(() => {
         this.copiedAddress.set(address);
 
+        const shortAddress = `${address.slice(0, 6)}...${address.slice(-6)}`;
+
+        this.socket.logAction('Address Copied', `${shortAddress}`);
+
+        this.dispatcher.emitAddressCopied(address);
+
         setTimeout(() => {
           if (this.copiedAddress() === address) {
             this.copiedAddress.set(null);

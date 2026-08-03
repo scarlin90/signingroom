@@ -150,6 +150,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       emitFountainFormatChanged: vi.fn(),
       emitFountainStateChanged: vi.fn(),
       emitPrivacyToggle: vi.fn(),
+      emitAddressCopied: vi.fn(),
     };
 
     mockRouter = {
@@ -2146,8 +2147,30 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
     });
 
+    it('should log the action and emit addressCopied event when an address is copied', async () => {
+      // Arrange
+      const mockAddress = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+
+      const expectedShortAddress = 'bc1qxy...hx0wlh';
+
+      const logActionSpy = vi.spyOn(component.socket, 'logAction');
+      const emitAddressCopiedSpy = vi.spyOn(component.dispatcher, 'emitAddressCopied');
+
+      vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+
+      await component.copyAddress(mockAddress);
+
+      await new Promise(process.nextTick);
+
+      // Assert
+      expect(logActionSpy).toHaveBeenCalledWith('Address Copied', expectedShortAddress);
+      expect(emitAddressCopiedSpy).toHaveBeenCalledWith(mockAddress);
+    });
+
     it('should copy address, update signal, and clear it after exactly 2 seconds', async () => {
       const testAddress = 'bc1q_test_address_mock';
+      vi.spyOn(component.socket, 'logAction');
+      vi.spyOn(component['dispatcher'], 'emitAddressCopied');
 
       // Execute the function
       component.copyAddress(testAddress);
@@ -2175,6 +2198,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should not clear the signal if a new address is copied during the 2-second window', async () => {
       const address1 = 'address_1';
       const address2 = 'address_2';
+      vi.spyOn(component.socket, 'logAction');
+      vi.spyOn(component['dispatcher'], 'emitAddressCopied');
 
       // Copy the first address
       component.copyAddress(address1);

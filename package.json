@@ -1,6 +1,6 @@
 {
   "name": "@signing-room/source",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "license": "AGPL-3.0",
   "author": {
     "name": "Stateless Research Ltd",
@@ -122,10 +122,6 @@
     "msgpackr-extract@3.0.4": true,
     "sharp@0.34.5": true,
     "unrs-resolver@1.12.2": true,
-    "workerd@1.20260625.1": true,
-    "esbuild@0.27.7": true,
-    "esbuild@0.28.1": true,
-    "esbuild@0.27.2": true,
     "nx@23.0.1": true
   }
 }

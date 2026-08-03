@@ -11,7 +11,11 @@ export interface RoomCreatedPayload {
   network: string;
 }
 
-export type PrivacySection = 'transaction-overview' | 'transaction-proposal' | 'signers' | 'transaction-details';
+export type PrivacySection =
+  | 'transaction-overview'
+  | 'transaction-proposal'
+  | 'signers'
+  | 'transaction-details';
 export type PrivacyState = 'blurred' | 'reveal-all' | 'reveal-section' | 'hidden';
 
 export interface ModalViewedPayload {
@@ -29,7 +33,14 @@ export interface RoomRenamedPayload {
 }
 
 export interface DataCopiedPayload {
-  dataType: 'room-id' | 'session-id' | 'decryption-key' | 'admin-token' | 'share-link' | 'share-link-full' | 'final-hex';
+  dataType:
+    | 'room-id'
+    | 'session-id'
+    | 'decryption-key'
+    | 'admin-token'
+    | 'share-link'
+    | 'share-link-full'
+    | 'final-hex';
 }
 
 export interface DownloadTriggeredPayload {
@@ -50,8 +61,8 @@ export interface FountainFormatChangedPayload {
 }
 
 export interface FountainStateChangedPayload {
-    isRevealed: boolean;
-    format: 'ur' | 'bbqr';
+  isRevealed: boolean;
+  format: 'ur' | 'bbqr';
 }
 
 export interface PsbtImportedPayload {
@@ -77,13 +88,13 @@ export interface ParticipantPresencePayload extends BaseEventContext {
 
 export interface SignatureReceivedPayload extends BaseEventContext {
   fingerprint: string;
-  signerLabel?: string; 
+  signerLabel?: string;
   signerSessionId?: string;
   signerName?: string;
 }
 
 export interface ParticipantLabelledPayload extends BaseEventContext {
-  target: 'self' | 'participant' | 'signer'; 
+  target: 'self' | 'participant' | 'signer';
   label: string;
   fingerprint?: string;
   participantId?: string;

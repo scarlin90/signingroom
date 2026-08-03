@@ -366,5 +366,25 @@ describe('WidgetDispatcherService', () => {
         TEST_ORIGIN,
       );
     });
+
+    it('should securely emit addressCopied event to the host', () => {
+      const mockAddress = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+
+      service.emitAddressCopied(mockAddress);
+
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'SIGNING_ROOM_EVENT',
+          action: 'addressCopied',
+          payload: expect.objectContaining({
+            address: mockAddress,
+            network: 'testnet',
+            role: 'coordinator',
+            roomId: 'test-room',
+          }),
+        }),
+        'https://trusted-host.com',
+      );
+    });
   });
 });

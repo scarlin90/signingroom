@@ -148,6 +148,10 @@ export class WidgetDispatcherService {
     this.dispatchEvent('destinationVerified', { type, address, isVerified });
   }
 
+  emitAddressCopied(address: string): void {
+    this.dispatchEvent('addressCopied', { address });
+  }
+
   emitRoomCreated(roomId: string, network: string): void {
     this.dispatchEvent('roomCreated', { roomId, network });
   }
