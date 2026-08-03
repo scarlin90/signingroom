@@ -32,6 +32,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -50,10 +53,18 @@ jobs:
           sarif_file: semgrep.sarif
           category: semgrep
 
-      - name: Build and Run Tests
-        run: |
-          docker build -t signingroom-ci -f Dockerfile.test .
-          docker run --name test-container signingroom-ci
+      - name: Build Test Image (with Cache)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.test
+          load: true
+          tags: signingroom-ci:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Tests
+        run: docker run --name test-container signingroom-ci:latest
 
       - name: Extract Coverage Summaries
         if: always()
@@ -87,42 +98,8 @@ jobs:
         if: always()
         run: docker rm -f test-container || true
 
-  scorecard:
-    name: OpenSSF Scorecard Analysis
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      id-token: write
-      contents: read
-      actions: read
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Run OpenSSF Scorecard analysis
-        uses: ossf/scorecard-action@v2.3.1
-        with:
-          results_file: results.sarif
-          results_format: sarif
-          publish_results: true
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SARIF file
-          path: results.sarif
-          retention-days: 5
-
-      - name: Upload to code-scanning
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results.sarif
-          category: scorecard
-
   deploy-dev:
-    needs: [run-tests, scorecard]
+    needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
     runs-on: ubuntu-latest
     environment: development
@@ -228,7 +205,7 @@ jobs:
           category: trivy-client-dev
 
   deploy-staging:
-    needs: [run-tests, scorecard]
+    needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     runs-on: ubuntu-latest
     environment: staging
@@ -334,7 +311,7 @@ jobs:
           category: trivy-client-staging
 
   deploy-prod:
-    needs: [run-tests, scorecard]
+    needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
     runs-on: ubuntu-latest
     environment: production

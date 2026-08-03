@@ -1,0 +1,56 @@
+name: Nightly Security Scans
+
+on:
+  # Run automatically every day at 3:00 AM UTC
+  schedule:
+    - cron: '0 3 * * *'
+  # Allow manual triggering
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  packages: read
+
+jobs:
+  semgrep-sast:
+    name: Semgrep Static Code Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: python3 -m pip install semgrep
+
+      - name: Run Semgrep Security Scan
+        run: semgrep scan --config p/typescript --sarif --output semgrep.sarif
+
+      - name: Upload Semgrep SARIF to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep-nightly
+
+  trivy-container-scan:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: ['worker', 'client']
+        tag: ['latest', 'staging', 'dev']
+    steps:
+      - name: Scan ${{ matrix.component }}:${{ matrix.tag }} for CVEs
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/${{ matrix.component }}:${{ matrix.tag }}'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.component }}-${{ matrix.tag }}.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy SARIF to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-${{ matrix.component }}-${{ matrix.tag }}.sarif'
+          category: trivy-${{ matrix.component }}-${{ matrix.tag }}-nightly
