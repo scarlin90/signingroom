@@ -5,12 +5,25 @@ on:
     branches: ['main', 'staging', 'development']
   pull_request:
     branches: ['main', 'staging', 'development']
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Environment to deploy to (development, staging, main)'
+        required: true
+        default: 'main'
+        type: choice
+        options:
+          - development
+          - staging
+          - main
 
 permissions:
   contents: write
   deployments: write
   packages: write
   pull-requests: write
+  security-events: write
+  id-token: write
 
 jobs:
   run-tests:
@@ -23,6 +36,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '26'
+
+      - name: Install Semgrep
+        run: python3 -m pip install semgrep
+
+      - name: Run Semgrep Security Scan
+        run: semgrep scan --config p/typescript --sarif --output semgrep.sarif
+
+      - name: Upload Semgrep SARIF to GitHub UI
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
 
       - name: Build and Run Tests
         run: |
@@ -61,9 +87,43 @@ jobs:
         if: always()
         run: docker rm -f test-container || true
 
+  scorecard:
+    name: OpenSSF Scorecard Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run OpenSSF Scorecard analysis
+        uses: ossf/scorecard-action@v2.3.1
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code-scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: scorecard
+
   deploy-dev:
-    needs: run-tests
-    if: github.event_name == 'push' && github.ref_name == 'development'
+    needs: [run-tests, scorecard]
+    if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
     runs-on: ubuntu-latest
     environment: development
     steps:
@@ -127,6 +187,21 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:dev
             ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}
 
+      - name: Scan Worker Container for CVEs
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-dev.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Worker Trivy SARIF to GitHub UI
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-dev.sarif'
+          category: trivy-dev
+
       - name: Build and Push Client Docker Image
         uses: docker/build-push-action@v5
         with:
@@ -137,9 +212,24 @@ jobs:
             ghcr.io/${{ github.repository }}/client:dev
             ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}
 
+      - name: Scan Client Container for CVEs
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-client-dev.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Client Trivy SARIF to GitHub UI
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-client-dev.sarif'
+          category: trivy-client-dev
+
   deploy-staging:
-    needs: run-tests
-    if: github.event_name == 'push' && github.ref_name == 'staging'
+    needs: [run-tests, scorecard]
+    if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -203,6 +293,21 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:staging
             ghcr.io/${{ github.repository }}/worker:staging-${{ github.sha }}
 
+      - name: Scan Worker Container for CVEs
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/worker:staging-${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-staging.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Worker Trivy SARIF to GitHub UI
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-staging.sarif'
+          category: trivy-staging
+
       - name: Build and Push Client Docker Image
         uses: docker/build-push-action@v5
         with:
@@ -213,9 +318,24 @@ jobs:
             ghcr.io/${{ github.repository }}/client:staging
             ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}
 
+      - name: Scan Client Container for CVEs
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-client-staging.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Client Trivy SARIF to GitHub UI
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-client-staging.sarif'
+          category: trivy-client-staging
+
   deploy-prod:
-    needs: run-tests
-    if: github.event_name == 'push' && github.ref_name == 'main'
+    needs: [run-tests, scorecard]
+    if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -279,6 +399,21 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:latest
             ghcr.io/${{ github.repository }}/worker:${{ github.sha }}
 
+      - name: Scan Worker Container for CVEs
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/worker:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-prod.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Worker Trivy SARIF to GitHub UI
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-prod.sarif'
+          category: trivy-prod
+
       - name: Build and Push Client Docker Image
         uses: docker/build-push-action@v5
         with:
@@ -288,3 +423,18 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/client:latest
             ghcr.io/${{ github.repository }}/client:${{ github.sha }}
+
+      - name: Scan Client Container for CVEs
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/client:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-client-prod.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Client Trivy SARIF to GitHub UI
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-client-prod.sarif'
+          category: trivy-client-prod
