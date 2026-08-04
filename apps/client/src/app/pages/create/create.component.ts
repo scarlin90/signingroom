@@ -130,14 +130,11 @@ export class CreateComponent implements OnInit {
     this.viewMode = (this.route.snapshot.queryParamMap.get('view') as any) || 'default';
 
     this.expectedHost = this.route.snapshot.queryParamMap.get('host') || '';
-    console.log('Expected host for postMessage:', this.expectedHost);
 
     if (typeof window !== 'undefined') {
       if (!this.expectedHost) {
         this.expectedHost = window.location.origin;
       }
-
-      console.log('Expected host for postMessage (after fallback):', this.expectedHost);
 
       this.isEmbedded = window !== window.parent || window !== window.top;
 
