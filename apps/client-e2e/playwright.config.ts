@@ -9,9 +9,13 @@ const baseURL = process.env['BASE_URL'] || 'http://localhost:4200';
 export default defineConfig({
   ...nxE2EPreset(__filename, { testDir: './src' }),
   workers: 1,
+  timeout: 30000, // 30 second hard timeout per test
+  reporter: process.env.CI ? [['github'], ['list']] : 'html',
   use: {
     baseURL,
     trace: 'on-first-retry',
+    actionTimeout: 10000,
+    navigationTimeout: 15000,
   },
 
   // Skip booting local servers if we are testing a live environment

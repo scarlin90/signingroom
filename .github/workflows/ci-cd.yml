@@ -225,6 +225,7 @@ jobs:
         run: npx playwright test
         env:
           BASE_URL: 'https://dev.signingroom.io'
+          DEBUG: 'pw:api'
 
   deploy-staging:
     needs: [run-tests]
