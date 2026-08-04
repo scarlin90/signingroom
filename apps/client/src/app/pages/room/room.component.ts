@@ -19,48 +19,47 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Title } from '@angular/platform-browser';
 import {
-  LucideAngularModule,
-  Shield,
-  Users,
-  CheckCircle,
-  Loader2,
-  Copy,
-  Clock,
-  ArrowRight,
-  Hash,
-  Crown,
-  UploadCloud,
-  DownloadCloud,
-  Download,
-  ExternalLink,
-  Check,
-  Zap,
-  AlertTriangle,
-  Power,
-  X,
-  Lock,
-  Unlock,
-  Key,
-  RefreshCw,
-  AlertOctagon,
-  FileKey,
-  FileCheck,
-  Edit2,
-  Tag,
-  Bell,
-  Infinity,
-  ArrowDown,
-  Book,
-  QrCode,
-  Eye,
-  EyeOff,
-  Search,
-  FileText,
-  Network,
-  ShieldAlert,
-  ShieldCheck,
-  ShieldOff,
-} from 'lucide-angular';
+  LucideShield,
+  LucideUsers,
+  LucideCheckCircle,
+  LucideLoader2,
+  LucideCopy,
+  LucideClock,
+  LucideArrowRight,
+  LucideHash,
+  LucideCrown,
+  LucideUploadCloud,
+  LucideDownloadCloud,
+  LucideDownload,
+  LucideExternalLink,
+  LucideCheck,
+  LucideZap,
+  LucideAlertTriangle,
+  LucidePower,
+  LucideX,
+  LucideLock,
+  LucideUnlock,
+  LucideKey,
+  LucideRefreshCw,
+  LucideAlertOctagon,
+  LucideFileKey,
+  LucideFileCheck,
+  LucideEdit2,
+  LucideTag,
+  LucideBell,
+  LucideInfinity,
+  LucideArrowDown,
+  LucideBook,
+  LucideQrCode,
+  LucideEye,
+  LucideEyeOff,
+  LucideSearch,
+  LucideFileText,
+  LucideNetwork,
+  LucideShieldAlert,
+  LucideShieldCheck,
+  LucideShieldOff,
+} from '@lucide/angular';
 import { SocketService } from '../../services/socket/socket.service';
 import * as QRCode from 'qrcode';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
@@ -72,7 +71,47 @@ import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
 @Component({
   selector: 'app-room',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, FormsModule, RouterModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterModule,
+    LucideShield,
+    LucideUsers,
+    LucideCheckCircle,
+    LucideLoader2,
+    LucideCopy,
+    LucideClock,
+    LucideArrowRight,
+    LucideHash,
+    LucideCrown,
+    LucideUploadCloud,
+    LucideDownloadCloud,
+    LucideDownload,
+    LucideExternalLink,
+    LucideCheck,
+    LucideZap,
+    LucideAlertTriangle,
+    LucidePower,
+    LucideX,
+    LucideLock,
+    LucideUnlock,
+    LucideKey,
+    LucideRefreshCw,
+    LucideAlertOctagon,
+    LucideFileKey,
+    LucideFileCheck,
+    LucideEdit2,
+    LucideTag,
+    LucideBell,
+    LucideQrCode,
+    LucideEye,
+    LucideEyeOff,
+    LucideSearch,
+    LucideNetwork,
+    LucideShieldAlert,
+    LucideShieldCheck,
+    LucideShieldOff,
+  ],
   templateUrl: './room.component.html',
 })
 export class RoomComponent implements OnInit, OnDestroy {
@@ -88,46 +127,8 @@ export class RoomComponent implements OnInit, OnDestroy {
     this.socket.disconnect();
   }
 
-  readonly Shield = Shield;
-  readonly Users = Users;
-  readonly CheckCircle = CheckCircle;
-  readonly Loader2 = Loader2;
-  readonly Copy = Copy;
-  readonly Clock = Clock;
-  readonly ArrowRight = ArrowRight;
-  readonly Hash = Hash;
-  readonly Crown = Crown;
-  readonly UploadCloud = UploadCloud;
-  readonly DownloadCloud = DownloadCloud;
-  readonly Download = Download;
-  readonly ExternalLink = ExternalLink;
-  readonly Check = Check;
-  readonly Zap = Zap;
-  readonly AlertTriangle = AlertTriangle;
-  readonly Power = Power;
-  readonly X = X;
-  readonly Key = Key;
-  readonly RefreshCw = RefreshCw;
-  readonly AlertOctagon = AlertOctagon;
+  // Math is still required for template calculations
   readonly Math = Math;
-  readonly FileKey = FileKey;
-  readonly FileCheck = FileCheck;
-  readonly Edit2 = Edit2;
-  readonly Tag = Tag;
-  readonly Lock = Lock;
-  readonly Unlock = Unlock;
-  readonly Bell = Bell;
-  readonly Infinity = Infinity;
-  readonly ArrowDown = ArrowDown;
-  readonly QrCode = QrCode;
-  readonly Eye = Eye;
-  readonly EyeOff = EyeOff;
-  readonly Search = Search;
-  readonly FileText = FileText;
-  readonly Network = Network;
-  readonly ShieldAlert = ShieldAlert;
-  readonly ShieldCheck = ShieldCheck;
-  readonly ShieldOff = ShieldOff;
 
   public roomId = signal<string | null>(null);
   public viewMode = signal<'inputs' | 'outputs'>('outputs');
@@ -203,40 +204,6 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   private hasEmittedFinalized = false;
   public expectedHost = '';
-
-  readonly icons = {
-    Shield,
-    Users,
-    CheckCircle,
-    Loader2,
-    Copy,
-    Clock,
-    ArrowRight,
-    Hash,
-    Crown,
-    UploadCloud,
-    DownloadCloud,
-    Download,
-    ExternalLink,
-    Check,
-    Zap,
-    AlertTriangle,
-    Power,
-    X,
-    Key,
-    RefreshCw,
-    AlertOctagon,
-    FileKey,
-    FileCheck,
-    Edit2,
-    Tag,
-    Lock,
-    Unlock,
-    Bell,
-    Infinity,
-    ArrowDown,
-    Book,
-  };
 
   public html5QrCode: Html5Qrcode | null = null;
   isScanningSigned = signal<boolean>(false);

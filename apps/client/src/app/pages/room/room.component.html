@@ -1,7 +1,6 @@
-
-  @if (socket.status() !== 'connected' && !socket.isClosed() && !isExpired() && !socket.roomNotFound() && !socket.isLockedOut() && !socket.isRoomFull() && !socket.decryptionError()) {
+@if (socket.status() !== 'connected' && !socket.isClosed() && !isExpired() && !socket.roomNotFound() && !socket.isLockedOut() && !socket.isRoomFull() && !socket.decryptionError()) {
     <div class="w-full bg-amber-500/90 text-slate-950 text-center text-xs font-bold py-1.5 fixed top-0 z-[200] flex items-center justify-center gap-2 animate-pulse">
-        <lucide-icon [img]="Loader2" class="w-3 h-3 animate-spin"></lucide-icon>
+        <svg lucideLoader2 class="w-3 h-3 animate-spin"></svg>
         Connection lost... Reconnecting...
     </div>
 }
@@ -11,16 +10,16 @@
     <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="DownloadCloud" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                <svg lucideDownloadCloud class="w-5 h-5 text-emerald-400"></svg>
                 <h3 class="font-bold text-white">Download Unsigned PSBT</h3>
             </div>
             <button (click)="showPsbtModal.set(false)" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
         <div class="p-6 flex flex-col gap-4">
             <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
-                <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                <svg lucideAlertTriangle class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></svg>
                 <p class="text-xs text-emerald-200 leading-relaxed">
                     <strong>Privacy Warning:</strong> This file contains unencrypted metadata about your wallet balances, UTXOs, and destination addresses. 
                 </p>
@@ -33,7 +32,7 @@
                     Cancel
                 </button>
                 <button (click)="executePsbtDownload()" class="flex-1 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
-                    <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                    <svg lucideDownload class="w-4 h-4"></svg>
                     Download PSBT
                 </button>
             </div>
@@ -47,16 +46,16 @@
     <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="FileCheck" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                <svg lucideFileCheck class="w-5 h-5 text-emerald-400"></svg>
                 <h3 class="font-bold text-white">Download Audit Log</h3>
             </div>
             <button (click)="showAuditModal.set(false)" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
         <div class="p-6 flex flex-col gap-4">
             <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
-                <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                <svg lucideAlertTriangle class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></svg>
                 <p class="text-xs text-emerald-200 leading-relaxed">
                     <strong>Confidential Data:</strong> This PDF contains a complete, unencrypted record of the ceremony, including transaction details, participant identities, and action timestamps.
                 </p>
@@ -69,7 +68,7 @@
                     Cancel
                 </button>
                 <button (click)="executeAuditDownload()" class="flex-1 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
-                    <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                    <svg lucideDownload class="w-4 h-4"></svg>
                     Download PDF
                 </button>
             </div>
@@ -83,16 +82,16 @@
     <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="Download" class="w-5 h-5 text-blue-400"></lucide-icon>
+                <svg lucideDownload class="w-5 h-5 text-blue-400"></svg>
                 <h3 class="font-bold text-white">Download CSV Data</h3>
             </div>
             <button (click)="showCsvModal.set(false)" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
         <div class="p-6 flex flex-col gap-4">
             <div class="w-full bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
-                <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-blue-400 shrink-0 mt-0.5"></lucide-icon>
+                <svg lucideAlertTriangle class="w-5 h-5 text-blue-400 shrink-0 mt-0.5"></svg>
                 <p class="text-xs text-blue-200 leading-relaxed">
                     <strong>Confidential Data:</strong> This spreadsheet contains unencrypted settlement data and participant metadata.
                 </p>
@@ -105,7 +104,7 @@
                     Cancel
                 </button>
                 <button (click)="executeCsvDownload()" class="flex-1 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/20 transition flex items-center justify-center gap-2">
-                    <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                    <svg lucideDownload class="w-4 h-4"></svg>
                     Download CSV
                 </button>
             </div>
@@ -119,16 +118,16 @@
         <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
             <div class="p-4 border-b border-slate-800 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <lucide-icon [img]="Hash" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <svg lucideHash class="w-5 h-5 text-emerald-400"></svg>
                     <h3 class="font-bold text-white">Room Identifier</h3>
                 </div>
                 <button (click)="closeRoomIdModal()" class="text-slate-400 hover:text-white transition">
-                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                    <svg lucideX class="w-5 h-5"></svg>
                 </button>
             </div>
             <div class="p-6 flex flex-col gap-4">
                 <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-start gap-3">
-                    <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                    <svg lucideShield class="w-5 h-5 text-emerald-400 shrink-0"></svg>
                     <p class="text-xs text-emerald-200 leading-relaxed">
                         <strong>Public Routing Data:</strong> This ID directs signers to the correct room, but it <em>cannot</em> decrypt the transaction data without the private Decryption Key.
                     </p>
@@ -137,7 +136,11 @@
                     If you are practicing strict Operational Security (OpSec), send this Room ID to your signers first. Send the Decryption Key later via a separate, secure channel (e.g., Signal vs Email).
                 </p>
                 <button (click)="copyRoomId()" class="mt-2 w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2">
-                    <lucide-icon [img]="roomIdCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                    @if (roomIdCopied()) {
+                        <svg lucideCheck class="w-4 h-4"></svg>
+                    } @else {
+                        <svg lucideCopy class="w-4 h-4"></svg>
+                    }
                     {{ roomIdCopied() ? 'Room ID Copied!' : 'Copy Room ID' }}
                 </button>
             </div>
@@ -150,7 +153,7 @@
     <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-2xl max-w-sm w-full">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-white font-bold">Label Signer</h3>
-            <button (click)="closeLabelModal()" class="text-slate-500 hover:text-white"><lucide-icon [img]="X" class="w-5 h-5"></lucide-icon></button>
+            <button (click)="closeLabelModal()" class="text-slate-500 hover:text-white"><svg lucideX class="w-5 h-5"></svg></button>
         </div>
         
         <div class="mb-4">
@@ -172,7 +175,7 @@
                     [class.bg-emerald-500]="saveToBook()"
                     [class.border-emerald-500]="saveToBook()"
                     [class.border-slate-600]="!saveToBook()">
-                @if (saveToBook()) { <lucide-icon [img]="Check" class="w-3.5 h-3.5 text-slate-950"></lucide-icon> }
+                @if (saveToBook()) { <svg lucideCheck class="w-3.5 h-3.5 text-slate-950"></svg> }
             </div>
             <div class="text-sm text-slate-300">Save to Address Book</div>
         </div>
@@ -188,7 +191,7 @@
 <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
     <div class="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
         <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
-            <lucide-icon [img]="AlertOctagon" class="w-8 h-8 text-slate-500"></lucide-icon>
+            <svg lucideAlertOctagon class="w-8 h-8 text-slate-500"></svg>
         </div>
         <h2 class="text-2xl font-bold text-white mb-2">Room Not Found</h2>
         <p class="text-slate-400 mb-8 text-sm">
@@ -197,7 +200,7 @@
         </p>
         @if (!isEmbedded) {
             <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2">
-                <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Create New Room
+                <svg lucideZap class="w-4 h-4"></svg> Create New Room
             </a>
         }
     </div>
@@ -207,13 +210,13 @@
     <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
             <div class="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <lucide-icon [img]="Users" class="w-8 h-8 text-amber-500"></lucide-icon>
+                <svg lucideUsers class="w-8 h-8 text-amber-500"></svg>
             </div>
             <h2 class="text-2xl font-bold text-white mb-2">Room Full</h2>
             <p class="text-slate-400 mb-8">This room has reached its maximum connection limit.</p>
             @if (!isEmbedded) {
                 <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                    <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
+                    <svg lucideArrowRight class="w-4 h-4 rotate-180"></svg> Return Home
                 </a>
             }
         </div>
@@ -224,7 +227,7 @@
     <div class="bg-slate-900 border border-rose-900/50 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 via-orange-500 to-rose-500"></div>
         <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-rose-500/50">
-            <lucide-icon [img]="Lock" class="w-8 h-8 text-rose-500"></lucide-icon>
+            <svg lucideLock class="w-8 h-8 text-rose-500"></svg>
         </div>
         <h2 class="text-2xl font-bold text-white mb-2">Access Denied</h2>
         <p class="text-slate-400 mb-8 text-sm">
@@ -233,7 +236,7 @@
         </p>
         @if (!isEmbedded) {
             <a routerLink="/" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                <lucide-icon [img]="ArrowRight" class="w-4 h-4 rotate-180"></lucide-icon> Return Home
+                <svg lucideArrowRight class="w-4 h-4 rotate-180"></svg> Return Home
             </a>
         }
     </div>
@@ -244,7 +247,7 @@
 <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/95 backdrop-blur-md rounded-3xl border border-slate-800 animate-fade-in-up">
     <div class="max-w-md w-full p-8 text-center">
         <div class="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-rose-500/30">
-            <lucide-icon [img]="Lock" class="w-8 h-8 text-rose-500"></lucide-icon>
+            <svg lucideLock class="w-8 h-8 text-rose-500"></svg>
         </div>
 <h2 class="text-2xl font-bold text-white mb-2">Decryption Key Required</h2>
         <p class="text-slate-400 mb-6 text-sm">Your link is missing the private decryption key. Please enter it below to join the room.</p>
@@ -252,7 +255,7 @@
             <input type="text" [(ngModel)]="manualKey" placeholder="Enter decryption key..." class="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-lg block p-2.5 outline-none"/>
         </div>
         <button (click)="submitKey()" [disabled]="!manualKey" class="w-full py-3 bg-rose-500 hover:bg-rose-400 disabled:opacity-50 text-white font-bold rounded-xl transition flex items-center justify-center gap-2">
-            <lucide-icon [img]="RefreshCw" class="w-4 h-4"></lucide-icon> Decrypt Room
+            <svg lucideRefreshCw class="w-4 h-4"></svg> Decrypt Room
         </button>
     </div>
 </div>
@@ -264,11 +267,11 @@
         
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="Tag" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                <svg lucideTag class="w-5 h-5 text-emerald-400"></svg>
                 <h3 class="font-bold text-white">Rename Room</h3>
             </div>
             <button (click)="closeRenameModal()" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
 
@@ -318,11 +321,11 @@
         
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="QrCode" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                <svg lucideQrCode class="w-5 h-5 text-emerald-400"></svg>
                 <h3 class="font-bold text-white">Room QR Code</h3>
             </div>
             <button (click)="closeQr()" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
 
@@ -334,7 +337,7 @@
                         [class.bg-slate-800]="!qrIncludesKey()"
                         [class.text-emerald-400]="!qrIncludesKey()"
                         [class.text-slate-500]="qrIncludesKey()">
-                    <lucide-icon [img]="Shield" class="w-3 h-3"></lucide-icon>
+                    <svg lucideShield class="w-3 h-3"></svg>
                     Link Only
                 </button>
                 <button (click)="toggleQrKey(true)" 
@@ -342,21 +345,21 @@
                         [class.bg-slate-800]="qrIncludesKey()"
                         [class.text-amber-400]="qrIncludesKey()"
                         [class.text-slate-500]="!qrIncludesKey()">
-                    <lucide-icon [img]="Key" class="w-3 h-3"></lucide-icon>
+                    <svg lucideKey class="w-3 h-3"></svg>
                     Full (Link + Key)
                 </button>
             </div>
 
             @if (qrIncludesKey()) {
                 <div class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
-                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-amber-500 shrink-0"></lucide-icon>
+                    <svg lucideAlertTriangle class="w-5 h-5 text-amber-50 shrink-0"></svg>
                     <p class="text-xs text-amber-200/80 leading-relaxed">
                         <strong>Contains Decryption Key:</strong> Anyone who scans this can join the room and view data. Treat it like a password.
                     </p>
                 </div>
             } @else {
                 <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
-                    <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                    <svg lucideShield class="w-5 h-5 text-emerald-400 shrink-0"></svg>
                     <p class="text-xs text-emerald-200/80 leading-relaxed">
                         <strong>Maximum Security:</strong> Key is excluded. You must send the <em>Link Key</em> via a separate secure channel.
                     </p>
@@ -372,7 +375,7 @@
                         <img [src]="qrDataUrl()" alt="Room QR Code" class="w-48 h-48 sm:w-56 sm:h-56">
                     } @else {
                         <div class="w-48 h-48 flex items-center justify-center">
-                            <lucide-icon [img]="Loader2" class="w-8 h-8 text-slate-900 animate-spin"></lucide-icon>
+                            <svg lucideLoader2 class="w-8 h-8 text-slate-900 animate-spin"></svg>
                         </div>
                     }
                 </div>
@@ -380,7 +383,7 @@
                 @if (!isQrRevealed()) {
                     <div class="absolute inset-0 flex flex-col items-center justify-center z-10">
                         <div class="bg-slate-900/90 p-3 rounded-full border border-slate-700 shadow-xl mb-2">
-                            <lucide-icon [img]="Eye" class="w-6 h-6 text-white"></lucide-icon>
+                            <svg lucideEye class="w-6 h-6 text-white"></svg>
                         </div>
                         <span class="text-xs font-bold text-slate-900 bg-white/90 px-2 py-1 rounded shadow-sm">Click to Reveal</span>
                     </div>
@@ -395,7 +398,7 @@
 
         <div class="p-4 bg-slate-950/50 border-t border-slate-800 flex gap-3">
             <button (click)="downloadQr()" class="flex-1 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition flex items-center justify-center gap-2 border border-slate-700">
-                <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                <svg lucideDownload class="w-4 h-4"></svg>
                 Download Image
             </button>
             <button (click)="closeQr()" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white font-medium text-sm transition border border-transparent hover:border-slate-700">
@@ -413,11 +416,11 @@
 
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="Copy" class="w-5 h-5 text-slate-300"></lucide-icon>
+                <svg lucideCopy class="w-5 h-5 text-slate-300"></svg>
                 <h3 class="font-bold text-white">Share Room Securely</h3>
             </div>
             <button (click)="closeShareModal()" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
 
@@ -427,7 +430,7 @@
                 <div class="flex justify-between items-start mb-2 relative z-10">
                     <div>
                         <div class="flex items-center gap-2">
-                            <lucide-icon [img]="Shield" class="w-4 h-4 text-emerald-400"></lucide-icon>
+                            <svg lucideShield class="w-4 h-4 text-emerald-400"></svg>
                             <h4 class="text-white font-bold text-sm">Maximum Security (Split)</h4>
                         </div>
                         <p class="text-xs text-slate-400 mt-1 leading-relaxed">
@@ -436,7 +439,11 @@
                     </div>
                 </div>
                 <button (click)="copySecureLink()" class="mt-3 w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-2 relative z-10">
-                    <lucide-icon [img]="secureLinkCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                    @if (secureLinkCopied()) {
+                        <svg lucideCheck class="w-4 h-4"></svg>
+                    } @else {
+                        <svg lucideCopy class="w-4 h-4"></svg>
+                    }
                     {{ secureLinkCopied() ? 'Secure Link Copied!' : 'Copy Link Only (No Key)' }}
                 </button>
             </div>
@@ -445,7 +452,7 @@
                 <div class="flex justify-between items-start mb-2">
                     <div>
                         <div class="flex items-center gap-2">
-                            <lucide-icon [img]="AlertTriangle" class="w-4 h-4 text-amber-500"></lucide-icon>
+                            <svg lucideAlertTriangle class="w-4 h-4 text-amber-500"></svg>
                             <h4 class="text-white font-bold text-sm">Standard (Combined)</h4>
                         </div>
                         <p class="text-xs text-slate-400 mt-1 leading-relaxed">
@@ -454,7 +461,11 @@
                     </div>
                 </div>
                 <button (click)="copyFullLink()" class="mt-3 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg border border-slate-700 transition flex items-center justify-center gap-2">
-                    <lucide-icon [img]="fullLinkCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                    @if (fullLinkCopied()) {
+                        <svg lucideCheck class="w-4 h-4"></svg>
+                    } @else {
+                        <svg lucideCopy class="w-4 h-4"></svg>
+                    }
                     {{ fullLinkCopied() ? 'Full Link Copied!' : 'Copy Full Link (Link + Key)' }}
                 </button>
             </div>
@@ -469,16 +480,16 @@
     <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="Key" class="w-5 h-5 text-cyan-400"></lucide-icon>
+                <svg lucideKey class="w-5 h-5 text-cyan-400"></svg>
                 <h3 class="font-bold text-white">Room Decryption Key</h3>
             </div>
             <button (click)="closeKeyModal()" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
         <div class="p-6 flex flex-col gap-4">
             <div class="w-full bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3 flex items-start gap-3">
-                <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-cyan-400 shrink-0"></lucide-icon>
+                <svg lucideAlertTriangle class="w-5 h-5 text-cyan-400 shrink-0"></svg>
                 <p class="text-xs text-cyan-200 leading-relaxed">
                     <strong>Sensitive Data:</strong> This is the private encryption key for the room. Anyone with this key can decrypt and view the transaction details if they also have the room link.
                 </p>
@@ -487,7 +498,11 @@
                 For maximum operational security, send this key to signers using a different communication channel than the one used for the room link (e.g., Signal vs. Email).
             </p>
             <button (click)="copyKey()" class="mt-2 w-full py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-bold rounded-lg border border-cyan-500/20 transition flex items-center justify-center gap-2">
-                <lucide-icon [img]="keyCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                @if (keyCopied()) {
+                    <svg lucideCheck class="w-4 h-4"></svg>
+                } @else {
+                    <svg lucideCopy class="w-4 h-4"></svg>
+                }
                 {{ keyCopied() ? 'Key Copied!' : 'Copy Decryption Key' }}
             </button>
         </div>
@@ -500,16 +515,16 @@
     <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="FileKey" class="w-5 h-5 text-purple-400"></lucide-icon>
+                <svg lucideFileKey class="w-5 h-5 text-purple-400"></svg>
                 <h3 class="font-bold text-white">Backup Admin Token</h3>
             </div>
             <button (click)="closeAdminModal()" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
         <div class="p-6 flex flex-col gap-4">
             <div class="w-full bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 flex items-start gap-3">
-                <lucide-icon [img]="AlertOctagon" class="w-5 h-5 text-purple-400 shrink-0"></lucide-icon>
+                <svg lucideAlertOctagon class="w-5 h-5 text-purple-400 shrink-0"></svg>
                 <p class="text-xs text-purple-200 leading-relaxed">
                     <strong>High Privilege:</strong> This token allows any guest in the room to claim the "Coordinator" role.
                 </p>
@@ -518,7 +533,11 @@
                 Coordinators have the authority to manage whitelists, lock the room, verify inputs, and broadcast the final transaction. Only share this with trusted co-administrators.
             </p>
             <button (click)="copyAdminToken()" class="mt-2 w-full py-2.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-xs font-bold rounded-lg border border-purple-500/20 transition flex items-center justify-center gap-2">
-                <lucide-icon [img]="adminCopied() ? Check : Copy" class="w-4 h-4"></lucide-icon>
+                @if (adminCopied()) {
+                    <svg lucideCheck class="w-4 h-4"></svg>
+                } @else {
+                    <svg lucideCopy class="w-4 h-4"></svg>
+                }
                 {{ adminCopied() ? 'Admin Token Copied!' : 'Copy Admin Token' }}
             </button>
         </div>
@@ -532,11 +551,11 @@
         
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                <svg lucideShield class="w-5 h-5 text-emerald-400"></svg>
                 <h3 class="font-bold text-white">Air-Gapped Export PSBT</h3>
             </div>
             <button (click)="closeFountainModal()" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
 
@@ -561,14 +580,14 @@
 
             @if (exportFormat() === 'ur') {
                 <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
-                    <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                    <svg lucideShield class="w-5 h-5 text-emerald-400 shrink-0"></svg>
                     <p class="text-xs text-emerald-200/80 leading-relaxed">
                         <strong>Standard Protocol:</strong> Optimized for Keystone, Passport, and standard hardware wallets. Adjust the speed slider for compatibility and performance.
                     </p>
                 </div>
             } @else {
                 <div class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
-                    <lucide-icon [img]="Shield" class="w-5 h-5 text-amber-500 shrink-0"></lucide-icon>
+                    <svg lucideShield class="w-5 h-5 text-amber-500 shrink-0"></svg>
                     <p class="text-xs text-amber-200/80 leading-relaxed">
                         <strong>Coldcard Protocol:</strong> Optimized for Coinkite Coldcard devices. Adjust the speed slider for compatibility and performance.
                     </p>
@@ -587,7 +606,7 @@
                 @if (!isFountainRevealed()) {
                     <div class="absolute inset-0 flex flex-col items-center justify-center z-10">
                         <div class="bg-slate-900/90 p-3 rounded-full border border-slate-700 shadow-xl mb-2">
-                            <lucide-icon [img]="Eye" class="w-6 h-6 text-white"></lucide-icon>
+                            <svg lucideEye class="w-6 h-6 text-white"></svg>
                         </div>
                         <span class="text-xs font-bold text-slate-900 bg-white/90 px-2 py-1 rounded shadow-sm">Click to Reveal</span>
                     </div>
@@ -634,18 +653,18 @@
         
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <lucide-icon [img]="QrCode" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                <svg lucideQrCode class="w-5 h-5 text-emerald-400"></svg>
                 <h3 class="font-bold text-white">Air-Gapped Import PSBT</h3>
             </div>
             <button (click)="stopScanner()" class="text-slate-400 hover:text-white transition">
-                <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                <svg lucideX class="w-5 h-5"></svg>
             </button>
         </div>
 
         <div class="p-6 flex flex-col items-center">
             
             <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3">
-            <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+            <svg lucideShield class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></svg>
             <div class="text-xs text-emerald-200/80 leading-relaxed space-y-2">
                 <p>
                     <strong>Secure Scanner:</strong> Hold your hardware wallet diplaying PSBT QR Code up to the camera.
@@ -666,7 +685,7 @@
                 
                 @if (urService.scanError()) {
                     <div class="bg-rose-500/10 border border-rose-500/30 rounded-lg p-2.5 flex items-start gap-2 animate-in fade-in zoom-in-95 duration-200">
-                        <lucide-icon [img]="AlertTriangle" class="w-4 h-4 text-rose-400 shrink-0"></lucide-icon>
+                        <svg lucideAlertTriangle class="w-4 h-4 text-rose-400 shrink-0"></svg>
                         <span class="text-xs text-rose-300">{{ urService.scanError() }}</span>
                     </div>
                 }
@@ -761,7 +780,11 @@
                 [class.text-amber-500]="!blurStates()['transaction-overview']"
                 [class.text-slate-400]="blurStates()['transaction-overview']"
                 [title]="blurStates()['transaction-overview'] ? 'Reveal Header' : 'Hide Header'">
-                <lucide-icon [img]="blurStates()['transaction-overview'] ? EyeOff : Eye" [size]="20"></lucide-icon>
+                @if (blurStates()['transaction-overview']) {
+                    <svg lucideEyeOff class="w-5 h-5"></svg>
+                } @else {
+                    <svg lucideEye class="w-5 h-5"></svg>
+                }
             </button>
         </div>
 
@@ -790,7 +813,7 @@
                             (click)="openRenameModal()" 
                             class="p-2 -ml-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
                             title="Rename Room">
-                            <lucide-icon [img]="Edit2" class="w-4 h-4"></lucide-icon>
+                            <svg lucideEdit2 class="w-4 h-4"></svg>
                         </button>
                     }
                 </div>
@@ -799,10 +822,11 @@
                     
                     <div class="relative group">
                         <button (click)="openRoomIdModal()" class="flex items-center gap-2 hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700 cursor-pointer">
-                            <lucide-icon [img]="roomIdCopied() ? Check : Hash" class="w-4 h-4 transition-colors" 
-                                [class.text-emerald-400]="roomIdCopied()" 
-                                [class.text-slate-600]="!roomIdCopied()">
-                            </lucide-icon>
+                            @if (roomIdCopied()) {
+                                <svg lucideCheck class="w-4 h-4 transition-colors text-emerald-400"></svg>
+                            } @else {
+                                <svg lucideHash class="w-4 h-4 transition-colors text-slate-600"></svg>
+                            }
                             <span class="font-mono transition font-bold" 
                                 [class.text-emerald-400]="roomIdCopied()" 
                                 [class.text-slate-300]="!roomIdCopied()"
@@ -823,7 +847,7 @@
                                 [class.text-emerald-400]="!socket.roomState()?.network || socket.roomState()?.network === 'bitcoin'"
                                 [class.text-amber-500]="socket.roomState()?.network === 'testnet'"
                                 [class.text-purple-400]="socket.roomState()?.network === 'signet'">
-                            <lucide-icon [img]="Network" class="w-4 h-4"></lucide-icon>
+                            <svg lucideNetwork class="w-4 h-4"></svg>
                             <span class="font-bold text-xs uppercase tracking-wide">
                                 {{ socket.roomState()?.network === 'bitcoin' ? 'Mainnet' : (socket.roomState()?.network || 'Mainnet') }}
                             </span>
@@ -839,7 +863,7 @@
 
                         <div class="relative group">
                             <div class="flex items-center gap-1.5 text-indigo-400 cursor-help">
-                                <lucide-icon [img]="Crown" class="w-4 h-4"></lucide-icon>
+                                <svg lucideCrown class="w-4 h-4"></svg>
                                 <span class="font-bold text-xs uppercase tracking-wide">Coordinator</span>
                             </div>
                             
@@ -854,10 +878,10 @@
                     <div class="relative group">
                         <button (click)="openSessionsModal()" class="relative group cursor-pointer hover:bg-slate-800 p-1.5 -m-1.5 rounded-lg transition border border-transparent hover:border-slate-700">
                             <div class="flex items-center gap-2">
-                                <lucide-icon [img]="Users" class="w-4 h-4" 
+                                <svg lucideUsers class="w-4 h-4" 
                                     [class.text-emerald-400]="(socket.roomState()?.connectedCount || 0) > 1"
                                     [class.text-slate-500]="(socket.roomState()?.connectedCount || 0) <= 1">
-                                </lucide-icon>
+                                </svg>
                                 <span class="font-bold" [class.text-white]="(socket.roomState()?.connectedCount || 0) > 1">
                                     {{ socket.roomState()?.connectedCount || 1 }} 
                                 </span>
@@ -873,7 +897,7 @@
 
                     <div class="relative group cursor-help">
                         <div class="flex items-center gap-2" [class.text-rose-400]="isLowTime() || isExpired()" [class.text-slate-500]="!isLowTime() && !isExpired()">
-                            <lucide-icon [img]="Clock" class="w-4 h-4"></lucide-icon>
+                            <svg lucideClock class="w-4 h-4"></svg>
                             @if (isExpired()) {
                                 <span class="font-bold text-xs uppercase">Expired</span>
                             } @else {
@@ -891,7 +915,7 @@
             @if (blurStates()['transaction-overview']) {
                 <div class="absolute inset-0 flex items-center justify-center z-20">
                     <button (click)="togglePrivacyBlur('transaction-overview')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm transition-colors cursor-pointer">
-                        <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
+                        <svg lucideEyeOff class="w-3.5 h-3.5"></svg>
                         Hidden for Privacy
                     </button>
                 </div>
@@ -905,7 +929,7 @@
                 @if (!isExpired() && !socket.isClosed()) {
                     <div class="relative group">
                         <button (click)="promptAuditLogDownload()" class="px-3 py-2 text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-emerald-500/20 cursor-pointer">
-                            <lucide-icon [img]="FileCheck" class="w-4 h-4"></lucide-icon>
+                            <svg lucideFileCheck class="w-4 h-4"></svg>
                             Audit Log
                         </button>
                     </div>
@@ -914,7 +938,7 @@
 
                     <div class="relative group">
                         <button (click)="promptCsvDownload()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20 cursor-pointer">
-                            <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+                            <svg lucideDownload class="w-4 h-4"></svg>
                             CSV
                         </button>
                     </div>
@@ -923,7 +947,11 @@
 
                 <div class="relative group">
                     <button (click)="openKeyModal()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20 cursor-pointer">
-                        <lucide-icon [img]="keyCopied() ? Check : Key" class="w-4 h-4"></lucide-icon>
+                        @if (keyCopied()) {
+                            <svg lucideCheck class="w-4 h-4"></svg>
+                        } @else {
+                            <svg lucideKey class="w-4 h-4"></svg>
+                        }
                         {{ keyCopied() ? 'Copied' : 'Link Key' }}
                     </button>
                 </div>
@@ -933,7 +961,11 @@
                 @if (socket.isCoordinator()) {
                     <div class="relative group">
                         <button (click)="openAdminModal()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20 cursor-pointer">
-                            <lucide-icon [img]="adminCopied() ? Check : FileKey" class="w-4 h-4"></lucide-icon>
+                            @if (adminCopied()) {
+                                <svg lucideCheck class="w-4 h-4"></svg>
+                            } @else {
+                                <svg lucideFileKey class="w-4 h-4"></svg>
+                            }
                             {{ adminCopied() ? 'Copied' : 'Backup Admin' }}
                         </button>
                     </div>
@@ -943,7 +975,7 @@
 
                 <div class="relative group">
                     <button (click)="openShareModal()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700 cursor-pointer">
-                        <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
+                        <svg lucideCopy class="w-4 h-4"></svg>
                         Share Link
                     </button>
                 </div>
@@ -952,7 +984,7 @@
 
                 <div class="relative group">
                     <button (click)="openQr()" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-slate-700 cursor-pointer">
-                        <lucide-icon [img]="QrCode" class="w-4 h-4"></lucide-icon>
+                        <svg lucideQrCode class="w-4 h-4"></svg>
                         <span class="hidden sm:inline">QR Code</span>
                     </button>
                 </div>
@@ -966,7 +998,11 @@
                                 [class.bg-rose-950\/30]="socket.roomState()?.isLocked"
                                 [class.text-slate-400]="!socket.roomState()?.isLocked"
                                 [class.hover:bg-slate-800]="!socket.roomState()?.isLocked">
-                            <lucide-icon [img]="socket.roomState()?.isLocked ? Lock : Unlock" class="w-4 h-4"></lucide-icon>
+                            @if (socket.roomState()?.isLocked) {
+                                <svg lucideLock class="w-4 h-4"></svg>
+                            } @else {
+                                <svg lucideUnlock class="w-4 h-4"></svg>
+                            }
                             {{ socket.roomState()?.isLocked ? 'Locked' : 'Lock Room' }}
                         </button>
                     </div>
@@ -976,7 +1012,7 @@
                     <div class="hidden sm:block w-px h-6 bg-slate-800 mx-1"></div> 
                     <div class="relative group">
                         <button (click)="closeRoom()" class="px-3 py-2 bg-rose-950/30 text-rose-400 border border-rose-900/50 hover:bg-rose-900/50 hover:border-rose-500 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 cursor-pointer">
-                            <lucide-icon [img]="Power" class="w-4 h-4"></lucide-icon>
+                            <svg lucidePower class="w-4 h-4"></svg>
                             Close
                         </button>
                     </div>
@@ -992,11 +1028,11 @@
             
             <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 z-10 shrink-0">
                 <div class="flex items-center gap-2">
-                    <lucide-icon [img]="Users" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <svg lucideUsers class="w-5 h-5 text-emerald-400"></svg>
                     <h3 class="font-bold text-white">Active Sessions</h3>
                 </div>
                 <button (click)="showSessionsModal.set(false)" class="text-slate-400 hover:text-white transition">
-                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                    <svg lucideX class="w-5 h-5"></svg>
                 </button>
             </div>
 
@@ -1025,10 +1061,11 @@
                             <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
                                 [class.bg-indigo-500_10]="session.role === 'admin'"
                                 [class.bg-slate-800]="session.role !== 'admin'">
-                                <lucide-icon [img]="session.role === 'admin' ? Crown : Users" 
-                                            class="w-5 h-5"
-                                            [class.text-indigo-400]="session.role === 'admin'"
-                                            [class.text-slate-400]="session.role !== 'admin'"></lucide-icon>
+                                @if (session.role === 'admin') {
+                                    <svg lucideCrown class="w-5 h-5 text-indigo-400"></svg>
+                                } @else {
+                                    <svg lucideUsers class="w-5 h-5 text-slate-400"></svg>
+                                }
                             </div>
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2">
@@ -1051,14 +1088,18 @@
                             [class.hover:text-white]="copiedSessionId() !== session.id"
                             title="Copy Session Details" 
                             (click)="copySessionId(session.id, session.displayName)">
-                        <lucide-icon [img]="copiedSessionId() === session.id ? Check : Copy" class="w-3.5 h-3.5"></lucide-icon>
+                            @if (copiedSessionId() === session.id) {
+                                <svg lucideCheck class="w-3.5 h-3.5"></svg>
+                            } @else {
+                                <svg lucideCopy class="w-3.5 h-3.5"></svg>
+                            }
                         </button>
                     </div>
                 }
                 
                 @if (socket.activeSessions().length === 0) {
                     <div class="text-center py-6 text-slate-500 text-sm flex flex-col items-center gap-2">
-                        <lucide-icon [img]="Loader2" class="w-5 h-5 animate-spin"></lucide-icon>
+                        <svg lucideLoader2 class="w-5 h-5 animate-spin"></svg>
                         Syncing sessions...
                     </div>
                 }
@@ -1071,13 +1112,13 @@
     <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
             <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
-                <lucide-icon [img]="Power" class="w-8 h-8 text-slate-400"></lucide-icon>
+                <svg lucidePower class="w-8 h-8 text-slate-400"></svg>
             </div>
             <h2 class="text-2xl font-bold text-white mb-2">Signing Room Closed</h2>
             <p class="text-slate-400 mb-8">The coordinator has ended this signing session. All data has been securely wiped.</p>
             @if (!isEmbedded) {
                 <a routerLink="/create" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-700 decoration-0">
-                    <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Start New Signing
+                    <svg lucideZap class="w-4 h-4"></svg> Start New Signing
                 </a>
             }
         </div>
@@ -1088,13 +1129,13 @@
     <div class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl animate-fade-in">
         <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
             <div class="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <lucide-icon [img]="AlertTriangle" class="w-8 h-8 text-rose-500"></lucide-icon>
+                <svg lucideAlertTriangle class="w-8 h-8 text-rose-500"></svg>
             </div>
             <h2 class="text-2xl font-bold text-white mb-2">Room Expired</h2>
             <p class="text-slate-400 mb-8">This session has timed out. All ephemeral data has been wiped.</p>
             @if (!isEmbedded) {
                 <a routerLink="/create" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition flex items-center justify-center gap-2 decoration-0">
-                    <lucide-icon [img]="Zap" class="w-4 h-4"></lucide-icon> Start New Signing
+                    <svg lucideZap class="w-4 h-4"></svg> Start New Signing
                 </a>
             }
         </div>
@@ -1108,7 +1149,7 @@
         <div class="absolute top-0 left-0 w-full h-1 bg-amber-500"></div>
 
         <div class="flex items-center gap-3 text-amber-500 mb-4">
-        <lucide-icon [img]="Eye" [size]="28" class="animate-pulse"></lucide-icon>
+        <svg lucideEye class="w-7 h-7 animate-pulse"></svg>
         <h3 class="text-xl font-bold text-white">OpSec Warning</h3>
         </div>
         
@@ -1116,13 +1157,13 @@
         You are about to reveal sensitive transaction details. Before proceeding, please ensure:
         <br><br>
         <span class="flex items-center gap-2 text-sm text-slate-400">
-            <lucide-icon [img]="CheckCircle" [size]="16" class="text-emerald-500"></lucide-icon> No one is looking over your shoulder.
+            <svg lucideCheckCircle class="w-4 h-4 text-emerald-500"></svg> No one is looking over your shoulder.
         </span>
         <span class="flex items-center gap-2 text-sm text-slate-400 mt-2">
-            <lucide-icon [img]="CheckCircle" [size]="16" class="text-emerald-500"></lucide-icon> You are not sharing your screen.
+            <svg lucideCheckCircle class="w-4 h-4 text-emerald-500"></svg> You are not sharing your screen.
         </span>
         <span class="flex items-center gap-2 text-sm text-slate-400 mt-2">
-            <lucide-icon [img]="CheckCircle" [size]="16" class="text-emerald-500"></lucide-icon> There are no cameras recording your screen.
+            <svg lucideCheckCircle class="w-4 h-4 text-emerald-500"></svg> There are no cameras recording your screen.
         </span>
         </p>
 
@@ -1135,13 +1176,13 @@
         <button 
             (click)="confirmUnblurAll()" 
             class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-amber-500/10 text-amber-500 font-bold hover:bg-amber-500/20 border border-amber-500/30 transition-colors flex items-center justify-center gap-2">
-            <lucide-icon [img]="Eye" [size]="18"></lucide-icon>
+            <svg lucideEye class="w-[18px] h-[18px]"></svg>
             Reveal All
         </button>
         <button 
             (click)="confirmUnblur()" 
             class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20">
-            <lucide-icon [img]="Eye" [size]="18"></lucide-icon>
+            <svg lucideEye class="w-[18px] h-[18px]"></svg>
             Reveal Section
         </button>
         </div>
@@ -1156,7 +1197,7 @@
     <div class="lg:col-span-2 space-y-6">
         
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden">
-            <div class="absolute top-10 right-0 p-4 opacity-10"><lucide-icon [img]="Shield" class="w-24 h-24 text-emerald-500"></lucide-icon></div>
+            <div class="absolute top-10 right-0 p-4 opacity-10"><svg lucideShield class="w-24 h-24 text-emerald-500"></svg></div>
             
             <div class="flex justify-between items-center mb-4 relative z-20">
                 <h2 class="text-lg font-semibold text-white flex items-center gap-2">
@@ -1169,7 +1210,11 @@
                     [class.text-amber-500]="!blurStates()['transaction-proposal']"
                     [class.text-slate-400]="blurStates()['transaction-proposal']"
                     [title]="blurStates()['transaction-proposal'] ? 'Reveal Proposal' : 'Hide Proposal'">
-                    <lucide-icon [img]="blurStates()['transaction-proposal'] ? EyeOff : Eye" [size]="20"></lucide-icon>
+                    @if (blurStates()['transaction-proposal']) {
+                        <svg lucideEyeOff class="w-5 h-5"></svg>
+                    } @else {
+                        <svg lucideEye class="w-5 h-5"></svg>
+                    }
                 </button>
             </div>
 
@@ -1196,7 +1241,7 @@
             @if (blurStates()['transaction-proposal']) {
                 <div class="absolute inset-0 flex items-center justify-center z-10">
                     <button (click)="togglePrivacyBlur('transaction-proposal')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm mt-8 transition-colors cursor-pointer">
-                        <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
+                        <svg lucideEyeOff class="w-3.5 h-3.5"></svg>
                         Hidden for Privacy
                     </button>
                 </div>
@@ -1212,11 +1257,11 @@
                     <div class="text-xs text-slate-400 mb-1">1. Export Unsigned Transaction</div>
                     <div class="grid grid-cols-2 gap-2">
                         <button (click)="openFountainModal()" class="flex items-center justify-center p-3 bg-slate-950 border border-slate-800 rounded-lg hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-sm font-medium text-slate-200 group">
-                            <lucide-icon [img]="QrCode" class="mr-2 text-slate-400 group-hover:text-emerald-400 transition-colors" [size]="18"></lucide-icon>
+                            <svg lucideQrCode class="mr-2 text-slate-400 group-hover:text-emerald-400 transition-colors w-[18px] h-[18px]"></svg>
                             Show QR
                         </button>
                         <button (click)="promptPsbtDownload()" class="flex items-center justify-center p-3 bg-slate-950 border border-slate-800 rounded-lg hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-sm font-medium text-slate-200 group">
-                            <lucide-icon [img]="DownloadCloud" class="mr-2 text-slate-400 group-hover:text-purple-400 transition-colors" [size]="18"></lucide-icon>
+                            <svg lucideDownloadCloud class="mr-2 text-slate-400 group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
                             Download File
                         </button>
                     </div>
@@ -1226,12 +1271,12 @@
                     <div class="text-xs text-slate-400 mb-1">2. Import Signed Transaction</div>
                     <div class="grid grid-cols-2 gap-2">
                         <button (click)="startScanner()" [disabled]="isScanningSigned()" class="flex items-center justify-center p-3 bg-slate-950 border border-slate-800 rounded-lg hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-sm font-medium text-slate-200 group disabled:opacity-50 disabled:cursor-not-allowed">
-                            <lucide-icon [img]="QrCode" class="mr-2 text-slate-400 group-hover:text-emerald-400 transition-colors" [size]="18"></lucide-icon>
+                            <svg lucideQrCode class="mr-2 text-slate-400 group-hover:text-emerald-400 transition-colors w-[18px] h-[18px]"></svg>
                             Scan QR
                         </button>
                         <label class="relative group cursor-pointer flex items-center justify-center p-3 bg-slate-950 border border-slate-800 rounded-lg hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-sm font-medium text-slate-200 disabled:opacity-50">
                             <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" class="absolute inset-0 opacity-0 cursor-pointer z-10" [disabled]="isScanningSigned()">
-                            <lucide-icon [img]="UploadCloud" class="mr-2 text-slate-400 group-hover:text-purple-400 transition-colors" [size]="18"></lucide-icon>
+                            <svg lucideUploadCloud class="mr-2 text-slate-400 group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
                             Upload File
                         </label>
                     </div>
@@ -1272,7 +1317,7 @@
                     }
                     
                     <button (click)="stopScanner()" class="absolute top-4 right-4 z-20 text-slate-400 bg-slate-900/80 hover:text-white hover:bg-red-500/90 p-2.5 rounded-full transition-all backdrop-blur-sm border border-slate-700 hover:border-red-500">
-                        <lucide-icon [img]="X" [size]="20"></lucide-icon>
+                        <svg lucideX class="w-5 h-5"></svg>
                     </button>
                 </div>
             }
@@ -1291,7 +1336,11 @@
                 [class.text-amber-500]="!blurStates()['transaction-details']"
                 [class.text-slate-400]="blurStates()['transaction-details']"
                 [title]="blurStates()['transaction-details'] ? 'Reveal Details' : 'Hide Details'">
-                <lucide-icon [img]="blurStates()['transaction-details'] ? EyeOff : Eye" [size]="20"></lucide-icon>
+                @if (blurStates()['transaction-details']) {
+                    <svg lucideEyeOff class="w-5 h-5"></svg>
+                } @else {
+                    <svg lucideEye class="w-5 h-5"></svg>
+                }
                 </button>
             </div>
 
@@ -1320,7 +1369,7 @@
                 <div class="mb-4 relative">
                     @if (viewMode() === 'inputs') {
                         <div class="relative flex items-center">
-                            <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
+                            <svg lucideSearch class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></svg>
                             <input type="text" [ngModel]="inputSearchQuery()" (ngModelChange)="updateSearchQuery('inputs', $event)" placeholder="Search input address..."
                             class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
                             <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
@@ -1329,7 +1378,7 @@
                         </div>
                     } @else {
                         <div class="relative flex items-center">
-                            <lucide-icon [img]="Search" class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></lucide-icon>
+                            <svg lucideSearch class="w-4 h-4 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></svg>
                             <input type="text" [ngModel]="outputSearchQuery()" (ngModelChange)="updateSearchQuery('outputs', $event)" placeholder="Search output address..."
                             class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-emerald-500/50 transition"/>
                             <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 pointer-events-none" title="Filtered Results">
@@ -1343,12 +1392,12 @@
                 <div class="flex justify-end mb-2">
                     @if (viewMode() === 'inputs') {
                         <button (click)="verifyAllInputs()" class="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-2 py-1 rounded transition border border-transparent hover:border-emerald-500/20 flex items-center gap-1">
-                            <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Inputs
+                            <svg lucideCheckCircle class="w-3 h-3"></svg> Verify All Inputs
                         </button>
                     }
                     @if (viewMode() === 'outputs') {
                         <button (click)="verifyAllOutputs()" class="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-2 py-1 rounded transition border border-transparent hover:border-emerald-500/20 flex items-center gap-1">
-                            <lucide-icon [img]="CheckCircle" class="w-3 h-3"></lucide-icon> Verify All Outputs
+                            <svg lucideCheckCircle class="w-3 h-3"></svg> Verify All Outputs
                         </button>
                     }
                 </div>
@@ -1365,10 +1414,10 @@
                                 <!-- Left/Top Column: Status -->
                                 <div class="verification-badge flex sm:flex-col items-center justify-center p-3 w-full sm:w-28 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-800/80 gap-2 sm:gap-0">
                                     @if (isWhitelisted(input.address)) {
-                                        <lucide-icon [img]="ShieldCheck" class="w-5 h-5 text-emerald-500 sm:mb-1.5"></lucide-icon>
+                                        <svg lucideShieldCheck class="w-5 h-5 text-emerald-500 sm:mb-1.5"></svg>
                                         <span class="text-[9px] font-bold text-emerald-500 uppercase tracking-wider text-center">Verified Input</span>
                                     } @else {
-                                        <lucide-icon [img]="ShieldAlert" class="w-5 h-5 text-slate-600 sm:mb-1.5"></lucide-icon>
+                                        <svg lucideShieldAlert class="w-5 h-5 text-slate-600 sm:mb-1.5"></svg>
                                         <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">UnVerified Input</span>
                                     }
                                 </div>
@@ -1393,14 +1442,11 @@
                                             <span class="font-mono text-xs text-slate-400 break-all select-all mr-2">{{ input.address }}</span>
                                             
                                             <button (click)="copyAddress(input.address)" class="relative group/tooltip shrink-0 focus:outline-none cursor-pointer">
-                                                <lucide-icon 
-                                                    [img]="copiedAddress() === input.address ? Check : Copy" 
-                                                    class="w-4 h-4 transition-all duration-300"
-                                                    [class.text-emerald-400]="copiedAddress() === input.address"
-                                                    [class.scale-110]="copiedAddress() === input.address"
-                                                    [class.text-slate-600]="copiedAddress() !== input.address"
-                                                    [class.group-hover:text-slate-400]="copiedAddress() !== input.address">
-                                                </lucide-icon>
+                                                @if (copiedAddress() === input.address) {
+                                                    <svg lucideCheck class="w-4 h-4 transition-all duration-300 text-emerald-400 scale-110"></svg>
+                                                } @else {
+                                                    <svg lucideCopy class="w-4 h-4 transition-all duration-300 text-slate-600 group-hover:text-slate-400"></svg>
+                                                }
 
                                                 <!-- Tooltip -->
                                                 <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
@@ -1448,16 +1494,16 @@
                             <!-- Left/Top Column: Status -->
                             <div class="verification-badge flex sm:flex-col items-center justify-center p-3 w-full sm:w-28 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-800/80 gap-2 sm:gap-0">
                                 @if (out.isChange) {
-                                    <lucide-icon [img]="ShieldOff" class="w-5 h-5 text-amber-500 sm:mb-1.5"></lucide-icon>
+                                    <svg lucideShieldOff class="w-5 h-5 text-amber-500 sm:mb-1.5"></svg>
                                     <span class="text-[9px] font-bold text-amber-500 uppercase tracking-wider text-center">Change Output</span>
                                 } @else if (isWhitelisted(out.address)) {
-                                    <lucide-icon [img]="ShieldCheck" class="w-5 h-5 text-emerald-500 sm:mb-1.5"></lucide-icon>
+                                    <svg lucideShieldCheck class="w-5 h-5 text-emerald-500 sm:mb-1.5"></svg>
                                     <span class="text-[9px] font-bold text-emerald-500 uppercase tracking-wider text-center">Verified Output</span>
                                 } @else if ((socket.roomState()?.whitelist?.length || 0) > 0) {
-                                    <lucide-icon [img]="ShieldAlert" class="w-5 h-5 text-rose-500 sm:mb-1.5"></lucide-icon>
+                                    <svg lucideShieldAlert class="w-5 h-5 text-rose-500 sm:mb-1.5"></svg>
                                     <span class="text-[9px] font-bold text-rose-500 uppercase tracking-wider text-center">Unverified Output</span>
                                 } @else {
-                                    <lucide-icon [img]="ShieldAlert" class="w-5 h-5 text-slate-600 sm:mb-1.5"></lucide-icon>
+                                    <svg lucideShieldAlert class="w-5 h-5 text-slate-600 sm:mb-1.5"></svg>
                                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Unverified Output</span>
                                 }
                             </div>
@@ -1479,14 +1525,11 @@
                                         <span class="font-mono text-xs text-slate-400 break-all select-all mr-2">{{ out.address }}</span>
                                         
                                         <button (click)="copyAddress(out.address)" class="relative group/tooltip shrink-0 focus:outline-none cursor-pointer">
-                                            <lucide-icon 
-                                                [img]="copiedAddress() === out.address ? Check : Copy" 
-                                                class="w-4 h-4 transition-all duration-300"
-                                                [class.text-emerald-400]="copiedAddress() === out.address"
-                                                [class.scale-110]="copiedAddress() === out.address"
-                                                [class.text-slate-600]="copiedAddress() !== out.address"
-                                                [class.group-hover:text-slate-400]="copiedAddress() !== out.address">
-                                            </lucide-icon>
+                                            @if (copiedAddress() === out.address) {
+                                                <svg lucideCheck class="w-4 h-4 transition-all duration-300 text-emerald-400 scale-110"></svg>
+                                            } @else {
+                                                <svg lucideCopy class="w-4 h-4 transition-all duration-300 text-slate-600 group-hover:text-slate-400"></svg>
+                                            }
 
                                             <!-- Tooltip -->
                                             <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-700 shadow-xl z-[100]">
@@ -1526,7 +1569,7 @@
             @if (blurStates()['transaction-details']) {
                 <div class="absolute inset-0 flex items-center justify-center z-10 mt-10">
                 <button (click)="togglePrivacyBlur('transaction-details')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm transition-colors cursor-pointer">
-                    <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
+                    <svg lucideEyeOff class="w-3.5 h-3.5"></svg>
                     Hidden for Privacy
                 </button>
                 </div>
@@ -1539,7 +1582,7 @@
             
             <div class="flex justify-between items-center mb-4 relative z-20">
                 <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                    <lucide-icon [img]="Users" [size]="20" class="text-slate-400"></lucide-icon>
+                    <svg lucideUsers class="w-5 h-5 text-slate-400"></svg>
                     Signers <span class="text-slate-500 text-sm font-medium">({{ socket.signerCount() }} Signed)</span>
                 </h2>
                 
@@ -1549,7 +1592,11 @@
                     [class.text-amber-500]="!blurStates().signers"
                     [class.text-slate-400]="blurStates().signers"
                     [title]="blurStates().signers ? 'Reveal Signers' : 'Hide Signers'">
-                    <lucide-icon [img]="blurStates().signers ? EyeOff : Eye" [size]="20"></lucide-icon>
+                    @if (blurStates().signers) {
+                        <svg lucideEyeOff class="w-5 h-5"></svg>
+                    } @else {
+                        <svg lucideEye class="w-5 h-5"></svg>
+                    }
                 </button>
             </div>
 
@@ -1574,7 +1621,11 @@
                                             [class.text-emerald-400]="signer.signed"
                                             [class.bg-slate-800]="!signer.signed"
                                             [class.text-slate-500]="!signer.signed">
-                                        <lucide-icon [img]="signer.signed ? CheckCircle : Users" class="w-5 h-5"></lucide-icon>
+                                        @if (signer.signed) {
+                                            <svg lucideCheckCircle class="w-5 h-5"></svg>
+                                        } @else {
+                                            <svg lucideUsers class="w-5 h-5"></svg>
+                                        }
                                     </div>
                                     <div>
                                         @if (socket.isCoordinator()) {
@@ -1584,11 +1635,11 @@
                                                 @if (getLabel(signer.fingerprint); as label) {
                                                     <span class="text-white font-bold">{{ label }}</span>
                                                     <span class="text-slate-500 text-xs">({{ signer.fingerprint }})</span>
-                                                    <lucide-icon [img]="Edit2" class="w-3 h-3 text-slate-600 group-hover/label:text-emerald-400 opacity-0 group-hover/label:opacity-100 transition"></lucide-icon>
+                                                    <svg lucideEdit2 class="w-3 h-3 text-slate-600 group-hover/label:text-emerald-400 opacity-0 group-hover/label:opacity-100 transition"></svg>
                                                 } @else {
                                                     <span class="text-emerald-400/90 italic">Add Label</span>
                                                     <span class="text-slate-500 text-xs">({{ signer.fingerprint }})</span>
-                                                    <lucide-icon [img]="Tag" class="w-3 h-3 text-emerald-400/50 group-hover/label:text-emerald-400"></lucide-icon>
+                                                    <svg lucideTag class="w-3 h-3 text-emerald-400/50 group-hover/label:text-emerald-400"></svg>
                                                 }
                                             </button>
                                         } @else {
@@ -1608,7 +1659,7 @@
                                                         <button (click)="nudgeSigner(signer.fingerprint)" 
                                                                 class="p-1 text-slate-600 hover:text-amber-400 transition cursor-pointer" 
                                                                 title="Copy Nudge Message">
-                                                            <lucide-icon [img]="Bell" class="w-3 h-3"></lucide-icon>
+                                                            <svg lucideBell class="w-3 h-3"></svg>
                                                         </button>
                                                     }
                                                 </div>
@@ -1616,7 +1667,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                @if (!signer.signed) { <lucide-icon [img]="Loader2" class="w-4 h-4 text-slate-600 animate-spin"></lucide-icon> }
+                                @if (!signer.signed) { <svg lucideLoader2 class="w-4 h-4 text-slate-600 animate-spin"></svg> }
                             </div>
                         }
                         @if (socket.signers().length === 0) { <div class="text-center p-4 text-slate-500 text-sm">Loading Signers...</div> }
@@ -1626,7 +1677,7 @@
                 @if (blurStates().signers) {
                     <div class="absolute inset-0 flex items-center justify-center z-10">
                         <button (click)="togglePrivacyBlur('signers')" class="bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-slate-600 shadow-xl backdrop-blur-sm -mt-10 transition-colors cursor-pointer">
-                            <lucide-icon [img]="EyeOff" [size]="14"></lucide-icon>
+                            <svg lucideEyeOff class="w-3.5 h-3.5"></svg>
                             Hidden for Privacy
                         </button>
                     </div>
@@ -1638,7 +1689,7 @@
                     <div class="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-4 animate-fade-in-up">
                         <div class="flex items-center gap-3 mb-4">
                             <div class="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20">
-                                <lucide-icon [img]="Shield" class="w-5 h-5"></lucide-icon>
+                                <svg lucideShield class="w-5 h-5"></svg>
                             </div>
                             <div>
                                 <h4 class="text-white font-bold text-sm">Transaction Signed</h4>
@@ -1651,12 +1702,17 @@
                         @if (socket.isCoordinator()) {
                             <div class="grid gap-3" [class.grid-cols-2]="!isEmbedded" [class.grid-cols-1]="isEmbedded">
                                 <button (click)="copyHex()" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg border border-slate-700 transition flex items-center justify-center gap-2">
-                                    <lucide-icon [img]="copied() ? Check : Copy" class="w-3 h-3"></lucide-icon> {{ copied() ? 'Copied' : 'Copy Hex' }}
+                                    @if (copied()) {
+                                        <svg lucideCheck class="w-3 h-3"></svg>
+                                    } @else {
+                                        <svg lucideCopy class="w-3 h-3"></svg>
+                                    }
+                                    {{ copied() ? 'Copied' : 'Copy Hex' }}
                                 </button>
                                 
                                 @if (!isEmbedded) {
                                     <button (click)="broadcastAndCopy()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 text-center decoration-0">
-                                        Broadcast <lucide-icon [img]="ExternalLink" class="w-3 h-3"></lucide-icon>
+                                        Broadcast <svg lucideExternalLink class="w-3 h-3"></svg>
                                     </button>
                                 }
                             </div>
@@ -1665,13 +1721,13 @@
                 } @else if (socket.isReadyToBroadcast()) {  
                     @if (socket.isCoordinator()) {
                         <button (click)="finalize()" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer">
-                            <lucide-icon [img]="Shield" class="w-4 h-4"></lucide-icon> 
+                            <svg lucideShield class="w-4 h-4"></svg> 
                             Finalize Transaction ({{ socket.signerCount() }}/{{ socket.signerThreshold() }})
                         </button>
                     } @else { <p class="text-xs text-center text-slate-500">Only the Coordinator can finalize.</p> }
                 } @else if (socket.isCoordinator()) {
                     <button disabled class="w-full py-3.5 bg-slate-800 text-slate-500 font-bold rounded-xl border border-slate-700 cursor-not-allowed flex items-center justify-center gap-2">
-                        <lucide-icon [img]="Loader2" class="w-4 h-4 animate-spin"></lucide-icon> 
+                        <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg> 
                         <span>Waiting for Signatures ({{ socket.signerCount() }} / {{ socket.signerThreshold() }})</span>
                     </button>
                 } @else {

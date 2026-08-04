@@ -146,6 +146,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       emitModalView: vi.fn(),
       emitRoomRenamed: vi.fn(),
       emitDestinationVerified: vi.fn(),
+      emitRoomStateChanged: vi.fn(), // ADDED THIS MOCK METHOD
       emitQrStateChanged: vi.fn(),
       emitFountainFormatChanged: vi.fn(),
       emitFountainStateChanged: vi.fn(),
@@ -679,11 +680,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         component.roomId.set('test-room');
         component.claimPassword = 'admin-secret-token';
 
-        //const setItemSpy = vi.spyOn(window.sessionStorage, 'setItem');
-
         component.claimRole();
 
-        //expect(setItemSpy).toHaveBeenCalledWith('admin_token_test-room', 'admin-secret-token');
         expect(mockSocketService.claimCoordinator).toHaveBeenCalledWith('admin-secret-token');
         expect(component.showClaimInput()).toBe(false);
         expect(component.claimPassword).toBe('');
@@ -2225,6 +2223,141 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       // Now it should be cleared
       expect(component.copiedAddress()).toBeNull();
+    });
+  });
+
+  describe('Missing Branch Coverage Fixes', () => {
+    it('should handle SSR gracefully (isPlatformBrowser = false)', () => {
+      // override platformId
+      (component as any).platformId = 'server';
+
+      // Call hooks
+      component.ngOnInit();
+      component.ngOnDestroy();
+
+      expect(mockSocketService.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('verifyAllInputs should return early if no inputs', () => {
+      mockSocketService.txDetails.set({ inputsList: [] });
+      component.verifyAllInputs();
+      expect(mockSocketService.updateWhitelist).not.toHaveBeenCalled();
+    });
+
+    it('verifyAllOutputs should return early if no outputs', () => {
+      mockSocketService.txDetails.set({ outputs: [] });
+      component.verifyAllOutputs();
+      expect(mockSocketService.updateWhitelist).not.toHaveBeenCalled();
+    });
+
+    it('downloadUnsignedPsbt should create a blob and trigger download if psbt exists', () => {
+      mockSocketService.roomState.set({ psbt: 'base64psbt' });
+      const createElementSpy = vi.spyOn(document, 'createElement');
+      const createObjectUrlSpy = vi
+        .spyOn(window.URL, 'createObjectURL')
+        .mockReturnValue('blob:url');
+      const clickSpy = vi.fn();
+      createElementSpy.mockReturnValue({ click: clickSpy, href: '', download: '' } as any);
+
+      component.downloadUnsignedPsbt();
+
+      expect(createElementSpy).toHaveBeenCalledWith('a');
+      expect(createObjectUrlSpy).toHaveBeenCalled();
+      expect(clickSpy).toHaveBeenCalled();
+    });
+
+    it('downloadCsv should create blob and trigger download', () => {
+      mockSocketService.getSettlementCsvData.mockReturnValue('a,b,c');
+      const createElementSpy = vi.spyOn(document, 'createElement');
+      const clickSpy = vi.fn();
+      createElementSpy.mockReturnValue({ click: clickSpy, setAttribute: vi.fn() } as any);
+      const appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+      const removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+      const createObjectUrlSpy = vi
+        .spyOn(window.URL, 'createObjectURL')
+        .mockReturnValue('blob:url');
+
+      component.downloadCsv();
+
+      expect(createElementSpy).toHaveBeenCalledWith('a');
+      expect(createObjectUrlSpy).toHaveBeenCalled();
+      expect(clickSpy).toHaveBeenCalled();
+    });
+
+    it('executeAuditDownload should trigger delay and then download', async () => {
+      vi.useFakeTimers();
+      const downloadSpy = vi
+        .spyOn(component, 'generateAuditLog')
+        .mockImplementation(() => Promise.resolve());
+
+      const promise = component.executeAuditDownload();
+
+      await vi.advanceTimersByTimeAsync(1500);
+      await promise;
+
+      expect(downloadSpy).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('closeRoom action should generate audit log and navigate if not embedded', () => {
+      vi.useFakeTimers();
+      vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(false);
+      const generateSpy = vi
+        .spyOn(component, 'generateAuditLog')
+        .mockImplementation(() => Promise.resolve());
+
+      component.closeRoom();
+      component.executeConfirmAction(); // Trigger the callback
+
+      expect(generateSpy).toHaveBeenCalled();
+      vi.advanceTimersByTime(350);
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/']);
+      vi.useRealTimers();
+    });
+
+    it('copyRoomId should copy and log if roomId is set', () => {
+      component.roomId.set('test-room-id');
+      const copySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
+      component.copyRoomId();
+      expect(copySpy).toHaveBeenCalledWith('test-room-id', component.roomIdCopied);
+      expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('room-id');
+    });
+
+    it('copyKey should copy room key', () => {
+      mockSocketService.getRoomKey.mockReturnValue('secret-key');
+      const copySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
+
+      component.copyKey();
+
+      expect(copySpy).toHaveBeenCalledWith('secret-key', component.keyCopied);
+      expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('decryption-key');
+    });
+
+    it('ngOnInit should return early if id is missing', () => {
+      mockActivatedRoute.paramMap = of({ get: () => null });
+      component.ngOnInit();
+      expect(mockSocketService.connect).not.toHaveBeenCalled();
+    });
+
+    it('ngOnInit should return early if already connected to correct room', () => {
+      mockSocketService.status.set('connected');
+      mockSocketService.sdk.store.getState.mockReturnValue({ roomId: 'room-123' });
+
+      component.ngOnInit();
+
+      expect(mockSocketService.connect).not.toHaveBeenCalled();
+    });
+
+    it('Effect should generate audit log if room is closed and not embedded', () => {
+      vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(false);
+      const generateSpy = vi
+        .spyOn(component, 'generateAuditLog')
+        .mockImplementation(() => Promise.resolve());
+
+      mockSocketService.isClosed.set(true);
+      fixture.detectChanges(); // Trigger effect
+
+      expect(generateSpy).toHaveBeenCalled();
     });
   });
 });
