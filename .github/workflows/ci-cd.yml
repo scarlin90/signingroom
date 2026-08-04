@@ -222,7 +222,7 @@ jobs:
 
       - name: Run E2E Smoke Test Against Development
         working-directory: apps/client-e2e
-        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should reach 3-5 threshold and directly finalize transaction when whitelist is unused"
+        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should successfully aggregate and finalize a v0 2-of-2 multisig transaction"
         env:
           BASE_URL: 'https://dev.signingroom.io'
           DEBUG: 'pw:api'
@@ -340,7 +340,7 @@ jobs:
 
       - name: Run E2E Smoke Test Against Staging
         working-directory: apps/client-e2e
-        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should reach 3-5 threshold and directly finalize transaction when whitelist is unused"
+        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should successfully aggregate and finalize a v0 2-of-2 multisig transaction"
         env:
           BASE_URL: 'https://staging.signingroom.io'
           DEBUG: 'pw:api'
@@ -458,7 +458,7 @@ jobs:
 
       - name: Run E2E Smoke Test Against Production
         working-directory: apps/client-e2e
-        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should reach 3-5 threshold and directly finalize transaction when whitelist is unused"
+        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should successfully aggregate and finalize a v0 2-of-2 multisig transaction"
         env:
           BASE_URL: 'https://signingroom.io'
           DEBUG: 'pw:api'
