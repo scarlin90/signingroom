@@ -217,6 +217,15 @@ jobs:
           command: deploy --env development
           workingDirectory: 'apps/worker'
 
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E Tests Against Development
+        working-directory: apps/client-e2e
+        run: npx playwright test
+        env:
+          BASE_URL: 'https://dev.signingroom.io'
+
   deploy-staging:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
@@ -325,6 +334,15 @@ jobs:
           command: deploy --env staging
           workingDirectory: 'apps/worker'
 
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E Tests Against Staging
+        working-directory: apps/client-e2e
+        run: npx playwright test
+        env:
+          BASE_URL: 'https://staging.signingroom.io'
+
   deploy-prod:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
@@ -432,3 +450,12 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
           workingDirectory: 'apps/worker'
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E Tests Against Production
+        working-directory: apps/client-e2e
+        run: npx playwright test
+        env:
+          BASE_URL: 'https://signingroom.io'
