@@ -195,14 +195,11 @@ jobs:
           category: trivy-client-dev
 
       - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web-dev'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'development'
+          command: pages deploy dist/apps/client/browser --project-name=signingroom-web-dev --branch=development
 
       - name: Deploy Backend to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
@@ -301,14 +298,11 @@ jobs:
           category: trivy-client-staging
 
       - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web-staging'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'staging'
+          command: pages deploy dist/apps/client/browser --project-name=signingroom-web-staging --branch=staging
 
       - name: Deploy Backend to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
@@ -407,14 +401,11 @@ jobs:
           category: trivy-client-prod
 
       - name: Deploy Frontend to Cloudflare Pages (Prod)
-        uses: cloudflare/pages-action@v1
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'main'
+          command: pages deploy dist/apps/client/browser --project-name=signingroom-web --branch=main
 
       - name: Deploy Backend to Cloudflare Workers (Prod)
         uses: cloudflare/wrangler-action@v3
