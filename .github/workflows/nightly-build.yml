@@ -5,15 +5,21 @@ on:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-  actions: read
-  pull-requests: write
 
 jobs:
   nightly-tests:
     name: Full Build & Test Suite
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

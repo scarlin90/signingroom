@@ -7,15 +7,20 @@ on:
   # Allow manual triggering
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-  security-events: write
-  packages: read
 
 jobs:
   semgrep-sast:
     name: Semgrep Static Code Analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -27,7 +32,7 @@ jobs:
         run: semgrep scan --config p/typescript --sarif --output semgrep.sarif
 
       - name: Upload Semgrep SARIF to GitHub Security Tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep-nightly
@@ -35,13 +40,17 @@ jobs:
   trivy-container-scan:
     name: Trivy Container Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
     strategy:
       matrix:
         component: ['worker', 'client']
         tag: ['latest', 'staging', 'dev']
     steps:
       - name: Scan ${{ matrix.component }}:${{ matrix.tag }} for CVEs
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/${{ matrix.component }}:${{ matrix.tag }}'
           format: 'sarif'
@@ -49,7 +58,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy SARIF to GitHub Security Tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-${{ matrix.component }}-${{ matrix.tag }}.sarif'

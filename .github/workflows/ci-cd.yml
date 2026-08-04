@@ -17,17 +17,20 @@ on:
           - staging
           - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  contents: write
-  deployments: write
-  packages: write
-  pull-requests: write
-  security-events: write
-  id-token: write
+  contents: read
 
 jobs:
   run-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -111,6 +114,11 @@ jobs:
     if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
     runs-on: ubuntu-latest
     environment: development
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      deployments: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -214,6 +222,11 @@ jobs:
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     runs-on: ubuntu-latest
     environment: staging
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      deployments: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -317,6 +330,11 @@ jobs:
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      deployments: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
