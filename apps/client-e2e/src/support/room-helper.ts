@@ -42,6 +42,7 @@ export async function launchRoomFromFixture(
 
   if (autoReveal) {
     await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.lucide-lock').first()).toBeHidden({ timeout: 15000 });
     await roomPage.headerHiddenBadge.click();
     await expect(roomPage.privacyModalRevealAll).toBeVisible({ timeout: 15000 });
     await roomPage.privacyModalRevealAll.click();
