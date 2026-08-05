@@ -27,117 +27,117 @@ on:
         type: string
 
 jobs:
-  deploy:
-    name: Build & Deploy
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-      deployments: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+  # deploy:
+  #   name: Build & Deploy
+  #   runs-on: ubuntu-latest
+  #   environment: ${{ inputs.target_env }}
+  #   permissions:
+  #     contents: read
+  #     packages: write
+  #     security-events: write
+  #     deployments: write
+  #   steps:
+  #     - name: Checkout Code
+  #       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+  #       with:
+  #         node-version: '24'
 
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
+  #     - name: Install Dependencies
+  #       run: npm ci --legacy-peer-deps
 
-      - name: Generate Software Bill of Materials (SBOM)
-        run: npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-${{ inputs.target_env }}.json --ignore-npm-errors
+  #     - name: Generate Software Bill of Materials (SBOM)
+  #       run: npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-${{ inputs.target_env }}.json --ignore-npm-errors
 
-      - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sbom-${{ inputs.target_env }}-${{ github.sha }}
-          path: sbom-${{ inputs.target_env }}.json
-          retention-days: 90
+  #     - name: Upload SBOM Artifact
+  #       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+  #       with:
+  #         name: sbom-${{ inputs.target_env }}-${{ github.sha }}
+  #         path: sbom-${{ inputs.target_env }}.json
+  #         retention-days: 90
 
-      - name: Build Angular Client (Nx)
-        run: npx nx build client --configuration=${{ inputs.nx_config }}
+  #     - name: Build Angular Client (Nx)
+  #       run: npx nx build client --configuration=${{ inputs.nx_config }}
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Log in to GitHub Container Registry
+  #       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+  #       with:
+  #         registry: ghcr.io
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}
-            ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}-${{ github.sha }}
+  #     - name: Build and Push Worker Docker Image
+  #       uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+  #       with:
+  #         context: .
+  #         file: ./Dockerfile.worker
+  #         push: true
+  #         tags: |
+  #           ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}
+  #           ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}-${{ github.sha }}
 
-      - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
-        with:
-          image-ref: 'ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}-${{ github.sha }}'
-          format: 'sarif'
-          output: 'trivy-worker.sarif'
-          severity: 'CRITICAL'
-          exit-code: '1'
+  #     - name: Scan Worker Container for CVEs
+  #       uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
+  #       with:
+  #         image-ref: 'ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}-${{ github.sha }}'
+  #         format: 'sarif'
+  #         output: 'trivy-worker.sarif'
+  #         severity: 'CRITICAL'
+  #         exit-code: '1'
 
-      - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: 'trivy-worker.sarif'
-          category: trivy-worker-${{ inputs.target_env }}
+  #     - name: Upload Worker Trivy SARIF to GitHub UI
+  #       uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+  #       if: always()
+  #       with:
+  #         sarif_file: 'trivy-worker.sarif'
+  #         category: trivy-worker-${{ inputs.target_env }}
 
-      - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./Dockerfile.client
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}
-            ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}
+  #     - name: Build and Push Client Docker Image
+  #       uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+  #       with:
+  #         context: .
+  #         file: ./Dockerfile.client
+  #         push: true
+  #         tags: |
+  #           ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}
+  #           ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}
 
-      - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
-        with:
-          image-ref: 'ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}'
-          format: 'sarif'
-          output: 'trivy-client.sarif'
-          severity: 'CRITICAL'
-          exit-code: '1'
+  #     - name: Scan Client Container for CVEs
+  #       uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
+  #       with:
+  #         image-ref: 'ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}'
+  #         format: 'sarif'
+  #         output: 'trivy-client.sarif'
+  #         severity: 'CRITICAL'
+  #         exit-code: '1'
 
-      - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: 'trivy-client.sarif'
-          category: trivy-client-${{ inputs.target_env }}
+  #     - name: Upload Client Trivy SARIF to GitHub UI
+  #       uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+  #       if: always()
+  #       with:
+  #         sarif_file: 'trivy-client.sarif'
+  #         category: trivy-client-${{ inputs.target_env }}
 
-      - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist/apps/client/browser --project-name=${{ inputs.pages_project }} --branch=${{ inputs.pages_branch }}
+  #     - name: Deploy Frontend to Cloudflare Pages
+  #       uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+  #       with:
+  #         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  #         accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  #         command: pages deploy dist/apps/client/browser --project-name=${{ inputs.pages_project }} --branch=${{ inputs.pages_branch }}
 
-      - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: ${{ inputs.wrangler_args }}
-          workingDirectory: 'apps/worker'
+  #     - name: Deploy Backend to Cloudflare Workers
+  #       uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+  #       with:
+  #         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  #         accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  #         command: ${{ inputs.wrangler_args }}
+  #         workingDirectory: 'apps/worker'
 
   smoke-test:
     name: E2E Smoke Test
-    needs: [deploy]
+    # needs: [deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

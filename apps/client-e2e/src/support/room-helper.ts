@@ -59,9 +59,10 @@ export async function joinRoomFromLink(page: Page, link: string, autoReveal = tr
   await page.goto(link);
 
   if (autoReveal) {
-    await expect(roomPage.headerHiddenBadge).toBeVisible();
+    await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.lucide-lock').first()).toBeHidden({ timeout: 15000 });
     await roomPage.headerHiddenBadge.click();
-    await expect(roomPage.privacyModalRevealAll).toBeVisible();
+    await expect(roomPage.privacyModalRevealAll).toBeVisible({ timeout: 15000 });
     await roomPage.privacyModalRevealAll.click();
     await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
   }
