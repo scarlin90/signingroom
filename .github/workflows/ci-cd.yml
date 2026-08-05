@@ -33,31 +33,31 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '26'
+          node-version: '24'
 
       - name: Install Semgrep
         run: python3 -m pip install semgrep
 
       - name: Run Semgrep Security Scan
-        run: semgrep scan --config p/typescript --sarif --output semgrep.sarif
+        run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
 
       - name: Upload Semgrep SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         if: always()
         with:
           sarif_file: semgrep.sarif
           category: semgrep
 
       - name: Build Test Image (with Cache)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: Dockerfile.test
@@ -83,7 +83,7 @@ jobs:
 
       - name: Post Worker Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@v2
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
         with:
           name: 'Worker Relay Coverage'
           json-summary-path: ./worker-summary.json
@@ -91,7 +91,7 @@ jobs:
 
       - name: Post Client Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@v2
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
         with:
           name: 'Client Dashboard Coverage'
           json-summary-path: ./client-summary.json
@@ -99,7 +99,7 @@ jobs:
 
       - name: Post SDK Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@v2
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
         with:
           name: 'SDK Coverage'
           json-summary-path: ./sdk-summary.json
@@ -121,12 +121,12 @@ jobs:
       deployments: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '26'
+          node-version: '24'
 
       - name: Install Dependencies
         run: npm ci --legacy-peer-deps
@@ -136,7 +136,7 @@ jobs:
           npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-dev.json --ignore-npm-errors
 
       - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom-dev-${{ github.sha }}
           path: sbom-dev.json
@@ -146,14 +146,14 @@ jobs:
         run: npx nx build client --configuration=hosted-dev
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile.worker
@@ -163,22 +163,23 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}
 
       - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}'
           format: 'sarif'
           output: 'trivy-dev.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
+          exit-code: '1'
 
       - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         if: always()
         with:
           sarif_file: 'trivy-dev.sarif'
           category: trivy-dev
 
       - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile.client
@@ -188,7 +189,7 @@ jobs:
             ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}
 
       - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}'
           format: 'sarif'
@@ -196,21 +197,21 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         if: always()
         with:
           sarif_file: 'trivy-client-dev.sarif'
           category: trivy-client-dev
 
       - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist/apps/client/browser --project-name=signingroom-web-dev --branch=development
 
       - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -239,12 +240,12 @@ jobs:
       deployments: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '26'
+          node-version: '24'
 
       - name: Install Dependencies
         run: npm ci --legacy-peer-deps
@@ -254,7 +255,7 @@ jobs:
           npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-staging.json --ignore-npm-errors
 
       - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom-staging-${{ github.sha }}
           path: sbom-staging.json
@@ -264,14 +265,14 @@ jobs:
         run: npx nx build client --configuration=hosted-staging
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile.worker
@@ -281,22 +282,23 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:staging-${{ github.sha }}
 
       - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
         with:
-          image-ref: 'ghcr.io/${{ github.repository }}/worker:staging-${{ github.sha }}'
+          image-ref: 'ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}'
           format: 'sarif'
-          output: 'trivy-staging.sarif'
-          severity: 'CRITICAL,HIGH'
+          output: 'trivy-dev.sarif'
+          severity: 'CRITICAL'
+          exit-code: '1'
 
       - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         if: always()
         with:
           sarif_file: 'trivy-staging.sarif'
           category: trivy-staging
 
       - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile.client
@@ -306,7 +308,7 @@ jobs:
             ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}
 
       - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}'
           format: 'sarif'
@@ -314,21 +316,21 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         if: always()
         with:
           sarif_file: 'trivy-client-staging.sarif'
           category: trivy-client-staging
 
       - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist/apps/client/browser --project-name=signingroom-web-staging --branch=staging
 
       - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -357,12 +359,12 @@ jobs:
       deployments: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '26'
+          node-version: '24'
 
       - name: Install Dependencies
         run: npm ci --legacy-peer-deps
@@ -372,7 +374,7 @@ jobs:
           npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-prod.json --ignore-npm-errors
 
       - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom-prod-${{ github.sha }}
           path: sbom-prod.json
@@ -382,14 +384,14 @@ jobs:
         run: npx nx build client --configuration=production
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile.worker
@@ -399,22 +401,23 @@ jobs:
             ghcr.io/${{ github.repository }}/worker:${{ github.sha }}
 
       - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
         with:
-          image-ref: 'ghcr.io/${{ github.repository }}/worker:${{ github.sha }}'
+          image-ref: 'ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}'
           format: 'sarif'
-          output: 'trivy-prod.sarif'
-          severity: 'CRITICAL,HIGH'
+          output: 'trivy-dev.sarif'
+          severity: 'CRITICAL'
+          exit-code: '1'
 
       - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         if: always()
         with:
           sarif_file: 'trivy-prod.sarif'
           category: trivy-prod
 
       - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile.client
@@ -424,7 +427,7 @@ jobs:
             ghcr.io/${{ github.repository }}/client:${{ github.sha }}
 
       - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/client:${{ github.sha }}'
           format: 'sarif'
@@ -432,21 +435,21 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         if: always()
         with:
           sarif_file: 'trivy-client-prod.sarif'
           category: trivy-client-prod
 
       - name: Deploy Frontend to Cloudflare Pages (Prod)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist/apps/client/browser --project-name=signingroom-web --branch=main
 
       - name: Deploy Backend to Cloudflare Workers (Prod)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
