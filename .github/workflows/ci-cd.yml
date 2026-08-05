@@ -128,40 +128,40 @@ jobs:
       base_url: 'https://dev.signingroom.io'
     secrets: inherit
 
-  deploy-staging:
-    needs: [run-tests]
-    if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-      deployments: write
-    uses: ./.github/workflows/deploy-template.yml
-    with:
-      target_env: 'staging'
-      nx_config: 'hosted-staging'
-      docker_tag: 'staging'
-      pages_project: 'signingroom-web-staging'
-      pages_branch: 'staging'
-      wrangler_args: 'deploy --env staging'
-      base_url: 'https://staging.signingroom.io'
-    secrets: inherit
+  # deploy-staging:
+  #   needs: [run-tests]
+  #   if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
+  #   permissions:
+  #     contents: read
+  #     packages: write
+  #     security-events: write
+  #     deployments: write
+  #   uses: ./.github/workflows/deploy-template.yml
+  #   with:
+  #     target_env: 'staging'
+  #     nx_config: 'hosted-staging'
+  #     docker_tag: 'staging'
+  #     pages_project: 'signingroom-web-staging'
+  #     pages_branch: 'staging'
+  #     wrangler_args: 'deploy --env staging'
+  #     base_url: 'https://staging.signingroom.io'
+  #   secrets: inherit
 
-  deploy-prod:
-    needs: [run-tests]
-    if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-      deployments: write
-    uses: ./.github/workflows/deploy-template.yml
-    with:
-      target_env: 'production'
-      nx_config: 'production'
-      docker_tag: 'latest'
-      pages_project: 'signingroom-web'
-      pages_branch: 'main'
-      wrangler_args: 'deploy'
-      base_url: 'https://signingroom.io'
-    secrets: inherit
+  # deploy-prod:
+  #   needs: [run-tests]
+  #   if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
+  #   permissions:
+  #     contents: read
+  #     packages: write
+  #     security-events: write
+  #     deployments: write
+  #   uses: ./.github/workflows/deploy-template.yml
+  #   with:
+  #     target_env: 'production'
+  #     nx_config: 'production'
+  #     docker_tag: 'latest'
+  #     pages_project: 'signingroom-web'
+  #     pages_branch: 'main'
+  #     wrangler_args: 'deploy'
+  #     base_url: 'https://signingroom.io'
+  #   secrets: inherit
