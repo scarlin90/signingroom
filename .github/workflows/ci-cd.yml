@@ -118,6 +118,7 @@ jobs:
       security-events: write
       deployments: write
       id-token: write
+      attestations: write
     uses: ./.github/workflows/deploy-template.yml
     with:
       target_env: 'development'
@@ -138,6 +139,7 @@ jobs:
       security-events: write
       deployments: write
       id-token: write
+      attestations: write
     uses: ./.github/workflows/deploy-template.yml
     with:
       target_env: 'staging'
@@ -158,6 +160,7 @@ jobs:
       security-events: write
       deployments: write
       id-token: write
+      attestations: write
     uses: ./.github/workflows/deploy-template.yml
     with:
       target_env: 'production'
