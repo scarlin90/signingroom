@@ -156,7 +156,7 @@ jobs:
 
       - name: Run E2E Smoke Test
         working-directory: apps/client-e2e
-        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should successfully aggregate and finalize a v0 2-of-2 multisig transaction"
+        run: npx playwright test src/specs/04-signing-workflow.spec.ts -g "Coordinator should see Guest signatures in real-time"
         env:
           BASE_URL: ${{ inputs.base_url }}
           DEBUG: 'pw:api'
