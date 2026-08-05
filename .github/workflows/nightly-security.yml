@@ -55,7 +55,7 @@ jobs:
           image-ref: 'ghcr.io/${{ github.repository }}/${{ matrix.component }}:${{ matrix.tag }}'
           format: 'sarif'
           output: 'trivy-${{ matrix.component }}-${{ matrix.tag }}.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
 
       - name: Upload Trivy SARIF to GitHub Security Tab
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4

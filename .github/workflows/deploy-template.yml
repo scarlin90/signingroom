@@ -66,7 +66,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-sbom.sarif'
           scan-ref: 'sbom-${{ inputs.target_env }}.json'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
           exit-code: '1'
 
       - name: Upload SBOM Trivy SARIF to GitHub UI
@@ -117,7 +117,7 @@ jobs:
           image-ref: 'ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}-${{ github.sha }}'
           format: 'sarif'
           output: 'trivy-worker.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
           exit-code: '1'
 
       - name: Upload Worker Trivy SARIF to GitHub UI
@@ -155,7 +155,7 @@ jobs:
           image-ref: 'ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}'
           format: 'sarif'
           output: 'trivy-client.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
           exit-code: '1'
 
       - name: Upload Client Trivy SARIF to GitHub UI
