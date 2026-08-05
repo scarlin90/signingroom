@@ -59,23 +59,20 @@ export async function joinRoomFromLink(page: Page, link: string, autoReveal = tr
 
   const cleanLink = link.trim();
   const [baseUrl, hash] = cleanLink.split('#');
-  const decodedHash = hash ? decodeURIComponent(hash) : '';
-  const finalUrl = decodedHash ? `${baseUrl}#${decodedHash}` : baseUrl;
-
+  const finalUrl = hash ? `${baseUrl}#${decodeURIComponent(hash)}` : baseUrl;
   const rootUrl = baseUrl.split('/room')[0];
 
   await page.goto(rootUrl, { waitUntil: 'domcontentloaded' });
-
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(1000);
 
   await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
 
   if (autoReveal) {
-    await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 30000 });
     await expect(page.locator('.lucide-lock').first()).toBeHidden({ timeout: 15000 });
-    await roomPage.headerHiddenBadge.click();
-    await expect(roomPage.privacyModalRevealAll).toBeVisible({ timeout: 15000 });
+
+    await expect(roomPage.privacyModalRevealAll).toBeVisible({ timeout: 30000 });
     await roomPage.privacyModalRevealAll.click();
+
     await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
   }
 
