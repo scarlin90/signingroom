@@ -65,7 +65,7 @@ jobs:
           scan-type: 'sbom'
           format: 'sarif'
           output: 'trivy-sbom.sarif'
-          input: 'sbom-${{ inputs.target_env }}.json'
+          scan-ref: 'sbom-${{ inputs.target_env }}.json'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
 
