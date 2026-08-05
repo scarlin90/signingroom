@@ -107,7 +107,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Sign Worker Docker Image
-        run: cosign sign --yes ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}-${{ github.sha }}
+        run: cosign sign --yes ghcr.io/${{ github.repository }}/worker@${{ steps.push_worker.outputs.digest }}
 
       - name: Attest Worker Build Provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
@@ -145,7 +145,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Sign Client Docker Image
-        run: cosign sign --yes ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}
+        run: cosign sign --yes ghcr.io/${{ github.repository }}/client@${{ steps.push_client.outputs.digest }}
 
       - name: Attest Client Build Provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
@@ -187,7 +187,9 @@ jobs:
       - name: Post-Deploy Health Verification
         run: |
           echo "==> Verifying Frontend (${{ inputs.base_url }})..."
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors ${{ inputs.base_url }} > /dev/null
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
+            -A "GitHubActions-CI-HealthCheck" \
+            ${{ inputs.base_url }} > /dev/null
 
           # Map target environment to corresponding Worker health API
           if [ "${{ inputs.target_env }}" = "development" ]; then
@@ -199,7 +201,7 @@ jobs:
           fi
 
           echo "==> Verifying Worker API ($WORKER_HEALTH_URL)..."
-          RESPONSE=$(curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors "$WORKER_HEALTH_URL")
+          RESPONSE=$(curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors -A "GitHubActions-CI-HealthCheck" "$WORKER_HEALTH_URL")
           echo "Worker Response: $RESPONSE"
 
           # Assert that the status field equals "healthy"
