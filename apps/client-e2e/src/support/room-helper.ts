@@ -61,6 +61,8 @@ export async function joinRoomFromLink(page: Page, link: string, autoReveal = tr
   const decodedHash = hash ? decodeURIComponent(hash) : '';
   const finalUrl = decodedHash ? `${baseUrl}#${decodedHash}` : baseUrl;
 
+  await page.waitForTimeout(3000);
+
   await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
 
   if (autoReveal) {
