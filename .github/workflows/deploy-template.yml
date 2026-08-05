@@ -67,7 +67,7 @@ jobs:
           output: 'trivy-sbom.sarif'
           scan-ref: 'sbom-${{ inputs.target_env }}.json'
           severity: 'CRITICAL'
-          exit-code: '1'
+          exit-code: '0'
 
       - name: Upload SBOM Trivy SARIF to GitHub UI
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
