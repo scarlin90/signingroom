@@ -56,9 +56,12 @@ export async function launchRoomFromFixture(
 
 export async function joinRoomFromLink(page: Page, link: string, autoReveal = true) {
   const roomPage = new RoomPage(page);
-  const cleanUrl = decodeURIComponent(link);
 
-  await page.goto(cleanUrl);
+  const [baseUrl, hash] = link.split('#');
+  const decodedHash = hash ? decodeURIComponent(hash) : '';
+  const finalUrl = decodedHash ? `${baseUrl}#${decodedHash}` : baseUrl;
+
+  await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
 
   if (autoReveal) {
     await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 30000 });
