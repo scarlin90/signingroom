@@ -112,356 +112,41 @@ jobs:
   deploy-dev:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
-    runs-on: ubuntu-latest
-    environment: development
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-      deployments: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Generate Software Bill of Materials (SBOM)
-        run: |
-          npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-dev.json --ignore-npm-errors
-
-      - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sbom-dev-${{ github.sha }}
-          path: sbom-dev.json
-          retention-days: 90
-
-      - name: Build Angular Client (Nx)
-        run: npx nx build client --configuration=hosted-dev
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/worker:dev
-            ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}
-
-      - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
-        with:
-          image-ref: 'ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}'
-          format: 'sarif'
-          output: 'trivy-dev.sarif'
-          severity: 'CRITICAL'
-          exit-code: '1'
-
-      - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: 'trivy-dev.sarif'
-          category: trivy-dev
-
-      - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./Dockerfile.client
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/client:dev
-            ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}
-
-      - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
-        with:
-          image-ref: 'ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}'
-          format: 'sarif'
-          output: 'trivy-client-dev.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: 'trivy-client-dev.sarif'
-          category: trivy-client-dev
-
-      - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist/apps/client/browser --project-name=signingroom-web-dev --branch=development
-
-      - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env development
-          workingDirectory: 'apps/worker'
-
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run E2E Smoke Test Against Development
-        working-directory: apps/client-e2e
-        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should successfully aggregate and finalize a v0 2-of-2 multisig transaction"
-        env:
-          BASE_URL: 'https://dev.signingroom.io'
-          DEBUG: 'pw:api'
+    uses: ./.github/workflows/deploy-template.yml
+    with:
+      target_env: 'development'
+      nx_config: 'hosted-dev'
+      docker_tag: 'dev'
+      pages_project: 'signingroom-web-dev'
+      pages_branch: 'development'
+      wrangler_args: 'deploy --env development'
+      base_url: 'https://dev.signingroom.io'
+    secrets: inherit
 
   deploy-staging:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
-    runs-on: ubuntu-latest
-    environment: staging
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-      deployments: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Generate Software Bill of Materials (SBOM)
-        run: |
-          npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-staging.json --ignore-npm-errors
-
-      - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sbom-staging-${{ github.sha }}
-          path: sbom-staging.json
-          retention-days: 90
-
-      - name: Build Angular Client (Nx)
-        run: npx nx build client --configuration=hosted-staging
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/worker:staging
-            ghcr.io/${{ github.repository }}/worker:staging-${{ github.sha }}
-
-      - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
-        with:
-          image-ref: 'ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}'
-          format: 'sarif'
-          output: 'trivy-dev.sarif'
-          severity: 'CRITICAL'
-          exit-code: '1'
-
-      - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: 'trivy-staging.sarif'
-          category: trivy-staging
-
-      - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./Dockerfile.client
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/client:staging
-            ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}
-
-      - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
-        with:
-          image-ref: 'ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}'
-          format: 'sarif'
-          output: 'trivy-client-staging.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: 'trivy-client-staging.sarif'
-          category: trivy-client-staging
-
-      - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist/apps/client/browser --project-name=signingroom-web-staging --branch=staging
-
-      - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env staging
-          workingDirectory: 'apps/worker'
-
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run E2E Smoke Test Against Staging
-        working-directory: apps/client-e2e
-        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should successfully aggregate and finalize a v0 2-of-2 multisig transaction"
-        env:
-          BASE_URL: 'https://staging.signingroom.io'
-          DEBUG: 'pw:api'
+    uses: ./.github/workflows/deploy-template.yml
+    with:
+      target_env: 'staging'
+      nx_config: 'hosted-staging'
+      docker_tag: 'staging'
+      pages_project: 'signingroom-web-staging'
+      pages_branch: 'staging'
+      wrangler_args: 'deploy --env staging'
+      base_url: 'https://staging.signingroom.io'
+    secrets: inherit
 
   deploy-prod:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
-    runs-on: ubuntu-latest
-    environment: production
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-      deployments: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Generate Software Bill of Materials (SBOM)
-        run: |
-          npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-prod.json --ignore-npm-errors
-
-      - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sbom-prod-${{ github.sha }}
-          path: sbom-prod.json
-          retention-days: 90
-
-      - name: Build Angular Client (Nx Production)
-        run: npx nx build client --configuration=production
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/worker:latest
-            ghcr.io/${{ github.repository }}/worker:${{ github.sha }}
-
-      - name: Scan Worker Container for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
-        with:
-          image-ref: 'ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}'
-          format: 'sarif'
-          output: 'trivy-dev.sarif'
-          severity: 'CRITICAL'
-          exit-code: '1'
-
-      - name: Upload Worker Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: 'trivy-prod.sarif'
-          category: trivy-prod
-
-      - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: ./Dockerfile.client
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/client:latest
-            ghcr.io/${{ github.repository }}/client:${{ github.sha }}
-
-      - name: Scan Client Container for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
-        with:
-          image-ref: 'ghcr.io/${{ github.repository }}/client:${{ github.sha }}'
-          format: 'sarif'
-          output: 'trivy-client-prod.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload Client Trivy SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: 'trivy-client-prod.sarif'
-          category: trivy-client-prod
-
-      - name: Deploy Frontend to Cloudflare Pages (Prod)
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist/apps/client/browser --project-name=signingroom-web --branch=main
-
-      - name: Deploy Backend to Cloudflare Workers (Prod)
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-          workingDirectory: 'apps/worker'
-
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run E2E Smoke Test Against Production
-        working-directory: apps/client-e2e
-        run: npx playwright test src/specs/06-finalization-workflow.spec.ts -g "Should successfully aggregate and finalize a v0 2-of-2 multisig transaction"
-        env:
-          BASE_URL: 'https://signingroom.io'
-          DEBUG: 'pw:api'
+    uses: ./.github/workflows/deploy-template.yml
+    with:
+      target_env: 'production'
+      nx_config: 'production'
+      docker_tag: 'latest'
+      pages_project: 'signingroom-web'
+      pages_branch: 'main'
+      wrangler_args: 'deploy'
+      base_url: 'https://signingroom.io'
+    secrets: inherit
