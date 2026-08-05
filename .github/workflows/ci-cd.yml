@@ -112,6 +112,11 @@ jobs:
   deploy-dev:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      deployments: write
     uses: ./.github/workflows/deploy-template.yml
     with:
       target_env: 'development'
@@ -126,6 +131,11 @@ jobs:
   deploy-staging:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      deployments: write
     uses: ./.github/workflows/deploy-template.yml
     with:
       target_env: 'staging'
@@ -140,6 +150,11 @@ jobs:
   deploy-prod:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      deployments: write
     uses: ./.github/workflows/deploy-template.yml
     with:
       target_env: 'production'
