@@ -29,7 +29,7 @@ jobs:
         run: python3 -m pip install semgrep
 
       - name: Run Semgrep Security Scan
-        run: semgrep scan --config p/typescript --sarif --output semgrep.sarif
+        run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
 
       - name: Upload Semgrep SARIF to GitHub Security Tab
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
@@ -50,7 +50,7 @@ jobs:
         tag: ['latest', 'staging', 'dev']
     steps:
       - name: Scan ${{ matrix.component }}:${{ matrix.tag }} for CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/${{ matrix.component }}:${{ matrix.tag }}'
           format: 'sarif'
