@@ -57,11 +57,16 @@ export async function launchRoomFromFixture(
 export async function joinRoomFromLink(page: Page, link: string, autoReveal = true) {
   const roomPage = new RoomPage(page);
 
-  const [baseUrl, hash] = link.split('#');
+  const cleanLink = link.trim();
+  const [baseUrl, hash] = cleanLink.split('#');
   const decodedHash = hash ? decodeURIComponent(hash) : '';
   const finalUrl = decodedHash ? `${baseUrl}#${decodedHash}` : baseUrl;
 
-  await page.waitForTimeout(3000);
+  const rootUrl = baseUrl.split('/room')[0];
+
+  await page.goto(rootUrl, { waitUntil: 'domcontentloaded' });
+
+  await page.waitForTimeout(2500);
 
   await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
 
