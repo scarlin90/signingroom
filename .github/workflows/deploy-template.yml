@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload Worker Trivy SARIF to GitHub UI
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
+        if: always() && hashFiles('trivy-worker.sarif') != ''
         with:
           sarif_file: 'trivy-worker.sarif'
           category: trivy-worker-${{ inputs.target_env }}
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload Client Trivy SARIF to GitHub UI
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
+        if: always() && hashFiles('trivy-client.sarif') != ''
         with:
           sarif_file: 'trivy-client.sarif'
           category: trivy-client-${{ inputs.target_env }}

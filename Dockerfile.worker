@@ -3,8 +3,8 @@ FROM node:26-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install ca-certificates so the cert bundle is guaranteed to exist
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+# Upgrade base packages and install ca-certificates
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 COPY apps/worker/package*.json ./apps/worker/
