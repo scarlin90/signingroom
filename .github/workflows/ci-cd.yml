@@ -185,7 +185,7 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: ghcr.io/${{ github.repository }}/worker
-      digest: ${{ needs.deploy-dev.outputs.worker_digest || needs.deploy-staging.outputs.worker_digest || needs.deploy-prod.outputs.worker_digest }}
+      digest: ${{ needs.deploy-dev.outputs.worker_digest }}${{ needs.deploy-staging.outputs.worker_digest }}${{ needs.deploy-prod.outputs.worker_digest }}
     secrets:
       registry-username: ${{ github.actor }}
       registry-password: ${{ secrets.GITHUB_TOKEN }}
@@ -203,7 +203,7 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: ghcr.io/${{ github.repository }}/client
-      digest: ${{ needs.deploy-dev.outputs.client_digest || needs.deploy-staging.outputs.client_digest || needs.deploy-prod.outputs.client_digest }}
+      digest: ${{ needs.deploy-dev.outputs.client_digest }}${{ needs.deploy-staging.outputs.client_digest }}${{ needs.deploy-prod.outputs.client_digest }}
     secrets:
       registry-username: ${{ github.actor }}
       registry-password: ${{ secrets.GITHUB_TOKEN }}
