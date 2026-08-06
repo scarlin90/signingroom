@@ -142,6 +142,8 @@ jobs:
           context: .
           file: ./Dockerfile.client
           push: true
+          build-args: |
+            BUILD_ENV=${{ inputs.nx_config }}
           tags: |
             ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}
             ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}
