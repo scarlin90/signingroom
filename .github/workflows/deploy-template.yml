@@ -25,6 +25,13 @@ on:
       base_url:
         required: true
         type: string
+    outputs:
+      worker_digest:
+        description: 'SHA digest for worker image'
+        value: ${{ jobs.deploy.outputs.worker_digest }}
+      client_digest:
+        description: 'SHA digest for client image'
+        value: ${{ jobs.deploy.outputs.client_digest }}
 
 jobs:
   deploy:
@@ -201,40 +208,6 @@ jobs:
             echo "❌ Worker health check failed: Unexpected payload response."
             exit 1
           fi
-
-  # --- OpenSSF SLSA Level 3 Container Provenance (Worker) ---
-  slsa-provenance-worker:
-    name: Worker SLSA Level 3 Provenance
-    needs: [deploy]
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-      packages: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
-    with:
-      image: ghcr.io/${{ github.repository }}/worker
-      digest: ${{ needs.deploy.outputs.worker_digest }}
-    secrets:
-      registry-username: ${{ github.actor }}
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
-
-  # --- OpenSSF SLSA Level 3 Container Provenance (Client) ---
-  slsa-provenance-client:
-    name: Client SLSA Level 3 Provenance
-    needs: [deploy]
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-      packages: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
-    with:
-      image: ghcr.io/${{ github.repository }}/client
-      digest: ${{ needs.deploy.outputs.client_digest }}
-    secrets:
-      registry-username: ${{ github.actor }}
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   # smoke-test:
   #   name: E2E Smoke Test
