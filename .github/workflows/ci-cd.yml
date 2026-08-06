@@ -172,7 +172,6 @@ jobs:
       base_url: 'https://signingroom.io'
     secrets: inherit
 
-  # --- OpenSSF SLSA Level 3 Container Provenance (Worker) ---
   slsa-provenance-worker:
     name: Worker SLSA Level 3 Provenance
     needs: [deploy-dev, deploy-staging, deploy-prod]
@@ -190,7 +189,6 @@ jobs:
       registry-username: ${{ github.actor }}
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
-  # --- OpenSSF SLSA Level 3 Container Provenance (Client) ---
   slsa-provenance-client:
     name: Client SLSA Level 3 Provenance
     needs: [deploy-dev, deploy-staging, deploy-prod]
