@@ -16,7 +16,7 @@ COPY . .
 # Compile the worker bundle using wrangler dry-run
 RUN npx wrangler deploy --dry-run --outdir /app/dist --config apps/worker/wrangler.jsonc
 
-# Stage 2: Hardened Distroless C++ Runtime (Zero Shell / Zero CVE Surface)
+# Stage 2: Hardened Distroless
 FROM gcr.io/distroless/cc-debian12:nonroot
 
 WORKDIR /worker
