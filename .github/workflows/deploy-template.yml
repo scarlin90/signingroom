@@ -37,7 +37,9 @@ jobs:
       security-events: write
       deployments: write
       id-token: write
-      attestations: write
+    outputs:
+      worker_digest: ${{ steps.push_worker.outputs.digest }}
+      client_digest: ${{ steps.push_client.outputs.digest }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -109,12 +111,6 @@ jobs:
       - name: Sign Worker Docker Image
         run: cosign sign --yes ghcr.io/${{ github.repository }}/worker@${{ steps.push_worker.outputs.digest }}
 
-      - name: Attest Worker Build Provenance
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
-        with:
-          subject-name: ghcr.io/${{ github.repository }}/worker
-          subject-digest: ${{ steps.push_worker.outputs.digest }}
-
       - name: Scan Worker Container for CVEs
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -146,12 +142,6 @@ jobs:
 
       - name: Sign Client Docker Image
         run: cosign sign --yes ghcr.io/${{ github.repository }}/client@${{ steps.push_client.outputs.digest }}
-
-      - name: Attest Client Build Provenance
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
-        with:
-          subject-name: ghcr.io/${{ github.repository }}/client
-          subject-digest: ${{ steps.push_client.outputs.digest }}
 
       - name: Scan Client Container for CVEs
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -191,7 +181,6 @@ jobs:
             -A "GitHubActions-CI-HealthCheck" \
             ${{ inputs.base_url }} > /dev/null
 
-          # Map target environment to corresponding Worker health API
           if [ "${{ inputs.target_env }}" = "development" ]; then
             WORKER_HEALTH_URL="https://api-dev.signingroom.io/api/health"
           elif [ "${{ inputs.target_env }}" = "staging" ]; then
@@ -204,13 +193,44 @@ jobs:
           RESPONSE=$(curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors -A "GitHubActions-CI-HealthCheck" "$WORKER_HEALTH_URL")
           echo "Worker Response: $RESPONSE"
 
-          # Assert that the status field equals "healthy"
           if echo "$RESPONSE" | grep -q '"status":"healthy"'; then
             echo "✅ Deployment health verification passed!"
           else
             echo "❌ Worker health check failed: Unexpected payload response."
             exit 1
           fi
+
+  # --- OpenSSF SLSA Level 3 Container Provenance (Worker) ---
+  slsa-provenance-worker:
+    name: Worker SLSA Level 3 Provenance
+    needs: [deploy]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
+    with:
+      image: ghcr.io/${{ github.repository }}/worker
+      digest: ${{ needs.deploy.outputs.worker_digest }}
+    secrets:
+      registry-username: ${{ github.actor }}
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  # --- OpenSSF SLSA Level 3 Container Provenance (Client) ---
+  slsa-provenance-client:
+    name: Client SLSA Level 3 Provenance
+    needs: [deploy]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
+    with:
+      image: ghcr.io/${{ github.repository }}/client
+      digest: ${{ needs.deploy.outputs.client_digest }}
+    secrets:
+      registry-username: ${{ github.actor }}
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   # smoke-test:
   #   name: E2E Smoke Test
