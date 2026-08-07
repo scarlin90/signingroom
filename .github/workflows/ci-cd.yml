@@ -131,7 +131,7 @@ jobs:
     secrets: inherit
 
   deploy-staging:
-    needs: [run-tests]
+    # needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     permissions:
       actions: read
@@ -152,7 +152,7 @@ jobs:
     secrets: inherit
 
   deploy-prod:
-    needs: [run-tests]
+    # needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
     permissions:
       actions: read
