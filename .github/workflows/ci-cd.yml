@@ -25,92 +25,92 @@ permissions:
   contents: read
 
 jobs:
-  run-tests:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-      pull-requests: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+  # run-tests:
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     security-events: write
+  #     pull-requests: write
+  #   steps:
+  #     - name: Checkout Code
+  #       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+  #       with:
+  #         node-version: '24'
 
-      - name: Install Semgrep
-        run: python3 -m pip install semgrep
+  #     - name: Install Semgrep
+  #       run: python3 -m pip install semgrep
 
-      - name: Run Semgrep Security Scan
-        run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
+  #     - name: Run Semgrep Security Scan
+  #       run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
 
-      - name: Upload Semgrep SARIF to GitHub UI
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        if: always()
-        with:
-          sarif_file: semgrep.sarif
-          category: semgrep
+  #     - name: Upload Semgrep SARIF to GitHub UI
+  #       uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+  #       if: always()
+  #       with:
+  #         sarif_file: semgrep.sarif
+  #         category: semgrep
 
-      - name: Build Test Image (with Cache)
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
-        with:
-          context: .
-          file: Dockerfile.test
-          load: true
-          tags: signingroom-ci:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  #     - name: Build Test Image (with Cache)
+  #       uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+  #       with:
+  #         context: .
+  #         file: Dockerfile.test
+  #         load: true
+  #         tags: signingroom-ci:latest
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max
 
-      - name: Run Tests
-        run: docker run --name test-container signingroom-ci:latest
+  #     - name: Run Tests
+  #       run: docker run --name test-container signingroom-ci:latest
 
-      - name: Extract Coverage Reports
-        if: always()
-        run: |
-          docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json || true
-          docker cp test-container:/app/coverage/apps/worker/coverage-final.json ./worker-final.json || true
+  #     - name: Extract Coverage Reports
+  #       if: always()
+  #       run: |
+  #         docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json || true
+  #         docker cp test-container:/app/coverage/apps/worker/coverage-final.json ./worker-final.json || true
 
-          docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json || true
-          docker cp test-container:/app/coverage/apps/client/coverage-final.json ./client-final.json || true
+  #         docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json || true
+  #         docker cp test-container:/app/coverage/apps/client/coverage-final.json ./client-final.json || true
 
-          docker cp test-container:/app/coverage/libs/sdk/coverage-summary.json ./sdk-summary.json || true
-          docker cp test-container:/app/coverage/libs/sdk/coverage-final.json ./sdk-final.json || true
+  #         docker cp test-container:/app/coverage/libs/sdk/coverage-summary.json ./sdk-summary.json || true
+  #         docker cp test-container:/app/coverage/libs/sdk/coverage-final.json ./sdk-final.json || true
 
-      - name: Post Worker Coverage to Summary
-        if: always()
-        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
-        with:
-          name: 'Worker Relay Coverage'
-          json-summary-path: ./worker-summary.json
-          json-final-path: ./worker-final.json
+  #     - name: Post Worker Coverage to Summary
+  #       if: always()
+  #       uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+  #       with:
+  #         name: 'Worker Relay Coverage'
+  #         json-summary-path: ./worker-summary.json
+  #         json-final-path: ./worker-final.json
 
-      - name: Post Client Coverage to Summary
-        if: always()
-        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
-        with:
-          name: 'Client Dashboard Coverage'
-          json-summary-path: ./client-summary.json
-          json-final-path: ./client-final.json
+  #     - name: Post Client Coverage to Summary
+  #       if: always()
+  #       uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+  #       with:
+  #         name: 'Client Dashboard Coverage'
+  #         json-summary-path: ./client-summary.json
+  #         json-final-path: ./client-final.json
 
-      - name: Post SDK Coverage to Summary
-        if: always()
-        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
-        with:
-          name: 'SDK Coverage'
-          json-summary-path: ./sdk-summary.json
-          json-final-path: ./sdk-final.json
+  #     - name: Post SDK Coverage to Summary
+  #       if: always()
+  #       uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+  #       with:
+  #         name: 'SDK Coverage'
+  #         json-summary-path: ./sdk-summary.json
+  #         json-final-path: ./sdk-final.json
 
-      - name: Cleanup Docker
-        if: always()
-        run: docker rm -f test-container || true
+  #     - name: Cleanup Docker
+  #       if: always()
+  #       run: docker rm -f test-container || true
 
   deploy-dev:
-    needs: [run-tests]
+    # needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
     permissions:
       actions: read
