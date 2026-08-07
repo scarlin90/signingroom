@@ -21,5 +21,7 @@ services:
     container_name: signingroom-client
     ports:
       - '4200:8080'
+    environment:
+      - API_PUBLIC_URL=http://localhost:8787
     depends_on:
       - worker

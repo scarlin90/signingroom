@@ -13,10 +13,7 @@
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
 [![Last Audit](https://img.shields.io/badge/Last_Audit-30_July_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
-<<<<<<< HEAD
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/scarlin90/signingroom/badge)](https://scorecard.dev/viewer/?uri=github.com/scarlin90/signingroom)
-=======
->>>>>>> main
 
 ### 📦 Official SDK Ecosystem
 
@@ -66,27 +63,15 @@ We do not want your data. We cannot read your data.
 3. **Zero Knowledge**  
    All transaction data is encrypted **client-side** (AES-256-GCM) before it ever touches the network. The decryption key lives only in the URL fragment (`#key`), which is never sent to the server.
 
-<<<<<<< HEAD
 4. **Don't Trust, Verify**  
    The client is verifiable. The cryptography is standard (Web Crypto API). The code is open.
 
 ## 📊 Operational Transparency
-=======
-Based on our latest 30-day forensic audit (period ending July 29, 2026):
-
-- **Total Requests Handled:** 82,364
-- **Total Network Bandwidth:** 3.36 GB
-- **Community Adoption:** 8,785 aggregated monthly unique visitors.
->>>>>>> main
 
 As a privacy-focused public good we publish verifiable metrics instead of asking for blind trust.
 
-<<<<<<< HEAD
 We regularly publish raw logs and historical performance data here:  
 **[View the Site Metrics Manifest →](./site_metric_logs/MANIFEST.md)**
-=======
-**Edge Caching Efficiency:** In the last 30 days, 1.37 GB (40.88% of total bandwidth) was served directly from the edge cache. Our global CDN architecture actively minimizes origin load, ensuring instantaneous coordination and absolute zero-latency for users worldwide. By optimizing static content delivery at the edge, we ensure the relay remains performant even during peak traffic periods, maintaining the "blind" and ephemeral nature of our coordination protocol
->>>>>>> main
 
 ### 🛡️ Transparency & Audits
 
@@ -96,16 +81,11 @@ We regularly publish raw logs and historical performance data here:
 
 ### 📋 Compliance & Governance Documentation
 
-<<<<<<< HEAD
 - [Architecture](./docs/architecture.md)
 - [Regulatory Scope & Compliance Boundary](./docs/compliance/regulatory-scope.md)
 - [Incident Response Runbook](./docs/compliance/incident-response-runbook.md)
 - [Technical Security & Compliance Roadmap](./docs/compliance/technical-roadmap.md)
 - [Security Policy](./SECURITY.MD)
-=======
-📦 **Software Bill of Materials (SBOM):** In alignment with European Cyber Resilience Act (CRA) guidelines, every automated release dynamically generates a CycloneDX machine-readable vulnerability mapping of our software supply chain, preserved directly as an immutable GitHub Build Artifact.
-[Download Latest Deployment SBOM Artifacts](https://github.com/scarlin90/signingroom/actions/workflows/ci-cd.yml)
->>>>>>> main
 
 ## 🔬 Research & Standards
 
@@ -169,7 +149,6 @@ We are actively seeking funding and grants to evolve SigningRoom from a standalo
 
 ### Phase 2: Ubiquity — ✅ Completed
 
-<<<<<<< HEAD
 - [x] BIP Draft submitted (Stateless Encrypted WebSocket Coordination for PSBTs)
 - [x] Web Component (`<signing-room>`) — drop-in HTML element
 - [x] Extended Web Component events for compliance and governance
@@ -184,23 +163,6 @@ We are actively seeking funding and grants to evolve SigningRoom from a standalo
 - [ ] **Public API** — Well-documented API for automated agents and services
 
 **Status:** Phase 1 & 2 complete. Phase 3 (Stealth Room + Public API) is the current focus and primary grant target.
-=======
-- [x] **BIP Draft Submitted**: Standardizing Stateless Encrypted WebSocket Coordination for PSBTs
-- [x] **Web Component (`<signing-room>`)**: Drop-in HTML element for easy third-party integration
-- [x] **Extend Web Component Events**: Expose all events inside room for compliance and governance
-
-### Phase 3: 🔴 Active Grant Target (Q3 2026)
-
-- [x] **Build Typescript Client Library**: Create Typescript Client to simplify integrations to relay
-- [x] **Youtube**: Create SDK walkthrough
-- [x] **Dockerise**: Create docker images and setup
-- [ ] **Stealth Room**: Prototype OHTTP with Web Transport or QUIC and MASQUE
-- [ ] **Public API**: Well-documented API for automated agents and services
-
----
-
-**Status**: Phase 1 complete. Phase 2 complete. Phase 3 is the current focus and primary grant target.
->>>>>>> main
 
 ## 💰 Support Public Infrastructure
 
@@ -214,7 +176,6 @@ SigningRoom is Free and Open Source Software (FOSS), maintained for the public g
 
 ## 🚀 Quick Start (Development)
 
-<<<<<<< HEAD
 **Prerequisites:** Docker Desktop **or** Node.js v20+.
 
 ### Option A: Docker Compose (Recommended)
@@ -227,40 +188,6 @@ docker compose up --build
 
 - Frontend: http://localhost:4200
 - Worker: http://localhost:8787
-=======
-**Prerequisites:** Docker Desktop **OR** Node.js v20+.
-
-### Option A: Docker Compose (Recommended)
-
-Spin up the entire stack (Worker API + Angular Client served via Nginx) in isolated containers with a single command:
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/scarlin90/signingroom.git
-cd signingroom
-
-# 2. Build and start containers
-docker compose up --build
-```
-
-**Frontend Client:** http://localhost:4200  
-**Worker Relay:** http://localhost:8787
-
-> To stop the containers, press <kbd>Ctrl</kbd> + <kbd>C</kbd> and run:
->
-> ```bash
-> docker compose down
-> ```
-
-### Option B: Native Local Setup
-
-If you prefer running services directly on your host machine:
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/scarlin90/signingroom.git
-cd signingroom
->>>>>>> main
 
 Stop with `Ctrl+C` then `docker compose down`.
 
@@ -271,7 +198,6 @@ git clone https://github.com/scarlin90/signingroom.git
 cd signingroom
 npm install
 
-<<<<<<< HEAD
 # Terminal A – Worker
 cd apps/worker
 npx wrangler dev
@@ -349,55 +275,6 @@ cosign verify \
   --certificate-identity-regexp="https://github.com/scarlin90/signingroom" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   ghcr.io/scarlin90/signingroom/worker:latest
-=======
-# 3. Start the Backend (Worker) in Terminal A
-cd apps/worker
-npx wrangler dev
-
-# 4. Start the Frontend (Client) in Terminal B (from project root)
-npx nx run client:serve --configuration=development
-```
-
-**Frontend Client:** http://localhost:4200  
-**Worker Relay:** http://localhost:8787
-
----
-
-## 🏰 Self-Hosting (Sovereign)
-
-We believe in true sovereignty. You should never be locked into a platform. While SigningRoom.io offers a hosted demo for convenience, you are free to inspect the code and run your own infrastructure anywhere.
-
-### Option 1: Docker Containers (Fully Independent / Any VPS)
-
-Run the entire blind relay stack on your own Linux server, home node, or cloud provider without external serverless dependencies:
-
-```bash
-# 1. Clone your repository
-git clone https://github.com/scarlin90/signingroom.git
-cd signingroom
-
-# 2. Start the stack in detached mode
-docker compose up -d --build
-```
-
-#### Custom Domain / Reverse Proxy Setup
-
-Point your Nginx, Caddy, or Traefik reverse proxy to:
-
-- **Client (UI):** http://localhost:4200
-- **Worker (Relay API):** http://localhost:8787
-
-### Option 2: Managed Edge (Cloudflare Workers & Pages)
-
-If you prefer deploying directly to Cloudflare's global edge network, you will need a Cloudflare account:
-
-```bash
-# Deploy the Worker (Backend API)
-npm run deploy:worker
-
-# Deploy the Client (Frontend UI)
-npm run deploy:client
->>>>>>> main
 ```
 
 **Environment Variables**
@@ -427,7 +304,6 @@ npx nx run client:test
 # Worker tests
 npx nx run worker:test
 
-<<<<<<< HEAD
 # Interactive Playwright UI
 # (temporarily remove the Docker-specific --ip/--port flags from playwright.config.ts)
 npx nx e2e client-e2e --ui
@@ -451,28 +327,6 @@ We warmly welcome:
 - Security disclosures (see [SECURITY.MD](./SECURITY.MD))
 - Documentation feedback (via issues)
 
-=======
-#### Interactive E2E (Playwright UI):
-
-> Note : To run the UI you need to remove the docker configuration from the playwright.config.ts
-
-In playwright.config.ts remove --ip 0.0.0.0 --port 8787 before running the e2e command
-
-```Bash
-Before - With Docker configuration
-command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787'
-
-After - After without Docker configuration - ready for playwright UI
-command: 'npx wrangler dev apps/worker/src/index.ts'
-```
-
-Run the e2e command after config change
-
-```Bash
-npx nx e2e client-e2e --ui
-```
-
->>>>>>> main
 ## 🏢 Enterprise & Commercial Licensing
 
 SigningRoom.io is fully open-source under the **AGPLv3**.

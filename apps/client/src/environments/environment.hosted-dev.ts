@@ -1,4 +1,7 @@
 export const environment = {
   production: false,
-  apiUrl: 'https://api-dev.signingroom.io' 
+  apiUrl:
+    typeof window !== 'undefined' && (window as any).__env?.apiUrl
+      ? (window as any).__env.apiUrl
+      : 'https://api-dev.signingroom.io',
 };
