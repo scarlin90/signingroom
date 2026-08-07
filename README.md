@@ -277,6 +277,27 @@ cosign verify \
   ghcr.io/scarlin90/signingroom/worker:latest
 ```
 
+**Environment Variables**
+
+### 🔒 Supply Chain Verification
+
+Every official container release includes:
+
+- Keyless Sigstore **Cosign** signatures
+- **OpenSSF SLSA Level 3** provenance attestations
+- CycloneDX **SBOM**
+- Automated **Trivy** vulnerability scanning
+- Immutable GitHub Actions build provenance
+
+Example verification (after installing `cosign`):
+
+```bash
+cosign verify \
+  --certificate-identity-regexp="https://github.com/scarlin90/signingroom" \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+  ghcr.io/scarlin90/signingroom/worker:latest
+```
+
 ## 🧪 Testing & Quality Assurance
 
 The most reliable way to run the full suite (unit + E2E) is inside Docker.
