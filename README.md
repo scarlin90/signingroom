@@ -85,7 +85,7 @@ We regularly publish raw logs and historical performance data here:
 - [Regulatory Scope & Compliance Boundary](./docs/compliance/regulatory-scope.md)
 - [Incident Response Runbook](./docs/compliance/incident-response-runbook.md)
 - [Technical Security & Compliance Roadmap](./docs/compliance/technical-roadmap.md)
-- [Security Policy](./SECURITY.md)
+- [Security Policy](./SECURITY.MD)
 
 ## 🔬 Research & Standards
 
@@ -318,7 +318,7 @@ We warmly welcome:
 
 - Bug reports
 - Feature suggestions
-- Security disclosures (see [SECURITY.md](./SECURITY.md))
+- Security disclosures (see [SECURITY.MD](./SECURITY.MD))
 - Documentation feedback (via issues)
 
 ## 🏢 Enterprise & Commercial Licensing
@@ -341,7 +341,7 @@ If you discover a vulnerability, **do not** open a public issue.
 
 Please follow our responsible disclosure process:
 
-- See **[SECURITY.md](./SECURITY.md)** for the full vulnerability disclosure policy
+- See **[SECURITY.MD](./SECURITY.MD)** for the full vulnerability disclosure policy
 - Email: security@signingroom.io
 - PGP Fingerprint: `C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56`
 

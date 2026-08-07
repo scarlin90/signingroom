@@ -158,4 +158,4 @@ flowchart TB
 - [Regulatory Scope & Compliance Boundary](./regulatory-scope.md)
 - [Incident Response Runbook](./incident-response-runbook.md)
 - [Technical Security & Compliance Roadmap](./technical-roadmap.md)
-- [Security Policy](../SECURITY.md)
+- [Security Policy](../SECURITY.MD)

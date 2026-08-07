@@ -24,7 +24,7 @@
 - **Image Signing & Provenance:** Keyless Cosign signatures + OpenSSF SLSA Level 3 provenance attestations generated for all published container images.
 - **OpenSSF Scorecard:** Automated supply-chain and repository security scoring runs daily and on pushes to `main`, with results published to the Security tab.
 - **Dependency Review:** GitHub Dependency Review action runs on every pull request.
-- **Coordinated Vulnerability Disclosure (CVD):** Active PGP key published alongside a cryptographically signed Warrant Canary (`SECURITY.md`).
+- **Coordinated Vulnerability Disclosure (CVD):** Active PGP key published alongside a cryptographically signed Warrant Canary (`SECURITY.MD`).
 - **Active Uptime & Health Monitoring:** Automated 24/7 HTTP/S checks via UptimeRobot targeting `api.signingroom.io/api/health` and `signingroom.io`.
 
 ---

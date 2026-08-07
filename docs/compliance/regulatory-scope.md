@@ -43,7 +43,7 @@ The Signing Room system consists of six primary components:
   - **Open-Source Steward Exemption:** The core protocol specification (CC0-1.0) and SDK libraries (`@signing-room/sdk`) are distributed open-source under permissive/copyleft licenses. This layer operates under the CRA Open-Source Steward framework, shielding non-commercial distribution from standard CE-marking and complex conformity assessments.
   - **Commercial SaaS & Hosted Relays:** For commercial hosted instances, CRA compliance is satisfied via:
     1. **Automated Supply-Chain Hygiene:** Continuous CycloneDX 1.6 SBOM generation integrated directly into CI/CD pipelines.
-    2. **Coordinated Vulnerability Disclosure (CVD) & Warrant Canary:** A documented security disclosure policy (`SECURITY.md`), PGP-encrypted reporting channel (`security@signingroom.io`), and a cryptographically signed Warrant Canary mechanism.
+    2. **Coordinated Vulnerability Disclosure (CVD) & Warrant Canary:** A documented security disclosure policy (`SECURITY.MD`), PGP-encrypted reporting channel (`security@signingroom.io`), and a cryptographically signed Warrant Canary mechanism.
     3. **Zero-Retained Attack Surface:** Because relays hold no persistent state, a physical or cloud worker compromise cannot result in customer data exfiltration.
 
 ### C. Digital Operational Resilience Act (DORA) & NIS2
