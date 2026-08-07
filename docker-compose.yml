@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
     container_name: signingroom-worker
+    command: ['serve', 'worker.capnp', '--verbose']
     ports:
       - '8787:8787'
     environment:
@@ -21,6 +20,6 @@ services:
         BUILD_ENV: development
     container_name: signingroom-client
     ports:
-      - '4200:80'
+      - '4200:8080'
     depends_on:
       - worker

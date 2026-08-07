@@ -55,3 +55,4 @@ stress-test.js
 .nx/self-healing
 .nx/migrate-runs
 vite.config.*.timestamp*
+*.exe

@@ -14,29 +14,29 @@
 
 import { Component, ViewEncapsulation, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import {
-  LucideAngularModule,
-  Shield,
-  Lock,
-  Zap,
-  Users,
-  Terminal,
-  ChevronRight,
-  Github,
-  Twitter,
-  Key,
-  Mail,
-  Globe,
-  Heart,
-  Youtube,
-} from 'lucide-angular';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
+import {
+  LucideShield,
+  LucideUsers,
+  LucideZap,
+  LucideKey,
+  LucideGlobe,
+  LucideMail,
+} from '@lucide/angular';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, RouterModule],
+  imports: [
+    CommonModule,
+    RouterModule,
+    LucideShield,
+    LucideZap,
+    LucideKey,
+    LucideGlobe,
+    LucideMail,
+  ],
   encapsulation: ViewEncapsulation.None,
   template: `
     <body class="min-h-screen flex flex-col">
@@ -135,37 +135,78 @@ import { filter } from 'rxjs/operators';
                   href="https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo"
                   target="_blank"
                   class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-yellow-500/50 hover:bg-yellow-500/10 transition group text-xs font-medium text-slate-400 hover:text-yellow-400">
-                  <lucide-icon
-                    [img]="Zap"
-                    class="w-3.5 h-3.5 text-yellow-500 group-hover:fill-yellow-500 transition"></lucide-icon>
+                  <svg
+                    lucideZap
+                    class="w-3.5 h-3.5 text-yellow-500 group-hover:fill-yellow-500 transition"></svg>
                   <span>Donate</span>
                 </a>
 
                 <a
                   href="mailto:support@signingroom.io"
                   class="text-slate-500 hover:text-white transition">
-                  <lucide-icon [img]="Mail" class="w-5 h-5"></lucide-icon>
+                  <svg lucideMail class="w-5 h-5"></svg>
                 </a>
 
                 <a
                   href="https://github.com/scarlin90/SigningRoom"
                   target="_blank"
                   class="text-slate-500 hover:text-white transition">
-                  <lucide-icon [img]="Github" class="w-5 h-5"></lucide-icon>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="w-5 h-5">
+                    <path
+                      d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+                    <path d="M9 18c-4.51 2-5-2-7-2" />
+                  </svg>
                 </a>
 
                 <a
                   href="https://x.com/SigningRoom"
                   target="_blank"
                   class="text-slate-500 hover:text-white transition">
-                  <lucide-icon [img]="Twitter" class="w-5 h-5"></lucide-icon>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="w-5 h-5">
+                    <path
+                      d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+                  </svg>
                 </a>
 
                 <a
                   href="https://www.youtube.com/@SigningRoom"
                   target="_blank"
                   class="text-slate-500 hover:text-white transition">
-                  <lucide-icon [img]="Youtube" class="w-5 h-5"></lucide-icon>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="w-5 h-5">
+                    <path
+                      d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
+                    <path d="m10 15 5-3-5-3z" />
+                  </svg>
                 </a>
 
                 <a
@@ -173,7 +214,7 @@ import { filter } from 'rxjs/operators';
                   target="_blank"
                   class="text-slate-500 hover:text-white transition"
                   title="Nostr">
-                  <lucide-icon [img]="Globe" class="w-5 h-5"></lucide-icon>
+                  <svg lucideGlobe class="w-5 h-5"></svg>
                 </a>
               </div>
             </div>
@@ -229,9 +270,7 @@ import { filter } from 'rxjs/operators';
                     href="/security.txt"
                     target="_blank"
                     class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600 hover:text-emerald-400 transition group">
-                    <lucide-icon
-                      [img]="Shield"
-                      class="w-3 h-3 group-hover:text-emerald-400 transition"></lucide-icon>
+                    <svg lucideShield class="w-3 h-3 group-hover:text-emerald-400 transition"></svg>
                     Warrant Canary
                   </a>
 
@@ -241,9 +280,7 @@ import { filter } from 'rxjs/operators';
                     href="/pgp-key.asc"
                     target="_blank"
                     class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600 hover:text-cyan-400 transition group">
-                    <lucide-icon
-                      [img]="Key"
-                      class="w-3 h-3 group-hover:text-cyan-400 transition"></lucide-icon>
+                    <svg lucideKey class="w-3 h-3 group-hover:text-cyan-400 transition"></svg>
                     PGP Key
                   </a>
                 </div>
@@ -260,7 +297,7 @@ import { filter } from 'rxjs/operators';
             target="_blank"
             rel="noopener noreferrer"
             class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-emerald-400 transition-colors opacity-80 hover:opacity-100">
-            <lucide-icon [img]="Shield" class="w-3.5 h-3.5"></lucide-icon>
+            <svg lucideShield class="w-3.5 h-3.5"></svg>
             Powered by Signing Room
           </a>
         </div>
@@ -271,26 +308,6 @@ import { filter } from 'rxjs/operators';
 export class App implements OnInit {
   isEmbedded = false;
   hideHeader = false;
-
-  readonly icons = {
-    Shield,
-    Lock,
-    Zap,
-    Users,
-    Terminal,
-    ChevronRight,
-    Github,
-    Twitter,
-  };
-  readonly Github = Github;
-  readonly Twitter = Twitter;
-  readonly Shield = Shield;
-  readonly Key = Key;
-  readonly Mail = Mail;
-  readonly Globe = Globe;
-  readonly Zap = Zap;
-  readonly Heart = Heart;
-  readonly Youtube = Youtube;
 
   readonly currentYear = new Date().getFullYear();
 
@@ -323,25 +340,4 @@ export class App implements OnInit {
       }
     }
   }
-
-  readonly features = [
-    {
-      title: 'Stateless Architecture',
-      desc: "We don't store your data. Rooms exist in RAM and vanish after 1 hour. Zero database liability.",
-      icon: Zap,
-      iconColor: 'text-amber-400',
-    },
-    {
-      title: 'Real-Time Sync',
-      desc: 'See signatures appear instantly. No more refreshing, no more emailing .psbt files back and forth.',
-      icon: Users,
-      iconColor: 'text-cyan-400',
-    },
-    {
-      title: 'Audit Ready',
-      desc: 'Generate cryptographically verifiable PDF audit logs client-side for your compliance team.',
-      icon: Shield,
-      iconColor: 'text-emerald-400',
-    },
-  ];
 }

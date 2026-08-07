@@ -1,0 +1,85 @@
+name: Nightly Build & Tests
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  nightly-tests:
+    name: Full Build & Test Suite
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build Test Image (with Cache)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: .
+          file: Dockerfile.test
+          load: true
+          tags: signingroom-ci:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Tests
+        run: docker run --name test-container signingroom-ci:latest
+
+      - name: Extract Coverage Summaries & Full Reports
+        if: always()
+        run: |
+          # Extract the JSON summaries for the GitHub Step Summary
+          docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json || true
+          docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json || true
+          docker cp test-container:/app/coverage/libs/sdk/coverage-summary.json ./sdk-summary.json || true
+
+          # Extract the entire coverage directory to publish as a downloadable artifact
+          docker cp test-container:/app/coverage ./full-coverage-reports || true
+
+      - name: Post Worker Coverage to Summary
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+        with:
+          name: 'Worker Relay Coverage'
+          json-summary-path: ./worker-summary.json
+
+      - name: Post Client Coverage to Summary
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+        with:
+          name: 'Client Dashboard Coverage'
+          json-summary-path: ./client-summary.json
+
+      - name: Post SDK Coverage to Summary
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+        with:
+          name: 'SDK Coverage'
+          json-summary-path: ./sdk-summary.json
+
+      - name: Upload Full Coverage Reports as Artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-coverage-reports
+          path: ./full-coverage-reports
+          retention-days: 14
+
+      - name: Cleanup Docker
+        if: always()
+        run: docker rm -f test-container || true

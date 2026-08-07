@@ -382,6 +382,13 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
 
                 <h4 style="border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem;">User Actions & Data Management</h4>
                 
+                <p class="mt-4 mb-2"><strong style="color: var(--accent);">addressCopied</strong>: Fired when a user copies a Bitcoin address to their clipboard.</p>
+                <div class="code-block">
+<span class="code-tag">export interface</span> AddressCopiedPayload <span class="code-tag">extends</span> BaseEventContext {
+  address: <span class="code-tag">string</span>;
+}
+                </div>
+
                 <p class="mt-4 mb-2"><strong style="color: var(--accent);">dataCopied</strong>: Fired when a user copies sensitive configuration data to their clipboard.</p>
                 <div class="code-block">
 <span class="code-tag">export interface</span> DataCopiedPayload <span class="code-tag">extends</span> BaseEventContext {
@@ -652,6 +659,11 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
                 } else {
                     log(`${getContextPrefix(data)} Identity: ${data.target} labelled as "${data.label}"`);
                 }
+            });
+
+            newWidget.addEventListener('addressCopied', (e) => {
+                const data = e.detail;
+                log(`${getContextPrefix(data)} Address Copied: ${data.address}`);
             });
 
             newWidget.addEventListener('signingError', (e) => {

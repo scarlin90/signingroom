@@ -3,7 +3,7 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Component, OnInit, signal, inject, HostListener } from '@angular/core';
+import { Component, OnInit, signal, inject, HostListener, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -11,22 +11,21 @@ import { Title, Meta } from '@angular/platform-browser';
 import { PsbtUtils, PsbtAnalysis } from '@signing-room/sdk';
 
 import {
-  LucideAngularModule,
-  Zap,
-  Check,
-  Loader2,
-  X,
-  UploadCloud,
-  FileJson,
-  AlertTriangle,
-  Shield,
-  Key,
-  Users,
-  Eye,
-  EyeOff,
-  QrCode,
-  Edit2,
-} from 'lucide-angular';
+  LucideZap,
+  LucideCheck,
+  LucideLoader2,
+  LucideX,
+  LucideUploadCloud,
+  LucideFileJson,
+  LucideAlertTriangle,
+  LucideShield,
+  LucideKey,
+  LucideUsers,
+  LucideEye,
+  LucideEyeOff,
+  LucideQrCode,
+  LucideEdit2,
+} from '@lucide/angular';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
@@ -38,25 +37,25 @@ type Network = (typeof NETWORKS)[number];
 @Component({
   selector: 'app-create',
   standalone: true,
-  imports: [CommonModule, RouterModule, LucideAngularModule, FormsModule],
+  imports: [
+    CommonModule,
+    RouterModule,
+    FormsModule,
+    LucideCheck,
+    LucideLoader2,
+    LucideX,
+    LucideUploadCloud,
+    LucideFileJson,
+    LucideAlertTriangle,
+    LucideShield,
+    LucideEye,
+    LucideEyeOff,
+    LucideQrCode,
+    LucideEdit2,
+  ],
   templateUrl: './create.component.html',
 })
 export class CreateComponent implements OnInit {
-  readonly Zap = Zap;
-  readonly Check = Check;
-  readonly Loader2 = Loader2;
-  readonly X = X;
-  readonly Shield = Shield;
-  readonly UploadCloud = UploadCloud;
-  readonly FileJson = FileJson;
-  readonly AlertTriangle = AlertTriangle;
-  readonly Key = Key;
-  readonly Users = Users;
-  readonly Eye = Eye;
-  readonly EyeOff = EyeOff;
-  readonly QrCode = QrCode;
-  readonly Edit2 = Edit2;
-
   public viewMode: 'default' | 'inject' | 'join' = 'default';
   public showManualRoomId = false;
   public showManualKey = false;
@@ -145,7 +144,7 @@ export class CreateComponent implements OnInit {
             type: 'SIGNING_ROOM_EVENT',
             action: 'WIDGET_READY',
           },
-          '*',
+          this.expectedHost,
         );
       }
     }
@@ -255,7 +254,7 @@ export class CreateComponent implements OnInit {
               message: 'Failed to parse PSBT data.',
             },
           },
-          '*',
+          this.expectedHost,
         );
       }
     }

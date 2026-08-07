@@ -135,7 +135,7 @@ describe('CreateComponent', () => {
       expect(component.isEmbedded).toBe(true);
       expect(postMessageSpy).toHaveBeenCalledWith(
         { type: 'SIGNING_ROOM_EVENT', action: 'WIDGET_READY' },
-        '*',
+        'https://trusted-host.com',
       );
 
       restoreWindowParent(originalParent);
@@ -220,6 +220,7 @@ describe('CreateComponent', () => {
     it('should handle invalid PSBT payloads and emit to host if embedded', () => {
       const { originalParent, postMessageSpy } = mockWindowParent();
       component.isEmbedded = true;
+      component.expectedHost = 'https://trusted-host.com';
       vi.spyOn(PsbtUtils, 'analyze').mockReturnValue(null);
 
       component.analyzeRawHex('invalid_data');
@@ -232,7 +233,7 @@ describe('CreateComponent', () => {
           action: 'signingError',
           payload: { code: 'PSBT_INVALID', message: 'Failed to parse PSBT data.' },
         },
-        '*',
+        'https://trusted-host.com',
       );
       restoreWindowParent(originalParent);
     });

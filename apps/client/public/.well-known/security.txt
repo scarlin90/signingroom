@@ -1,0 +1,9 @@
+# Signing Room Security Contact Information (RFC 9116)
+Contact: mailto:security@signingroom.io
+Encryption: https://signingroom.io/pgp-key.asc
+Canonical: https://signingroom.io/.well-known/security.txt
+Policy: https://github.com/scarlin90/signingroom/blob/main/SECURITY.MD
+Preferred-Languages: en
+Expires: 2027-08-01T00:00:00.000Z
+
+# PGP Fingerprint: C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56
