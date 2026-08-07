@@ -81,10 +81,10 @@ We regularly publish raw logs and historical performance data here:
 
 ### 📋 Compliance & Governance Documentation
 
-- [Architecture](./docs/ARCHITECTURE.md)
-- [Regulatory Scope & Compliance Boundary](./docs/regulatory-scope.md)
-- [Incident Response Runbook](./docs/incident-response-runbook.md)
-- [Technical Security & Compliance Roadmap](./docs/technical-roadmap.md)
+- [Architecture](./docs/architecture.md)
+- [Regulatory Scope & Compliance Boundary](./docs/compliance/regulatory-scope.md)
+- [Incident Response Runbook](./docs/compliance/incident-response-runbook.md)
+- [Technical Security & Compliance Roadmap](./docs/compliance/technical-roadmap.md)
 - [Security Policy](./SECURITY.md)
 
 ## 🔬 Research & Standards
@@ -136,7 +136,7 @@ sequenceDiagram
 
 For the full system architecture (monorepo layout, component dependencies, and enterprise white-label / self-hosted model), see:
 
-**[Architecture Documentation](./docs/ARCHITECTURE.md)**
+**[Architecture Documentation](./docs/architecture.md)**
 
 ## 🗺️ Roadmap (2026)
 

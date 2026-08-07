@@ -1,6 +1,3 @@
-Here’s the updated `ARCHITECTURE.md` using the three separate images:
-
-````markdown
 # Signing Room — Project Architecture
 
 **Entity:** Stateless Research Ltd  
@@ -41,7 +38,6 @@ flowchart TB
     E -->|npm| EMBED["@signing-room/embed"]
     S -->|npm| SDK["@signing-room/sdk"]
 ```
-````
 
 ---
 
@@ -163,8 +159,3 @@ flowchart TB
 - [Incident Response Runbook](./incident-response-runbook.md)
 - [Technical Security & Compliance Roadmap](./technical-roadmap.md)
 - [Security Policy](../SECURITY.md)
-
-```
-
-The three images are now referenced individually in their respective sections, and the Mermaid diagrams remain as accessible, version-controllable alternatives.
-```
