@@ -19,7 +19,8 @@
           {
             "glob": "**/*",
             "input": "apps/client/public"
-          }
+          },
+          "apps/client/src/assets"
         ],
         "styles": ["apps/client/src/styles.css"],
         "server": "apps/client/src/main.server.ts",

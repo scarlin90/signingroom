@@ -15,7 +15,7 @@
                   <h3 class="text-2xl font-bold text-white tracking-tight">Signing Room®<span class="text-emerald-400">.io</span></h3>
               </div>
 
-              <lucide-icon [img]="Loader2" class="w-12 h-12 text-emerald-500 animate-spin mb-6"></lucide-icon>
+              <svg lucideLoader2 class="w-12 h-12 text-emerald-500 animate-spin mb-6"></svg>
               <h2 class="text-2xl font-bold text-white mb-2 tracking-tight">Waiting for Data...</h2>
               <p class="text-slate-400 text-sm max-w-sm">Please initialize the signing ceremony or pass the transaction payload from your host application.</p>
           </div>
@@ -63,21 +63,21 @@
 
             <ul class="space-y-4 mb-10 flex-grow">
                 <li class="flex items-center gap-3 text-slate-300">
-                  <lucide-icon [img]="Check" class="w-5 h-5 text-emerald-500"></lucide-icon> 
+                  <svg lucideCheck class="w-5 h-5 text-emerald-500"></svg> 
                   <span>Stateless Blind Relay (RAM-Only)</span>
                 </li>
                 <li class="flex items-center gap-3 text-slate-300">
-                  <lucide-icon [img]="Check" class="w-5 h-5 text-emerald-500"></lucide-icon> 
+                  <svg lucideCheck class="w-5 h-5 text-emerald-500"></svg> 
                   <span>End-to-End AES-GCM Encryption</span>
                 </li>
                 <li class="flex items-center gap-3 text-slate-300">
-                  <lucide-icon [img]="Check" class="w-5 h-5 text-emerald-500"></lucide-icon> 
+                  <svg lucideCheck class="w-5 h-5 text-emerald-500"></svg> 
                   <span>Ceremony Audit Logs</span>
                 </li>
             </ul>
             
             <button (click)="showCreateModal.set(true)" class="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 group/btn">
-                <lucide-icon [img]="Shield" class="w-4 h-4 fill-slate-950 group-hover/btn:scale-125 transition-transform"></lucide-icon>
+                <svg lucideShield class="w-4 h-4 fill-slate-950 group-hover/btn:scale-125 transition-transform"></svg>
                 <span>Launch Signing Room®</span>
             </button>
         </div>
@@ -90,7 +90,7 @@
             @if (psbtAnalysis()) {
                 <div class="bg-slate-900 border border-emerald-500/30 rounded-2xl p-6 shadow-2xl">
                     <div class="flex items-center gap-3 mb-6">
-                        <lucide-icon [img]="Shield" class="w-6 h-6 text-emerald-400"></lucide-icon>
+                        <svg lucideShield class="w-6 h-6 text-emerald-400"></svg>
                         <h3 class="text-white font-bold text-xl">Confirm Ceremony</h3>
                     </div>
 
@@ -111,7 +111,7 @@
                     </div>
 
                     <button (click)="launchRoom()" [disabled]="isLoading()" class="w-full py-4 bg-emerald-500 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2">
-                        @if (isLoading()) { <lucide-icon [img]="Loader2" class="w-4 h-4 animate-spin"></lucide-icon> }
+                        @if (isLoading()) { <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg> }
                         {{ isLoading() ? 'Securing Room...' : 'Start Signing Ceremony' }}
                     </button>
                     <button (click)="clearPsbt()" class="w-full mt-3 text-xs text-slate-500 hover:text-white transition">Cancel and go back</button>
@@ -161,7 +161,11 @@
                                         class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 pr-10 text-white font-mono text-sm outline-none focus:border-emerald-500 transition"/>
                                     <button (click)="showManualRoomId = !showManualRoomId" 
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition">
-                                        <lucide-icon [img]="showManualRoomId ? EyeOff : Eye" class="w-4 h-4"></lucide-icon>
+                                        @if (showManualRoomId) {
+                                            <svg lucideEyeOff class="w-4 h-4"></svg>
+                                        } @else {
+                                            <svg lucideEye class="w-4 h-4"></svg>
+                                        }
                                     </button>
                                 </div>
                             </div>
@@ -187,7 +191,11 @@
                                         class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 pr-10 text-white font-mono text-sm outline-none focus:border-emerald-500 transition"/>
                                     <button (click)="showManualKey = !showManualKey" 
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition">
-                                        <lucide-icon [img]="showManualKey ? EyeOff : Eye" class="w-4 h-4"></lucide-icon>
+                                        @if (showManualKey) {
+                                            <svg lucideEyeOff class="w-4 h-4"></svg>
+                                        } @else {
+                                            <svg lucideEye class="w-4 h-4"></svg>
+                                        }
                                     </button>
                                 </div>
                             </div>
@@ -196,9 +204,9 @@
                                 [disabled]="manualRoomId.length !== 36 || manualKey.length !== 44" 
                                 class="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500 disabled:shadow-none">
                                 
-                                <lucide-icon [img]="Shield" class="w-4 h-4 fill-slate-950 transition-transform"
+                                <svg lucideShield class="w-4 h-4 fill-slate-950 transition-transform"
                                     [class.group-hover/btn:scale-125]="manualRoomId.length === 36 && manualKey.length === 44">
-                                </lucide-icon>
+                                </svg>
                                 
                                 <span>Enter Signing Room®</span>
                             </button>
@@ -216,7 +224,7 @@
         <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-lg w-full relative">
             @if (!isEmbedded) {
                 <button (click)="showCreateModal.set(false)" class="absolute top-4 right-4 text-slate-500 hover:text-white">
-                    <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                    <svg lucideX class="w-5 h-5"></svg>
                 </button>
             }
             <h2 class="text-2xl font-bold text-white mb-6">Configure Signing Room®</h2>
@@ -246,7 +254,7 @@
 
         @if (errorMessage()) {
             <div class="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-rose-400 shrink-0"></lucide-icon>
+                <svg lucideAlertTriangle class="w-5 h-5 text-rose-400 shrink-0"></svg>
                 <div>
                     <h4 class="text-sm font-bold text-rose-300 mb-1">Processing Failed</h4>
                     <p class="text-xs text-rose-200/80 leading-relaxed">{{ errorMessage() }}</p>
@@ -259,7 +267,7 @@
             <div class="relative group flex flex-col items-center justify-center p-8 bg-slate-950 border-2 border-dashed border-slate-800 rounded-xl hover:border-purple-500/50 hover:bg-purple-500/5 transition-all cursor-pointer" [class.opacity-50]="isScanning()">
                 <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" class="absolute inset-0 opacity-0 cursor-pointer z-10" [disabled]="isScanning()">
                 <div class="bg-slate-800 p-3 rounded-full mb-3 group-hover:bg-purple-500/20 transition-colors">
-                    <lucide-icon [img]="UploadCloud" class="text-slate-400 group-hover:text-purple-400 transition-colors"></lucide-icon>
+                    <svg lucideUploadCloud class="text-slate-400 group-hover:text-purple-400 transition-colors"></svg>
                 </div>
                 <span class="text-sm font-medium text-slate-200">Upload PSBT File</span>
                 <span class="text-xs text-slate-500 mt-1">.psbt, .txt, or .hex</span>
@@ -267,7 +275,7 @@
 
             <button (click)="startScanner()" [disabled]="isScanning()" class="flex flex-col items-center justify-center p-8 bg-slate-950 border-2 border-slate-800 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group disabled:opacity-50 cursor-pointer">
                 <div class="bg-slate-800 p-3 rounded-full mb-3 group-hover:bg-emerald-500/20 transition-colors">
-                    <lucide-icon [img]="QrCode" class="text-slate-400 group-hover:text-emerald-400 transition-colors"></lucide-icon>
+                    <svg lucideQrCode class="text-slate-400 group-hover:text-emerald-400 transition-colors"></svg>
                 </div>
                 <span class="text-sm font-medium text-slate-200">Scan QR Code</span>
                 <span class="text-xs text-slate-500 mt-1">Air-gapped hardware optics</span>
@@ -278,7 +286,7 @@
             <div class="animate-in fade-in slide-in-from-top-4 duration-300 mt-6 mb-4">
                 
                 <div class="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-6 flex items-start gap-3">
-                <lucide-icon [img]="Shield" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></lucide-icon>
+                <svg lucideShield class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"></svg>
                 <div class="text-xs text-emerald-200/80 leading-relaxed space-y-2">
                     <p>
                         <strong>Secure Scanner:</strong> Hold your hardware wallet diplaying PSBT QR Code up to the camera.
@@ -299,7 +307,7 @@
                     
                     @if (urService.scanError()) {
                         <div class="bg-rose-500/10 border border-rose-500/30 rounded-lg p-2.5 flex items-start gap-2 animate-in fade-in zoom-in-95 duration-200">
-                            <lucide-icon [img]="AlertTriangle" class="w-4 h-4 text-rose-400 shrink-0"></lucide-icon>
+                            <svg lucideAlertTriangle class="w-4 h-4 text-rose-400 shrink-0"></svg>
                             <span class="text-xs text-rose-300">{{ urService.scanError() }}</span>
                         </div>
                     }
@@ -332,7 +340,7 @@
                     }
                     
                     <button (click)="stopScanner()" class="absolute top-4 right-4 z-20 text-slate-400 bg-slate-900/80 hover:text-white hover:bg-red-500/90 p-2.5 rounded-full transition-all backdrop-blur-sm border border-slate-700 hover:border-red-500">
-                        <lucide-icon [img]="X" [size]="20"></lucide-icon>
+                        <svg lucideX class="w-5 h-5"></svg>
                     </button>
                 </div>
             </div>
@@ -351,7 +359,7 @@
                 placeholder="Paste raw PSBT Base64 or Hex string here..."
                 [(ngModel)]="rawHex" (ngModelChange)="analyzeRawHex($event)"
                 [disabled]="isScanning()"></textarea>
-            <lucide-icon [img]="Edit2" class="absolute top-4 right-4 text-slate-600 pointer-events-none" [size]="16"></lucide-icon>
+            <svg lucideEdit2 class="absolute top-4 right-4 text-slate-600 pointer-events-none w-4 h-4"></svg>
         </div>
 
     } @else {
@@ -359,7 +367,7 @@
             <div class="flex items-start justify-between mb-4">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400">
-                        <lucide-icon [img]="FileJson" class="w-5 h-5"></lucide-icon>
+                        <svg lucideFileJson class="w-5 h-5"></svg>
                     </div>
                     <div>
                         <div class="text-white text-sm font-bold truncate max-w-[150px]">
@@ -372,7 +380,7 @@
                 </div>
                 @if (!isEmbedded) {
                     <button (click)="clearPsbt()" class="text-slate-500 hover:text-rose-400 p-1 rounded-md hover:bg-rose-400/10 transition-colors">
-                        <lucide-icon [img]="X" class="w-5 h-5"></lucide-icon>
+                        <svg lucideX class="w-5 h-5"></svg>
                     </button>
                 }
             </div>
@@ -403,7 +411,7 @@
 
             @if (isNetworkMismatch()) {
                 <div class="mb-4 p-3 bg-rose-950/30 border border-rose-900/50 rounded-xl flex items-start gap-3">
-                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-rose-500 shrink-0 mt-0.5"></lucide-icon>
+                    <svg lucideAlertTriangle class="w-5 h-5 text-rose-500 shrink-0 mt-0.5"></svg>
                     <div>
                         <div class="text-rose-200 text-xs font-bold mb-1">Network Mismatch</div>
                         <p class="text-rose-400 text-[10px]">
@@ -416,7 +424,7 @@
 
             @if (isHighFee()) {
                 <div class="mb-4 p-3 bg-amber-950/30 border border-amber-900/50 rounded-xl flex items-start gap-3">
-                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></lucide-icon>
+                    <svg lucideAlertTriangle class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></svg>
                     <div>
                         <div class="text-amber-200 text-xs font-bold mb-1">High Fee Detected</div>
                         <p class="text-amber-400 text-[10px]">The network fee is unusually high (>100 sats/vB or >5% of total).</p>
@@ -425,7 +433,11 @@
             }
 
             <button (click)="launchRoom()" [disabled]="isLoading() || !psbtAnalysis() || isNetworkMismatch()" class="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 group/btn disabled:opacity-50">
-                <lucide-icon [img]="isLoading() ? Loader2 : Shield" class="w-4 h-4 fill-slate-950 group-hover/btn:scale-125 transition-transform" [class.animate-spin]="isLoading()"></lucide-icon>
+                @if (isLoading()) {
+                    <svg lucideLoader2 class="w-4 h-4 fill-slate-950 group-hover/btn:scale-125 transition-transform animate-spin"></svg>
+                } @else {
+                    <svg lucideShield class="w-4 h-4 fill-slate-950 group-hover/btn:scale-125 transition-transform"></svg>
+                }
                 {{ isLoading() ? 'Creating Ceremony...' : 'Start Signing Ceremony' }}
             </button>
         </div>

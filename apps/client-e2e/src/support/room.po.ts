@@ -169,7 +169,7 @@ export class RoomPage {
 
     this.verifyAllOutputsButton = page.getByRole('button', { name: /Verify All Outputs/i });
 
-    // Labeling Modals
+    // Signer Labeling
     this.labelNameInput = page.getByPlaceholder('e.g. Alice (Ledger)');
     this.saveLabelButton = page.getByRole('button', { name: 'Save Label' });
 
@@ -258,12 +258,12 @@ export class RoomPage {
       await expect(row).toHaveClass(/border-emerald-500_30/);
       await expect(row.getByText('Signed')).toBeVisible();
 
-      await expect(row.locator('lucide-icon.animate-spin')).toBeHidden();
+      await expect(row.locator('svg.animate-spin')).toBeHidden();
     } else {
       await expect(row).toHaveClass(/bg-slate-950/);
       await expect(row.getByText('Waiting...')).toBeVisible();
 
-      await expect(row.locator('lucide-icon.animate-spin')).toBeVisible();
+      await expect(row.locator('svg.animate-spin')).toBeVisible();
     }
   }
 

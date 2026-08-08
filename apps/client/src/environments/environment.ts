@@ -1,5 +1,7 @@
 export const environment = {
   production: false,
-  // Your local Wrangler dev server
-  apiUrl: 'http://localhost:8787' 
+  apiUrl:
+    typeof window !== 'undefined' && (window as any).__env?.apiUrl
+      ? (window as any).__env.apiUrl
+      : 'http://localhost:8787',
 };

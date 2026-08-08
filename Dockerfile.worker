@@ -1,29 +1,37 @@
-FROM node:26-bookworm-slim
+# Stage 1: Build & Bundle Worker
+FROM node:26-bookworm-slim AS builder
 
 WORKDIR /app
 
-# 1. Copy root and worker package manifests to their exact monorepo paths
+# Upgrade base packages and install ca-certificates
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 COPY apps/worker/package*.json ./apps/worker/
 
-# 2. Install dependencies across the monorepo (including apps/worker)
 RUN npm ci --legacy-peer-deps
 
-# 3. Copy full application source code
 COPY . .
+
+# Compile the worker bundle using wrangler dry-run
+RUN npx wrangler deploy --dry-run --outdir /app/dist --config apps/worker/wrangler.jsonc
+
+# Stage 2: Hardened Distroless
+FROM gcr.io/distroless/cc-debian12:nonroot
+
+WORKDIR /worker
+
+# Copy ca-certificates for networking support
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+# Copy the workerd binary directly from builder stage
+COPY --from=builder /app/node_modules/@cloudflare/workerd-linux-64/bin/workerd /worker/workerd-bin
+
+# Copy the compiled output bundle and universal capnp configuration
+COPY --from=builder /app/dist/index.js /worker/index.js
+COPY apps/worker/worker.capnp /worker/worker.capnp
 
 EXPOSE 8787
 
-# Configure environment variables
-ENV ALLOWED_ORIGIN="*"
-ENV ENVIRONMENT="development"
-ENV API_PUBLIC_URL="http://0.0.0.0:8787"
-
-# 4. Run Wrangler from within the worker workspace scope
-WORKDIR /app/apps/worker
-
-# Write injected Docker environment variables to .dev.vars, then launch the server
-CMD echo "ALLOWED_ORIGIN=${ALLOWED_ORIGIN}" > .dev.vars && \
-    echo "ENVIRONMENT=${ENVIRONMENT}" >> .dev.vars && \
-    echo "API_PUBLIC_URL=${API_PUBLIC_URL}" >> .dev.vars && \
-    npx wrangler dev src/index.ts --ip 0.0.0.0 --port 8787
+ENTRYPOINT ["/worker/workerd-bin"]
+CMD ["serve", "worker.capnp"]

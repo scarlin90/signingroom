@@ -5,286 +5,203 @@ on:
     branches: ['main', 'staging', 'development']
   pull_request:
     branches: ['main', 'staging', 'development']
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Environment to deploy to (development, staging, main)'
+        required: true
+        default: 'main'
+        type: choice
+        options:
+          - development
+          - staging
+          - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
-  contents: write
-  deployments: write
-  packages: write
-  pull-requests: write
+  contents: read
 
 jobs:
   run-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '26'
+          node-version: '24'
 
-      - name: Build and Run Tests
-        run: |
-          docker build -t signingroom-ci -f Dockerfile.test .
-          docker run --name test-container signingroom-ci
+      - name: Install Semgrep
+        run: python3 -m pip install semgrep
 
-      - name: Extract Coverage Summaries
+      - name: Run Semgrep Security Scan
+        run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
+
+      - name: Upload Semgrep SARIF to GitHub UI
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Build Test Image (with Cache)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: .
+          file: Dockerfile.test
+          load: true
+          tags: signingroom-ci:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Tests
+        run: docker run --name test-container signingroom-ci:latest
+
+      - name: Extract Coverage Reports
         if: always()
         run: |
           docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json || true
+          docker cp test-container:/app/coverage/apps/worker/coverage-final.json ./worker-final.json || true
+
           docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json || true
+          docker cp test-container:/app/coverage/apps/client/coverage-final.json ./client-final.json || true
+
           docker cp test-container:/app/coverage/libs/sdk/coverage-summary.json ./sdk-summary.json || true
+          docker cp test-container:/app/coverage/libs/sdk/coverage-final.json ./sdk-final.json || true
 
       - name: Post Worker Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@v2
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
         with:
           name: 'Worker Relay Coverage'
           json-summary-path: ./worker-summary.json
+          json-final-path: ./worker-final.json
 
       - name: Post Client Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@v2
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
         with:
           name: 'Client Dashboard Coverage'
           json-summary-path: ./client-summary.json
+          json-final-path: ./client-final.json
 
       - name: Post SDK Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@v2
+        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
         with:
           name: 'SDK Coverage'
           json-summary-path: ./sdk-summary.json
+          json-final-path: ./sdk-final.json
 
       - name: Cleanup Docker
         if: always()
         run: docker rm -f test-container || true
 
   deploy-dev:
-    needs: run-tests
-    if: github.event_name == 'push' && github.ref_name == 'development'
-    runs-on: ubuntu-latest
-    environment: development
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '26'
-
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Generate Software Bill of Materials (SBOM)
-        run: |
-          npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-dev.json --ignore-npm-errors
-
-      - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-dev-${{ github.sha }}
-          path: sbom-dev.json
-          retention-days: 90
-
-      - name: Build Angular Client (Nx)
-        run: npx nx build client --configuration=hosted-dev
-
-      - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web-dev'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'development'
-
-      - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env development
-          workingDirectory: 'apps/worker'
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/worker:dev
-            ghcr.io/${{ github.repository }}/worker:dev-${{ github.sha }}
-
-      - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.client
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/client:dev
-            ghcr.io/${{ github.repository }}/client:dev-${{ github.sha }}
+    needs: [run-tests]
+    if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      security-events: write
+      deployments: write
+      id-token: write
+    uses: ./.github/workflows/deploy-template.yml
+    with:
+      target_env: 'development'
+      nx_config: 'hosted-dev'
+      docker_tag: 'dev'
+      pages_project: 'signingroom-web-dev'
+      pages_branch: 'development'
+      wrangler_args: 'deploy --env development'
+      base_url: 'https://dev.signingroom.io'
+    secrets: inherit
 
   deploy-staging:
-    needs: run-tests
-    if: github.event_name == 'push' && github.ref_name == 'staging'
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '26'
-
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Generate Software Bill of Materials (SBOM)
-        run: |
-          npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-staging.json --ignore-npm-errors
-
-      - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-staging-${{ github.sha }}
-          path: sbom-staging.json
-          retention-days: 90
-
-      - name: Build Angular Client (Nx)
-        run: npx nx build client --configuration=hosted-staging
-
-      - name: Deploy Frontend to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web-staging'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'staging'
-
-      - name: Deploy Backend to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env staging
-          workingDirectory: 'apps/worker'
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/worker:staging
-            ghcr.io/${{ github.repository }}/worker:staging-${{ github.sha }}
-
-      - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.client
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/client:staging
-            ghcr.io/${{ github.repository }}/client:staging-${{ github.sha }}
+    needs: [run-tests]
+    if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      security-events: write
+      deployments: write
+      id-token: write
+    uses: ./.github/workflows/deploy-template.yml
+    with:
+      target_env: 'staging'
+      nx_config: 'hosted-staging'
+      docker_tag: 'staging'
+      pages_project: 'signingroom-web-staging'
+      pages_branch: 'staging'
+      wrangler_args: 'deploy --env staging'
+      base_url: 'https://staging.signingroom.io'
+    secrets: inherit
 
   deploy-prod:
-    needs: run-tests
-    if: github.event_name == 'push' && github.ref_name == 'main'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    needs: [run-tests]
+    if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      security-events: write
+      deployments: write
+      id-token: write
+    uses: ./.github/workflows/deploy-template.yml
+    with:
+      target_env: 'production'
+      nx_config: 'production'
+      docker_tag: 'latest'
+      pages_project: 'signingroom-web'
+      pages_branch: 'main'
+      wrangler_args: 'deploy'
+      base_url: 'https://signingroom.io'
+    secrets: inherit
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '26'
+  slsa-provenance-worker:
+    name: Worker SLSA Level 3 Provenance
+    needs: [deploy-dev, deploy-staging, deploy-prod]
+    if: always() && !cancelled() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-prod.result == 'success')
+    permissions:
+      actions: read
+      id-token: write
+      contents: read
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ghcr.io/${{ github.repository }}/worker
+      digest: ${{ needs.deploy-dev.outputs.worker_digest || needs.deploy-staging.outputs.worker_digest || needs.deploy-prod.outputs.worker_digest }}
+    secrets:
+      registry-username: ${{ github.actor }}
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Generate Software Bill of Materials (SBOM)
-        run: |
-          npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-prod.json --ignore-npm-errors
-
-      - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-prod-${{ github.sha }}
-          path: sbom-prod.json
-          retention-days: 90
-
-      - name: Build Angular Client (Nx Production)
-        run: npx nx build client --configuration=production
-
-      - name: Deploy Frontend to Cloudflare Pages (Prod)
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'signingroom-web'
-          directory: 'dist/apps/client/browser'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'main'
-
-      - name: Deploy Backend to Cloudflare Workers (Prod)
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-          workingDirectory: 'apps/worker'
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/worker:latest
-            ghcr.io/${{ github.repository }}/worker:${{ github.sha }}
-
-      - name: Build and Push Client Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.client
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/client:latest
-            ghcr.io/${{ github.repository }}/client:${{ github.sha }}
+  slsa-provenance-client:
+    name: Client SLSA Level 3 Provenance
+    needs: [deploy-dev, deploy-staging, deploy-prod]
+    if: always() && !cancelled() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-prod.result == 'success')
+    permissions:
+      actions: read
+      id-token: write
+      contents: read
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ghcr.io/${{ github.repository }}/client
+      digest: ${{ needs.deploy-dev.outputs.client_digest || needs.deploy-staging.outputs.client_digest || needs.deploy-prod.outputs.client_digest }}
+    secrets:
+      registry-username: ${{ github.actor }}
+      registry-password: ${{ secrets.GITHUB_TOKEN }}

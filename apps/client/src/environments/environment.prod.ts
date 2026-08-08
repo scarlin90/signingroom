@@ -1,5 +1,7 @@
 export const environment = {
   production: true,
-  // Your actual Cloudflare Worker URL
-  apiUrl: 'https://api.signingroom.io' 
+  apiUrl:
+    typeof window !== 'undefined' && (window as any).__env?.apiUrl
+      ? (window as any).__env.apiUrl
+      : 'https://api.signingroom.io',
 };

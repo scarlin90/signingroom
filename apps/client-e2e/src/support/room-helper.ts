@@ -22,7 +22,12 @@ export function getFixtureContent(fileName: string) {
   return fs.readFileSync(getFixturePath(fileName), 'utf-8');
 }
 
-export async function launchRoomFromFixture(page: Page, fileName: string, network: 'bitcoin' | 'testnet' | 'signet' = 'signet', autoReveal = true) {
+export async function launchRoomFromFixture(
+  page: Page,
+  fileName: string,
+  network: 'bitcoin' | 'testnet' | 'signet' = 'signet',
+  autoReveal = true,
+) {
   const createPage = new CreatePage(page);
   await createPage.navigate();
   await createPage.launchButton.click();
@@ -32,15 +37,16 @@ export async function launchRoomFromFixture(page: Page, fileName: string, networ
   await createPage.fileInput.setInputFiles(getFixturePath(fileName));
   await expect(createPage.startCeremonyButton).toBeEnabled({ timeout: 10000 });
   await createPage.startCeremonyButton.click();
-  
+
   const roomPage = new RoomPage(page);
 
   if (autoReveal) {
-      await expect(roomPage.headerHiddenBadge).toBeVisible();
-      await roomPage.headerHiddenBadge.click();
-      await expect(roomPage.privacyModalRevealAll).toBeVisible();
-      await roomPage.privacyModalRevealAll.click();
-      await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
+    await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.lucide-lock').first()).toBeHidden({ timeout: 15000 });
+    await roomPage.headerHiddenBadge.click();
+    await expect(roomPage.privacyModalRevealAll).toBeVisible({ timeout: 15000 });
+    await roomPage.privacyModalRevealAll.click();
+    await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
   }
 
   await expect(roomPage.activeIndicator).toBeVisible();
@@ -50,14 +56,28 @@ export async function launchRoomFromFixture(page: Page, fileName: string, networ
 
 export async function joinRoomFromLink(page: Page, link: string, autoReveal = true) {
   const roomPage = new RoomPage(page);
-  await page.goto(link);
-  
+
+  // Safely decode the hash
+  const cleanLink = link.trim();
+  const [baseUrl, hash] = cleanLink.split('#');
+  const finalUrl = hash ? `${baseUrl}#${decodeURIComponent(hash)}` : baseUrl;
+  const rootUrl = baseUrl.split('/room')[0];
+
+  await page.goto(rootUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1000);
+
+  await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
+
   if (autoReveal) {
-      await expect(roomPage.headerHiddenBadge).toBeVisible();
-      await roomPage.headerHiddenBadge.click();
-      await expect(roomPage.privacyModalRevealAll).toBeVisible();
-      await roomPage.privacyModalRevealAll.click();
-      await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
+    await expect(page.locator('.lucide-lock').first()).toBeHidden({ timeout: 15000 });
+
+    await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 10000 });
+    await roomPage.headerHiddenBadge.click();
+
+    await expect(roomPage.privacyModalRevealAll).toBeVisible({ timeout: 15000 });
+    await roomPage.privacyModalRevealAll.click();
+
+    await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
   }
 
   await expect(roomPage.activeIndicator).toBeVisible();

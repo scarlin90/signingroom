@@ -1,0 +1,65 @@
+name: Nightly Security Scans
+
+on:
+  # Run automatically every day at 3:00 AM UTC
+  schedule:
+    - cron: '0 3 * * *'
+  # Allow manual triggering
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep-sast:
+    name: Semgrep Static Code Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Semgrep
+        run: python3 -m pip install semgrep
+
+      - name: Run Semgrep Security Scan
+        run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
+
+      - name: Upload Semgrep SARIF to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep-nightly
+
+  trivy-container-scan:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    strategy:
+      matrix:
+        component: ['worker', 'client']
+        tag: ['latest', 'staging', 'dev']
+    steps:
+      - name: Scan ${{ matrix.component }}:${{ matrix.tag }} for CVEs
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/${{ matrix.component }}:${{ matrix.tag }}'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.component }}-${{ matrix.tag }}.sarif'
+          severity: 'CRITICAL'
+
+      - name: Upload Trivy SARIF to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        if: always()
+        with:
+          sarif_file: 'trivy-${{ matrix.component }}-${{ matrix.tag }}.sarif'
+          category: trivy-${{ matrix.component }}-${{ matrix.tag }}-nightly

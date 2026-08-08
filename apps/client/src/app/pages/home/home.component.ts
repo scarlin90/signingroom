@@ -3,65 +3,70 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Component, OnInit, inject, signal } from '@angular/core';
-
+import { Component, OnInit } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import {
-  LucideAngularModule,
-  Zap,
-  Users,
-  Shield,
-  Terminal,
-  ChevronRight,
-  Lock,
-  Github,
-  Code2,
-  Eye,
-  Trash2,
-  UploadCloud,
-  Share2,
-  FileCheck,
-  HelpCircle,
-  Twitter,
-  Heart,
-  Briefcase,
-  Landmark,
-  Globe,
-  XCircle,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  Network,
-  ArrowRight,
-  FileKey,
-  Cpu,
-  Fingerprint,
-  Crown,
-  Infinity,
-  Check,
-  Maximize,
-  Scale,
-  EyeOff,
-  ShieldCheck,
-  FileText,
-  Building2,
-  ExternalLink,
-  Youtube, // Added Youtube icon
-} from 'lucide-angular';
+  LucideZap,
+  LucideUsers,
+  LucideTerminal,
+  LucideChevronRight,
+  LucideLock,
+  LucideCode2,
+  LucideHelpCircle,
+  LucideGlobe,
+  LucideXCircle,
+  LucideCheckCircle2,
+  LucideAlertTriangle,
+  LucideNetwork,
+  LucideFileKey,
+  LucideCpu,
+  LucideFingerprint,
+  LucideMaximize,
+  LucideScale,
+  LucideEyeOff,
+  LucideShieldCheck,
+  LucideFileText,
+  LucideBuilding2,
+  LucideExternalLink,
+} from '@lucide/angular';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RouterModule, LucideAngularModule],
+  imports: [
+    RouterModule,
+    LucideZap,
+    LucideUsers,
+    LucideTerminal,
+    LucideChevronRight,
+    LucideLock,
+    LucideCode2,
+    LucideHelpCircle,
+    LucideGlobe,
+    LucideXCircle,
+    LucideCheckCircle2,
+    LucideAlertTriangle,
+    LucideNetwork,
+    LucideFileKey,
+    LucideCpu,
+    LucideFingerprint,
+    LucideMaximize,
+    LucideScale,
+    LucideEyeOff,
+    LucideShieldCheck,
+    LucideFileText,
+    LucideBuilding2,
+    LucideExternalLink,
+  ],
   template: `
     <div class="max-w-6xl mx-auto text-center pt-24 px-6 relative">
        
        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
        <a href="https://github.com/scarlin90/SigningRoom" target="_blank" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 backdrop-blur-md border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition mb-8 cursor-pointer group relative z-10">
-        <lucide-icon [img]="Code2" class="w-3 h-3 text-emerald-400"></lucide-icon>
+        <svg lucideCode2 class="w-3 h-3 text-emerald-400"></svg>
         <span class="text-xs font-medium">Open Source (AGPL v3) &bull; Verify the code</span>
-        <lucide-icon [img]="ChevronRight" class="w-3 h-3 group-hover:translate-x-0.5 transition-transform"></lucide-icon>
+        <svg lucideChevronRight class="w-3 h-3 group-hover:translate-x-0.5 transition-transform"></svg>
       </a>
 
       <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-6 leading-tight relative z-10">
@@ -81,22 +86,22 @@ import {
 
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
         <a routerLink="/create" class="px-8 py-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] cursor-pointer w-full sm:w-auto justify-center hover:scale-105 transform duration-200">
-          <lucide-icon [img]="Zap" class="w-5 h-5 fill-slate-950"></lucide-icon>
+          <svg lucideZap class="w-5 h-5 fill-slate-950"></svg>
           Start Signing
         </a>
         
         <a href="https://arxiv.org/abs/2601.17875" target="_blank" class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
-          <lucide-icon [img]="FileText" class="w-5 h-5 text-emerald-400"></lucide-icon>
+          <svg lucideFileText class="w-5 h-5 text-emerald-400"></svg>
           Whitepaper
         </a>
 
         <a href="https://github.com/scarlin90/signingroom/tree/main/libs/sdk" target="_blank" class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
-          <lucide-icon [img]="Github" class="w-5 h-5"></lucide-icon>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
           TypeScript SDK
         </a>
 
         <a href="/webcomponent-demo.html?ngsw-bypass=true" target="_blank" rel="external noopener noreferrer"  class="px-8 py-4 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white font-medium transition-all flex items-center gap-2 border border-slate-700 hover:border-slate-600 w-full sm:w-auto justify-center">
-          <lucide-icon [img]="Terminal" class="w-4 h-4"></lucide-icon>
+          <svg lucideTerminal class="w-4 h-4"></svg>
           Web Component Demo
       </a>
       </div>
@@ -110,7 +115,7 @@ import {
             <img src="assets/multisig-demo.gif" alt="Real-time Multisig Signing Demo" class="w-full h-auto object-cover opacity-90 group-hover:opacity-100 transition duration-700">
             
             <button (click)="toggleFullscreen(demoContainer)" class="absolute top-4 right-4 z-30 p-2 rounded-lg bg-slate-900/50 hover:bg-emerald-500 hover:text-slate-950 border border-slate-700 hover:border-emerald-400 text-slate-300 transition-all opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-300">
-                <lucide-icon [img]="Maximize" class="w-5 h-5"></lucide-icon>
+                <svg lucideMaximize class="w-5 h-5"></svg>
             </button>
 
             <div class="absolute bottom-6 left-6 z-20 flex items-center gap-3">
@@ -135,20 +140,20 @@ import {
             <div class="p-8 rounded-2xl bg-slate-900/30 border border-red-900/20 relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/0 via-red-500/50 to-red-500/0"></div>
                 <h3 class="text-lg font-bold text-slate-300 mb-6 flex items-center gap-2">
-                    <lucide-icon [img]="AlertTriangle" class="w-5 h-5 text-red-400"></lucide-icon>
+                    <svg lucideAlertTriangle class="w-5 h-5 text-red-400"></svg>
                     The Old Way (Email/Slack)
                 </h3>
                 <ul class="space-y-4">
                     <li class="flex items-start gap-3 text-sm text-slate-400">
-                        <lucide-icon [img]="XCircle" class="w-5 h-5 text-red-500 shrink-0"></lucide-icon>
+                        <svg lucideXCircle class="w-5 h-5 text-red-500 shrink-0"></svg>
                         <span>Manually merging 5 different email attachments.</span>
                     </li>
                     <li class="flex items-start gap-3 text-sm text-slate-400">
-                        <lucide-icon [img]="XCircle" class="w-5 h-5 text-red-500 shrink-0"></lucide-icon>
+                        <svg lucideXCircle class="w-5 h-5 text-red-500 shrink-0"></svg>
                         <span>Files stored permanently on Slack/Google servers.</span>
                     </li>
                     <li class="flex items-start gap-3 text-sm text-slate-400">
-                        <lucide-icon [img]="XCircle" class="w-5 h-5 text-red-500 shrink-0"></lucide-icon>
+                        <svg lucideXCircle class="w-5 h-5 text-red-500 shrink-0"></svg>
                         <span>Slow, asynchronous delays between signers.</span>
                     </li>
                 </ul>
@@ -157,20 +162,20 @@ import {
             <div class="p-8 rounded-2xl bg-emerald-900/10 border border-emerald-500/20 relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
                 <h3 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                    <lucide-icon [img]="Zap" class="w-5 h-5 text-emerald-400"></lucide-icon>
+                    <svg lucideZap class="w-5 h-5 text-emerald-400"></svg>
                     The Signing Room® Way
                 </h3>
                 <ul class="space-y-4">
                     <li class="flex items-start gap-3 text-sm text-slate-200">
-                        <lucide-icon [img]="CheckCircle2" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <svg lucideCheckCircle2 class="w-5 h-5 text-emerald-400 shrink-0"></svg>
                         <span>Real-time merging. Everyone sees the same state.</span>
                     </li>
                     <li class="flex items-start gap-3 text-sm text-slate-200">
-                        <lucide-icon [img]="CheckCircle2" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <svg lucideCheckCircle2 class="w-5 h-5 text-emerald-400 shrink-0"></svg>
                         <span>Data lives in RAM, encrypted, and vanishes on expiry.</span>
                     </li>
                     <li class="flex items-start gap-3 text-sm text-slate-200">
-                        <lucide-icon [img]="CheckCircle2" class="w-5 h-5 text-emerald-400 shrink-0"></lucide-icon>
+                        <svg lucideCheckCircle2 class="w-5 h-5 text-emerald-400 shrink-0"></svg>
                         <span>Instant broadcast once signatures are collected.</span>
                     </li>
                 </ul>
@@ -194,7 +199,7 @@ import {
           
           <div class="p-6 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-emerald-500/50 transition group">
             <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-              <lucide-icon [img]="EyeOff" class="w-6 h-6 text-emerald-400"></lucide-icon>
+              <svg lucideEyeOff class="w-6 h-6 text-emerald-400"></svg>
             </div>
             <h3 class="text-lg font-bold text-white mb-1">Article 12</h3>
             <div class="text-xs font-mono text-emerald-500 mb-3 uppercase tracking-wider">Privacy</div>
@@ -206,7 +211,7 @@ import {
 
           <div class="p-6 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-emerald-500/50 transition group">
             <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-              <lucide-icon [img]="Scale" class="w-6 h-6 text-emerald-400"></lucide-icon>
+              <svg lucideScale class="w-6 h-6 text-emerald-400"></svg>
             </div>
             <h3 class="text-lg font-bold text-white mb-1">Article 20</h3>
             <div class="text-xs font-mono text-emerald-500 mb-3 uppercase tracking-wider">Assembly</div>
@@ -218,7 +223,7 @@ import {
 
           <div class="p-6 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-emerald-500/50 transition group">
             <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-              <lucide-icon [img]="ShieldCheck" class="w-6 h-6 text-emerald-400"></lucide-icon>
+              <svg lucideShieldCheck class="w-6 h-6 text-emerald-400"></svg>
             </div>
             <h3 class="text-lg font-bold text-white mb-1">Article 17</h3>
             <div class="text-xs font-mono text-emerald-500 mb-3 uppercase tracking-wider">Property</div>
@@ -230,7 +235,7 @@ import {
 
           <div class="p-6 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-emerald-500/50 transition group">
             <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-              <lucide-icon [img]="Globe" class="w-6 h-6 text-emerald-400"></lucide-icon>
+              <svg lucideGlobe class="w-6 h-6 text-emerald-400"></svg>
             </div>
             <h3 class="text-lg font-bold text-white mb-1">Article 19</h3>
             <div class="text-xs font-mono text-emerald-500 mb-3 uppercase tracking-wider">Expression</div>
@@ -258,7 +263,7 @@ import {
                     
                     <div class="flex flex-col items-center text-center">
                         <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 mb-4">
-                            <lucide-icon [img]="Users" class="w-8 h-8 text-emerald-400"></lucide-icon>
+                            <svg lucideUsers class="w-8 h-8 text-emerald-400"></svg>
                         </div>
                         <div class="text-sm font-bold text-white">Client Side</div>
                         <div class="text-xs text-slate-500">Encrypts with Key</div>
@@ -269,13 +274,13 @@ import {
                             <div class="absolute inset-0 bg-emerald-500/50 w-1/2 animate-pulse"></div>
                         </div>
                         <div class="px-3 py-1 bg-slate-900 rounded border border-slate-800 text-[10px] text-emerald-400 font-mono flex items-center gap-2">
-                            <lucide-icon [img]="Lock" class="w-3 h-3"></lucide-icon> AES-256-GCM
+                            <svg lucideLock class="w-3 h-3"></svg> AES-256-GCM
                         </div>
                     </div>
 
                     <div class="flex flex-col items-center text-center">
                         <div class="w-20 h-20 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-700 mb-4 relative">
-                            <lucide-icon [img]="Network" class="w-10 h-10 text-slate-600"></lucide-icon>
+                            <svg lucideNetwork class="w-10 h-10 text-slate-600"></svg>
                             <div class="absolute -top-3 -right-3 bg-rose-500/20 text-rose-400 text-[10px] px-2 py-0.5 rounded border border-rose-500/30">BLIND</div>
                         </div>
                         <div class="text-sm font-bold text-white">The Room (Server)</div>
@@ -287,13 +292,13 @@ import {
                             <div class="absolute right-0 top-0 bottom-0 bg-emerald-500/50 w-1/2 animate-pulse"></div>
                         </div>
                          <div class="px-3 py-1 bg-slate-900 rounded border border-slate-800 text-[10px] text-cyan-400 font-mono flex items-center gap-2">
-                            <lucide-icon [img]="FileKey" class="w-3 h-3"></lucide-icon> Sync State
+                            <svg lucideFileKey class="w-3 h-3"></svg> Sync State
                         </div>
                     </div>
 
                     <div class="flex flex-col items-center text-center">
                         <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 mb-4">
-                            <lucide-icon [img]="Users" class="w-8 h-8 text-cyan-400"></lucide-icon>
+                            <svg lucideUsers class="w-8 h-8 text-cyan-400"></svg>
                         </div>
                         <div class="text-sm font-bold text-white">Peer Side</div>
                         <div class="text-xs text-slate-500">Decrypts via Secret Link</div>
@@ -316,7 +321,7 @@ import {
         <div class="grid md:grid-cols-3 gap-6">
             <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl hover:bg-slate-900/60 transition group">
                 <div class="w-12 h-12 bg-indigo-950/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <lucide-icon [img]="Users" class="w-6 h-6 text-indigo-400"></lucide-icon>
+                    <svg lucideUsers class="w-6 h-6 text-indigo-400"></svg>
                 </div>
                 <h3 class="text-lg font-bold text-white mb-2">Flexible "M-of-N" Consensus</h3>
                 <p class="text-sm text-slate-400 leading-relaxed">
@@ -326,7 +331,7 @@ import {
 
             <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl hover:bg-slate-900/60 transition group">
                 <div class="w-12 h-12 bg-rose-950/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <lucide-icon [img]="AlertTriangle" class="w-6 h-6 text-rose-500"></lucide-icon>
+                    <svg lucideAlertTriangle class="w-6 h-6 text-rose-500"></svg>
                 </div>
                 <h3 class="text-lg font-bold text-white mb-2">Mitigate "Key Person" Risk</h3>
                 <p class="text-sm text-slate-400 leading-relaxed">
@@ -337,7 +342,7 @@ import {
             <div class="bg-emerald-950/10 border border-emerald-500/30 p-6 rounded-2xl hover:bg-emerald-950/20 transition group relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 blur-xl rounded-full"></div>
                 <div class="w-12 h-12 bg-emerald-950/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <lucide-icon [img]="Zap" class="w-6 h-6 text-emerald-400"></lucide-icon>
+                    <svg lucideZap class="w-6 h-6 text-emerald-400"></svg>
                 </div>
                 <h3 class="text-lg font-bold text-white mb-2">Security without the friction</h3>
                 <p class="text-sm text-slate-300 leading-relaxed">
@@ -356,7 +361,7 @@ import {
         <div class="p-8 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 flex flex-col md:flex-row items-center gap-8 shadow-2xl">
             <div class="flex-1 text-left">
                 <h3 class="text-xl font-bold text-white mb-3 flex items-center gap-2">
-                    <lucide-icon [img]="Code2" class="w-6 h-6 text-emerald-400"></lucide-icon>
+                    <svg lucideCode2 class="w-6 h-6 text-emerald-400"></svg>
                     Signing Room SDK
                 </h3>
                 <p class="text-sm text-slate-400 leading-relaxed mb-6">
@@ -365,15 +370,15 @@ import {
                 </p>
                 <div class="flex flex-wrap gap-3">
                     <a href="https://www.npmjs.com/package/@signing-room/sdk" target="_blank" class="px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition flex items-center gap-2">
-                        <lucide-icon [img]="ExternalLink" class="w-4 h-4"></lucide-icon>
+                        <svg lucideExternalLink class="w-4 h-4"></svg>
                         View on NPM
                     </a>
                     <a href="https://github.com/scarlin90/signingroom/tree/main/libs/sdk" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
-                        <lucide-icon [img]="FileText" class="w-4 h-4"></lucide-icon>
+                        <svg lucideFileText class="w-4 h-4"></svg>
                         Read Docs
                     </a>
                     <a href="https://youtu.be/yzcFlK6c6t0" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
-                        <lucide-icon [img]="Youtube" class="w-4 h-4"></lucide-icon>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
                         Watch
                     </a>
                 </div>
@@ -397,22 +402,22 @@ import {
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
              <div class="p-4 rounded-lg bg-slate-900/30 border border-slate-800">
-                <lucide-icon [img]="Cpu" class="w-6 h-6 text-slate-500 mx-auto mb-2"></lucide-icon>
+                <svg lucideCpu class="w-6 h-6 text-slate-500 mx-auto mb-2"></svg>
                 <div class="text-xs text-slate-500 font-mono">BIP-174</div>
                 <div class="text-sm font-bold text-slate-300">PSBT Native</div>
              </div>
              <div class="p-4 rounded-lg bg-slate-900/30 border border-slate-800">
-                <lucide-icon [img]="Lock" class="w-6 h-6 text-slate-500 mx-auto mb-2"></lucide-icon>
+                <svg lucideLock class="w-6 h-6 text-slate-500 mx-auto mb-2"></svg>
                 <div class="text-xs text-slate-500 font-mono">AES-GCM</div>
                 <div class="text-sm font-bold text-slate-300">End-to-End Encrypted</div>
              </div>
              <div class="p-4 rounded-lg bg-slate-900/30 border border-slate-800">
-                <lucide-icon [img]="Network" class="w-6 h-6 text-slate-500 mx-auto mb-2"></lucide-icon>
+                <svg lucideNetwork class="w-6 h-6 text-slate-500 mx-auto mb-2"></svg>
                 <div class="text-xs text-slate-500 font-mono">WebSocket</div>
                 <div class="text-sm font-bold text-slate-300">Real-time</div>
              </div>
              <div class="p-4 rounded-lg bg-slate-900/30 border border-slate-800">
-                <lucide-icon [img]="Fingerprint" class="w-6 h-6 text-slate-500 mx-auto mb-2"></lucide-icon>
+                <svg lucideFingerprint class="w-6 h-6 text-slate-500 mx-auto mb-2"></svg>
                 <div class="text-xs text-slate-500 font-mono">Ephemeral</div>
                 <div class="text-sm font-bold text-slate-300">No Logs</div>
              </div>
@@ -438,7 +443,7 @@ import {
         
         <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
           <h3 class="font-bold text-white mb-2 flex items-center gap-2">
-            <lucide-icon [img]="HelpCircle" class="w-4 h-4 text-emerald-400"></lucide-icon>
+            <svg lucideHelpCircle class="w-4 h-4 text-emerald-400"></svg>
             Where is my private key?
           </h3>
           <p class="text-slate-400 text-sm leading-relaxed">
@@ -450,7 +455,7 @@ import {
 
         <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
           <h3 class="font-bold text-white mb-2 flex items-center gap-2">
-            <lucide-icon [img]="HelpCircle" class="w-4 h-4 text-emerald-400"></lucide-icon>
+            <svg lucideHelpCircle class="w-4 h-4 text-emerald-400"></svg>
             Can you see my transaction details?
           </h3>
           <p class="text-slate-400 text-sm leading-relaxed">
@@ -461,7 +466,7 @@ import {
 
         <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
           <h3 class="font-bold text-white mb-2 flex items-center gap-2">
-            <lucide-icon [img]="HelpCircle" class="w-4 h-4 text-emerald-400"></lucide-icon>
+            <svg lucideHelpCircle class="w-4 h-4 text-emerald-400"></svg>
             Is it really free?
           </h3>
           <div class="text-slate-400 text-sm leading-relaxed">
@@ -476,7 +481,7 @@ import {
 
         <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
           <h3 class="font-bold text-white mb-2 flex items-center gap-2">
-            <lucide-icon [img]="Building2" class="w-4 h-4 text-cyan-400"></lucide-icon>
+            <svg lucideBuilding2 class="w-4 h-4 text-cyan-400"></svg>
             Can I host this myself? (Enterprise)
           </h3>
           <div class="text-slate-400 text-sm leading-relaxed">
@@ -500,51 +505,12 @@ import {
         </p>
         <a routerLink="/create" class="inline-flex px-8 py-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-all items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer">
           Start New Signing
-          <lucide-icon [img]="ChevronRight" class="w-5 h-5"></lucide-icon>
+          <svg lucideChevronRight class="w-5 h-5"></svg>
         </a>
     </div>
   `,
 })
 export class HomeComponent implements OnInit {
-  readonly Zap = Zap;
-  readonly Users = Users;
-  readonly Shield = Shield;
-  readonly Terminal = Terminal;
-  readonly ChevronRight = ChevronRight;
-  readonly Lock = Lock;
-  readonly Github = Github;
-  readonly Code2 = Code2;
-  readonly Eye = Eye;
-  readonly Trash2 = Trash2;
-  readonly UploadCloud = UploadCloud;
-  readonly Share2 = Share2;
-  readonly FileCheck = FileCheck;
-  readonly HelpCircle = HelpCircle;
-  readonly Twitter = Twitter;
-  readonly Heart = Heart;
-  readonly Briefcase = Briefcase;
-  readonly Landmark = Landmark;
-  readonly Globe = Globe;
-  readonly XCircle = XCircle;
-  readonly CheckCircle2 = CheckCircle2;
-  readonly AlertTriangle = AlertTriangle;
-  readonly Network = Network;
-  readonly ArrowRight = ArrowRight;
-  readonly FileKey = FileKey;
-  readonly Cpu = Cpu;
-  readonly Fingerprint = Fingerprint;
-  readonly Crown = Crown;
-  readonly Infinity = Infinity;
-  readonly Check = Check;
-  readonly Maximize = Maximize;
-  readonly Scale = Scale;
-  readonly EyeOff = EyeOff;
-  readonly ShieldCheck = ShieldCheck;
-  readonly FileText = FileText;
-  readonly Building2 = Building2;
-  readonly ExternalLink = ExternalLink;
-  readonly Youtube = Youtube; // Exposed Youtube icon
-
   ngOnInit() {}
 
   toggleFullscreen(element: HTMLElement) {
