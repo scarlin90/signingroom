@@ -1,6 +1,6 @@
 {
   "name": "@signing-room/source",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "license": "AGPL-3.0",
   "author": {
     "name": "Stateless Research Ltd",
@@ -75,7 +75,7 @@
     "@tailwindcss/postcss": "^4.1.17",
     "@types/canvas-confetti": "^1.9.0",
     "@types/express": "^4.17.21",
-    "@types/node": "^20.19.9",
+    "@types/node": "^26.1.2",
     "@types/qrcode": "^1.5.6",
     "@typescript-eslint/utils": "^8.40.0",
     "@vitest/coverage-istanbul": "4.1.9",
@@ -87,10 +87,10 @@
     "esbuild": "^0.28.1",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^10.0.0",
-    "eslint-plugin-playwright": "^1.6.2",
+    "eslint-plugin-playwright": "^2.11.0",
     "jiti": "2.4.2",
-    "jsdom": "~22.1.0",
-    "jsonc-eslint-parser": "^2.1.0",
+    "jsdom": "~30.0.1",
+    "jsonc-eslint-parser": "^3.2.0",
     "nx": "^23.0.1",
     "postcss": "^8.5.6",
     "prettier": "~3.6.2",
@@ -123,7 +123,8 @@
     "brace-expansion": "^5.0.9",
     "@hono/node-server": "^2.0.5",
     "esbuild": "^0.28.1",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "image-size": "2.0.2"
   },
   "allowScripts": {
     "@parcel/watcher@2.5.6": true,
