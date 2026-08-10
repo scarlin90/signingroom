@@ -33,7 +33,8 @@ on:
         description: 'SHA digest for client image'
         value: ${{ jobs.deploy.outputs.client_digest }}
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   deploy:
