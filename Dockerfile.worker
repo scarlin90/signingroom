@@ -17,7 +17,7 @@ COPY . .
 RUN npx wrangler deploy --dry-run --outdir /app/dist --config apps/worker/wrangler.jsonc
 
 # Stage 2: Hardened Distroless
-FROM gcr.io/distroless/cc-debian12:nonroot
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:fccdbb0a547c14e23fcf4ce8ad62ca5d43b4faae8d22cd292f490fef9946c96e
 
 WORKDIR /worker
 
