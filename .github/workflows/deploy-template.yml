@@ -33,6 +33,8 @@ on:
         description: 'SHA digest for client image'
         value: ${{ jobs.deploy.outputs.client_digest }}
 
+permissions: read-all
+
 jobs:
   deploy:
     name: Build & Deploy
@@ -42,7 +44,6 @@ jobs:
       contents: read
       packages: write
       security-events: write
-      deployments: write
       id-token: write
     outputs:
       worker_digest: ${{ steps.push_worker.outputs.digest }}

@@ -114,10 +114,9 @@ jobs:
     if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
     permissions:
       actions: read
-      contents: write
+      contents: read
       packages: write
       security-events: write
-      deployments: write
       id-token: write
     uses: ./.github/workflows/deploy-template.yml
     with:
@@ -135,10 +134,9 @@ jobs:
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     permissions:
       actions: read
-      contents: write
+      contents: read
       packages: write
       security-events: write
-      deployments: write
       id-token: write
     uses: ./.github/workflows/deploy-template.yml
     with:
@@ -156,10 +154,9 @@ jobs:
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
     permissions:
       actions: read
-      contents: write
+      contents: read
       packages: write
       security-events: write
-      deployments: write
       id-token: write
     uses: ./.github/workflows/deploy-template.yml
     with:
