@@ -33,8 +33,7 @@ jobs:
       - name: Sign the SBOM
         run: |
           cosign sign-blob \
-            --output-signature release-sbom.json.sig \
-            --output-certificate release-sbom.json.crt \
+            --bundle release-sbom.json.bundle \
             --yes \
             release-sbom.json
 
@@ -44,5 +43,4 @@ jobs:
         run: |
           gh release upload ${{ github.event.release.tag_name }} \
             release-sbom.json \
-            release-sbom.json.sig \
-            release-sbom.json.crt
+            release-sbom.json.bundle
