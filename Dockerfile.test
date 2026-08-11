@@ -4,10 +4,10 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 
 # Install Playwright Chromium browser AND its required OS system dependencies
-RUN npx playwright install chromium --with-deps
+RUN npx playwright@1.62.1 install chromium --with-deps
 
 # Copy source code
 COPY . .
