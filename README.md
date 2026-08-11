@@ -369,4 +369,4 @@ Please follow our responsible disclosure process:
 ---
 
 Built with 🧡 and ⚡ by **Stateless Research Ltd**.
-**Signing Room®** is a registered trademark of Stateless Research Ltd
+**Signing Room®** is a registered trademark of Stateless Research Ltd.
