@@ -44,7 +44,7 @@ jobs:
           node-version: '24'
 
       - name: Install Semgrep
-        run: python3 -m pip install semgrep
+        run: python3 -m pip install semgrep==1.88.0
 
       - name: Run Semgrep Security Scan
         run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
