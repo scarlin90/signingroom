@@ -131,15 +131,53 @@ import {
               </div>
 
               <div class="flex items-center gap-6">
-                <a
-                  href="https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo"
-                  target="_blank"
-                  class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-yellow-500/50 hover:bg-yellow-500/10 transition group text-xs font-medium text-slate-400 hover:text-yellow-400">
-                  <svg
-                    lucideZap
-                    class="w-3.5 h-3.5 text-yellow-500 group-hover:fill-yellow-500 transition"></svg>
-                  <span>Donate</span>
-                </a>
+                <!-- The Donate Button -->
+<button
+  onclick="document.getElementById('donate-modal').classList.remove('hidden')"
+  class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-yellow-500/50 hover:bg-yellow-500/10 transition group text-xs font-medium text-slate-400 hover:text-yellow-400">
+  <svg lucideZap class="w-3.5 h-3.5 text-yellow-500 group-hover:fill-yellow-500 transition"></svg>
+  <span>Donate</span>
+</button>
+
+<!-- The Modal / Popover Overlay -->
+<div id="donate-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+  <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl relative">
+    
+    <!-- Close Button -->
+    <button 
+      onclick="document.getElementById('donate-modal').classList.add('hidden')"
+      class="absolute top-4 right-4 text-slate-400 hover:text-white transition">
+      ✕
+    </button>
+
+    <div class="text-center">
+      <h3 class="text-lg font-semibold text-white mb-2">Support Signing Room</h3>
+      <p class="text-sm text-slate-400 mb-6">Scan with any Lightning wallet</p>
+      
+      <!-- QR Code Image -->
+      <div class="bg-white p-2 rounded-xl inline-block mb-6 shadow-sm">
+        <img src="/assets/address.png" alt="Lightning QR Code" class="w-48 h-48 object-contain" />
+      </div>
+
+      <!-- Lightning Address -->
+      <div class="mb-4">
+        <label class="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider">Lightning Address</label>
+        <div class="bg-slate-800 text-slate-200 px-3 py-2 rounded-lg text-sm font-mono select-all">
+          seancarlin@walletofsatoshi.com
+        </div>
+      </div>
+
+      <!-- LNURL Fallback -->
+      <div>
+        <label class="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider">LNURL</label>
+        <div class="bg-slate-800 text-slate-400 px-3 py-2 rounded-lg text-[10px] font-mono break-all select-all">
+          lnurl1dp68gurn8ghj7ampd3kx2ar0veekzar0wd5xjtnrdakj7tnhv4kxctttdehhwm30d3h82unvwqhhxetpde3kzunvd9hqmzg7zp
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</div>
 
                 <a
                   href="mailto:support@signingroom.io"

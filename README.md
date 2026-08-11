@@ -170,9 +170,21 @@ SigningRoom is Free and Open Source Software (FOSS), maintained for the public g
 
 - [OpenSats](https://opensats.org) — Application received initial rejection (Q1); feedback was to strengthen the BIP — actively drafting.
 - [Human Rights Foundation](https://hrf.org) — Bitcoin Development Fund (deferred to Q3 2026)
-- [Donate via Lightning](https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo)
 
-[![Lightning](https://img.shields.io/badge/Lightning_Donate-⚡-yellow.svg?style=for-the-badge)](https://e94152ca5a.d.voltageapp.io/lnurlp/link/kfjCoo)
+### Donate via Lightning
+
+Scan the QR code below, or use the Lightning Address or LNURL directly in your preferred wallet.
+
+<img src="./apps/client/public/assets/address.png" alt="Wallet of Satoshi QR" width="220" />
+
+**Lightning Address:**
+
+```text
+seancarlin@walletofsatoshi.com
+
+LNURL:
+lnurl1dp68gurn8ghj7ampd3kx2ar0veekzar0wd5xjtnrdakj7tnhv4kxctttdehhwm30d3h82unvwqhhxetpde3kzunvd9hqmzg7zp
+```
 
 ## 🚀 Quick Start (Development)
 
