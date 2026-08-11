@@ -5,8 +5,8 @@ on:
     types: [published]
 
 permissions:
-  contents: write # Required to upload assets to the GitHub Release
-  id-token: write # Required for Sigstore/Cosign keyless signing
+  contents: write
+  id-token: write
 
 jobs:
   sign-release:
@@ -25,24 +25,64 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Generate Software Bill of Materials (SBOM)
-        run: npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file release-sbom.json --ignore-npm-errors
+        run: |
+          set -euxo pipefail
+          npx @cyclonedx/cyclonedx-npm \
+            --package-lock-only \
+            --output-format JSON \
+            --output-file release-sbom.json \
+            --ignore-npm-errors || true
+
+          if [ ! -s release-sbom.json ]; then
+            echo "ERROR: release-sbom.json was not created or is empty"
+            exit 1
+          fi
+          ls -l release-sbom.json
+          echo "SBOM size: $(wc -c < release-sbom.json) bytes"
+
+      - name: Upload unsigned SBOM (debug)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-sbom-unsigned-${{ github.event.release.tag_name }}
+          path: release-sbom.json
+          retention-days: 14
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.1.1'
 
       - name: Sign the SBOM
         run: |
+          set -euxo pipefail
+          test -s release-sbom.json
+          cosign version
+
+          # .sigstore.json is recognized by OpenSSF Scorecard
+          BUNDLE="${PWD}/release-sbom.json.sigstore.json"
+          echo "Signing with --bundle=${BUNDLE}"
+
           cosign sign-blob \
-            --output-signature release-sbom.json.sig \
-            --output-certificate release-sbom.json.crt \
+            --bundle "${BUNDLE}" \
             --yes \
             release-sbom.json
+
+          test -s "${BUNDLE}"
+          ls -l "${BUNDLE}"
+          echo "Signed bundle written to ${BUNDLE}"
 
       - name: Upload Signed Artifacts to GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ github.event.release.tag_name }} \
+          set -euxo pipefail
+          test -s release-sbom.json
+          test -s release-sbom.json.sigstore.json
+
+          gh release upload "${{ github.event.release.tag_name }}" \
             release-sbom.json \
-            release-sbom.json.sig \
-            release-sbom.json.crt
+            release-sbom.json.sigstore.json \
+            --clobber
+
+          echo "Uploaded assets:"
+          gh release view "${{ github.event.release.tag_name }}" --json assets --jq '.assets[].name'
