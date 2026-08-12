@@ -8,7 +8,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Title, Meta } from '@angular/platform-browser';
-import { PsbtUtils, PsbtAnalysis } from '@signing-room/sdk';
+import { PsbtUtils, PsbtAnalysis, EncryptionEngine } from '@signing-room/sdk';
 
 import {
   LucideZap,
@@ -54,6 +54,7 @@ type Network = (typeof NETWORKS)[number];
     LucideEdit2,
   ],
   templateUrl: './create.component.html',
+  providers: [EncryptionEngine],
 })
 export class CreateComponent implements OnInit {
   public viewMode: 'default' | 'inject' | 'join' = 'default';
@@ -68,6 +69,7 @@ export class CreateComponent implements OnInit {
   private metaService = inject(Meta);
   public urService = inject(UrService);
   private dispatcher = inject(WidgetDispatcherService);
+  private encryptionEngine = inject(EncryptionEngine);
 
   readonly networks = NETWORKS;
 
@@ -172,10 +174,12 @@ export class CreateComponent implements OnInit {
         'Untitled Room',
       );
 
-      sessionStorage.setItem(
-        `admin_token_${createRoomPayload.localData.roomId}`,
+      const encryptedToken = await this.encryptionEngine.encrypt(
         createRoomPayload.httpPayload.adminToken,
+        createRoomPayload.localData.encryptionKey,
       );
+
+      sessionStorage.setItem(`admin_token_${createRoomPayload.localData.roomId}`, encryptedToken);
       this.dispatcher.emitRoomCreated(createRoomPayload.localData.roomId, this.selectedNetwork());
       this.router.navigate(['/room', createRoomPayload.localData.roomId], {
         fragment: createRoomPayload.localData.encryptionKey,

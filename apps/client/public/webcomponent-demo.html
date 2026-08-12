@@ -504,7 +504,10 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
             const time = new Date().toLocaleTimeString();
             const logEntry = document.createElement('div');
             logEntry.style.wordBreak = 'break-all';
-            logEntry.innerHTML = `<span style="color:var(--accent)">[${time}]</span> ${msg}`;
+            
+            logEntry.innerHTML = `<span style="color:var(--accent)">[${time}]</span> `;
+            
+            logEntry.appendChild(document.createTextNode(msg));
             
             logOutput.prepend(logEntry);
         }
@@ -537,17 +540,17 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
                 const role = data.role ? data.role.toUpperCase() : 'UNKNOWN';
                 const session = data.sessionId ? data.sessionId.substring(0, 8) : 'local';
                 const room = data.roomId ? data.roomId.substring(0, 8) : 'unsaved';
-                return `<strong>(${role} : ${session})</strong> <span style="color:#94a3b8">[Room: ${room}]</span>`;
+                return `(${role} : ${session}) [Room: ${room}]`;
             };
 
             newWidget.addEventListener('roomCreated', (e) => {
                 const data = e.detail;
-                log(`<strong>(SYSTEM)</strong> <span style="color:#94a3b8">[Room: ${data.roomId}]</span> <span style="color:var(--accent)">Room Initialized on ${data.network.toUpperCase()}</span>`);
+                log(`(SYSTEM) [Room: ${data.roomId}] Room Initialized on ${data.network.toUpperCase()}`);
             });
 
             newWidget.addEventListener('transactionFinalized', (e) => {
                 const data = e.detail;
-                log(`${getContextPrefix(data)} <span style="color:var(--accent)">SUCCESS: Transaction Finalized!</span>`);
+                log(`${getContextPrefix(data)} SUCCESS: Transaction Finalized!`);
                 log(`TXID: ${data.txId.substring(0,24)}...`);
                 
                 if (data.auditPdfUri) {
@@ -589,7 +592,7 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
             newWidget.addEventListener('securityAlert', (e) => {
                 const data = e.detail;
                 const color = data.severity === 'high' ? '#f43f5e' : '#f59e0b';
-                log(`${getContextPrefix(data)} <span style="color:${color}">[SECURITY ALERT - ${data.severity.toUpperCase()}] ${data.message}</span>`);
+                log(`${getContextPrefix(data)} [SECURITY ALERT - ${data.severity.toUpperCase()}] ${data.message}`);
             });
 
             newWidget.addEventListener('privacyToggled', (e) => {
@@ -623,7 +626,7 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
                 const name = data.signerName ? ` (${data.signerName})` : '';
                 const label = data.signerLabel ? `"${data.signerLabel}"` : `[${data.fingerprint}]`;
                 const sessionInfo = data.signerSessionId ? ` via Session [${data.signerSessionId.substring(0, 8)}]` : '';
-                log(`${getContextPrefix(data)} <span style="color:var(--accent)">Network: Signature received for ${label}${name}${sessionInfo}</span>`);
+                log(`${getContextPrefix(data)} Network: Signature received for ${label}${name}${sessionInfo}`);
             });
 
             newWidget.addEventListener('psbtImported', (e) => {
@@ -667,7 +670,8 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
             });
 
             newWidget.addEventListener('signingError', (e) => {
-                log(`<span style="color: #f43f5e;"> ERROR: ${e.detail.message}</span>`);
+                const data = e.detail;
+                log(`${getContextPrefix(data)} ERROR: ${e.detail.message}`);
             });
 
             return newWidget;

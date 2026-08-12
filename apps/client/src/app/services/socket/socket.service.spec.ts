@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { SocketService } from './socket.service';
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
-import { PsbtUtils } from '@signing-room/sdk';
+import { EncryptionEngine, PsbtUtils } from '@signing-room/sdk';
 import { Subject } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -95,6 +95,9 @@ describe('SocketService', () => {
         uploadSignature: vi.fn().mockResolvedValue(undefined),
         joinRoom: vi.fn().mockResolvedValue(undefined),
         store: { getState: vi.fn().mockReturnValue(null), update: vi.fn() },
+        engine: {
+          decrypt: vi.fn().mockResolvedValue('decrypted_admin_token'),
+        },
         relay: {
           events: {
             on: vi.fn().mockImplementation((eventName: string) => {
@@ -760,11 +763,13 @@ describe('SocketService', () => {
       if (key === 'admin_token_room_123') return 'secure_admin_token';
       return null;
     });
+
     vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation((key: string) => {
       if (key === 'display_name_room_123') return 'Alice';
       return null;
     });
 
+    const encryptionDecryptSpy = vi.spyOn(service['encryptionEngine'], 'decrypt');
     const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
     const statusSpy = vi.spyOn(service.status, 'set');
@@ -773,7 +778,8 @@ describe('SocketService', () => {
     await service.connect('room_123', 'my_key');
 
     // 3. Assert
-    expect(claimCoordinatorSpy).toHaveBeenCalledWith('secure_admin_token');
+    expect(encryptionDecryptSpy).toHaveBeenCalledWith('secure_admin_token', 'my_key');
+    expect(claimCoordinatorSpy).toHaveBeenCalledWith('decrypted_admin_token'); // Expect the decrypted token
     expect(setDisplayNameSpy).toHaveBeenCalledWith('Alice');
     expect(statusSpy).toHaveBeenCalledWith('connected');
   });

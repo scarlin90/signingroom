@@ -67,6 +67,7 @@ import { UrService } from '../../services/ur/ur.service';
 import { base64, hex } from '@scure/base';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
+import { EncryptionEngine } from '@signing-room/sdk';
 
 @Component({
   selector: 'app-room',
@@ -113,6 +114,7 @@ import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
     LucideShieldOff,
   ],
   templateUrl: './room.component.html',
+  providers: [EncryptionEngine],
 })
 export class RoomComponent implements OnInit, OnDestroy {
   @HostListener('window:beforeunload', ['$event'])
@@ -225,6 +227,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     public urService: UrService,
     @Inject(PLATFORM_ID) private platformId: Object,
     private dispatcher: WidgetDispatcherService,
+    private encryptionEngine: EncryptionEngine,
   ) {
     effect(() => {
       const status = this.socket.status();
@@ -499,11 +502,20 @@ export class RoomComponent implements OnInit, OnDestroy {
     this.dispatcher.emitDownloadTriggered('unsigned-psbt');
   }
 
-  claimRole() {
+  async claimRole() {
     if (this.claimPassword) {
       const cleanToken = this.claimPassword.trim();
-      sessionStorage.setItem(`admin_token_${this.roomId()}`, cleanToken);
+
+      // Send the clear token to the relay via WebSocket to claim the room
       this.socket.claimCoordinator(cleanToken);
+
+      const encryptedToken = await this.encryptionEngine.encrypt(
+        cleanToken,
+        this.socket.getRoomKey() || '',
+      );
+
+      sessionStorage.setItem(`admin_token_${this.roomId()}`, encryptedToken);
+
       this.showClaimInput.set(false);
       this.claimPassword = '';
     }
@@ -1104,11 +1116,23 @@ export class RoomComponent implements OnInit, OnDestroy {
     this.closeKeyModal();
   }
 
-  copyAdminToken() {
-    const t = sessionStorage.getItem(`admin_token_${this.roomId()}`);
-    if (t) this.doCopy(t, this.adminCopied);
-    this.socket.logAction('Admin Token Copied', 'Backed up the admin token');
-    this.dispatcher.emitDataCopied('admin-token');
+  async copyAdminToken() {
+    const encryptedToken = sessionStorage.getItem(`admin_token_${this.roomId()}`);
+    const roomKey = this.socket.getRoomKey();
+
+    if (encryptedToken && roomKey) {
+      try {
+        const plainToken = await this.encryptionEngine.decrypt(encryptedToken, roomKey);
+
+        if (plainToken) {
+          this.doCopy(plainToken, this.adminCopied);
+          this.socket.logAction('Admin Token Copied', 'Backed up the admin token');
+          this.dispatcher.emitDataCopied('admin-token');
+        }
+      } catch (e) {
+        console.error('Failed to decrypt admin token for clipboard', e);
+      }
+    }
     this.closeAdminModal();
   }
 
