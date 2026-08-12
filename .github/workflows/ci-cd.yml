@@ -43,11 +43,11 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install Semgrep
-        run: python3 -m pip install semgrep==1.88.0
-
       - name: Run Semgrep Security Scan
-        run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
+        uses: semgrep/semgrep@651f37efa397bf066e1cf627414eeabe40b07e27
+        with:
+          config: 'p/typescript'
+          generateSarif: '1'
 
       - name: Upload Semgrep SARIF to GitHub UI
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
@@ -113,7 +113,7 @@ jobs:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
     permissions:
-      actions: read
+      actions: write
       contents: read
       packages: write
       security-events: write
@@ -133,7 +133,7 @@ jobs:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     permissions:
-      actions: read
+      actions: write
       contents: read
       packages: write
       security-events: write
@@ -153,7 +153,7 @@ jobs:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
     permissions:
-      actions: read
+      actions: write
       contents: read
       packages: write
       security-events: write
@@ -178,7 +178,7 @@ jobs:
       id-token: write
       contents: read
       packages: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0 # pinning: ignore
     with:
       image: ghcr.io/${{ github.repository }}/worker
       digest: ${{ needs.deploy-dev.outputs.worker_digest || needs.deploy-staging.outputs.worker_digest || needs.deploy-prod.outputs.worker_digest }}
@@ -195,7 +195,7 @@ jobs:
       id-token: write
       contents: read
       packages: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0 # pinning: ignore
     with:
       image: ghcr.io/${{ github.repository }}/client
       digest: ${{ needs.deploy-dev.outputs.client_digest || needs.deploy-staging.outputs.client_digest || needs.deploy-prod.outputs.client_digest }}

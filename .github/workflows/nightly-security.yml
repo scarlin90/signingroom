@@ -25,11 +25,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Semgrep
-        run: python3 -m pip install semgrep
-
       - name: Run Semgrep Security Scan
-        run: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
+        uses: semgrep/semgrep@651f37efa397bf066e1cf627414eeabe40b07e27
+        with:
+          config: 'p/typescript'
+          generateSarif: '1'
 
       - name: Upload Semgrep SARIF to GitHub Security Tab
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4

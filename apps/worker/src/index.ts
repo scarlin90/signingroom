@@ -148,7 +148,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
 	return c.json({
 		status: 'healthy',
-		version: '3.1.5',
+		version: '3.1.6',
 		timestamp: Date.now(),
 	});
 });
@@ -377,7 +377,8 @@ export class SigningRoom implements DurableObject {
 		}
 
 		webSocket.accept();
-		const sessionId = Math.random().toString(36).substring(2, 6).toUpperCase();
+		// Generate a cryptographically secure 4-character session ID
+		const sessionId = crypto.randomUUID().substring(0, 4).toUpperCase();
 
 		const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
 		this.ipConnectionCounts.set(ip, currentIpCount + 1);

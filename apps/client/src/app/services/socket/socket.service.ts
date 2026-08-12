@@ -11,6 +11,7 @@ import {
   PsbtUtils,
   RelayClient,
   RoomStateStore,
+  EncryptionEngine,
 } from '@signing-room/sdk';
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
 import { Subject } from 'rxjs';
@@ -22,6 +23,7 @@ export class SocketService {
   public sdk: SigningRoomClient;
   private store: RoomStateStore;
   private relay: RelayClient;
+  private encryptionEngine: EncryptionEngine;
 
   private hasAnnouncedJoin = false;
   public securityAlert$ = new Subject<{ type: 'access_denied'; count: number }>();
@@ -40,6 +42,7 @@ export class SocketService {
     this.sdk = this.sdkFactory.create();
     this.relay = this.sdk.relay;
     this.store = this.sdk.store;
+    this.encryptionEngine = this.sdk.engine;
     this.registerEventlisteners();
   }
 
@@ -224,7 +227,15 @@ export class SocketService {
         const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
 
         if (secureToken) {
-          await this.sdk.claimCoordinator(secureToken);
+          try {
+            const decryptedToken = await this.encryptionEngine.decrypt(secureToken, key);
+            if (decryptedToken) {
+              await this.sdk.claimCoordinator(decryptedToken);
+            }
+          } catch (decryptError) {
+            console.warn('Failed to decrypt local admin token. Proceeding as guest.');
+            sessionStorage.removeItem(`admin_token_${roomId}`);
+          }
         }
 
         const savedName = localStorage.getItem(`display_name_${roomId}`);
