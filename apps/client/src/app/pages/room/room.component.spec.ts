@@ -5,13 +5,12 @@ import { Title } from '@angular/platform-browser';
 import { PLATFORM_ID, signal } from '@angular/core';
 import { of } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Html5Qrcode } from 'html5-qrcode';
 
 import { SocketService } from '../../services/socket/socket.service';
 import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
+import { EncryptionEngine } from '@signing-room/sdk';
 
-// Declare mocks at the top level so they can be reset easily
 let mockSocketService: any;
 let mockUrService: any;
 let mockDispatcher: any;
@@ -29,6 +28,11 @@ Object.defineProperty(navigator, 'clipboard', {
 describe('RoomComponent - Setup & Lifecycle', () => {
   let component: RoomComponent;
   let fixture: ComponentFixture<RoomComponent>;
+
+  let mockEncryptionEngine: {
+    encrypt: ReturnType<typeof vi.fn>;
+    decrypt: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     vi.useFakeTimers();
@@ -121,6 +125,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       },
     };
 
+    mockEncryptionEngine = {
+      encrypt: vi.fn().mockResolvedValue('encrypted-admin-token'),
+      decrypt: vi.fn().mockResolvedValue('admin-secret-token'),
+    };
+
     mockUrService = {
       scanProgress: signal(0),
       scanError: signal(''),
@@ -146,7 +155,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       emitModalView: vi.fn(),
       emitRoomRenamed: vi.fn(),
       emitDestinationVerified: vi.fn(),
-      emitRoomStateChanged: vi.fn(), // ADDED THIS MOCK METHOD
+      emitRoomStateChanged: vi.fn(),
       emitQrStateChanged: vi.fn(),
       emitFountainFormatChanged: vi.fn(),
       emitFountainStateChanged: vi.fn(),
@@ -174,7 +183,13 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         { provide: UrService, useValue: mockUrService },
         { provide: WidgetDispatcherService, useValue: mockDispatcher },
       ],
-    }).compileComponents();
+    })
+      .overrideComponent(RoomComponent, {
+        set: {
+          providers: [{ provide: EncryptionEngine, useValue: mockEncryptionEngine }],
+        },
+      })
+      .compileComponents();
 
     fixture = TestBed.createComponent(RoomComponent);
     component = fixture.componentInstance;
@@ -676,18 +691,21 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         setItemSpy.mockRestore();
       });
 
-      it('claimRole should save token to sessionStorage and escalate privileges', () => {
+      it('claimRole should save token to sessionStorage and escalate privileges', async () => {
         component.roomId.set('test-room');
         component.claimPassword = 'admin-secret-token';
+        component.showClaimInput.set(true);
 
-        component.claimRole();
+        await component.claimRole();
 
         expect(mockSocketService.claimCoordinator).toHaveBeenCalledWith('admin-secret-token');
+        expect(mockEncryptionEngine.encrypt).toHaveBeenCalledWith(
+          'admin-secret-token',
+          'test-key-123',
+        );
+        expect(sessionStorage.getItem('admin_token_test-room')).toBe('encrypted-admin-token');
         expect(component.showClaimInput()).toBe(false);
         expect(component.claimPassword).toBe('');
-
-        // Cleanup
-        setItemSpy.mockRestore();
       });
 
       it('closeRoom should emit warning modal context and stage confirmation', () => {
