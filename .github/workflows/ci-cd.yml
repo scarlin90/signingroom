@@ -44,7 +44,7 @@ jobs:
           node-version: '24'
 
       - name: Run Semgrep Security Scan
-        uses: docker://semgrep/semgrep@sha256:7acf76eaa621465588fdfcc84f46fd7ea1e8337ebb1aa1ed6f4685f6eedaec25
+        uses: docker://semgrep/semgrep@sha256:bdf7013b2c3634a487671158da77c554f531742326b543a9464d2adf6c433ac8
         with:
           args: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
 
