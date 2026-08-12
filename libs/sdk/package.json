@@ -1,5 +1,6 @@
 {
-  "version": "1.0.2",
+  "name": "@signing-room/sdk",
+  "version": "1.0.1",
   "description": "The official Signing Room SDK. Licensed under AGPLv3; commercial licenses available.",
   "license": "AGPL-3.0",
   "type": "module",
