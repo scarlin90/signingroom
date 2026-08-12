@@ -26,10 +26,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run Semgrep Security Scan
-        uses: semgrep/semgrep@651f37efa397bf066e1cf627414eeabe40b07e27
+        uses: docker://semgrep/semgrep@sha256:7acf76eaa621465588fdfcc84f46fd7ea1e8337ebb1aa1ed6f4685f6eedaec25
         with:
-          config: 'p/typescript'
-          generateSarif: '1'
+          args: semgrep scan --config p/typescript --error --severity ERROR --sarif --output semgrep.sarif
 
       - name: Upload Semgrep SARIF to GitHub Security Tab
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
