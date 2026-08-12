@@ -1,4 +1,5 @@
 import { EncryptionEngine } from '../crypto/encryption-engine';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Data payload returned upon room production. Separates records intended for local integration
@@ -91,15 +92,15 @@ export class RoomFactory {
   }
 
   /**
-   * Generates a pseudorandom RFC 4122 version 4 compliant string wrapper for non-standard execution contexts.
-   * This is a standard math-based string substitution utility used when native platform `crypto.randomUUID` is locked.
-   * * @returns A formatted 36-character canonical string structure identifier.
+   * Generates a cryptographically secure RFC 4122 version 4 compliant UUID.
+   *
+   * This acts as a robust polyfill for non-standard execution contexts where the native
+   * `crypto.randomUUID` is unavailable. It utilizes a cryptographically secure pseudo-random
+   * number generator (CSPRNG) to guarantee unpredictability and prevent state hijacking.
+   *
+   * @returns {string} A formatted 36-character canonical UUIDv4 string.
    */
   private static fallbackUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      const r = (Math.random() * 16) | 0,
-        v = c == 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
+    return uuidv4();
   }
 }

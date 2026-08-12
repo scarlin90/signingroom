@@ -1,6 +1,6 @@
 {
   "name": "@signing-room/source",
-  "version": "3.1.5",
+  "version": "3.1.6",
   "license": "AGPL-3.0",
   "author": {
     "name": "Stateless Research Ltd",
@@ -126,7 +126,8 @@
     "sharp": "^0.35.3",
     "image-size": "2.0.2",
     "workerd": "1.20260804.1",
-    "wrangler": "^4.105.0"
+    "wrangler": "^4.105.0",
+    "dompurify": "^3.4.13"
   },
   "allowScripts": {
     "@parcel/watcher@2.5.6": true,

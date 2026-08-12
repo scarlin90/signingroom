@@ -1,0 +1,7 @@
+[[IgnoredVulns]]
+id = "GHSA-5p2g-fcmc-qvqq"
+reason = "image-size is a build-time-only dependency used by CSS preprocessors. The pipeline does not process untrusted user-supplied images."
+
+[[IgnoredVulns]]
+id = "GHSA-w3rx-r6r6-pgpr"
+reason = "image-size is a build-time-only dependency used by CSS preprocessors. The pipeline does not process untrusted user-supplied images."
