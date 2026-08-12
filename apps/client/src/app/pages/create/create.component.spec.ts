@@ -5,7 +5,7 @@ import { Title, Meta } from '@angular/platform-browser';
 import { SocketService } from '../../services/socket/socket.service';
 import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
-import { PsbtUtils } from '@signing-room/sdk';
+import { EncryptionEngine, PsbtUtils } from '@signing-room/sdk';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -34,6 +34,11 @@ describe('CreateComponent', () => {
   let mockDispatcherService: any;
   let mockTitle: any;
   let mockMeta: any;
+
+  let mockEncryptionEngine: {
+    encrypt: ReturnType<typeof vi.fn>;
+    decrypt: ReturnType<typeof vi.fn>;
+  };
 
   // Helper to safely mock window.parent for iFrame embed testing
   function mockWindowParent() {
@@ -72,6 +77,11 @@ describe('CreateComponent', () => {
       },
     };
 
+    mockEncryptionEngine = {
+      encrypt: vi.fn().mockResolvedValue('encrypted-token-xyz'),
+      decrypt: vi.fn(),
+    };
+
     mockSocketService = {
       createRoom: vi.fn(),
     };
@@ -102,7 +112,13 @@ describe('CreateComponent', () => {
         { provide: Title, useValue: mockTitle },
         { provide: Meta, useValue: mockMeta },
       ],
-    }).compileComponents();
+    })
+      .overrideComponent(CreateComponent, {
+        set: {
+          providers: [{ provide: EncryptionEngine, useValue: mockEncryptionEngine }],
+        },
+      })
+      .compileComponents();
 
     fixture = TestBed.createComponent(CreateComponent);
     component = fixture.componentInstance;
@@ -283,7 +299,8 @@ describe('CreateComponent', () => {
 
       await component.launchRoom();
 
-      expect(sessionStorage.getItem('admin_token_room-123')).toBe('token-xyz');
+      expect(mockEncryptionEngine.encrypt).toHaveBeenCalledWith('token-xyz', 'key-abc');
+      expect(sessionStorage.getItem('admin_token_room-123')).toBe('encrypted-token-xyz');
       expect(mockDispatcherService.emitRoomCreated).toHaveBeenCalledWith('room-123', 'testnet');
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-123'], {
         fragment: 'key-abc',
