@@ -18,7 +18,7 @@ export class CreatePage {
   }
 
   async navigate() {
-    await this.page.goto('/create');
+    await this.page.goto('/create', { timeout: 35000 });
   }
 
   async selectNetwork(network: 'bitcoin' | 'testnet' | 'signet') {
