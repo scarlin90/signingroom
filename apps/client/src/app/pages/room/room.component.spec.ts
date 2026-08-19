@@ -1242,7 +1242,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('should render Room Closed overlay', () => {
         mockSocketService.isClosed.set(true);
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Signing Room Closed');
+        expect(fixture.nativeElement.textContent).toContain('Signing Room® Closed');
       });
 
       it('should render Room Expired overlay', () => {
@@ -2376,6 +2376,171 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       fixture.detectChanges(); // Trigger effect
 
       expect(generateSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('Private Utility Methods', () => {
+    describe('hexToRgb', () => {
+      it('should convert a valid 6-character hex string with a # prefix to an RGB array', () => {
+        const rgb = component['hexToRgb']('#ff5c00');
+        expect(rgb).toEqual([255, 92, 0]);
+      });
+
+      it('should convert a valid 6-character hex string without a # prefix to an RGB array', () => {
+        const rgb = component['hexToRgb']('00ff00');
+        expect(rgb).toEqual([0, 255, 0]);
+      });
+
+      it('should handle uppercase hex strings correctly', () => {
+        const rgb = component['hexToRgb']('#FFFFFF');
+        expect(rgb).toEqual([255, 255, 255]);
+      });
+
+      it('should return the fallback RGB array if the hex string length is invalid', () => {
+        // Fallback color: [16, 185, 129]
+        const shortHex = component['hexToRgb']('#fff');
+        expect(shortHex).toEqual([16, 185, 129]);
+
+        const longHex = component['hexToRgb']('#ff5c0011');
+        expect(longHex).toEqual([16, 185, 129]);
+
+        const invalidHex = component['hexToRgb']('invalid');
+        expect(invalidHex).toEqual([16, 185, 129]);
+      });
+    });
+
+    describe('getBase64Logo', () => {
+      let originalImage: any;
+      let mockImageInstance: any;
+      let createElementSpy: any;
+      let originalCreateElement: any;
+
+      beforeEach(() => {
+        originalImage = window.Image;
+
+        // Store the real createElement function to use as a fallback
+        originalCreateElement = document.createElement.bind(document);
+
+        // 1. Create a safe mock class that CAN be called with 'new'
+        class MockImage {
+          width = 100;
+          height = 50;
+          crossOrigin = '';
+          src = '';
+          onload: any = null;
+          onerror: any = null;
+
+          constructor() {
+            mockImageInstance = this; // Capture the instance so we can trigger it in the test
+          }
+        }
+
+        // 2. Overwrite the global
+        window.Image = MockImage as any;
+      });
+
+      afterEach(() => {
+        window.Image = originalImage;
+        if (createElementSpy) {
+          createElementSpy.mockRestore();
+        }
+      });
+
+      it('should resolve with a base64 data URL on successful image load', async () => {
+        const mockContext = { drawImage: vi.fn() };
+        const mockCanvas = {
+          width: 0,
+          height: 0,
+          getContext: vi.fn().mockReturnValue(mockContext),
+          toDataURL: vi.fn().mockReturnValue('data:image/png;base64,mockdata'),
+        } as any;
+
+        createElementSpy = vi
+          .spyOn(document, 'createElement')
+          .mockImplementation((tagName: string) => {
+            if (tagName === 'canvas') return mockCanvas;
+            // Fallback to real DOM for other elements
+            return originalCreateElement(tagName);
+          });
+
+        const promise = component['getBase64Logo']('http://example.com/logo.png');
+
+        // Assert properties were set on the Image instance
+        expect(mockImageInstance.crossOrigin).toBe('Anonymous');
+        expect(mockImageInstance.src).toBe('http://example.com/logo.png');
+
+        // Trigger the onload callback
+        mockImageInstance.onload();
+
+        const result = await promise;
+
+        expect(mockCanvas.width).toBe(300); // 100 * 3
+        expect(mockCanvas.height).toBe(150); // 50 * 3
+        expect(mockContext.drawImage).toHaveBeenCalledWith(mockImageInstance, 0, 0, 300, 150);
+        expect(result).toBe('data:image/png;base64,mockdata');
+      });
+
+      it('should fallback to default width (550) and height (160) if image has 0 dimensions', async () => {
+        const mockContext = { drawImage: vi.fn() };
+        const mockCanvas = {
+          width: 0,
+          height: 0,
+          getContext: vi.fn().mockReturnValue(mockContext),
+          toDataURL: vi.fn().mockReturnValue('data:image/png;base64,mockdata'),
+        } as any;
+
+        createElementSpy = vi
+          .spyOn(document, 'createElement')
+          .mockImplementation((tagName: string) => {
+            if (tagName === 'canvas') return mockCanvas;
+            return originalCreateElement(tagName);
+          });
+
+        const promise = component['getBase64Logo']('http://example.com/logo.png');
+
+        // Force dimensions to falsy values
+        mockImageInstance.width = 0;
+        mockImageInstance.height = 0;
+
+        mockImageInstance.onload();
+
+        await promise;
+
+        expect(mockCanvas.width).toBe(1650); // 550 * 3
+        expect(mockCanvas.height).toBe(480); // 160 * 3
+      });
+
+      it('should resolve with null if the canvas 2d context cannot be created', async () => {
+        const mockCanvas = {
+          width: 0,
+          height: 0,
+          getContext: vi.fn().mockReturnValue(null),
+        } as any;
+
+        createElementSpy = vi
+          .spyOn(document, 'createElement')
+          .mockImplementation((tagName: string) => {
+            if (tagName === 'canvas') return mockCanvas;
+            return originalCreateElement(tagName);
+          });
+
+        const promise = component['getBase64Logo']('http://example.com/logo.png');
+
+        mockImageInstance.onload();
+
+        const result = await promise;
+        expect(result).toBeNull();
+      });
+
+      it('should resolve with null if the image fails to load via onerror', async () => {
+        const promise = component['getBase64Logo']('http://example.com/broken.png');
+
+        // Trigger the onerror callback
+        mockImageInstance.onerror();
+
+        const result = await promise;
+        expect(result).toBeNull();
+      });
     });
   });
 });

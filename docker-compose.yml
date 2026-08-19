@@ -25,3 +25,22 @@ services:
       - API_PUBLIC_URL=http://localhost:8787
     depends_on:
       - worker
+
+  client-branded:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      args:
+        BUILD_ENV: branded
+    container_name: signingroom-client-branded
+    ports:
+      - '4201:8080'
+    environment:
+      - API_PUBLIC_URL=http://localhost:8787
+    depends_on:
+      - worker
+    volumes:
+      # Mount the branded config and css into the container's assets folder as read-only (:ro)
+      - ./apps/client/public/brand/branded-config.json:/usr/share/nginx/html/brand/branded-config.json:ro
+      - ./apps/client/public/brand/branded-theme.css:/usr/share/nginx/html/brand/branded-theme.css:ro
+      - ./apps/client/public/brand/branded-logo.svg:/usr/share/nginx/html/brand/branded-logo.svg:ro

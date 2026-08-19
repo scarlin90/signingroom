@@ -1,0 +1,14 @@
+:root {
+  /* Primary Accent & Action Colors */
+  --wl-accent: #ff5c00; /* Vibrant Bitcoin Orange */
+  --wl-accent-hover: #e05200; /* Darker Orange */
+
+  /* Background & Surface Colors */
+  --wl-bg: #000000; /* True Pitch Black */
+  --wl-card: #0f0f0f; /* Deep Graphite Surface */
+  --wl-card-border: #222222; /* Subtle Dark Gray Line */
+
+  /* Text Colors */
+  --wl-text: #ffffff; /* Crisp White */
+  --wl-text-muted: #888888; /* Muted Gray */
+}

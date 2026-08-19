@@ -196,6 +196,8 @@ jobs:
 
           if [ "${{ inputs.target_env }}" = "development" ]; then
             WORKER_HEALTH_URL="https://api-dev.signingroom.io/api/health"
+          elif [ "${{ inputs.target_env }}" = "staging-branded" ]; then
+            WORKER_HEALTH_URL="https://api-staging-branded.signingroom.io/api/health"
           elif [ "${{ inputs.target_env }}" = "staging" ]; then
             WORKER_HEALTH_URL="https://api-staging.signingroom.io/api/health"
           else

@@ -59,6 +59,7 @@ import {
   LucideShieldAlert,
   LucideShieldCheck,
   LucideShieldOff,
+  LucideUser,
 } from '@lucide/angular';
 import { SocketService } from '../../services/socket/socket.service';
 import * as QRCode from 'qrcode';
@@ -68,6 +69,7 @@ import { base64, hex } from '@scure/base';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
 import { EncryptionEngine } from '@signing-room/sdk';
+import { ConfigService } from '../../services/config/config.service';
 
 @Component({
   selector: 'app-room',
@@ -112,6 +114,7 @@ import { EncryptionEngine } from '@signing-room/sdk';
     LucideShieldAlert,
     LucideShieldCheck,
     LucideShieldOff,
+    LucideUser,
   ],
   templateUrl: './room.component.html',
   providers: [EncryptionEngine],
@@ -228,6 +231,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     @Inject(PLATFORM_ID) private platformId: Object,
     private dispatcher: WidgetDispatcherService,
     private encryptionEngine: EncryptionEngine,
+    public readonly configService: ConfigService,
   ) {
     effect(() => {
       const status = this.socket.status();
@@ -277,23 +281,21 @@ export class RoomComponent implements OnInit, OnDestroy {
       const state = this.socket.roomState();
       const signers = this.socket.signers();
 
-      // 1. Calculate Progress
       const signedCount = signers.filter((s) => s.signed).length;
       const threshold = this.requiredSignatures;
       const remaining = Math.max(0, threshold - signedCount);
 
-      // 2. Determine State
+      const config = this.configService.config();
+      const brandName = config.brandName + (config.brandSuffix || '');
+
       if (this.finalHex()) {
-        // Stage 3: Done -> Green (Safe)
-        this.titleService.setTitle('✅ Ready to Broadcast | Signing Room');
+        this.titleService.setTitle(`✅ Ready to Broadcast | ${brandName}`);
       } else if (signedCount >= threshold) {
-        // Stage 2: Action Needed -> Orange (Alert)
-        this.titleService.setTitle('🟠 Ready to Finalize | Signing Room');
+        this.titleService.setTitle(`🟠 Ready to Finalize | ${brandName}`);
       } else if (state?.isLocked) {
-        this.titleService.setTitle('🔒 Room Locked | Signing Room');
+        this.titleService.setTitle(`🔒 Room Locked | ${brandName}`);
       } else {
-        // Stage 1: Waiting -> Red (Blocked)
-        this.titleService.setTitle(`🔴 ${remaining} Needed | Signing Room`);
+        this.titleService.setTitle(`🔴 ${remaining} Needed | ${brandName}`);
       }
     });
 
@@ -991,8 +993,57 @@ export class RoomComponent implements OnInit, OnDestroy {
     window.URL.revokeObjectURL(url);
   }
 
+  private hexToRgb(hex: string): [number, number, number] {
+    const cleanHex = hex.replace('#', '').trim();
+    if (cleanHex.length === 6) {
+      return [
+        parseInt(cleanHex.substring(0, 2), 16),
+        parseInt(cleanHex.substring(2, 4), 16),
+        parseInt(cleanHex.substring(4, 6), 16),
+      ];
+    }
+    return [16, 185, 129];
+  }
+
+  private getBase64Logo(url: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+
+        const width = img.width || 550;
+        const height = img.height || 160;
+
+        canvas.width = width * 3;
+        canvas.height = height * 3;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(null);
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/png'));
+      };
+
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
   async generateAuditLog() {
-    const { doc, filename } = await this.socket.getAuditLogPdf();
+    const config = this.configService.config();
+    const reportHeading = config.brandName;
+
+    const rgbColor = this.hexToRgb(config.brandColorHex || '#10b981');
+    const base64Logo = await this.getBase64Logo(config.logoUrl);
+
+    const { doc, filename } = await this.socket.getAuditLogPdf({
+      brandName: reportHeading,
+      brandColor: rgbColor,
+      logoDataUrl: base64Logo || undefined,
+      isWhitelabel: config.whitelabel,
+    });
     await doc.save(filename);
   }
 

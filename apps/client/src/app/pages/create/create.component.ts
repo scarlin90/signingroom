@@ -7,8 +7,8 @@ import { Component, OnInit, signal, inject, HostListener, Input } from '@angular
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Title, Meta } from '@angular/platform-browser';
 import { PsbtUtils, PsbtAnalysis, EncryptionEngine } from '@signing-room/sdk';
+import { ConfigService } from '../../services/config/config.service';
 
 import {
   LucideZap,
@@ -65,11 +65,10 @@ export class CreateComponent implements OnInit {
   private socket = inject(SocketService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
-  private titleService = inject(Title);
-  private metaService = inject(Meta);
   public urService = inject(UrService);
   private dispatcher = inject(WidgetDispatcherService);
   private encryptionEngine = inject(EncryptionEngine);
+  public readonly configService = inject(ConfigService);
 
   readonly networks = NETWORKS;
 
@@ -150,12 +149,6 @@ export class CreateComponent implements OnInit {
         );
       }
     }
-
-    this.titleService.setTitle('Signing Room | Free Stateless Multisig');
-    this.metaService.updateTag({
-      name: 'description',
-      content: 'Free, open-source multisig coordination.',
-    });
   }
 
   clearPsbt() {
@@ -361,12 +354,18 @@ export class CreateComponent implements OnInit {
       if (fullHex) {
         this.isProcessingScan = true;
         await this.safeStopScanner();
+
+        this.rawHex = fullHex;
+
         this.analyzeRawHex(fullHex);
         this.isProcessingScan = false;
       }
     } else {
       this.isProcessingScan = true;
       await this.safeStopScanner();
+
+      this.rawHex = decodedText;
+
       this.analyzeRawHex(decodedText);
       this.isProcessingScan = false;
     }
