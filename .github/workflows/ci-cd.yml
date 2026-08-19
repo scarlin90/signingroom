@@ -159,7 +159,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/deploy-template.yml
     with:
-      arget_env: 'staging-branded'
+      target_env: 'staging-branded'
       nx_config: 'hosted-staging-branded'
       docker_tag: 'staging-branded'
       pages_project: 'signingroom-web-staging-branded'
