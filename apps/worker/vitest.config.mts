@@ -7,6 +7,10 @@ export default defineConfig({
 			wrangler: {
 				configPath: './wrangler.jsonc',
 			},
+			miniflare: {
+				compatibilityDate: '2024-04-01',
+				compatibilityFlags: ['nodejs_compat'],
+			},
 		}),
 	],
 	test: {

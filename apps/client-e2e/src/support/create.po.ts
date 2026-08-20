@@ -10,15 +10,15 @@ export class CreatePage {
 
   constructor(page: Page) {
     this.page = page;
-    this.launchButton = page.getByRole('button', { name: /Launch Signing Room/i });
+    this.launchButton = page.getByRole('button', { name: /Start a Signing Room®/i });
     this.fileInput = page.locator('input[type="file"]');
     this.hexTextArea = page.locator('textarea').first();
-    this.startCeremonyButton = page.getByRole('button', { name: /Start Signing Ceremony/i });
+    this.startCeremonyButton = page.locator('#btn-launch-room');
     this.networkMismatchWarning = page.getByText('Network Mismatch');
   }
 
   async navigate() {
-    await this.page.goto('/create');
+    await this.page.goto('/create', { timeout: 35000 });
   }
 
   async selectNetwork(network: 'bitcoin' | 'testnet' | 'signet') {

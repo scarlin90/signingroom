@@ -12,6 +12,7 @@ import {
   RelayClient,
   RoomStateStore,
   EncryptionEngine,
+  AuditLogOptions,
 } from '@signing-room/sdk';
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
 import { Subject } from 'rxjs';
@@ -314,8 +315,8 @@ export class SocketService {
     return this.sdk.getSettlementCsvData();
   }
 
-  public async getAuditLogPdf() {
-    return await this.sdk.getAuditLogPdf();
+  public async getAuditLogPdf(options?: AuditLogOptions) {
+    return await this.sdk.getAuditLogPdf(options);
   }
 
   getLocalLabel(fingerprint: string): string | null {

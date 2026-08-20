@@ -122,7 +122,7 @@ export class RoomPage {
     this.signedCountBadge = page
       .locator('h2')
       .filter({ hasText: 'Signers' })
-      .locator('span.text-slate-500');
+      .locator('span.text-brand-text-muted');
     this.roomIdButton = page
       .locator('div.relative.group')
       .filter({ hasText: 'View Room ID' })
@@ -180,33 +180,21 @@ export class RoomPage {
     this.privacyModalRevealAll = this.page.getByRole('button', { name: 'Reveal All' });
 
     // Header: Scoped to the first rounded card that contains the Room Overview
-    const headerContainer = page
-      .locator('div.bg-slate-900\\/80')
-      .filter({ hasText: 'Room Overview' })
-      .first();
+    const headerContainer = page.locator('#card-room-overview').first();
     this.headerHiddenBadge = headerContainer.getByRole('button', { name: 'Hidden for Privacy' });
 
     // Proposal: Scoped to the specific Proposal container card
-    this.proposalContainer = page
-      .locator('div.bg-slate-900')
-      .filter({ has: page.getByRole('heading', { name: 'Transaction Proposal' }) })
-      .first();
+    this.proposalContainer = page.locator('#card-tx-proposal').first();
     this.proposalHiddenBadge = this.proposalContainer.getByRole('button', {
       name: 'Hidden for Privacy',
     });
 
     // Details: Scoped to the Details container card
-    const detailsContainer = page
-      .locator('div.bg-slate-900')
-      .filter({ has: page.getByRole('heading', { name: 'Transaction Details' }) })
-      .first();
+    const detailsContainer = page.locator('#card-tx-details').first();
     this.detailsHiddenBadge = detailsContainer.getByRole('button', { name: 'Hidden for Privacy' });
 
     // Signers: Scoped to the Signers container card
-    const signersContainer = page
-      .locator('div.bg-slate-900')
-      .filter({ has: page.getByRole('heading', { name: /Signers/i }) })
-      .first();
+    const signersContainer = page.locator('#card-signers-list').first();
     this.signersHiddenBadge = signersContainer.getByRole('button', { name: 'Hidden for Privacy' });
 
     // The Eye Toggles (Also scoped to their specific containers for maximum resilience)
@@ -254,13 +242,13 @@ export class RoomPage {
   async expectSignerStatus(fingerprint: string, status: 'Signed' | 'Waiting...') {
     const row = this.getSignerRow(fingerprint);
     if (status === 'Signed') {
-      await expect(row).toHaveClass(/bg-emerald-900_30/);
-      await expect(row).toHaveClass(/border-emerald-500_30/);
+      await expect(row).toHaveClass(/bg-emerald-500\/10/);
+      await expect(row).toHaveClass(/border-emerald-500\/30/);
       await expect(row.getByText('Signed')).toBeVisible();
 
       await expect(row.locator('svg.animate-spin')).toBeHidden();
     } else {
-      await expect(row).toHaveClass(/bg-slate-950/);
+      await expect(row).toHaveClass(/bg-brand-bg/);
       await expect(row.getByText('Waiting...')).toBeVisible();
 
       await expect(row.locator('svg.animate-spin')).toBeVisible();

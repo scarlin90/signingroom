@@ -42,7 +42,7 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // --- Interaction: Room Initialization inside Iframe ---
     const hostFrame = hostPage.frameLocator('iframe');
-    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click({ force: true });
+    await hostFrame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
 
     // --- Verification: Host State ---
     await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
@@ -118,7 +118,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
 
     const frame = page.frameLocator('iframe');
-    await frame.getByRole('button', { name: /Start Signing Ceremony/i }).click();
+    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click();
 
     // --- Verification: Event Propagation ---
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
@@ -169,7 +169,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
 
     const frame = page.frameLocator('iframe');
-    await frame.getByRole('button', { name: /Start Signing Ceremony/i }).click();
+    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click();
 
     // --- Verification: Environment Readiness ---
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
@@ -265,7 +265,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await hostPage.getByRole('button', { name: /Inject PSBT/i }).click();
 
     const hostFrame = hostPage.frameLocator('iframe');
-    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click({ force: true });
+    await hostFrame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
 
     // --- Verification: Host Ready State ---
     await expect(hostFrame.getByText('Connection lost... Reconnecting...')).toBeHidden();
@@ -349,7 +349,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // Inject and Start
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
     const frame = page.frameLocator('iframe');
-    await frame.getByRole('button', { name: /Start Signing Ceremony/i }).click();
+    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click();
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
 
     // Verify `roomCreated` Event via polling
@@ -422,7 +422,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await hostPage.goto('/webcomponent-demo.html');
     await hostPage.getByRole('button', { name: /Inject PSBT/i }).click();
     const hostFrame = hostPage.frameLocator('iframe');
-    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click({ force: true });
+    await hostFrame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
     await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
 
     // Reveal Privacy & Extract Room ID
@@ -482,7 +482,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await hostPage.getByRole('button', { name: /Inject PSBT/i }).click();
 
     const hostFrame = hostPage.frameLocator('iframe');
-    await hostFrame.getByRole('button', { name: /Start Signing Ceremony/i }).click({ force: true });
+    await hostFrame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
     await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
 
     // Extract Credentials
@@ -583,7 +583,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // Inject and Start
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
     const frame = page.frameLocator('iframe');
-    await frame.getByRole('button', { name: /Start Signing Ceremony/i }).click();
+    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click();
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
 
     // Unblur Privacy to access all UI elements

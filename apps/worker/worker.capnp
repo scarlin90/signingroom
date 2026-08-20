@@ -21,7 +21,7 @@ const worker :Workerd.Worker = (
     modules = [
         (name = "worker", esModule = embed "index.js"),
     ],
-    compatibilityDate = "2024-04-01",
+    compatibilityDate = "2026-08-04",
     compatibilityFlags = ["nodejs_compat"],
     
     # Enable volatile in-memory storage for local execution

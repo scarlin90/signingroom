@@ -4,79 +4,46 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>SigningRoom.io | Real-Time Bitcoin Multisig Coordinator</title>
+    <title>Secure Digital Treasury Operations</title>
 
     <meta
       name="description"
-      content="The stateless, zero-knowledge Bitcoin multisig coordinator. Stop emailing PSBT files. Merge transactions in real-time without accounts, databases, or key person risk." />
-
+      content="The stateless, zero-knowledge Bitcoin multisig coordinator." />
     <meta
       name="keywords"
-      content="Bitcoin Multisig, PSBT Coordinator, Stateless Coordinator, Multisig Wallet, Sparrow Wallet, Coldcard, Real-time Signing, Zero Knowledge, BIP-174, AES-GCM, Client-side Encryption" />
-
+      content="Bitcoin Multisig, PSBT Coordinator, Stateless Coordinator, Multisig Wallet, Real-time Signing, Zero Knowledge" />
     <meta name="author" content="Stateless Research Ltd" />
     <meta name="robots" content="index, follow" />
 
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://signingroom.io/" />
-    <meta property="og:title" content="SigningRoom.io | Real-Time Bitcoin Multisig" />
+    <meta property="og:title" content="Secure Multisig Coordination" />
     <meta
       property="og:description"
-      content="Stop emailing PSBT files. Coordinate multisig teams instantly. No accounts. No database. End-to-End Encrypted." />
-    <meta property="og:image" content="https://signingroom.io/assets/preview-card.jpg" />
+      content="Stop emailing PSBT files. Coordinate multisig teams instantly with end-to-end encryption." />
+    <meta property="og:image" content="/assets/preview-card.jpg" />
 
+    <!-- Twitter Cards -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://signingroom.io/" />
-    <meta property="twitter:title" content="SigningRoom.io | Real-Time Bitcoin Multisig" />
+    <meta property="twitter:title" content="Secure Multisig Coordination" />
     <meta
       property="twitter:description"
-      content="Stop emailing PSBT files. Coordinate multisig teams instantly. No accounts. No database. End-to-End Encrypted." />
-    <meta property="twitter:image" content="https://signingroom.io/assets/preview-card.jpg" />
+      content="Stop emailing PSBT files. Coordinate multisig teams instantly with end-to-end encryption." />
+    <meta property="twitter:image" content="/assets/preview-card.jpg" />
 
     <meta name="theme-color" content="#020617" />
 
     <script src="/assets/env.js"></script>
 
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "SigningRoom.io",
-        "operatingSystem": "Any",
-        "applicationCategory": "FinanceApplication",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD",
-          "name": "Standard Room (Free)"
-        },
-        "description": "A zero-knowledge, stateless coordinator for Bitcoin multisignature transactions. Replaces manual file sharing with an encrypted, real-time signing room.",
-        "featureList": [
-          "Real-time PSBT Merging",
-          "Zero-Knowledge Encryption",
-          "Stateless Architecture",
-          "Cryptographic Audit Logs",
-          "Hardware Wallet Compatibility"
-        ],
-        "softwareHelp": {
-          "@type": "CreativeWork",
-          "url": "https://signingroom.io/"
-        },
-        "author": {
-          "@type": "Organization",
-          "name": "Stateless Research Ltd",
-          "url": "https://signingroom.io"
-        }
-      }
-    </script>
-
+    <!-- Modern SVG Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png" />
+
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="assets/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-startup-image" href="assets/icons/apple-launch-1242x2688.png" />
+    <link rel="apple-touch-startup-image" href="icons/apple-launch-1242x2688.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
@@ -100,12 +67,13 @@
         }
       }
       body {
-        @apply bg-slate-950 text-slate-200 font-sans selection:bg-emerald-500/30;
+        @apply bg-brand-bg text-brand-text font-sans selection:bg-brand-accent/30;
       }
     </style>
+    <link rel="stylesheet" href="/brand/theme.css" />
     <base href="/" />
   </head>
-  <body class="bg-slate-950 m-0 p-0">
+  <body class="bg-brand-bg m-0 p-0">
     <app-root></app-root>
     <noscript>Please enable JavaScript to continue using SigningRoom.io.</noscript>
   </body>
