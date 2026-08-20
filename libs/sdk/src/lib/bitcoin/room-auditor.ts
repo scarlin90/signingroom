@@ -2,6 +2,13 @@ import { SignerStatus, TxDetails } from './psbt-utils';
 import { RoomState, AuditEntry } from '../relay/room-state-store';
 import { jsPDF } from 'jspdf';
 
+export interface AuditLogOptions {
+  brandName?: string;
+  brandColor?: [number, number, number];
+  logoDataUrl?: string;
+  isWhitelabel?: boolean;
+}
+
 /**
  * Utility class responsible for generating cryptographic integrity proofs and
  * human-readable compliance reports (PDF, CSV) from real-time room states.
@@ -108,8 +115,10 @@ export class RoomAuditor {
     tx: TxDetails | null,
     signers: SignerStatus[],
     finalHex: string | null,
+    options?: AuditLogOptions,
   ): Promise<{ doc: jsPDF; filename: string }> {
     let y = 20;
+
     const checkPageBreak = (spaceNeeded: number) => {
       if (y + spaceNeeded > 280) {
         doc.addPage();
@@ -117,18 +126,43 @@ export class RoomAuditor {
       }
     };
 
-    // Header
+    // Header setup
+    let headingText = 'SigningRoom.io';
+
+    if (options?.isWhitelabel) {
+      headingText = options?.brandName || 'SigningRoom.io';
+    }
+
+    const brandColor = options?.brandColor || [16, 185, 129];
+
+    let currentX = 20;
+    const logoHeight = 12;
+    const logoYOffset = y - 9;
+
+    // Embed Logo if provided
+    if (options?.logoDataUrl) {
+      try {
+        const imgProps = doc.getImageProperties(options.logoDataUrl);
+        const logoWidth = (imgProps.width * logoHeight) / imgProps.height;
+
+        doc.addImage(options.logoDataUrl, 'PNG', currentX, logoYOffset, logoWidth, logoHeight);
+
+        currentX += logoWidth + 4;
+      } catch (e) {
+        console.warn('Failed to embed logo in PDF', e);
+      }
+    }
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(24);
-    doc.setTextColor(16, 185, 129); // emerald-500
-    doc.text('SigningRoom.io', 20, y);
+    doc.setTextColor(brandColor[0], brandColor[1], brandColor[2]);
+    doc.text(headingText, currentX, y);
 
-    // Subtitle
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(16);
     doc.setTextColor(100);
-    doc.text('Audit Log', 20, y + 10);
-    y += 20;
+    doc.text('Audit Log', 20, y + 12);
+    y += 24;
 
     // Separator Line
     doc.setDrawColor(200);
@@ -144,7 +178,7 @@ export class RoomAuditor {
       const anchor = await this.calculateForensicAnchor(state.auditLog, finalHex);
 
       doc.setFontSize(14);
-      doc.setTextColor(16, 185, 129); // emerald-500
+      doc.setTextColor(brandColor[0], brandColor[1], brandColor[2]);
       doc.setFont('helvetica', 'bold');
       doc.text('Cryptographic Integrity Seal', 20, y);
       y += 6;
@@ -517,7 +551,11 @@ export class RoomAuditor {
     const dateStr = new Date().toISOString().split('T')[0];
     const shortId = state.roomId.slice(0, 8);
     const txSuffix = state.finalTxId ? state.finalTxId.slice(0, 8) : 'Pending';
-    const filename = `SigningRoom_Audit_${dateStr}_Room-${shortId}_Tx-${txSuffix}.pdf`;
+    let filename = `SigningRoom_Audit_${dateStr}_Room-${shortId}_Tx-${txSuffix}.pdf`;
+
+    if (options?.isWhitelabel) {
+      filename = `${options?.brandName?.replace(/\s+/g, '') || 'SigningRoom'}_Audit_${dateStr}_Room-${shortId}_Tx-${txSuffix}.pdf`;
+    }
 
     return { doc, filename };
   }

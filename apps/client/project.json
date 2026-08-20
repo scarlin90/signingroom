@@ -58,6 +58,8 @@
           "sourceMap": true,
           "outputHashing": "all",
           "serviceWorker": "apps/client/ngsw-config.json",
+          "prerender": false,
+          "ssr": false,
           "fileReplacements": [
             {
               "replace": "apps/client/src/environments/environment.ts",
@@ -78,10 +80,48 @@
             }
           ]
         },
+        "hosted-staging-branded": {
+          "optimization": true,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "outputHashing": "all",
+          "prerender": false,
+          "ssr": false,
+          "serviceWorker": "apps/client/ngsw-config.json",
+          "index": {
+            "input": "apps/client/src/index.branded.html",
+            "output": "index.html"
+          },
+          "fileReplacements": [
+            {
+              "replace": "apps/client/src/environments/environment.ts",
+              "with": "apps/client/src/environments/environment.hosted-staging-branded.ts"
+            }
+          ]
+        },
+        "branded": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "prerender": false,
+          "ssr": false,
+          "index": {
+            "input": "apps/client/src/index.branded.html",
+            "output": "index.html"
+          },
+          "fileReplacements": [
+            {
+              "replace": "apps/client/src/environments/environment.ts",
+              "with": "apps/client/src/environments/environment.branded.ts"
+            }
+          ]
+        },
         "development": {
           "optimization": false,
           "extractLicenses": false,
-          "sourceMap": true
+          "sourceMap": true,
+          "prerender": false,
+          "ssr": false
         }
       }
     },
@@ -95,6 +135,9 @@
         },
         "development": {
           "buildTarget": "client:build:development"
+        },
+        "branded": {
+          "buildTarget": "client:build:branded"
         }
       }
     },

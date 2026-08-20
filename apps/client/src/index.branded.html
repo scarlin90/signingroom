@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Secure Digital Treasury Operations</title>
+
+    <meta
+      name="description"
+      content="The stateless, zero-knowledge Bitcoin multisig coordinator." />
+    <meta
+      name="keywords"
+      content="Bitcoin Multisig, PSBT Coordinator, Stateless Coordinator, Multisig Wallet, Real-time Signing, Zero Knowledge" />
+    <meta name="author" content="Stateless Research Ltd" />
+    <meta name="robots" content="index, follow" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Secure Multisig Coordination" />
+    <meta
+      property="og:description"
+      content="Stop emailing PSBT files. Coordinate multisig teams instantly with end-to-end encryption." />
+    <meta property="og:image" content="/assets/preview-card.jpg" />
+
+    <!-- Twitter Cards -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="Secure Multisig Coordination" />
+    <meta
+      property="twitter:description"
+      content="Stop emailing PSBT files. Coordinate multisig teams instantly with end-to-end encryption." />
+    <meta property="twitter:image" content="/assets/preview-card.jpg" />
+
+    <meta name="theme-color" content="#020617" />
+
+    <script src="/assets/env.js"></script>
+
+    <!-- Modern SVG Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/brand/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png" />
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-startup-image" href="icons/apple-launch-1242x2688.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&amp;display=swap"
+      rel="stylesheet" />
+
+    <style type="text/tailwindcss">
+      @theme {
+        --font-sans: 'Inter', sans-serif;
+        --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
+        @keyframes fade-in-up {
+          0% {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      }
+      body {
+        @apply bg-brand-bg text-brand-text font-sans selection:bg-brand-accent/30;
+      }
+    </style>
+    <link rel="stylesheet" href="/brand/branded-theme.css" />
+    <base href="/" />
+  </head>
+  <body class="bg-brand-bg m-0 p-0">
+    <app-root></app-root>
+    <noscript>Please enable JavaScript to continue using SigningRoom.io.</noscript>
+  </body>
+</html>

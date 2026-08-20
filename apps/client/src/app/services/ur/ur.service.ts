@@ -11,7 +11,7 @@ import { hex, base64 } from '@scure/base';
 @Injectable({ providedIn: 'root' })
 export class UrService {
   private decoder = new URDecoder();
-  
+
   public scanProgress = signal<number>(0);
 
   private bbqrState = new Map<number, string>();
@@ -26,35 +26,36 @@ export class UrService {
   generateFrames(psbtBase64: string, maxFragmentLength = 150): string[] {
     const cleanBase64 = psbtBase64.replace(/\s+/g, '');
     const psbtBytes = base64.decode(cleanBase64); // Using @scure/base
-    
+
     // generate the CBOR Byte String
     const genericUr = UR.fromBuffer(Buffer.from(psbtBytes));
-    
-    const cborPayload = genericUr.cbor || (genericUr as any)._cbor || (genericUr as any).cborMessage;
-    
+
+    const cborPayload =
+      genericUr.cbor || (genericUr as any)._cbor || (genericUr as any).cborMessage;
+
     if (!cborPayload) {
-        console.error("Critical: Could not extract CBOR payload from UR", genericUr);
-        return [];
+      console.error('Critical: Could not extract CBOR payload from UR', genericUr);
+      return [];
     }
 
     const ur = new UR(cborPayload, 'crypto-psbt');
     const encoder = new UREncoder(ur, maxFragmentLength);
     const frames: string[] = [];
-    
-    for (let i = 0; i < encoder.fragmentsLength * 2; i++) { 
+
+    for (let i = 0; i < encoder.fragmentsLength * 2; i++) {
       frames.push(encoder.nextPart().toUpperCase());
     }
-    
+
     return frames;
   }
 
   generateBBQrFrames(psbtBase64: string, charsPerFrame = 1000): string[] {
     const psbtBytes = base64.decode(psbtBase64.replace(/\s+/g, ''));
     const psbtHex = hex.encode(psbtBytes).toUpperCase();
-   
+
     const totalChunks = Math.ceil(psbtHex.length / charsPerFrame);
-    
-    if (totalChunks > 1295) throw new Error("PSBT too large for BBQr");
+
+    if (totalChunks > 1295) throw new Error('PSBT too large for BBQr');
 
     const totalBase36 = totalChunks.toString(36).toUpperCase().padStart(2, '0');
     const frames: string[] = [];
@@ -73,6 +74,11 @@ export class UrService {
    * INHALE (OMNI-DECODER): Automatically detects and decodes UR, BBQr, or Static QRs.
    */
   processFragment(fragment: string): string | null {
+    if (!fragment || typeof fragment !== 'string') {
+      this.scanError.set('Invalid QR data received.');
+      return null;
+    }
+
     try {
       const upper = fragment.toUpperCase();
       this.lastScannedText.set(upper.length > 40 ? upper.substring(0, 40) + '...' : upper);
@@ -89,27 +95,28 @@ export class UrService {
           if (this.decoder.isSuccess()) {
             try {
               const resultUR = this.decoder.resultUR();
-              
-              const cborPayload = resultUR.cbor || (resultUR as any)._cbor || (resultUR as any).cborMessage;
+
+              const cborPayload =
+                resultUR.cbor || (resultUR as any)._cbor || (resultUR as any).cborMessage;
 
               if (cborPayload) {
                 let hexData = hex.encode(new Uint8Array(cborPayload)).toLowerCase();
-                
+
                 const magicIndex = hexData.indexOf('70736274ff');
                 if (magicIndex !== -1) {
-                    hexData = hexData.substring(magicIndex);
+                  hexData = hexData.substring(magicIndex);
                 }
 
                 this.resetDecoder();
                 return hexData;
               }
             } catch (e) {
-              console.error("Failed to decode CBOR", e);
-              this.scanError.set("UR decoded but payload extraction failed");
+              console.error('Failed to decode CBOR', e);
+              this.scanError.set('UR decoded but payload extraction failed');
             }
           } else {
-             this.scanError.set("UR checksum failed. Please rescan.");
-             this.resetDecoder();
+            this.scanError.set('UR checksum failed. Please rescan.');
+            this.resetDecoder();
           }
         }
         return null;
@@ -124,12 +131,12 @@ export class UrService {
 
         const total = parseInt(totalStr, 36);
         const index = parseInt(indexStr, 36);
-        
+
         if (this.bbqrTotal === 0) this.bbqrTotal = total;
 
         if (!this.bbqrState.has(index)) {
-            this.bbqrState.set(index, payload);
-            this.scanProgress.set(this.bbqrState.size / this.bbqrTotal);
+          this.bbqrState.set(index, payload);
+          this.scanProgress.set(this.bbqrState.size / this.bbqrTotal);
         }
 
         if (this.bbqrState.size === this.bbqrTotal) {
@@ -142,11 +149,11 @@ export class UrService {
             const compressed = this.decodeBase32(fullPayload);
             const decompressed = fflate.inflateSync(compressed);
             this.resetDecoder();
-            
+
             return hex.encode(decompressed);
           } else {
             this.resetDecoder();
-            return fullPayload; 
+            return fullPayload;
           }
         }
         return null;
@@ -155,19 +162,21 @@ export class UrService {
       this.resetDecoder();
       return fragment;
     } catch (e) {
-      console.error("Omni-Decoder error:", e);
-      this.scanError.set("Decoding failure. Check wallet settings.");
+      console.error('Omni-Decoder error:', e);
+      this.scanError.set('Decoding failure. Check wallet settings.');
       return null;
     }
   }
 
   // --- Helper: Base32 Decoding (RFC 4648) for BBQr ---
   private decodeBase32(s: string): Uint8Array {
-    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     const lookup = new Map([...alphabet].map((char, i) => [char, i]));
-    const bits = s.split('').map(c => lookup.get(c.toUpperCase()) ?? 0);
-    const bytes = new Uint8Array(Math.floor(bits.length * 5 / 8));
-    let bitBuffer = 0, bitCount = 0, byteIndex = 0;
+    const bits = s.split('').map((c) => lookup.get(c.toUpperCase()) ?? 0);
+    const bytes = new Uint8Array(Math.floor((bits.length * 5) / 8));
+    let bitBuffer = 0,
+      bitCount = 0,
+      byteIndex = 0;
     for (const b of bits) {
       bitBuffer = (bitBuffer << 5) | b;
       bitCount += 5;
