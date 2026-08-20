@@ -36,10 +36,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
 
@@ -148,6 +148,26 @@ jobs:
       base_url: 'https://staging.signingroom.io'
     secrets: inherit
 
+  deploy-staging-branded:
+    needs: [run-tests]
+    if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+      security-events: write
+      id-token: write
+    uses: ./.github/workflows/deploy-template.yml
+    with:
+      target_env: 'staging-branded'
+      nx_config: 'hosted-staging-branded'
+      docker_tag: 'staging-branded'
+      pages_project: 'signingroom-web-staging-branded'
+      pages_branch: 'staging'
+      wrangler_args: 'deploy --env staging-branded'
+      base_url: 'https://staging-branded.signingroom.io'
+    secrets: inherit
+
   deploy-prod:
     needs: [run-tests]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
@@ -170,8 +190,8 @@ jobs:
 
   slsa-provenance-worker:
     name: Worker SLSA Level 3 Provenance
-    needs: [deploy-dev, deploy-staging, deploy-prod]
-    if: always() && !cancelled() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-prod.result == 'success')
+    needs: [deploy-dev, deploy-staging, deploy-staging-branded, deploy-prod]
+    if: always() && !cancelled() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success'|| needs.deploy-staging-branded.result == 'success' || needs.deploy-prod.result == 'success')
     permissions:
       actions: read
       id-token: write
@@ -180,15 +200,15 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0 # pinning: ignore
     with:
       image: ghcr.io/${{ github.repository }}/worker
-      digest: ${{ needs.deploy-dev.outputs.worker_digest || needs.deploy-staging.outputs.worker_digest || needs.deploy-prod.outputs.worker_digest }}
+      digest: ${{ needs.deploy-dev.outputs.worker_digest || needs.deploy-staging.outputs.worker_digest || needs.deploy-staging-branded.outputs.worker_digest || needs.deploy-prod.outputs.worker_digest }}
     secrets:
       registry-username: ${{ github.actor }}
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   slsa-provenance-client:
     name: Client SLSA Level 3 Provenance
-    needs: [deploy-dev, deploy-staging, deploy-prod]
-    if: always() && !cancelled() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-prod.result == 'success')
+    needs: [deploy-dev, deploy-staging, deploy-staging-branded, deploy-prod]
+    if: always() && !cancelled() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-staging-branded.result == 'success' || needs.deploy-prod.result == 'success')
     permissions:
       actions: read
       id-token: write
@@ -197,7 +217,7 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0 # pinning: ignore
     with:
       image: ghcr.io/${{ github.repository }}/client
-      digest: ${{ needs.deploy-dev.outputs.client_digest || needs.deploy-staging.outputs.client_digest || needs.deploy-prod.outputs.client_digest }}
+      digest: ${{ needs.deploy-dev.outputs.client_digest || needs.deploy-staging.outputs.client_digest || needs.deploy-staging-branded.outputs.client_digest || needs.deploy-prod.outputs.client_digest }}
     secrets:
       registry-username: ${{ github.actor }}
       registry-password: ${{ secrets.GITHUB_TOKEN }}

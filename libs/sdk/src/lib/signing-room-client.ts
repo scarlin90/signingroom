@@ -3,7 +3,7 @@ import { RelayClient } from './relay/relay-client';
 import { RoomStateStore, RoomState } from './relay/room-state-store';
 import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
 import { RoomEvent, RoomEventType } from './types/client-events';
-import { RoomAuditor } from './bitcoin/room-auditor';
+import { AuditLogOptions, RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils, TxDetails } from './bitcoin/psbt-utils';
 import { Observable, firstValueFrom } from 'rxjs';
 import { jsPDF } from 'jspdf';
@@ -299,7 +299,7 @@ export class SigningRoomClient {
     return RoomAuditor.getSettlementCsvData(state, tx, signers);
   }
 
-  public async getAuditLogPdf(): Promise<{ doc: any; filename: string }> {
+  public async getAuditLogPdf(options?: AuditLogOptions): Promise<{ doc: any; filename: string }> {
     const state = this.getRoomState();
     const tx = this.getTxDetails(state);
     const signers = this.getSignersStatus(state);
@@ -307,7 +307,7 @@ export class SigningRoomClient {
 
     if (!state) throw new Error('No state available for audit report.');
 
-    return await RoomAuditor.generateAuditPdf(new jsPDF(), state, tx, signers, finalHex);
+    return await RoomAuditor.generateAuditPdf(new jsPDF(), state, tx, signers, finalHex, options);
   }
 
   /** * Updates the whitelist allowlist. Handles both single addresses and batches,

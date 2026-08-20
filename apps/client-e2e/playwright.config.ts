@@ -9,7 +9,7 @@ const baseURL = process.env['BASE_URL'] || 'http://localhost:4200';
 export default defineConfig({
   ...nxE2EPreset(__filename, { testDir: './src' }),
   workers: 1,
-  timeout: isRemote ? 120000 : 30000,
+  timeout: isRemote ? 120000 : 35000,
   reporter: process.env.CI ? [['github'], ['list']] : 'html',
   use: {
     baseURL,

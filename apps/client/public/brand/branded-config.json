@@ -1,0 +1,13 @@
+{
+  "whitelabel": true,
+  "useTradeMark": true,
+  "brandName": "Zoros Financial",
+  "brandSuffix": "",
+  "brandColorHex": "#FF5C00",
+  "tagline": "Enterprise Bitcoin Treasury Operations",
+  "subTagline": "Institutional Multisig Consensus",
+  "logoUrl": "/brand/branded-logo.svg",
+  "defaultRoomName": "Treasury Vault Room",
+  "hideFooter": true,
+  "hideNetworkBadges": true
+}

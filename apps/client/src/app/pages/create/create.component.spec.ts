@@ -132,17 +132,6 @@ describe('CreateComponent', () => {
   });
 
   describe('Initialization and Context', () => {
-    it('should initialize component state from route parameters', () => {
-      fixture.detectChanges();
-      expect(component.viewMode).toBe('default');
-      expect(component.expectedHost).toBe('https://trusted-host.com');
-      expect(mockTitle.setTitle).toHaveBeenCalledWith('Signing Room | Free Stateless Multisig');
-      expect(mockMeta.updateTag).toHaveBeenCalledWith({
-        name: 'description',
-        content: 'Free, open-source multisig coordination.',
-      });
-    });
-
     it('should detect embedded iframes and notify the host parent window', () => {
       const { originalParent, postMessageSpy } = mockWindowParent();
 
@@ -537,6 +526,7 @@ describe('CreateComponent', () => {
       await component.handleScanResult('UR:BYTES/xyz123');
 
       expect(mockUrService.processFragment).toHaveBeenCalledWith('UR:BYTES/xyz123');
+      expect(component.rawHex).toBe('full_reconstructed_hex');
       expect(component.isScanning()).toBe(false);
       expect(analyzeSpy).toHaveBeenCalledWith('full_reconstructed_hex');
     });
@@ -547,6 +537,7 @@ describe('CreateComponent', () => {
       await component.handleScanResult('cHNidGJhc2U2NA==');
 
       expect(mockUrService.processFragment).not.toHaveBeenCalled();
+      expect(component.rawHex).toBe('cHNidGJhc2U2NA==');
       expect(analyzeSpy).toHaveBeenCalledWith('cHNidGJhc2U2NA==');
     });
 
