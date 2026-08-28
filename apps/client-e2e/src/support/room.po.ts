@@ -69,6 +69,10 @@ export class RoomPage {
   readonly labelNameInput: Locator;
   readonly saveLabelButton: Locator;
 
+  // Address Labeling
+  readonly addressLabelInput: Locator;
+  readonly saveAddressLabelButton: Locator;
+
   readonly okButton: Locator;
 
   // Privacy & OpSec Controls
@@ -173,6 +177,10 @@ export class RoomPage {
     this.labelNameInput = page.getByPlaceholder('e.g. Alice (Ledger)');
     this.saveLabelButton = page.getByRole('button', { name: 'Save Label' });
 
+    // Address Labeling
+    this.addressLabelInput = page.locator('#input-address-label');
+    this.saveAddressLabelButton = page.locator('#btn-save-address-label');
+
     this.okButton = page.getByRole('button', { name: 'OK', exact: true });
 
     // Modal Buttons
@@ -225,15 +233,22 @@ export class RoomPage {
   }
 
   getOutputCard(index: number) {
-    return this.page.locator('.address-card');
+    return this.page.locator('.address-card').nth(index);
   }
 
   getVerificationBadgeCard(index: number) {
-    return this.page.locator('.verification-badge');
+    return this.page.locator('.verification-badge').nth(index);
   }
 
   getSignerRow(fingerprint: string): Locator {
     return this.signerList.locator('div.p-4.rounded-xl').filter({ hasText: fingerprint });
+  }
+
+  /**
+   * Helper to fetch the exact locator for an address label button by index
+   */
+  getEditAddressLabelButton(type: 'input' | 'output', index: number): Locator {
+    return this.page.locator(`#btn-label-${type}-${index}`);
   }
 
   /**

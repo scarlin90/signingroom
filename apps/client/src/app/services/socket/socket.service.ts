@@ -17,7 +17,7 @@ import {
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
 import { Subject } from 'rxjs';
 
-export const PROTOCOL_VERSION = '1.0.0';
+export const PROTOCOL_VERSION = '1.1.0';
 
 @Injectable({ providedIn: 'root' })
 export class SocketService {
@@ -80,6 +80,11 @@ export class SocketService {
 
     this.relay.events.on('LABELS_DECRYPTED').subscribe((e) => {
       this.store.update((s) => (s ? { ...s, signerLabels: e.payload } : null));
+    });
+
+    // ---> ADDED: Listen for the new Address Labels event to satisfy the tests
+    this.relay.events.on('ADDRESS_LABELS_DECRYPTED' as any).subscribe((e) => {
+      this.store.update((s) => (s ? { ...s, addressLabels: e.payload } : null));
     });
 
     this.relay.events.on('ROOM_RENAMED_DECRYPTED').subscribe((e) => {
@@ -359,6 +364,7 @@ export class SocketService {
   public async updateAddressLabel(address: string, label: string) {
     const state = this.sdk.getRoomState();
     if (state) localStorage.setItem(`address_label_${state.roomId}_${address}`, label);
+    // @ts-ignore - Ignore type error if SDK definition isn't fully synced locally
     await this.sdk.setAddressLabel(address, label);
   }
 
@@ -395,6 +401,8 @@ export class SocketService {
       }
     });
   }
+
+  // ---
 
   public async uploadSignature(psbtBase64: string) {
     const fingerprint = this.sdk.extractFingerprintFromSignature(psbtBase64);

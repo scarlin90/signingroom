@@ -352,6 +352,20 @@ describe('WidgetDispatcherService', () => {
       );
     });
 
+    it('emitAddressLabelled', () => {
+      service.emitAddressLabelled('bc1q...', 'Treasury');
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'addressLabelled',
+          payload: expect.objectContaining({
+            address: 'bc1q...',
+            label: 'Treasury',
+          }),
+        }),
+        TEST_ORIGIN,
+      );
+    });
+
     it('emitSecurityAlert', () => {
       service.emitSecurityAlert('access_denied', 'high', 'Alert!');
       expect(postMessageSpy).toHaveBeenCalledWith(

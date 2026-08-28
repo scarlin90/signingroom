@@ -115,6 +115,25 @@ test.describe('Room Management and OpSec', () => {
     });
   });
 
+  test('should allow labeling UTXO addresses', async () => {
+    // --- Interaction: Navigate to the Outputs tab ---
+    await roomPage.switchTab('Outputs');
+
+    // --- Interaction: Open the label modal for the first output ---
+    await roomPage.getEditAddressLabelButton('output', 0).click({ force: true });
+
+    // --- Verification: Modal should be visible ---
+    await expect(roomPage.addressLabelInput).toBeVisible();
+
+    // --- Interaction: Assign a new label ---
+    await roomPage.addressLabelInput.fill('Corporate Treasury Cold Storage');
+    await roomPage.saveAddressLabelButton.click();
+
+    // --- Verification: The label should be rendered on the specific card ---
+    const outputCard = roomPage.getOutputCard(0);
+    await expect(outputCard.getByText('Corporate Treasury Cold Storage')).toBeVisible();
+  });
+
   test('should record actions in the Audit Log and trigger download', async () => {
     // --- Interaction: room activity already generated with unveal for the log ---
 

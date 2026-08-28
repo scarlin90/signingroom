@@ -3,7 +3,7 @@ import { SocketService } from './socket.service';
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
 import { EncryptionEngine, PsbtUtils } from '@signing-room/sdk';
 import { Subject } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 describe('SocketService', () => {
   let service: SocketService;
@@ -12,6 +12,7 @@ describe('SocketService', () => {
   let roomConnectedSubject: Subject<void>;
   let sessionConnectedSubject: Subject<any>;
   let labelsDecryptedSubject: Subject<any>;
+  let addressLabelsDecryptedSubject: Subject<any>;
   let roomRenamedDecryptedSubject: Subject<any>;
   let logUpdateDecryptedSubject: Subject<any>;
   let connectionsDecryptedSubject: Subject<any>;
@@ -48,16 +49,12 @@ describe('SocketService', () => {
     roomConnectedSubject = new Subject<void>();
     sessionConnectedSubject = new Subject<any>();
     labelsDecryptedSubject = new Subject<any>();
+    addressLabelsDecryptedSubject = new Subject<any>();
     roomRenamedDecryptedSubject = new Subject<any>();
     logUpdateDecryptedSubject = new Subject<any>();
     connectionsDecryptedSubject = new Subject<any>();
     whitelistDecryptedSubject = new Subject<any>();
     participantsDecryptedSubject = new Subject<any>();
-    lockUpdatedSubject = new Subject<any>();
-    toggleLockSubject = new Subject<any>();
-    txFinalizedDecryptedSubject = new Subject<any>();
-    roomClosedSubject = new Subject<any>();
-    protocolErrorSubject = new Subject<any>();
     lockUpdatedSubject = new Subject<any>();
     toggleLockSubject = new Subject<any>();
     txFinalizedDecryptedSubject = new Subject<any>();
@@ -88,6 +85,7 @@ describe('SocketService', () => {
         getRoomState: vi.fn(),
         onStateChange: vi.fn().mockReturnValue(sdkStateChangeSubject.asObservable()),
         setSignerLabel: vi.fn().mockResolvedValue(undefined),
+        setAddressLabel: vi.fn().mockResolvedValue(undefined),
         getSignersStatus: vi.fn().mockReturnValue([]),
         finalizeTransaction: vi.fn().mockResolvedValue(undefined),
         setDisplayName: vi.fn().mockResolvedValue(undefined),
@@ -105,6 +103,8 @@ describe('SocketService', () => {
               if (eventName === 'SESSION_CONNECTED') return sessionConnectedSubject.asObservable();
               if (eventName === 'ROOM_DISCONNECTED') return roomDisconnectedSubject.asObservable();
               if (eventName === 'LABELS_DECRYPTED') return labelsDecryptedSubject.asObservable();
+              if (eventName === 'ADDRESS_LABELS_DECRYPTED')
+                return addressLabelsDecryptedSubject.asObservable();
               if (eventName === 'ROOM_RENAMED_DECRYPTED')
                 return roomRenamedDecryptedSubject.asObservable();
               if (eventName === 'LOG_UPDATE_DECRYPTED')
@@ -181,18 +181,28 @@ describe('SocketService', () => {
       labelsDecryptedSubject.next({ payload: mockPayload });
 
       expect(updateSpy).toHaveBeenCalledTimes(1);
-
-      // Extract the callback passed to this.store.update
       const updateCallback = updateSpy.mock.calls[0][0];
 
-      // Assert behavior when state is null
       expect(updateCallback(null)).toBeNull();
-
-      // Assert behavior when state exists
-      const existingState = { roomId: 'room_1' } as any;
-      expect(updateCallback(existingState)).toEqual({
+      expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
         roomId: 'room_1',
         signerLabels: mockPayload,
+      });
+    });
+
+    it('should update store with addressLabels when ADDRESS_LABELS_DECRYPTED is emitted', () => {
+      const updateSpy = vi.spyOn(service['store'], 'update');
+      const mockPayload = { tb1q123: 'Treasury Vault' };
+
+      addressLabelsDecryptedSubject.next({ payload: mockPayload });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      const updateCallback = updateSpy.mock.calls[0][0];
+
+      expect(updateCallback(null)).toBeNull();
+      expect(updateCallback({ roomId: 'room_1' } as any)).toEqual({
+        roomId: 'room_1',
+        addressLabels: mockPayload,
       });
     });
 
@@ -235,10 +245,8 @@ describe('SocketService', () => {
 
       connectionsDecryptedSubject.next({ payload: mockPayload });
 
-      // 1. Verify the Signal update
       expect(activeSessionsSpy).toHaveBeenCalledWith(mockPayload.sessions);
 
-      // 2. Verify the Store update
       expect(updateSpy).toHaveBeenCalledTimes(1);
       const updateCallback = updateSpy.mock.calls[0][0];
 
@@ -425,7 +433,6 @@ describe('SocketService', () => {
           (service as any).hasAnnouncedJoin = false;
           (service as any).failedKeyAttempts = 0;
 
-          // Create dummy subject if it doesn't exist on the service mock yet
           if (!(service as any).securityAlert$) (service as any).securityAlert$ = new Subject();
 
           const errorSetSpy = vi.spyOn(service.decryptionError, 'set');
@@ -451,7 +458,6 @@ describe('SocketService', () => {
 
           protocolErrorSubject.next({ payload: { type: 'access_denied' } });
 
-          // Should bypass the if block entirely
           expect(errorSetSpy).not.toHaveBeenCalled();
           expect(setRoomKeySpy).not.toHaveBeenCalled();
           expect((service as any).failedKeyAttempts).toBe(0);
@@ -463,13 +469,11 @@ describe('SocketService', () => {
       it('should pull fresh state from getRoomState and update the roomState signal', () => {
         const mockFreshState = { roomId: 'fresh_room_123' };
 
-        // Ensure getRoomState returns the fresh state
         const getRoomStateSpy = vi
           .spyOn(service.sdk, 'getRoomState')
           .mockReturnValue(mockFreshState as any);
         const roomStateSetSpy = vi.spyOn(service.roomState, 'set');
 
-        // Emitting an empty/ignored payload since the method ignores it anyway
         sdkStateChangeSubject.next({ some: 'old_event_data' });
 
         expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
@@ -479,12 +483,10 @@ describe('SocketService', () => {
 
     describe('ROOM_DISCONNECTED', () => {
       beforeEach(() => {
-        // Enable fake timers for this block so we can fast-forward the 3000ms setTimeout
         vi.useFakeTimers();
       });
 
       afterEach(() => {
-        // Clean up and return to real timers
         vi.runOnlyPendingTimers();
         vi.useRealTimers();
       });
@@ -497,7 +499,6 @@ describe('SocketService', () => {
 
         expect(service.status()).toBe('disconnected');
 
-        // Fast-forward 3 seconds
         vi.advanceTimersByTime(3000);
 
         expect(connectSpy).not.toHaveBeenCalled();
@@ -505,7 +506,6 @@ describe('SocketService', () => {
 
       it('should not reconnect if there is a terminal error present', () => {
         service.isClosed.set(false);
-        // Simulate a terminal error
         service.isLockedOut.set(true);
 
         const connectSpy = vi.spyOn(service, 'connect').mockResolvedValue();
@@ -527,11 +527,9 @@ describe('SocketService', () => {
 
         roomDisconnectedSubject.next({});
 
-        // Advance time partially, simulate someone manually triggering a connection
         vi.advanceTimersByTime(1000);
         service.status.set('connecting');
 
-        // Advance the rest of the way
         vi.advanceTimersByTime(2000);
 
         expect(connectSpy).not.toHaveBeenCalled();
@@ -774,12 +772,10 @@ describe('SocketService', () => {
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
     const statusSpy = vi.spyOn(service.status, 'set');
 
-    // 2. Act
     await service.connect('room_123', 'my_key');
 
-    // 3. Assert
     expect(encryptionDecryptSpy).toHaveBeenCalledWith('secure_admin_token', 'my_key');
-    expect(claimCoordinatorSpy).toHaveBeenCalledWith('decrypted_admin_token'); // Expect the decrypted token
+    expect(claimCoordinatorSpy).toHaveBeenCalledWith('decrypted_admin_token');
     expect(setDisplayNameSpy).toHaveBeenCalledWith('Alice');
     expect(statusSpy).toHaveBeenCalledWith('connected');
   });
@@ -961,7 +957,7 @@ describe('SocketService', () => {
   });
 
   it('should delegate getAuditLogPdf to the SDK', async () => {
-    const mockPdfBlob = new Blob(['pdf content'], { type: 'application/pdf' }); // Mocking a standard return type
+    const mockPdfBlob = new Blob(['pdf content'], { type: 'application/pdf' });
     const getAuditLogPdfSpy = vi
       .spyOn(service.sdk, 'getAuditLogPdf')
       .mockResolvedValue(mockPdfBlob as any);
@@ -1013,6 +1009,7 @@ describe('SocketService', () => {
     expect(service.decryptionError()).toBe('error');
   });
 
+  // --- SIGNER LABEL TESTS ---
   it('should retrieve a label from local storage based on fingerprint', () => {
     vi.spyOn(globalThis.localStorage, 'getItem').mockReturnValue('My Saved Label');
     const fingerprint = '1234abcd';
@@ -1076,17 +1073,16 @@ describe('SocketService', () => {
     expect(setSignerLabelSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('should return early if the user is not a coordinator', () => {
+  it('should return early if the user is not a coordinator (checkAndApplyLocalLabels)', () => {
     service.role.set('guest');
     const roomStateSpy = vi.spyOn(service, 'roomState');
 
     service.checkAndApplyLocalLabels();
 
-    // If it returned early, it should never have tried to read roomState
     expect(roomStateSpy).not.toHaveBeenCalled();
   });
 
-  it('should return early if roomState is null', () => {
+  it('should return early if roomState is null (checkAndApplyLocalLabels)', () => {
     service.role.set('admin');
     service.roomState.set(null);
     const signersSpy = vi.spyOn(service, 'signers');
@@ -1110,7 +1106,6 @@ describe('SocketService', () => {
 
     service.checkAndApplyLocalLabels();
 
-    // Should successfully fall back to {} and process the label
     expect(updateSignerLabelSpy).toHaveBeenCalledWith('fp_1', 'Charlie');
     expect(updateSignerLabelSpy).toHaveBeenCalledTimes(1);
   });
@@ -1136,18 +1131,92 @@ describe('SocketService', () => {
 
     service.checkAndApplyLocalLabels();
 
-    // Assert 'fp_exists' was skipped entirely because it was already in state
     expect(getLocalLabelSpy).not.toHaveBeenCalledWith('fp_exists');
-
-    // Assert 'fp_no_local' was checked locally, but not updated because no label was returned
     expect(getLocalLabelSpy).toHaveBeenCalledWith('fp_no_local');
     expect(updateSignerLabelSpy).not.toHaveBeenCalledWith('fp_no_local', expect.anything());
-
-    // Assert 'fp_has_local' was checked locally and successfully updated
     expect(getLocalLabelSpy).toHaveBeenCalledWith('fp_has_local');
     expect(updateSignerLabelSpy).toHaveBeenCalledWith('fp_has_local', 'Bob');
-
     expect(updateSignerLabelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // --- ADDRESS LABEL TESTS ---
+  describe('Address Labelling Methods', () => {
+    it('should update address label in local storage and delegate to the SDK', async () => {
+      const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
+      const getRoomStateSpy = vi
+        .spyOn(service.sdk, 'getRoomState')
+        .mockReturnValue({ roomId: 'room_1' } as any);
+      const setAddressLabelSpy = vi.spyOn(service.sdk, 'setAddressLabel');
+
+      const address = 'tb1q1234abcd';
+      const label = 'Treasury';
+
+      await service.updateAddressLabel(address, label);
+
+      expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
+      expect(setItemSpy).toHaveBeenCalledWith(`address_label_room_1_${address}`, label);
+      expect(setAddressLabelSpy).toHaveBeenCalledWith(address, label);
+      expect(setAddressLabelSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should retrieve an address label from local storage based on address', () => {
+      vi.spyOn(globalThis.localStorage, 'getItem').mockReturnValue('Vault A');
+      const address = 'tb1q123';
+
+      const result = service.getLocalAddressLabel(address);
+
+      expect(globalThis.localStorage.getItem).toHaveBeenCalledWith(`addr_book_address_${address}`);
+      expect(result).toBe('Vault A');
+    });
+
+    it('should save an address label to local storage', () => {
+      const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
+      const address = 'tb1q123';
+      const label = 'Vault A';
+
+      service.saveAddressToBook(address, label);
+
+      expect(setItemSpy).toHaveBeenCalledWith(`addr_book_address_${address}`, label);
+    });
+
+    it('should remove an address label from local storage', () => {
+      const removeItemSpy = vi.spyOn(globalThis.localStorage, 'removeItem');
+      const address = 'tb1q123';
+
+      service.removeAddressFromBook(address);
+
+      expect(removeItemSpy).toHaveBeenCalledWith(`addr_book_address_${address}`);
+    });
+
+    it('should check and apply local address labels if coordinator', () => {
+      service.role.set('admin');
+      service.roomState.set({ addressLabels: { tb1q_exists: 'Alice' } } as any);
+
+      vi.spyOn(service, 'txDetails').mockReturnValue({
+        inputsList: [{ address: 'tb1q_exists' }, { address: 'tb1q_no_local' }],
+        outputs: [{ address: 'tb1q_has_local' }],
+      } as any);
+
+      const getLocalLabelSpy = vi
+        .spyOn(service, 'getLocalAddressLabel')
+        .mockImplementation((addr) => {
+          if (addr === 'tb1q_has_local') return 'Bob';
+          return null;
+        });
+
+      const updateAddressLabelSpy = vi
+        .spyOn(service, 'updateAddressLabel')
+        .mockResolvedValue(undefined);
+
+      service.checkAndApplyLocalAddressLabels();
+
+      expect(getLocalLabelSpy).not.toHaveBeenCalledWith('tb1q_exists');
+      expect(getLocalLabelSpy).toHaveBeenCalledWith('tb1q_no_local');
+      expect(updateAddressLabelSpy).not.toHaveBeenCalledWith('tb1q_no_local', expect.anything());
+      expect(getLocalLabelSpy).toHaveBeenCalledWith('tb1q_has_local');
+      expect(updateAddressLabelSpy).toHaveBeenCalledWith('tb1q_has_local', 'Bob');
+      expect(updateAddressLabelSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('should extract the fingerprint and upload the signature', async () => {
