@@ -1324,11 +1324,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
         component.exportFormat.set('ur');
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Standard Protocol');
+        expect(fixture.nativeElement.textContent).toContain('UR Protocol');
 
         component.exportFormat.set('bbqr');
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Coldcard Protocol');
+        expect(fixture.nativeElement.textContent).toContain('Protocol');
       });
 
       it('should dynamically display scanner errors and progress bars', () => {

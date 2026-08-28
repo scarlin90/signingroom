@@ -156,7 +156,7 @@ async function runDemo() {
     const aliceFingerprint = aliceClient.extractFingerprintFromSignature(ALICE_SIGNED_PSBT);
     if (aliceFingerprint) {
       console.log(`-> Coordinator setting Alices Signing Device Label [FP: ${aliceFingerprint}]`);
-      coordinatorClient.setSignerLabel(aliceFingerprint, 'Alices Coldcard');
+      coordinatorClient.setSignerLabel(aliceFingerprint, 'Alices Wallet');
       console.log(`-> Pushing Alice's Signature [FP: ${aliceFingerprint}]`);
       aliceClient.uploadSignature(ALICE_SIGNED_PSBT, aliceFingerprint);
     }

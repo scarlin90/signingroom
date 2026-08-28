@@ -25,7 +25,7 @@
                 </p>
             </div>
             <p class="text-xs text-brand-text-muted leading-relaxed">
-                You are downloading this to transfer to a Coldcard or air-gapped hardware wallet. Because this file is plaintext, please ensure it is securely handled, archived, or wiped after use according to your security procedures.
+                You are downloading this to transfer to a air-gapped hardware wallet. Because this file is plaintext, please ensure it is securely handled, archived, or wiped after use according to your security procedures.
             </p>
             <div class="flex gap-3 mt-2">
                 <button id="btn-cancel-download" (click)="showPsbtModal.set(false)" class="flex-1 py-2.5 rounded-lg border border-brand-card-border text-brand-text-muted hover:text-brand-text hover:bg-brand-card-border/50 transition font-bold text-xs cursor-pointer">
@@ -638,7 +638,7 @@
                         [class.bg-brand-card-border]="exportFormat() === 'bbqr'"
                         [class.text-amber-400]="exportFormat() === 'bbqr'"
                         [class.text-brand-text-muted]="exportFormat() !== 'bbqr'">
-                    Coldcard (BBQr)
+                    BBQr
                 </button>
             </div>
 
@@ -646,14 +646,14 @@
                 <div class="w-full bg-brand-accent/10 border border-brand-accent/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
                     <svg lucideShield class="w-5 h-5 text-brand-accent shrink-0"></svg>
                     <p class="text-xs text-brand-accent/80 leading-relaxed">
-                        <strong>Standard Protocol:</strong> Optimized for Keystone, Passport, and standard hardware wallets. Adjust the speed slider for compatibility and performance.
+                        <strong>UR Protocol:</strong> Optimized for hardware devices supporting with UR. Adjust the speed slider for compatibility and performance.
                     </p>
                 </div>
             } @else {
                 <div class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
                     <svg lucideShield class="w-5 h-5 text-amber-500 shrink-0"></svg>
                     <p class="text-xs text-amber-200/80 leading-relaxed">
-                        <strong>Coldcard Protocol:</strong> Optimized for Coinkite Coldcard devices. Adjust the speed slider for compatibility and performance.
+                        <strong>BBQR Protocol:</strong> Optimized for hardware devices supporting BBQR. Adjust the speed slider for compatibility and performance.
                     </p>
                 </div>
             }

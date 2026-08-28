@@ -98,7 +98,7 @@ describe('UrService', () => {
     });
   });
 
-  describe('BBQr Processing (Coldcard / B$)', () => {
+  describe('BBQr Processing (B$)', () => {
     it('should correctly identify and route a single-part BBQr code', () => {
       // B$HP0100 -> Hex encoding (H), Padding (P), 01 total part, 00 index
       const result = service.processFragment('B$HP0100MOCKHEXDATA');

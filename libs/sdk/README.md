@@ -103,7 +103,7 @@ The Coordinator can rename the room, map signer fingerprints, label UTXO address
 await coordinator.setRoomName('Q1 Settlement - Approved');
 
 // Associate a fingerprint with a human-readable label
-await coordinator.setSignerLabel('fe0fa7b4', "Alice's Coldcard MK4");
+await coordinator.setSignerLabel('fe0fa7b4', "Alice's Wallet");
 
 // Update approved destination/source addresses
 const approvedAddresses = [

@@ -754,7 +754,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // ==========================================
     await frame.getByRole('button', { name: 'Show QR' }).first().click();
 
-    const bbqrBtn = frame.getByRole('button', { name: 'Coldcard (BBQr)' });
+    const bbqrBtn = frame.getByRole('button', { name: 'BBQr' });
     await expect(bbqrBtn).toBeVisible();
 
     // Verify Fountain Reveal (Should default to 'ur')
