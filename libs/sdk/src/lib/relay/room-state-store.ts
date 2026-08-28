@@ -49,6 +49,8 @@ export interface RoomState {
   auditLog: AuditEntry[];
   /** Cryptographic hardware key identifiers matched against human-readable custom aliases. */
   signerLabels: Record<string, string>;
+  /** Cryptographic utxo identifiers matched against human-readable custom aliases. */
+  addressLabels: Record<string, string>;
   /** Explicit list containing authorized public access keys permitted inside the workspace. */
   whitelist: string[];
   /** Dictionary caching active participant entities tracked by unique public identifiers. */
@@ -81,6 +83,9 @@ export class RoomStateStore {
     this.events
       .on('LABELS_DECRYPTED')
       .subscribe((e) => this.updatePartial({ signerLabels: e.payload }));
+    this.events
+      .on('ADDRESS_LABELS_DECRYPTED')
+      .subscribe((e) => this.updatePartial({ addressLabels: e.payload }));
     this.events
       .on('ROOM_RENAMED_DECRYPTED')
       .subscribe((e) => this.updatePartial({ roomName: e.payload }));
@@ -147,6 +152,7 @@ export class RoomStateStore {
       expiresAt: Date.now() + 1200000,
       auditLog: [],
       signerLabels: {},
+      addressLabels: {},
       roomName: 'Signing Room',
       whitelist: [],
       participants: {},

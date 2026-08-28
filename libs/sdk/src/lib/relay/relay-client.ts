@@ -18,6 +18,8 @@ export class RelayClient {
   private encryptionKey: string | null = null;
   /** Local cache mapping blinded hex-string tokens back to physical 8-character hardware wallet fingerprints. */
   public blindFingerprintMap = new Map<string, string>();
+  /** Local cache mapping blinded utxo addresses back to unblinded utxo addresses. */
+  public blindAddressMap = new Map<string, string>();
 
   /**
    * Initializes a fresh instance of the RelayClient coordination module.
@@ -149,6 +151,12 @@ export class RelayClient {
       case 'LABELS_UPDATED':
         this.events.dispatch('LABELS_DECRYPTED', await this.decryptLabels(msg.signerLabels));
         break;
+      case 'ADDRESS_LABELS_UPDATED':
+        this.events.dispatch(
+          'ADDRESS_LABELS_DECRYPTED',
+          await this.decryptAddressLabels(msg.addressLabels),
+        );
+        break;
       case 'ROOM_RENAMED':
         if (msg.encryptedName && this.encryptionKey) {
           try {
@@ -265,9 +273,24 @@ export class RelayClient {
 
     if (mergedPsbt) {
       await this.registerAllFingerprints(mergedPsbt);
+
+      const txDetails = PsbtUtils.parseTxDetails(mergedPsbt, msg.network || 'bitcoin');
+      if (txDetails) {
+        const allAddresses = [
+          ...(txDetails.inputsList?.map((i: any) => i.address) || []),
+          ...(txDetails.outputs?.map((o: any) => o.address) || []),
+        ];
+        for (const addr of allAddresses) {
+          if (addr) {
+            const blinded = await this.crypto.blindData(addr, this.encryptionKey!);
+            this.blindAddressMap.set(blinded, addr);
+          }
+        }
+      }
     }
 
     const decryptedLabels = await this.decryptLabels(msg.signerLabels || {});
+    const decryptedAddressLabels = await this.decryptAddressLabels(msg.addressLabels || {});
     const decryptedLog = await this.decryptAuditLog(msg.auditLog || []);
     const decryptedParticipants = await this.decryptParticipants(msg.participants || {});
 
@@ -312,6 +335,10 @@ export class RelayClient {
       psbt: mergedPsbt,
       signatures: decryptedHistory,
       signerLabels: Object.keys(decryptedLabels).length > 0 ? decryptedLabels : msg.signerLabels,
+      addressLabels:
+        Object.keys(decryptedAddressLabels).length > 0
+          ? decryptedAddressLabels
+          : msg.addressLabels || {},
       auditLog: decryptedLog,
       whitelist: decryptedWhitelist,
       participants:
@@ -418,6 +445,29 @@ export class RelayClient {
             : encryptedLabel;
       } catch (e) {
         decryptedLabels[realFp] = encryptedLabel;
+      }
+    }
+    return decryptedLabels;
+  }
+
+  /**
+   * Re-evaluates UTXO address tags, matching real addresses to readable identifiers.
+   */
+  private async decryptAddressLabels(
+    encryptedLabels: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const decryptedLabels: Record<string, string> = {};
+    if (!encryptedLabels || !this.encryptionKey) return decryptedLabels;
+
+    for (const [blindedAddr, encryptedLabel] of Object.entries(encryptedLabels)) {
+      const realAddr = this.blindAddressMap.get(blindedAddr) || blindedAddr;
+      try {
+        decryptedLabels[realAddr] =
+          encryptedLabel.length >= 40
+            ? await this.crypto.decrypt(encryptedLabel, this.encryptionKey)
+            : encryptedLabel;
+      } catch (e) {
+        decryptedLabels[realAddr] = encryptedLabel;
       }
     }
     return decryptedLabels;
@@ -577,6 +627,33 @@ export class RelayClient {
     this.blindFingerprintMap.set(blindedFingerprint, fingerprint);
     this.send('UPDATE_LABEL', {
       fingerprint: blindedFingerprint,
+      label: encryptedLabel,
+      encryptedLogBlob,
+    });
+  }
+
+  /**
+   * Overwrites metadata descriptions linking specific UTXO addresses to custom names.
+   * @param address - Raw Bitcoin address.
+   * @param label - Custom user identification nickname mapping string.
+   */
+  public async updateAddressLabel(address: string, label: string, user: string) {
+    if (!this.encryptionKey) return;
+    const safeLabel = label || '';
+    const blindedAddress = await this.crypto.blindData(address, this.encryptionKey);
+    const encryptedLabel = await this.crypto.encrypt(safeLabel, this.encryptionKey);
+
+    const shortAddr =
+      address.length > 8 ? `${address.slice(0, 4)}...${address.slice(-4)}` : address;
+    const encryptedLogBlob = await this.createSecureLogBlob(
+      'Address Label Updated',
+      `${safeLabel} (${shortAddr})`,
+      user,
+    );
+
+    this.blindAddressMap.set(blindedAddress, address);
+    this.send('UPDATE_ADDRESS_LABEL', {
+      blindedAddress,
       label: encryptedLabel,
       encryptedLogBlob,
     });

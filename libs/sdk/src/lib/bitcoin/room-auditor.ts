@@ -451,10 +451,15 @@ export class RoomAuditor {
         const isWhitelisted = whitelist.includes(inpt.address);
         const amount = (inpt.amount / 100000000).toFixed(8);
 
+        const label = state.addressLabels?.[inpt.address];
+        const displayAddress = label
+          ? `${label} (${inpt.address.substring(0, 12)}...)`
+          : inpt.address;
+
         doc.setFontSize(8);
         doc.setTextColor(50);
         doc.setFont('courier', 'normal');
-        doc.text(`${i + 1}. ${inpt.address}`, 20, y);
+        doc.text(`${i + 1}. ${displayAddress}`, 20, y);
         y += 4;
 
         doc.setFont('helvetica', 'bold');
@@ -506,10 +511,15 @@ export class RoomAuditor {
         const isWhitelisted = whitelist.includes(out.address);
         const amount = (out.amount / 100000000).toFixed(8);
 
+        const label = state.addressLabels?.[out.address];
+        const displayAddress = label
+          ? `${label} (${out.address.substring(0, 12)}...)`
+          : out.address;
+
         doc.setFontSize(8);
         doc.setTextColor(50);
         doc.setFont('courier', 'normal');
-        doc.text(`${i + 1}. ${out.address}`, 20, y);
+        doc.text(`${i + 1}. ${displayAddress}`, 20, y);
         y += 4;
 
         doc.setFont('helvetica', 'bold');

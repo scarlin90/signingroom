@@ -261,6 +261,17 @@ export class SigningRoomClient {
     await confirmation;
   }
 
+  /**
+   * Assigns a human-readable label to a UTXO address.
+   * @param address - The raw Bitcoin address.
+   * @param label - The label to apply.
+   */
+  public async setAddressLabel(address: string, label: string) {
+    const confirmation = this.waitForEvent('ADDRESS_LABELS_DECRYPTED');
+    await this.relay.updateAddressLabel(address, label, this.userContext);
+    await confirmation;
+  }
+
   /** * Assigns a human-readable label to a hardware device fingerprint.
    * @param fingerprint - The master key fingerprint.
    * @param label - The label to apply.
