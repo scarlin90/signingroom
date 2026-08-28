@@ -277,14 +277,6 @@ export class RoomComponent implements OnInit, OnDestroy {
     });
 
     effect(() => {
-      if (this.socket.isCoordinator()) {
-        const _ = this.socket.signers();
-        this.socket.checkAndApplyLocalLabels();
-        this.socket.checkAndApplyLocalAddressLabels();
-      }
-    });
-
-    effect(() => {
       const state = this.socket.roomState();
       const signers = this.socket.signers();
 

@@ -27,6 +27,7 @@ export class SocketService {
   private encryptionEngine: EncryptionEngine;
 
   private hasAnnouncedJoin = false;
+  private hasSyncedLocalAddressBook = false;
   public securityAlert$ = new Subject<{ type: 'access_denied'; count: number }>();
   private fallbackVersion: string | null = null;
   private failedKeyAttempts = 0;
@@ -176,6 +177,14 @@ export class SocketService {
       if (!this.hasAnnouncedJoin && this.currentSessionId() && !hasAdminToken) {
         this.hasAnnouncedJoin = true;
       }
+
+      if (this.isCoordinator() && !this.hasSyncedLocalAddressBook) {
+        this.hasSyncedLocalAddressBook = true;
+        setTimeout(() => {
+          this.checkAndApplyLocalLabels();
+          this.checkAndApplyLocalAddressLabels();
+        }, 50);
+      }
     });
 
     this.relay.events.on('NEW_PARTIAL_DECRYPTED').subscribe((event) => {
@@ -201,6 +210,14 @@ export class SocketService {
 
       if (!this.hasAnnouncedJoin && newRole === 'admin') {
         this.hasAnnouncedJoin = true;
+      }
+
+      if (newRole === 'admin' && !this.hasSyncedLocalAddressBook) {
+        this.hasSyncedLocalAddressBook = true;
+        setTimeout(() => {
+          this.checkAndApplyLocalLabels();
+          this.checkAndApplyLocalAddressLabels();
+        }, 50);
       }
     });
   }
@@ -389,12 +406,12 @@ export class SocketService {
     const txDetails = this.txDetails();
     if (!txDetails) return;
 
-    const allAddresses = [
+    const uniqueAddresses = new Set([
       ...(txDetails.inputsList?.map((i) => i.address) || []),
       ...(txDetails.outputs?.map((o) => o.address) || []),
-    ];
+    ]);
 
-    allAddresses.forEach((address) => {
+    uniqueAddresses.forEach((address) => {
       if (address && currentLabels[address] === undefined) {
         const savedName = this.getLocalAddressLabel(address);
         if (savedName) this.updateAddressLabel(address, savedName);
@@ -448,6 +465,8 @@ export class SocketService {
 
     this.activeSessions.set([]);
     this.status.set('disconnected');
+
+    this.hasSyncedLocalAddressBook = false;
   }
 
   private clearLocalRoomData(roomId: string) {
