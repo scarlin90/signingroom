@@ -293,6 +293,7 @@ export class SigningRoom implements DurableObject {
 				expiresAt: now + ttlSeconds * 1000,
 				auditLog: [],
 				signerLabels: {},
+				addressLabels: {},
 				whitelist: [],
 				participants: {},
 				isLocked: false,
@@ -479,6 +480,9 @@ export class SigningRoom implements DurableObject {
 
 			// Label Updates (Admin Only)
 			if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
+				if (msg.label && msg.label.length > 200) {
+					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Label payload too large.' }));
+				}
 				if (!this.roomState.signerLabels) this.roomState.signerLabels = {};
 
 				// msg.label is now a secure Base64 blob, so no need to sanitize!
@@ -488,6 +492,21 @@ export class SigningRoom implements DurableObject {
 
 				this.log(msg.encryptedLogBlob);
 				this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
+			}
+
+			// Address Label Updates (Admin Only)
+			if (msg.type === 'UPDATE_ADDRESS_LABEL' && session?.role === 'admin') {
+				if (msg.label && msg.label.length > 200) {
+					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Label payload too large.' }));
+				}
+				if (!this.roomState.addressLabels) this.roomState.addressLabels = {};
+
+				this.roomState.addressLabels[msg.blindedAddress] = msg.label;
+
+				await this.saveRoomState();
+
+				await this.log(msg.encryptedLogBlob);
+				this.broadcast({ type: 'ADDRESS_LABELS_UPDATED', addressLabels: this.roomState.addressLabels });
 			}
 
 			// Set Display Name (Self-Identify)

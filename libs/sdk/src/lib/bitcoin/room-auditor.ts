@@ -447,20 +447,31 @@ export class RoomAuditor {
       y += 6;
     } else {
       inputs.forEach((inpt, i) => {
-        checkPageBreak(15);
+        checkPageBreak(25);
         const isWhitelisted = whitelist.includes(inpt.address);
         const amount = (inpt.amount / 100000000).toFixed(8);
 
         const label = state.addressLabels?.[inpt.address];
-        const displayAddress = label
-          ? `${label} (${inpt.address.substring(0, 12)}...)`
-          : inpt.address;
 
-        doc.setFontSize(8);
-        doc.setTextColor(50);
-        doc.setFont('courier', 'normal');
-        doc.text(`${i + 1}. ${displayAddress}`, 20, y);
-        y += 4;
+        if (label) {
+          doc.setFontSize(9);
+          doc.setTextColor(0);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${i + 1}. ${label}`, 20, y);
+          y += 6;
+
+          doc.setFontSize(8);
+          doc.setTextColor(50);
+          doc.setFont('courier', 'normal');
+          doc.text(inpt.address, 25, y);
+          y += 6;
+        } else {
+          doc.setFontSize(8);
+          doc.setTextColor(50);
+          doc.setFont('courier', 'normal');
+          doc.text(`${i + 1}. ${inpt.address}`, 20, y);
+          y += 5;
+        }
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
@@ -478,7 +489,7 @@ export class RoomAuditor {
           doc.text('UNVERIFIED', 150, y);
         }
 
-        y += 8;
+        y += 10;
       });
     }
     y += 10;
@@ -507,20 +518,31 @@ export class RoomAuditor {
       y += 6;
     } else {
       outputs.forEach((out, i) => {
-        checkPageBreak(15);
+        checkPageBreak(25);
         const isWhitelisted = whitelist.includes(out.address);
         const amount = (out.amount / 100000000).toFixed(8);
 
         const label = state.addressLabels?.[out.address];
-        const displayAddress = label
-          ? `${label} (${out.address.substring(0, 12)}...)`
-          : out.address;
 
-        doc.setFontSize(8);
-        doc.setTextColor(50);
-        doc.setFont('courier', 'normal');
-        doc.text(`${i + 1}. ${displayAddress}`, 20, y);
-        y += 4;
+        if (label) {
+          doc.setFontSize(9);
+          doc.setTextColor(0);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${i + 1}. ${label}`, 20, y);
+          y += 6;
+
+          doc.setFontSize(8);
+          doc.setTextColor(50);
+          doc.setFont('courier', 'normal');
+          doc.text(out.address, 25, y);
+          y += 6;
+        } else {
+          doc.setFontSize(8);
+          doc.setTextColor(50);
+          doc.setFont('courier', 'normal');
+          doc.text(`${i + 1}. ${out.address}`, 20, y);
+          y += 5;
+        }
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
@@ -534,14 +556,14 @@ export class RoomAuditor {
           doc.setTextColor(245, 158, 11);
           doc.text('CHANGE (VERIFIED)', 150, y);
         } else if (isWhitelisted) {
-          doc.setTextColor(16, 185, 129); // Green
+          doc.setTextColor(16, 185, 129);
           doc.text('VERIFIED DESTINATION', 150, y);
         } else {
-          doc.setTextColor(220, 38, 38); // Red
+          doc.setTextColor(220, 38, 38);
           doc.text('UNVERIFIED', 150, y);
         }
 
-        y += 8;
+        y += 10;
       });
 
       doc.setDrawColor(200);

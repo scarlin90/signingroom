@@ -354,6 +354,48 @@ export class SocketService {
     });
   }
 
+  // --- ADDRESS LABEL METHODS ---
+
+  public async updateAddressLabel(address: string, label: string) {
+    const state = this.sdk.getRoomState();
+    if (state) localStorage.setItem(`address_label_${state.roomId}_${address}`, label);
+    await this.sdk.setAddressLabel(address, label);
+  }
+
+  getLocalAddressLabel(address: string): string | null {
+    return localStorage.getItem(`addr_book_address_${address}`);
+  }
+
+  saveAddressToBook(address: string, label: string) {
+    localStorage.setItem(`addr_book_address_${address}`, label);
+  }
+
+  removeAddressFromBook(address: string) {
+    localStorage.removeItem(`addr_book_address_${address}`);
+  }
+
+  checkAndApplyLocalAddressLabels() {
+    if (!this.isCoordinator()) return;
+    const state = this.roomState();
+    if (!state) return;
+
+    const currentLabels = state.addressLabels || {};
+    const txDetails = this.txDetails();
+    if (!txDetails) return;
+
+    const allAddresses = [
+      ...(txDetails.inputsList?.map((i) => i.address) || []),
+      ...(txDetails.outputs?.map((o) => o.address) || []),
+    ];
+
+    allAddresses.forEach((address) => {
+      if (address && currentLabels[address] === undefined) {
+        const savedName = this.getLocalAddressLabel(address);
+        if (savedName) this.updateAddressLabel(address, savedName);
+      }
+    });
+  }
+
   public async uploadSignature(psbtBase64: string) {
     const fingerprint = this.sdk.extractFingerprintFromSignature(psbtBase64);
     if (!fingerprint) throw new Error('Could not extract fingerprint from PSBT');

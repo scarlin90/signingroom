@@ -615,7 +615,7 @@ export class RelayClient {
    */
   public async updateSignerLabel(fingerprint: string, label: string, user: string) {
     if (!this.encryptionKey) return;
-    const safeLabel = label || '';
+    const safeLabel = label ? label.substring(0, 64) : '';
     const blindedFingerprint = await this.crypto.blindData(fingerprint, this.encryptionKey);
     const encryptedLabel = await this.crypto.encrypt(safeLabel, this.encryptionKey);
     const encryptedLogBlob = await this.createSecureLogBlob(
@@ -639,7 +639,7 @@ export class RelayClient {
    */
   public async updateAddressLabel(address: string, label: string, user: string) {
     if (!this.encryptionKey) return;
-    const safeLabel = label || '';
+    const safeLabel = label ? label.substring(0, 64) : '';
     const blindedAddress = await this.crypto.blindData(address, this.encryptionKey);
     const encryptedLabel = await this.crypto.encrypt(safeLabel, this.encryptionKey);
 
