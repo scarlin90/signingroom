@@ -91,16 +91,22 @@ async function runDemo() {
   console.log('-> Charlie joined the room.');
 
   // ==========================================
-  // SECTION 3: Address Approval & Room Locking
+  // SECTION 3: Address Approval & Labelling
   // ==========================================
-  await wait('3. Address Approval & Room Locking');
-  printHeader('Phase 3: Operational Security Constraints');
+  await wait('3. Address Approval, Labelling & Room Locking');
+  printHeader('Phase 3: Operational Security Constraints & Labelling');
 
   console.log(`-> Whitelisting Input:  ...${WHITELIST_INPUT.slice(-8)}`);
   await coordinatorClient.updateWhitelist([WHITELIST_INPUT]);
 
+  console.log(`-> Labelling Input:     ...${WHITELIST_INPUT.slice(-8)} as 'Primary Vault'`);
+  await coordinatorClient.setAddressLabel(WHITELIST_INPUT, 'Primary Vault');
+
   console.log(`-> Whitelisting Output: ...${WHITELIST_OUTPUT.slice(-8)}`);
   await coordinatorClient.updateWhitelist([WHITELIST_OUTPUT]);
+
+  console.log(`-> Labelling Output:    ...${WHITELIST_OUTPUT.slice(-8)} as 'Corporate Treasury'`);
+  await coordinatorClient.setAddressLabel(WHITELIST_OUTPUT, 'Corporate Treasury');
 
   console.log('-> Engaging Room Lock...');
   await coordinatorClient.toggleLock(true);

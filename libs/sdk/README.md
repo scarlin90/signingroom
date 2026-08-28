@@ -96,7 +96,7 @@ guest.onStateChange().subscribe((state) => {
 
 ## 3. Room Management & Operational Security
 
-The Coordinator can rename the room, map signer fingerprints, manage address whitelists, and lock the room.
+The Coordinator can rename the room, map signer fingerprints, label UTXO addresses, manage address whitelists, and lock the room.
 
 ```javascript
 // Rename the room
@@ -112,6 +112,12 @@ const approvedAddresses = [
 ];
 
 await coordinator.updateWhitelist(approvedAddresses, false);
+
+// Associate a UTXO address with a human-readable label
+await coordinator.setAddressLabel(
+  'tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc',
+  'Corporate Treasury',
+);
 
 // Prevent any new participants from joining
 await coordinator.toggleLock(true, 'Coordinator');

@@ -94,6 +94,7 @@
                     <span class="text-xl font-bold tracking-tight text-slate-100">
                         Signing Room®<span class="text-emerald-400">.io</span>
                     </span>
+                    
                 </div>
             </div>
         </div>
@@ -268,7 +269,7 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
                 <p class="mt-4 mb-2"><strong style="color: var(--accent);">transactionFinalized</strong>: Fired when the Coordinator successfully aggregates all required signatures and finalizes the transaction.</p>
                 <div class="code-block">
 <span class="code-tag">export interface</span> TransactionFinalizedPayload <span class="code-tag">extends</span> BaseEventContext {
-  txId: <span class="code-tag">string</span>;           <span class="code-comment">// The final SHA256 transaction ID</span>
+  txId: <span class="code-tag">string</span>;          <span class="code-comment">// The final SHA256 transaction ID</span>
   txHex: <span class="code-tag">string</span>;          <span class="code-comment">// The broadcast-ready raw hex</span>
   auditPdfUri: <span class="code-tag">string</span>;    <span class="code-comment">// Base64 Data URI of the generated PDF</span>
   auditLogCsv: <span class="code-tag">string</span>;    <span class="code-comment">// Formatted CSV string of events</span>
@@ -347,6 +348,14 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
   signerLabel?: <span class="code-tag">string</span>; <span class="code-comment">// The label assigned to this hardware by the Coordinator</span>
   signerSessionId?: <span class="code-tag">string</span>; <span class="code-comment">// The session ID of the user submitting (if known)</span>
   signerName?: <span class="code-tag">string</span>; <span class="code-comment">// The display name of the user submitting (if known)</span>
+}
+                </div>
+
+                <p class="mt-4 mb-2"><strong style="color: var(--accent);">addressLabelled</strong>: Fired when the Coordinator assigns a human-readable alias to a UTXO address.</p>
+                <div class="code-block">
+<span class="code-tag">export interface</span> AddressLabelledPayload <span class="code-tag">extends</span> BaseEventContext {
+  address: <span class="code-tag">string</span>; <span class="code-comment">// The raw UTXO address being labeled</span>
+  label: <span class="code-tag">string</span>;   <span class="code-comment">// The custom assigned alias</span>
 }
                 </div>
 
@@ -453,6 +462,7 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
   isLocked: <span class="code-tag">boolean</span>;
   auditLog: AuditEntry[];
   signerLabels: Record&lt;<span class="code-tag">string</span>, <span class="code-tag">string</span>&gt;; 
+  addressLabels: Record&lt;<span class="code-tag">string</span>, <span class="code-tag">string</span>&gt;; 
   whitelist: <span class="code-tag">string</span>[];
   participants?: Record&lt;<span class="code-tag">string</span>, { 
     id: <span class="code-tag">string</span>; 
@@ -627,6 +637,12 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
                 const label = data.signerLabel ? `"${data.signerLabel}"` : `[${data.fingerprint}]`;
                 const sessionInfo = data.signerSessionId ? ` via Session [${data.signerSessionId.substring(0, 8)}]` : '';
                 log(`${getContextPrefix(data)} Network: Signature received for ${label}${name}${sessionInfo}`);
+            });
+
+            newWidget.addEventListener('addressLabelled', (e) => {
+                const data = e.detail;
+                const shortAddr = data.address ? `${data.address.substring(0, 6)}...${data.address.substring(data.address.length - 6)}` : '';
+                log(`${getContextPrefix(data)} Label: UTXO [${shortAddr}] labelled as "${data.label}"`);
             });
 
             newWidget.addEventListener('psbtImported', (e) => {

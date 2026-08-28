@@ -657,7 +657,10 @@ export class RoomComponent implements OnInit, OnDestroy {
       } else {
         this.socket.removeAddressFromBook(address);
       }
+
+      this.dispatcher.emitAddressLabelled(address, label);
     }
+
     this.closeAddressLabelModal();
   }
 
