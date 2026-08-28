@@ -1,6 +1,6 @@
 {
   "name": "@signing-room/source",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "license": "AGPL-3.0",
   "author": {
     "name": "Stateless Research Ltd",
@@ -13,7 +13,6 @@
   },
   "private": true,
   "dependencies": {
-    "@angular-devkit/build-angular": "^22.0.0",
     "@angular/common": "^22.0.0",
     "@angular/compiler": "^22.0.0",
     "@angular/core": "^22.0.0",
@@ -37,11 +36,13 @@
     "qrcode": "^1.5.4",
     "rxjs": "7.8.2",
     "ws": "^8.21.3",
-    "zone.js": "0.16.2"
+    "zone.js": "0.16.2",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
+    "image-size": "2.0.2",
     "@analogjs/vite-plugin-angular": "2.2.3",
-    "@analogjs/vitest-angular": "2.6.4",
+    "@analogjs/vitest-angular": "2.7.0",
     "@angular-devkit/architect": "^0.2200.0",
     "@angular-devkit/core": "^22.0.0",
     "@angular-devkit/schematics": "^22.0.0",
@@ -78,9 +79,9 @@
     "@types/node": "^26.1.2",
     "@types/qrcode": "^1.5.6",
     "@typescript-eslint/utils": "^8.67.0",
-    "@vitest/coverage-istanbul": "4.1.9",
-    "@vitest/coverage-v8": "4.1.9",
-    "@vitest/ui": "4.1.9",
+    "@vitest/coverage-istanbul": "4.1.10",
+    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/ui": "4.1.10",
     "ajv": "^8.0.0",
     "angular-eslint": "^22.0.0",
     "autoprefixer": "^10.4.22",
@@ -100,16 +101,17 @@
     "typescript-eslint": "^8.40.0",
     "verdaccio": "^6.3.2",
     "vite": "8.1.0",
-    "vite-plugin-dts": "~4.5.0",
+    "vite-plugin-dts": "~5.0.3",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "4.1.9"
+    "vitest": "4.1.10"
   },
   "overrides": {
-    "@vitejs/plugin-basic-ssl": {
-      "vite": "$vite"
-    },
+    "vitest": "$vitest",
+    "@vitest/coverage-istanbul": "$@vitest/coverage-istanbul",
+    "@vitest/coverage-v8": "$@vitest/coverage-v8",
+    "@vitest/ui": "$@vitest/ui",
+    "@angular/ssr": "$@angular/ssr",
     "rxjs": "7.8.2",
-    "@angular-devkit/build-angular": "^22.0.0",
     "@angular-devkit/architect": "^0.2200.0",
     "@angular/build": "^22.0.0",
     "@angular/cli": "^22.0.0",
@@ -118,7 +120,7 @@
     "@angular/core": "^22.0.0",
     "typescript": "^6.0.0",
     "undici": "^7.29.0",
-    "uuid": "^11.1.1",
+    "uuid": "$uuid",
     "yaml": "^2.8.3",
     "brace-expansion": "^5.0.9",
     "@hono/node-server": "^2.0.5",
@@ -131,14 +133,15 @@
     "nanoid": "^3.3.18"
   },
   "allowScripts": {
-    "@parcel/watcher@2.5.6": true,
+    "@parcel/watcher@2.6.0": true,
     "@swc/core@1.15.8": true,
-    "core-js@3.49.0": true,
-    "lmdb@3.5.1": true,
+    "core-js@3.50.0": true,
+    "esbuild@0.28.2": true,
+    "lmdb@3.5.6": true,
     "msgpackr-extract@3.0.4": true,
     "sharp@0.34.5": true,
     "unrs-resolver@1.12.2": true,
-    "nx@23.0.1": true,
+    "nx@23.1.2": true,
     "workerd@1.20260804.1": true
   }
 }
