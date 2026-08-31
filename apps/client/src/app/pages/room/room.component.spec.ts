@@ -1307,13 +1307,17 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         component.viewMode.set('inputs');
         fixture.detectChanges();
         expect(
-          fixture.nativeElement.querySelector('input[placeholder="Search input address..."]'),
+          fixture.nativeElement.querySelector(
+            'input[placeholder="Search inputs by address or label..."]',
+          ),
         ).toBeTruthy();
 
         component.viewMode.set('outputs');
         fixture.detectChanges();
         expect(
-          fixture.nativeElement.querySelector('input[placeholder="Search output address..."]'),
+          fixture.nativeElement.querySelector(
+            'input[placeholder="Search outputs by address or label..."]',
+          ),
         ).toBeTruthy();
       });
 
