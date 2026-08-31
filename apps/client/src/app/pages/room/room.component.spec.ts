@@ -318,6 +318,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
             { address: 'bc1qchange', amount: 2500, isChange: true },
           ],
         });
+
+        // Mock the address labels for search testing
+        mockSocketService.roomState.set({
+          addressLabels: {
+            bc1qabc123: 'Cold Storage Vault',
+            bc1qxyz890: 'Vendor Payout',
+          },
+        });
         fixture.detectChanges();
       });
 
@@ -326,8 +334,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(component.filteredInputs().length).toBe(2);
       });
 
-      it('should filter inputs based on search query (case-insensitive)', () => {
+      it('should filter inputs based on search query (case-insensitive address)', () => {
         component.inputSearchQuery.set('BC1Q');
+        const results = component.filteredInputs();
+        expect(results.length).toBe(1);
+        expect(results[0].address).toBe('bc1qabc123');
+      });
+
+      it('should filter inputs based on associated address labels', () => {
+        component.inputSearchQuery.set('cold storage');
         const results = component.filteredInputs();
         expect(results.length).toBe(1);
         expect(results[0].address).toBe('bc1qabc123');
@@ -338,8 +353,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(component.filteredOutputs().length).toBe(2);
       });
 
-      it('should filter outputs based on search query', () => {
+      it('should filter outputs based on search query (address)', () => {
         component.outputSearchQuery.set('xyz');
+        const results = component.filteredOutputs();
+        expect(results.length).toBe(1);
+        expect(results[0].address).toBe('bc1qxyz890');
+      });
+
+      it('should filter outputs based on associated address labels', () => {
+        component.outputSearchQuery.set('vendor');
         const results = component.filteredOutputs();
         expect(results.length).toBe(1);
         expect(results[0].address).toBe('bc1qxyz890');
@@ -351,10 +373,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(component.filteredOutputs()).toEqual([]);
       });
 
-      it('should correctly filter inputs based on search query', () => {
+      it('should correctly filter inputs based on search query when address labels are empty', () => {
         mockSocketService.txDetails.set({
           inputsList: [{ address: 'bc1q-match' }, { address: '3abc-no-match' }],
         } as any);
+        mockSocketService.roomState.set({ addressLabels: {} });
 
         component.inputSearchQuery.set('bc1q');
         expect(component.filteredInputs().length).toBe(1);

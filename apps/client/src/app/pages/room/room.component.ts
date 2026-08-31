@@ -166,15 +166,29 @@ export class RoomComponent implements OnInit, OnDestroy {
   public filteredInputs = computed(() => {
     const inputs = this.socket.txDetails()?.inputsList || [];
     const query = this.inputSearchQuery().toLowerCase().trim();
+    const addressLabels = this.socket.roomState()?.addressLabels || {};
+
     if (!query) return inputs;
-    return inputs.filter((input) => input.address.toLowerCase().includes(query));
+
+    return inputs.filter((input) => {
+      const addressMatch = input.address.toLowerCase().includes(query);
+      const labelMatch = (addressLabels[input.address] || '').toLowerCase().includes(query);
+      return addressMatch || labelMatch;
+    });
   });
 
   public filteredOutputs = computed(() => {
     const outputs = this.socket.txDetails()?.outputs || [];
     const query = this.outputSearchQuery().toLowerCase().trim();
+    const addressLabels = this.socket.roomState()?.addressLabels || {};
+
     if (!query) return outputs;
-    return outputs.filter((output) => output.address.toLowerCase().includes(query));
+
+    return outputs.filter((output) => {
+      const addressMatch = output.address.toLowerCase().includes(query);
+      const labelMatch = (addressLabels[output.address] || '').toLowerCase().includes(query);
+      return addressMatch || labelMatch;
+    });
   });
 
   public showLabelModal = signal(false);
