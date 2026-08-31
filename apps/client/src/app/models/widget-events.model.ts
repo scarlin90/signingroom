@@ -105,3 +105,8 @@ export interface SecurityAlertPayload extends BaseEventContext {
   severity: 'low' | 'medium' | 'high';
   message: string;
 }
+
+export interface AddressLabelledPayload extends BaseEventContext {
+  address: string;
+  label: string;
+}

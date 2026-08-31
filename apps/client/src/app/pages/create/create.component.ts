@@ -347,7 +347,7 @@ export class CreateComponent implements OnInit {
 
     const upper = decodedText.toUpperCase();
 
-    // Route BOTH Fountain Codes (UR) and Coldcard BBQr codes (B$) to the Omni-Decoder
+    // Route BOTH Fountain Codes (UR) and BBQr codes (B$) to the Omni-Decoder
     if (upper.startsWith('UR:') || upper.startsWith('B$')) {
       const fullHex = this.urService.processFragment(decodedText);
 

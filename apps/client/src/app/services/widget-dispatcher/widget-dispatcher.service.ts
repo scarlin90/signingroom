@@ -16,6 +16,7 @@ import {
   TransactionViewChangedPayload,
   BaseEventContext,
   SecurityAlertPayload,
+  AddressLabelledPayload,
 } from '../../models/widget-events.model';
 
 @Injectable({
@@ -205,6 +206,11 @@ export class WidgetDispatcherService {
     participantId?: string,
   ): void {
     this.dispatchEvent('participantLabelled', { target, label, fingerprint, participantId });
+  }
+
+  // --- ADDRESS LABELLING ---
+  emitAddressLabelled(address: string, label: string): void {
+    this.dispatchEvent('addressLabelled', { address, label });
   }
 
   emitSecurityAlert(

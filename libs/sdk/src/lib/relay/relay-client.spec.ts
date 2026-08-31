@@ -32,6 +32,10 @@ vi.mock('../bitcoin/psbt-utils', () => ({
       if (s === 'CORRUPT_PSBT') throw new Error('Decode error');
       return new Uint8Array([1, 2, 3]);
     }),
+    parseTxDetails: vi.fn(() => ({
+      inputsList: [],
+      outputs: [],
+    })),
   },
 }));
 
@@ -275,6 +279,25 @@ describe('RelayClient', () => {
         }),
       });
       expect(outputMap['real-fp']).toBe(expectedLabel);
+    });
+
+    it('should map unblinded UTXO references securely using local caches when routing ADDRESS_LABELS_UPDATED tasks', async () => {
+      client.setKey('key');
+      client.blindAddressMap.set('blinded-addr', 'real-addr');
+      let outputMap: any = null;
+      client.events.on('ADDRESS_LABELS_DECRYPTED' as any).subscribe((v) => (outputMap = v.payload));
+
+      const ws = MockWebSocket.lastInstance!;
+      const longEncryptedLabel = 'enc-Treasury' + 'X'.repeat(30);
+      const expectedLabel = 'Treasury' + 'X'.repeat(30);
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'ADDRESS_LABELS_UPDATED',
+          addressLabels: { 'blinded-addr': longEncryptedLabel },
+        }),
+      });
+      expect(outputMap['real-addr']).toBe(expectedLabel);
     });
 
     it('should handle label decryption errors by falling back gracefully to the ciphertext', async () => {
@@ -553,6 +576,9 @@ describe('RelayClient', () => {
 
       await client.updateSignerLabel('12345678', 'label', 'usr');
       expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('UPDATE_LABEL'));
+
+      await client.updateAddressLabel('tb1q123...', 'Treasury Vault', 'usr');
+      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('UPDATE_ADDRESS_LABEL'));
 
       await client.setDisplayName('  alice  ');
       expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('SET_DISPLAY_NAME'));

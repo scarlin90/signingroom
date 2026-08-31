@@ -36,13 +36,17 @@ describe('RoomAuditor', () => {
     network: 'testnet',
     createdAt: 1672531200000,
     isLocked: false,
-    coordinatorId: 'coord-1',
+    protocolVersion: '1.0.0',
     participants: {
-      'sess-1': { id: 'sess-1', role: 'admin', joinedAt: 100, displayName: 'Alice', pubkey: null },
-      'sess-2': { id: 'sess-2', role: 'guest', joinedAt: 101, displayName: 'Bob', pubkey: null },
+      'sess-1': { id: 'sess-1', role: 'admin', displayName: 'Alice' },
+      'sess-2': { id: 'sess-2', role: 'guest', displayName: 'Bob' },
     },
-    psbtBase64: 'mock-psbt',
+    psbt: 'mock-psbt',
+    signatures: [],
+    connectedCount: 2,
+    expiresAt: 1672531200000 + 86400000,
     signerLabels: { aabbccdd: 'Cold Storage' },
+    addressLabels: { tb1qinput: 'Primary Vault', tb1qmockaddress: 'Corporate Treasury' },
     auditLog: [
       { timestamp: 1672531200000, event: 'Room Created', user: 'System', detail: 'Init' },
       { timestamp: 1672531250000, event: 'Guest Joined', user: 'Bob', detail: 'From IP' },
@@ -87,7 +91,7 @@ describe('RoomAuditor', () => {
       const emptyState = {
         ...mockState,
         participants: undefined,
-        finalTxHex: null,
+        finalTxHex: undefined,
         finalTxId: undefined,
       };
       const csv = RoomAuditor.getSettlementCsvData(emptyState as any, mockTx, []);
@@ -100,7 +104,7 @@ describe('RoomAuditor', () => {
       const edgeState = {
         ...mockState,
         participants: {
-          'sess-3': { id: 'sess-3', role: 'guest', joinedAt: 100, displayName: '', pubkey: null },
+          'sess-3': { id: 'sess-3', role: 'guest', displayName: '' },
         },
       };
       const edgeTx = { ...mockTx, inputsList: undefined, outputs: undefined } as any;
@@ -214,6 +218,27 @@ describe('RoomAuditor', () => {
       expect(mockDoc.text).toHaveBeenCalledWith('CHANGE (VERIFIED)', 150, expect.any(Number));
     });
 
+    it('should correctly format labeled inputs and outputs with precise X coordinate indentation', async () => {
+      const mockDoc = createMockDoc();
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
+
+      // Check if labels are printed at X=20 as primary items
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('1. Primary Vault'),
+        20,
+        expect.any(Number),
+      );
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('1. Corporate Treasury'),
+        20,
+        expect.any(Number),
+      );
+
+      // Check if actual addresses are indented accurately underneath the labels at X=25
+      expect(mockDoc.text).toHaveBeenCalledWith('tb1qinput', 25, expect.any(Number));
+      expect(mockDoc.text).toHaveBeenCalledWith('tb1qmockaddress', 25, expect.any(Number));
+    });
+
     it('should trigger string truncation for log details exceeding 30 characters', async () => {
       const mockDoc = createMockDoc();
       const longLogState = {
@@ -266,7 +291,7 @@ describe('RoomAuditor', () => {
       const edgeState: any = {
         ...mockState,
         participants: {
-          'sess-3': { id: 'sess-3', role: 'guest', joinedAt: 100, displayName: '', pubkey: null },
+          'sess-3': { id: 'sess-3', role: 'guest', displayName: '' },
         },
       };
 
@@ -370,7 +395,7 @@ describe('RoomAuditor', () => {
     });
 
     it('should throw an error during verification if the finalTxHex is missing', async () => {
-      const incompleteState = { ...mockState, finalTxHex: null };
+      const incompleteState = { ...mockState, finalTxHex: undefined };
       await expect(RoomAuditor.verifyRoomIntegrity(incompleteState, 'any')).rejects.toThrow(
         'Room not finalized or audit log missing',
       );
@@ -397,7 +422,7 @@ describe('RoomAuditor', () => {
     });
 
     it('should throw an error when generating a report for a room missing finalTxHex', async () => {
-      const incompleteState = { ...mockState, finalTxHex: null };
+      const incompleteState = { ...mockState, finalTxHex: undefined };
       await expect(RoomAuditor.getIntegrityReport(incompleteState)).rejects.toThrow(
         'Room not finalized',
       );

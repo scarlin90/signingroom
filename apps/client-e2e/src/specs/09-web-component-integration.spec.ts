@@ -399,7 +399,7 @@ test.describe('Web Component / Embedded Integration', () => {
     }).toPass({ timeout: 5000 });
 
     // Interact with Transaction Views
-    await frame.getByRole('button', { name: 'Outputs (1)' }).click();
+    await frame.locator('#btn-tab-outputs').click();
 
     await expect(async () => {
       const viewEvent = messages.find((m) => m.action === 'transactionViewChanged');
@@ -466,7 +466,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await guestCtx.close();
   });
 
-  test('Should emit participantPresence and cross-reference signatureReceived events between users', async ({
+  test('Should emit participantPresence, signatureReceived, and addressLabelled events', async ({
     browser,
   }) => {
     const hostCtx = await browser.newContext();
@@ -512,6 +512,20 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // Clear message array so we strictly capture events occurring AFTER setup
     hostMessages.length = 0;
+
+    // Verify `addressLabelled` on Host side before Guest joins
+    await hostFrame.locator('#btn-tab-outputs').click();
+    await hostFrame.locator('#btn-label-output-0').click({ force: true });
+    await expect(hostFrame.locator('#input-address-label')).toBeVisible();
+    await hostFrame.locator('#input-address-label').fill('Host Test Treasury');
+    await hostFrame.locator('#btn-save-address-label').click();
+
+    await expect(async () => {
+      const labelEvent = hostMessages.find((m) => m.action === 'addressLabelled');
+      expect(labelEvent).toBeDefined();
+      expect(labelEvent.payload.label).toBe('Host Test Treasury');
+      expect(labelEvent.payload.address).toBeDefined();
+    }).toPass({ timeout: 5000 });
 
     // Setup Guest & Join
     await guestPage.goto('/webcomponent-demo.html');
@@ -740,7 +754,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // ==========================================
     await frame.getByRole('button', { name: 'Show QR' }).first().click();
 
-    const bbqrBtn = frame.getByRole('button', { name: 'Coldcard (BBQr)' });
+    const bbqrBtn = frame.getByRole('button', { name: 'BBQr' });
     await expect(bbqrBtn).toBeVisible();
 
     // Verify Fountain Reveal (Should default to 'ur')

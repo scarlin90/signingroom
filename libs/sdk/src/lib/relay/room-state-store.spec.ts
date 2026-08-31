@@ -36,6 +36,7 @@ describe('RoomStateStore', () => {
     expect(state?.roomId).toBe('room-abc-123');
     expect(state?.protocolVersion).toBe('1.0.0');
     expect(state?.roomName).toBe('Signing Room');
+    expect(state?.addressLabels).toEqual({});
     expect(capturedState).toEqual(state);
   });
 
@@ -74,6 +75,12 @@ describe('RoomStateStore', () => {
       const labels = { 'fingerprint-1': 'Ledger Nano' };
       eventBus.dispatch('LABELS_DECRYPTED', labels);
       expect(store.getState()?.signerLabels).toEqual(labels);
+    });
+
+    it('should update address labels map arrays when ADDRESS_LABELS_DECRYPTED triggers', () => {
+      const labels = { tb1q123: 'Cold Storage' };
+      eventBus.dispatch('ADDRESS_LABELS_DECRYPTED' as any, labels);
+      expect(store.getState()?.addressLabels).toEqual(labels);
     });
 
     it('should re-assign titles cleanly when ROOM_RENAMED_DECRYPTED fires', () => {

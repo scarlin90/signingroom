@@ -186,8 +186,9 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
     ).toBeVisible();
 
     // Count the physical hardware cards rendered (Expect exactly 2)
-    // We target the "Add Label" span which uniquely identifies a signer card row
-    await expect(page.locator('span.italic', { hasText: 'Add Label' })).toHaveCount(2);
+    await expect(
+      page.locator('#card-signers-list').locator('span.italic', { hasText: 'Add Label' }),
+    ).toHaveCount(2);
 
     // --- Interaction: Launch Second Room (3-of-5) in the SAME tab ---
     await launchRoomFromFixture(page, '3_5_unsigned.psbt.txt');
@@ -199,7 +200,8 @@ test.describe('Edge Cases, Errors, and UX Features', () => {
     ).toBeVisible();
 
     // Count the physical hardware cards rendered (Expect exactly 5)
-    // If state bled, this would be 2 (stuck) or 7 (merged arrays). 5 proves perfect cleanup.
-    await expect(page.locator('span.italic', { hasText: 'Add Label' })).toHaveCount(5);
+    await expect(
+      page.locator('#card-signers-list').locator('span.italic', { hasText: 'Add Label' }),
+    ).toHaveCount(5);
   });
 });

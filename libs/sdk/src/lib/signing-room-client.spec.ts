@@ -213,6 +213,15 @@ describe('SigningRoomClient', () => {
         'LABELS_DECRYPTED',
         ['fp1', 'Label', 'Guest (Unknown)'],
       ));
+    it('setAddressLabel', () =>
+      testActionWrapper(
+        // @ts-ignore (dynamic method cast based on implementation addition)
+        'setAddressLabel',
+        ['tb1q123', 'Treasury'],
+        'updateAddressLabel',
+        'ADDRESS_LABELS_DECRYPTED',
+        ['tb1q123', 'Treasury', 'Guest (Unknown)'],
+      ));
     it('closeRoom', () => testActionWrapper('closeRoom', [], 'closeRoom', 'ROOM_CLOSED', []));
 
     it('setDisplayName', async () => {
@@ -399,7 +408,10 @@ describe('SigningRoomClient', () => {
     });
 
     it('should construct Audit PDFs safely', async () => {
-      vi.mocked(RoomAuditor.generateAuditPdf).mockResolvedValue({ doc: {}, filename: 'test.pdf' });
+      vi.mocked(RoomAuditor.generateAuditPdf).mockResolvedValue({
+        doc: {},
+        filename: 'test.pdf',
+      } as any);
       const res = await client.getAuditLogPdf();
       expect(res.filename).toBe('test.pdf');
     });

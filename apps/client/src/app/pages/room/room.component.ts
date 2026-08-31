@@ -166,15 +166,29 @@ export class RoomComponent implements OnInit, OnDestroy {
   public filteredInputs = computed(() => {
     const inputs = this.socket.txDetails()?.inputsList || [];
     const query = this.inputSearchQuery().toLowerCase().trim();
+    const addressLabels = this.socket.roomState()?.addressLabels || {};
+
     if (!query) return inputs;
-    return inputs.filter((input) => input.address.toLowerCase().includes(query));
+
+    return inputs.filter((input) => {
+      const addressMatch = input.address.toLowerCase().includes(query);
+      const labelMatch = (addressLabels[input.address] || '').toLowerCase().includes(query);
+      return addressMatch || labelMatch;
+    });
   });
 
   public filteredOutputs = computed(() => {
     const outputs = this.socket.txDetails()?.outputs || [];
     const query = this.outputSearchQuery().toLowerCase().trim();
+    const addressLabels = this.socket.roomState()?.addressLabels || {};
+
     if (!query) return outputs;
-    return outputs.filter((output) => output.address.toLowerCase().includes(query));
+
+    return outputs.filter((output) => {
+      const addressMatch = output.address.toLowerCase().includes(query);
+      const labelMatch = (addressLabels[output.address] || '').toLowerCase().includes(query);
+      return addressMatch || labelMatch;
+    });
   });
 
   public showLabelModal = signal(false);
@@ -197,6 +211,12 @@ export class RoomComponent implements OnInit, OnDestroy {
   public keyCopied = signal(false);
   public adminCopied = signal(false);
   public roomIdCopied = signal(false);
+
+  // --- Address Label Signals ---
+  public showAddressLabelModal = signal(false);
+  public editingAddress = signal<string | null>(null);
+  public editingAddressLabel = signal('');
+  public saveAddressToBook = signal(true);
 
   public claimPassword = '';
   public manualKey = '';
@@ -267,13 +287,6 @@ export class RoomComponent implements OnInit, OnDestroy {
         if (!this.isEmbedded) {
           this.generateAuditLog();
         }
-      }
-    });
-
-    effect(() => {
-      if (this.socket.isCoordinator()) {
-        const _ = this.socket.signers();
-        this.socket.checkAndApplyLocalLabels();
       }
     });
 
@@ -601,7 +614,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   saveLabel() {
     const fp = this.editingFingerprint();
-    const label = this.editingLabel().trim();
+    const label = this.editingLabel().trim().slice(0, 64);
 
     if (fp) {
       this.socket.updateSignerLabel(fp, label);
@@ -621,6 +634,46 @@ export class RoomComponent implements OnInit, OnDestroy {
     this.showLabelModal.set(false);
     this.editingFingerprint.set(null);
     this.editingLabel.set('');
+  }
+
+  getAddressLabel(address: string): string | undefined {
+    return this.socket.roomState()?.addressLabels?.[address];
+  }
+
+  openAddressLabelModal(address: string) {
+    const current = this.socket.roomState()?.addressLabels?.[address] || '';
+    const saved = this.socket.getLocalAddressLabel(address);
+
+    this.editingAddress.set(address);
+    this.editingAddressLabel.set(current || saved || '');
+    this.saveAddressToBook.set(true);
+    this.showAddressLabelModal.set(true);
+    this.dispatcher.emitModalView('Label Address');
+  }
+
+  saveAddressLabel() {
+    const address = this.editingAddress();
+    const label = this.editingAddressLabel().trim().slice(0, 64);
+
+    if (address) {
+      this.socket.updateAddressLabel(address, label);
+
+      if (this.saveAddressToBook() && label) {
+        this.socket.saveAddressToBook(address, label);
+      } else {
+        this.socket.removeAddressFromBook(address);
+      }
+
+      this.dispatcher.emitAddressLabelled(address, label);
+    }
+
+    this.closeAddressLabelModal();
+  }
+
+  closeAddressLabelModal() {
+    this.showAddressLabelModal.set(false);
+    this.editingAddress.set(null);
+    this.editingAddressLabel.set('');
   }
 
   toggleWhitelist(address: string) {

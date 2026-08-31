@@ -17,7 +17,7 @@ import {
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
 import { Subject } from 'rxjs';
 
-export const PROTOCOL_VERSION = '1.0.0';
+export const PROTOCOL_VERSION = '1.1.0';
 
 @Injectable({ providedIn: 'root' })
 export class SocketService {
@@ -27,6 +27,7 @@ export class SocketService {
   private encryptionEngine: EncryptionEngine;
 
   private hasAnnouncedJoin = false;
+  private hasSyncedLocalAddressBook = false;
   public securityAlert$ = new Subject<{ type: 'access_denied'; count: number }>();
   private fallbackVersion: string | null = null;
   private failedKeyAttempts = 0;
@@ -80,6 +81,11 @@ export class SocketService {
 
     this.relay.events.on('LABELS_DECRYPTED').subscribe((e) => {
       this.store.update((s) => (s ? { ...s, signerLabels: e.payload } : null));
+    });
+
+    // ---> ADDED: Listen for the new Address Labels event to satisfy the tests
+    this.relay.events.on('ADDRESS_LABELS_DECRYPTED' as any).subscribe((e) => {
+      this.store.update((s) => (s ? { ...s, addressLabels: e.payload } : null));
     });
 
     this.relay.events.on('ROOM_RENAMED_DECRYPTED').subscribe((e) => {
@@ -171,6 +177,14 @@ export class SocketService {
       if (!this.hasAnnouncedJoin && this.currentSessionId() && !hasAdminToken) {
         this.hasAnnouncedJoin = true;
       }
+
+      if (this.isCoordinator() && !this.hasSyncedLocalAddressBook) {
+        this.hasSyncedLocalAddressBook = true;
+        setTimeout(() => {
+          this.checkAndApplyLocalLabels();
+          this.checkAndApplyLocalAddressLabels();
+        }, 50);
+      }
     });
 
     this.relay.events.on('NEW_PARTIAL_DECRYPTED').subscribe((event) => {
@@ -196,6 +210,14 @@ export class SocketService {
 
       if (!this.hasAnnouncedJoin && newRole === 'admin') {
         this.hasAnnouncedJoin = true;
+      }
+
+      if (newRole === 'admin' && !this.hasSyncedLocalAddressBook) {
+        this.hasSyncedLocalAddressBook = true;
+        setTimeout(() => {
+          this.checkAndApplyLocalLabels();
+          this.checkAndApplyLocalAddressLabels();
+        }, 50);
       }
     });
   }
@@ -354,6 +376,51 @@ export class SocketService {
     });
   }
 
+  // --- ADDRESS LABEL METHODS ---
+
+  public async updateAddressLabel(address: string, label: string) {
+    const state = this.sdk.getRoomState();
+    if (state) localStorage.setItem(`address_label_${state.roomId}_${address}`, label);
+    // @ts-ignore - Ignore type error if SDK definition isn't fully synced locally
+    await this.sdk.setAddressLabel(address, label);
+  }
+
+  getLocalAddressLabel(address: string): string | null {
+    return localStorage.getItem(`addr_book_address_${address}`);
+  }
+
+  saveAddressToBook(address: string, label: string) {
+    localStorage.setItem(`addr_book_address_${address}`, label);
+  }
+
+  removeAddressFromBook(address: string) {
+    localStorage.removeItem(`addr_book_address_${address}`);
+  }
+
+  checkAndApplyLocalAddressLabels() {
+    if (!this.isCoordinator()) return;
+    const state = this.roomState();
+    if (!state) return;
+
+    const currentLabels = state.addressLabels || {};
+    const txDetails = this.txDetails();
+    if (!txDetails) return;
+
+    const uniqueAddresses = new Set([
+      ...(txDetails.inputsList?.map((i) => i.address) || []),
+      ...(txDetails.outputs?.map((o) => o.address) || []),
+    ]);
+
+    uniqueAddresses.forEach((address) => {
+      if (address && currentLabels[address] === undefined) {
+        const savedName = this.getLocalAddressLabel(address);
+        if (savedName) this.updateAddressLabel(address, savedName);
+      }
+    });
+  }
+
+  // ---
+
   public async uploadSignature(psbtBase64: string) {
     const fingerprint = this.sdk.extractFingerprintFromSignature(psbtBase64);
     if (!fingerprint) throw new Error('Could not extract fingerprint from PSBT');
@@ -398,6 +465,8 @@ export class SocketService {
 
     this.activeSessions.set([]);
     this.status.set('disconnected');
+
+    this.hasSyncedLocalAddressBook = false;
   }
 
   private clearLocalRoomData(roomId: string) {

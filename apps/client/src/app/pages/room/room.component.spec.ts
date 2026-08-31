@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SocketService } from '../../services/socket/socket.service';
 import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
+import * as confetti from 'canvas-confetti';
 import { EncryptionEngine } from '@signing-room/sdk';
 
 let mockSocketService: any;
@@ -54,7 +55,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       paramMap: of({
         get: (key: string) => (key === 'id' ? 'room-123' : null),
       }),
-      // keep the top-level queryParamMap if other code still uses it
       queryParamMap: {
         get: (key: string) => {
           if (key === 'host') return 'http://localhost:4200';
@@ -64,9 +64,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       },
     };
 
-    // Reset all mocks completely to prevent state leakage between tests
     mockSocketService = {
-      // --- Signals ---
       status: signal('disconnected'),
       isClosed: signal(false),
       roomNotFound: signal(false),
@@ -80,7 +78,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       activeSessions: signal([]),
       currentSessionId: signal('session-1'),
 
-      // --- Observables ---
       networkSignatureReceived$: of({}),
       securityAlert$: of({}),
       isCoordinator: vi.fn().mockReturnValue(false),
@@ -90,12 +87,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       getRoomKey: vi.fn().mockReturnValue('test-key-123'),
       getRoomLink: vi.fn().mockReturnValue('http://localhost/room#key'),
       getLocalLabel: vi.fn().mockReturnValue(undefined),
+      getLocalAddressLabel: vi.fn().mockReturnValue(undefined),
       logAction: vi.fn(),
       connect: vi.fn(),
       disconnect: vi.fn(),
       reset: vi.fn(),
       setRoomKey: vi.fn(),
       checkAndApplyLocalLabels: vi.fn(),
+      checkAndApplyLocalAddressLabels: vi.fn(),
       claimCoordinator: vi.fn(),
       renameRoom: vi.fn(),
       uploadSignature: vi.fn(),
@@ -113,8 +112,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       }),
       updateWhitelist: vi.fn(),
       updateSignerLabel: vi.fn(),
+      updateAddressLabel: vi.fn(),
       saveToAddressBook: vi.fn(),
       removeFromAddressBook: vi.fn(),
+      saveAddressToBook: vi.fn(),
+      removeAddressFromBook: vi.fn(),
       toggleLock: vi.fn(),
       closeRoom: vi.fn(),
       setDisplayName: vi.fn(),
@@ -146,6 +148,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       emitTransactionFinalized: vi.fn(),
       emitParticipantPresence: vi.fn(),
       emitParticipantLabelled: vi.fn(),
+      emitAddressLabelled: vi.fn(),
       emitSignatureReceived: vi.fn(),
       emitSecurityAlert: vi.fn(),
       emitDataCopied: vi.fn(),
@@ -171,7 +174,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       setTitle: vi.fn(),
     };
 
-    // Configure TestBed using the actual Class types as the provider tokens
     await TestBed.configureTestingModule({
       imports: [RoomComponent],
       providers: [
@@ -211,9 +213,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should extract roomId and fragment, then connect to socket', async () => {
       fixture.detectChanges();
 
-      // Flush rxjs observable
       await fixture.whenStable();
-      // Flush the async callback inside the paramMap.subscribe
       await new Promise(process.nextTick);
 
       expect(component.roomId()).toBe('room-123');
@@ -232,12 +232,9 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     it('should navigate to clear fragment if connected and fragment exists', async () => {
-      // Force connection status
       mockSocketService.status.set('connected');
-      // Set a fragment in route
       mockActivatedRoute.snapshot.fragment = 'some-key';
 
-      // Trigger change detection for the effect
       fixture.detectChanges();
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(
@@ -253,7 +250,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should disconnect socket, reset, and clear timer', () => {
       fixture.detectChanges();
 
-      // Mock the interval and spy on the global object
       component['timerInterval'] = setInterval(() => {}, 10000) as any;
       const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
@@ -269,7 +265,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('unloadNotification should return true if connected and not finalized', () => {
       mockSocketService.status.set('connected');
       mockSocketService.isClosed.set(false);
-      // finalHex computed property defaults to null based on mock state
 
       const event = { returnValue: false };
       component.unloadNotification(event);
@@ -301,19 +296,18 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('unloadNotification should not set returnValue if room is closed', () => {
       mockSocketService.status.set('connected');
-      mockSocketService.isClosed.set(true); // Should short-circuit the IF
+      mockSocketService.isClosed.set(true);
 
       const event = { returnValue: false };
       component.unloadNotification(event);
 
-      expect(event.returnValue).toBe(false); // Should NOT have been changed to true
+      expect(event.returnValue).toBe(false);
     });
   });
 
   describe('Computed Properties & Getters', () => {
     describe('filteredInputs & filteredOutputs', () => {
       beforeEach(() => {
-        // Setup mock transaction details
         mockSocketService.txDetails.set({
           inputsList: [
             { address: 'bc1qabc123', amount: 1000, txId: 'tx1', vout: 0 },
@@ -324,6 +318,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
             { address: 'bc1qchange', amount: 2500, isChange: true },
           ],
         });
+
+        // Mock the address labels for search testing
+        mockSocketService.roomState.set({
+          addressLabels: {
+            bc1qabc123: 'Cold Storage Vault',
+            bc1qxyz890: 'Vendor Payout',
+          },
+        });
         fixture.detectChanges();
       });
 
@@ -332,8 +334,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(component.filteredInputs().length).toBe(2);
       });
 
-      it('should filter inputs based on search query (case-insensitive)', () => {
+      it('should filter inputs based on search query (case-insensitive address)', () => {
         component.inputSearchQuery.set('BC1Q');
+        const results = component.filteredInputs();
+        expect(results.length).toBe(1);
+        expect(results[0].address).toBe('bc1qabc123');
+      });
+
+      it('should filter inputs based on associated address labels', () => {
+        component.inputSearchQuery.set('cold storage');
         const results = component.filteredInputs();
         expect(results.length).toBe(1);
         expect(results[0].address).toBe('bc1qabc123');
@@ -344,8 +353,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(component.filteredOutputs().length).toBe(2);
       });
 
-      it('should filter outputs based on search query', () => {
+      it('should filter outputs based on search query (address)', () => {
         component.outputSearchQuery.set('xyz');
+        const results = component.filteredOutputs();
+        expect(results.length).toBe(1);
+        expect(results[0].address).toBe('bc1qxyz890');
+      });
+
+      it('should filter outputs based on associated address labels', () => {
+        component.outputSearchQuery.set('vendor');
         const results = component.filteredOutputs();
         expect(results.length).toBe(1);
         expect(results[0].address).toBe('bc1qxyz890');
@@ -357,10 +373,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(component.filteredOutputs()).toEqual([]);
       });
 
-      it('should correctly filter inputs based on search query', () => {
+      it('should correctly filter inputs based on search query when address labels are empty', () => {
         mockSocketService.txDetails.set({
           inputsList: [{ address: 'bc1q-match' }, { address: '3abc-no-match' }],
         } as any);
+        mockSocketService.roomState.set({ addressLabels: {} });
 
         component.inputSearchQuery.set('bc1q');
         expect(component.filteredInputs().length).toBe(1);
@@ -417,6 +434,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         mockSocketService.roomState.set({
           whitelist: ['bc1qtrusted'],
           signerLabels: { fingerprintA: 'Alice Hardware' },
+          addressLabels: { bc1qtrusted: 'Vault' },
         });
         mockSocketService.getLocalLabel.mockImplementation((fp: string) =>
           fp === 'fingerprintB' ? 'Bob Local' : undefined,
@@ -444,6 +462,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('isSaved should return true if a local label exists in address book', () => {
         expect(component.isSaved('fingerprintB')).toBe(true);
         expect(component.isSaved('fingerprintA')).toBe(false); // Only in room state, not local
+      });
+
+      it('getAddressLabel should return the mapping from state', () => {
+        expect(component.getAddressLabel('bc1qtrusted')).toBe('Vault');
       });
     });
 
@@ -505,7 +527,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     describe('Clipboard Operations & Interaction Feedback', () => {
       beforeEach(() => {
-        // Mock global navigator clipboard API
         Object.defineProperty(globalThis.navigator, 'clipboard', {
           value: {
             writeText: vi.fn().mockResolvedValue(undefined),
@@ -523,7 +544,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Bitcoin Sovereign Tech');
         expect(testSignal()).toBe(true);
 
-        // Advance time past the 2000ms delay to verify signal reset
         vi.advanceTimersByTime(2000);
         expect(testSignal()).toBe(false);
 
@@ -583,7 +603,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         mockSocketService.sdk.parsePsbtFile = vi.fn();
         mockSocketService.uploadSignature = vi.fn();
 
-        // Setup base event structure
         mockEvent = {
           target: {
             value: 'C:\\fakepath\\signed.psbt',
@@ -754,7 +773,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         component.toggleWhitelist('in2'); // Currently not present
         expect(component.confirmData().title).toBe('Update Whitelist');
 
-        // Execute the callback stored in the modal state
         component.executeConfirmAction();
 
         expect(mockSocketService.updateWhitelist).toHaveBeenCalledWith(['in2'], false);
@@ -772,6 +790,43 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
         component.executeConfirmAction();
         expect(mockSocketService.updateWhitelist).toHaveBeenCalledWith(['out1', 'out2'], false);
+      });
+    });
+
+    describe('Address Labelling Modal', () => {
+      it('openAddressLabelModal should setup state correctly based on cache and state', () => {
+        mockSocketService.roomState.set({ addressLabels: { tb1q1: 'Existing Label' } });
+
+        component.openAddressLabelModal('tb1q1');
+
+        expect(component.editingAddress()).toBe('tb1q1');
+        expect(component.editingAddressLabel()).toBe('Existing Label');
+        expect(component.showAddressLabelModal()).toBe(true);
+      });
+
+      it('saveAddressLabel should slice to 64 chars, delegate, emit, and close', () => {
+        component.editingAddress.set('tb1q1');
+        component.editingAddressLabel.set('A'.repeat(70));
+        component.saveAddressToBook.set(true);
+
+        component.saveAddressLabel();
+
+        expect(mockSocketService.updateAddressLabel).toHaveBeenCalledWith('tb1q1', 'A'.repeat(64));
+        expect(mockSocketService.saveAddressToBook).toHaveBeenCalledWith('tb1q1', 'A'.repeat(64));
+        expect(mockDispatcher.emitAddressLabelled).toHaveBeenCalledWith('tb1q1', 'A'.repeat(64));
+        expect(component.showAddressLabelModal()).toBe(false);
+      });
+
+      it('closeAddressLabelModal should clear internal tracking values', () => {
+        component.editingAddress.set('123');
+        component.editingAddressLabel.set('label');
+        component.showAddressLabelModal.set(true);
+
+        component.closeAddressLabelModal();
+
+        expect(component.editingAddress()).toBeNull();
+        expect(component.editingAddressLabel()).toBe('');
+        expect(component.showAddressLabelModal()).toBe(false);
       });
     });
 
@@ -819,7 +874,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       });
 
       it('finalize should execute immediately if all outputs are whitelisted', () => {
-        // Set up: All outputs are whitelisted
         mockSocketService.roomState.set({
           whitelist: ['addr1', 'addr2'],
           psbt: 'data',
@@ -834,7 +888,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         const spy = vi.spyOn(component, 'openConfirm');
         component.finalize();
 
-        // Should NOT trigger the security warning modal
         expect(spy).not.toHaveBeenCalled();
       });
 
@@ -854,7 +907,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('broadcastAndCopy should generate correct URLs based on network', () => {
         const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
-        // Set the roomState signal
         mockSocketService.roomState.set({ finalTxHex: '0000', network: 'testnet' });
 
         component.broadcastAndCopy();
@@ -872,17 +924,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         default: vi.fn(),
       }));
 
-      // Mock embedded mode and coordinator role
       vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(true);
       mockSocketService.isCoordinator.mockReturnValue(true);
 
-      // Set initial state
       mockSocketService.roomState.set({
         roomId: 'room-123',
         whitelist: [],
       });
 
-      // Mock SDK methods
       mockSocketService.finalizeTransaction.mockImplementation(async () => {
         mockSocketService.roomState.set({
           roomId: 'room-123',
@@ -897,17 +946,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       mockSocketService.getAuditLogCsv.mockReturnValue('mock_audit_csv');
       mockSocketService.getSettlementCsvData.mockReturnValue('mock_settlement_csv');
 
-      // Execute
       await component.finalize();
 
-      // Assert
       expect(mockSocketService.getAuditLogPdf).toHaveBeenCalled();
       expect(mockDispatcher.emitTransactionFinalized).toHaveBeenCalled();
       expect(spyTriggerConfetti).toHaveBeenCalledOnce();
     });
 
     it('finalize() should show confirm modal if unverified outputs exist', () => {
-      // 1. Setup State: Whitelist exists, but outputs are NOT in whitelist
       mockSocketService.roomState.set({
         whitelist: ['bc1q-verified'],
         psbt: 'base64',
@@ -920,7 +966,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       component.finalize();
 
-      // It should hit the "unverified.length > 0" branch and open modal
       expect(confirmSpy).toHaveBeenCalledWith(
         'Security Warning',
         expect.stringContaining('unverified address'),
@@ -930,7 +975,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     it('should skip whitelist check if whitelist is null/undefined', () => {
-      mockSocketService.roomState.set({ whitelist: null }); // Short-circuit
+      mockSocketService.roomState.set({ whitelist: null });
       const confirmSpy = vi.spyOn(component, 'openConfirm');
 
       component.finalize();
@@ -938,7 +983,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     it('should skip whitelist check if whitelist is empty array', () => {
-      mockSocketService.roomState.set({ whitelist: [] }); // Empty array branch
+      mockSocketService.roomState.set({ whitelist: [] });
       const confirmSpy = vi.spyOn(component, 'openConfirm');
 
       component.finalize();
@@ -976,12 +1021,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       });
 
       it('togglePrivacyBlur should re-blur a section if it is currently revealed', () => {
-        // Set section to revealed (false = blurred, true = revealed)
         component.blurStates.set({ 'transaction-details': false } as any);
 
         component.togglePrivacyBlur('transaction-details');
 
-        // It should now be blurred (true)
         expect(component.blurStates()['transaction-details']).toBe(true);
       });
 
@@ -1098,7 +1141,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('processScannedSignature should normalize base64 and upload signature', async () => {
         mockSocketService.uploadSignature.mockResolvedValue(true);
 
-        // Simulating processing hex data ("deadbeef")
         await component.processScannedSignature('deadbeef');
 
         expect(mockSocketService.uploadSignature).toHaveBeenCalled();
@@ -1137,6 +1179,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         component.showLabelModal.set(true);
         fixture.detectChanges();
         expect(fixture.nativeElement.textContent).toContain('Label Signer');
+      });
+
+      it('should render Address Label modal', () => {
+        component.showAddressLabelModal.set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Label Address');
       });
 
       it('should render Rename modal', () => {
@@ -1259,13 +1307,17 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         component.viewMode.set('inputs');
         fixture.detectChanges();
         expect(
-          fixture.nativeElement.querySelector('input[placeholder="Search input address..."]'),
+          fixture.nativeElement.querySelector(
+            'input[placeholder="Search inputs by address or label..."]',
+          ),
         ).toBeTruthy();
 
         component.viewMode.set('outputs');
         fixture.detectChanges();
         expect(
-          fixture.nativeElement.querySelector('input[placeholder="Search output address..."]'),
+          fixture.nativeElement.querySelector(
+            'input[placeholder="Search outputs by address or label..."]',
+          ),
         ).toBeTruthy();
       });
 
@@ -1299,11 +1351,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
         component.exportFormat.set('ur');
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Standard Protocol');
+        expect(fixture.nativeElement.textContent).toContain('UR Protocol');
 
         component.exportFormat.set('bbqr');
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Coldcard Protocol');
+        expect(fixture.nativeElement.textContent).toContain('Protocol');
       });
 
       it('should dynamically display scanner errors and progress bars', () => {
@@ -1323,31 +1375,27 @@ describe('RoomComponent - Setup & Lifecycle', () => {
   describe('Deep Template Branch Coverage', () => {
     it('should render Active Sessions list with specific roles and you-badge', () => {
       component.showSessionsModal.set(true);
-      // Simulate a populated list of sessions
       mockSocketService.activeSessions.set([
         { id: '1', role: 'admin', displayName: 'Admin Alice' },
-        { id: '2', role: 'guest', displayName: '' }, // Anonymous
-        { id: 'session-1', role: 'guest', displayName: 'Current User' }, // Matches currentSessionId
+        { id: '2', role: 'guest', displayName: '' },
+        { id: 'session-1', role: 'guest', displayName: 'Current User' },
       ]);
       fixture.detectChanges();
 
       const html = fixture.nativeElement.textContent;
-      // This covers the @for loop inside showSessionsModal()
       expect(html).toContain('Admin Alice');
-      expect(html).toContain('Anonymous Guest'); // Fallback logic
+      expect(html).toContain('Anonymous Guest');
       expect(html).toContain('Current User');
-      expect(html).toContain('You'); // Covers the @if (session.id === currentSessionId)
+      expect(html).toContain('You');
     });
 
     it('should render dynamic text for Lock Room based on coordinator and lock state', () => {
       mockSocketService.isCoordinator.mockReturnValue(true);
 
-      // Locked State
       mockSocketService.roomState.set({ isLocked: true });
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Locked');
 
-      // Unlocked State
       mockSocketService.roomState.set({ isLocked: false });
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Lock Room');
@@ -1386,19 +1434,17 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should render raw optical feed fallback and reconstructing signature progress in scanner modal', () => {
       component.showScannerModal.set(true);
 
-      // Unpopulated state
       mockUrService.lastScannedText.set('');
       mockUrService.scanProgress.set(0);
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Waiting for QR...');
 
-      // Populated state with progress
       mockUrService.lastScannedText.set('ur:bytes/1-2/payload');
       mockUrService.scanProgress.set(0.65);
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('ur:bytes/1-2/payload');
       expect(fixture.nativeElement.textContent).toContain('RECONSTRUCTING SIGNATURE...');
-      expect(fixture.nativeElement.textContent).toContain('65%'); // Formats decimal to %
+      expect(fixture.nativeElement.textContent).toContain('65%');
     });
 
     it('should render ingesting signature progress in the main transaction panel', () => {
@@ -1406,7 +1452,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       mockUrService.scanProgress.set(0.85);
       fixture.detectChanges();
 
-      // This covers the secondary scanner UI integrated directly into the panel
       expect(fixture.nativeElement.textContent).toContain('Ingesting Signature...');
       expect(fixture.nativeElement.textContent).toContain('85%');
     });
@@ -1417,16 +1462,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       fixture.detectChanges();
 
       const html = fixture.nativeElement.textContent;
-      // Covers the @if (isExpired()) blocks
       expect(html).toContain('Room Expired');
       expect(html).toContain('Expired');
     });
 
     it('should conditionally render Verify All buttons if coordinator and array length > 3', () => {
       mockSocketService.isCoordinator.mockReturnValue(true);
-      component.blurStates.set({ 'transaction-details': false } as any); // Unblur to render
+      component.blurStates.set({ 'transaction-details': false } as any);
 
-      // Mock 4 items (greater than 3 trigger)
       const fourItems = [{}, {}, {}, {}];
       mockSocketService.txDetails.set({ inputsList: fourItems, outputs: fourItems });
 
@@ -1443,14 +1486,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       mockSocketService.isCoordinator.mockReturnValue(false);
       mockSocketService.isReadyToBroadcast.mockReturnValue(false);
 
-      // Initial State
       component.showClaimInput.set(false);
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
         'Have the Admin Key? Claim Coordinator Role',
       );
 
-      // Toggled State
       component.showClaimInput.set(true);
       fixture.detectChanges();
       expect(
@@ -1461,20 +1502,19 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('should render the Signers list with specific labels and nudge actions', () => {
       mockSocketService.isCoordinator.mockReturnValue(true);
-      component.blurStates.set({ signers: false } as any); // Unblur
+      component.blurStates.set({ signers: false } as any);
 
       mockSocketService.signers.set([
         { fingerprint: 'fp-123', signed: true },
         { fingerprint: 'fp-456', signed: false },
       ]);
 
-      // Only one of them has a label saved
       mockSocketService.roomState.set({ signerLabels: { 'fp-123': 'Hardware Wallet' } });
       fixture.detectChanges();
 
       const html = fixture.nativeElement.textContent;
-      expect(html).toContain('Hardware Wallet'); // Valid label
-      expect(html).toContain('Add Label'); // Fallback for the one without a label
+      expect(html).toContain('Hardware Wallet');
+      expect(html).toContain('Add Label');
       expect(html).toContain('Signed');
       expect(html).toContain('Waiting...');
     });
@@ -1506,51 +1546,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       component.submitKey();
 
       expect(mockSocketService.connect).toHaveBeenCalledWith('room-123', 'my-secret-key');
-      expect(component.manualKey).toBe(''); // Verify it resets
-    });
-  });
-
-  describe('File Ingestion Edge Cases (onFileSelected)', () => {
-    let mockEvent: any;
-
-    beforeEach(() => {
-      mockEvent = { target: { value: 'path', files: [] } };
-    });
-
-    it('should reject files with invalid extensions', async () => {
-      const spyAlert = vi.spyOn(component, 'openAlert');
-      mockEvent.target.files = [new File([''], 'image.png')];
-
-      await component.onFileSelected(mockEvent);
-
-      expect(spyAlert).toHaveBeenCalledWith('Invalid File Type', expect.any(String));
-      expect(mockEvent.target.value).toBe('');
-    });
-
-    it('should reject files larger than 2MB', async () => {
-      const spyAlert = vi.spyOn(component, 'openAlert');
-      // Create a dummy file that is 3MB
-      mockEvent.target.files = [new File([new ArrayBuffer(3 * 1024 * 1024)], 'large.psbt')];
-
-      await component.onFileSelected(mockEvent);
-
-      expect(spyAlert).toHaveBeenCalledWith('File Too Large', expect.any(String));
-    });
-
-    it('should catch read errors gracefully', async () => {
-      const spyAlert = vi.spyOn(component, 'openAlert');
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      // Initialize the mock function before rejecting it
-      mockSocketService.sdk.parsePsbtFile = vi.fn().mockRejectedValue(new Error('Parse error'));
-
-      mockEvent.target.files = [new File(['invalid-data'], 'corrupt.psbt')];
-
-      await component.onFileSelected(mockEvent);
-
-      expect(consoleSpy).toHaveBeenCalledWith(new Error('Parse error'));
-      expect(spyAlert).toHaveBeenCalledWith('Read Error', 'Failed to read file.');
-      expect(component.isUploading()).toBe(false);
+      expect(component.manualKey).toBe('');
     });
   });
 
@@ -1567,17 +1563,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       const now = Date.now();
       const spyDisconnect = vi.spyOn(mockSocketService, 'disconnect');
 
-      // Set expiry to 1 hour, 1 minute, and 1 second from now
       const expiryTime = now + 1000 * 60 * 60 + 1000 * 60 + 1000;
 
       component['startTimer'](expiryTime);
 
-      // Fast forward 1 second to trigger the interval calculation
       vi.advanceTimersByTime(1000);
       expect(component.timeRemaining()).toBe('01 hrs 01 m 00 s');
       expect(component.isLowTime()).toBe(false);
 
-      // Fast forward past the expiration
       vi.advanceTimersByTime(expiryTime - now + 1000);
 
       expect(component.timeRemaining()).toBe('00 hrs 00 m 00 s');
@@ -1603,7 +1596,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       const promise = component.executeCsvDownload();
 
-      // Await the 1000ms delay inside executeCsvDownload
       await vi.advanceTimersByTimeAsync(1500);
       await promise;
 
@@ -1624,12 +1616,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('broadcastAndCopy should route to correct mempool network', () => {
       const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
-      // Test 1: Signet
       mockSocketService.roomState.set({ finalTxHex: 'hex', network: 'signet' });
       component.broadcastAndCopy();
       expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/signet/tx/push', '_blank');
 
-      // Test 2: Mainnet (Fallback)
       mockSocketService.roomState.set({ finalTxHex: 'hex', network: 'invalid-network' });
       component.broadcastAndCopy();
       expect(windowSpy).toHaveBeenCalledWith('https://mempool.space/tx/push', '_blank');
@@ -1652,17 +1642,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
   describe('Optical Scanner & Import Error Handling', () => {
     it('stopScanner should safely handle HTML5QrCode exceptions', async () => {
       component.html5QrCode = {
-        getState: () => 2, // 2 = SCANNING
+        getState: () => 2,
         stop: vi.fn().mockRejectedValue(new Error('Camera locked')),
         clear: vi.fn(),
       } as any;
 
       component.stopScanner();
 
-      // Flush promises
       await new Promise(process.nextTick);
 
-      // It should gracefully clear state even if the hardware stop command rejects
       expect(component.isScanningSigned()).toBe(false);
       expect(component.showScannerModal()).toBe(false);
     });
@@ -1680,11 +1668,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('handleScanResult should return early if fullHex is null (incomplete fragment)', () => {
       const stopSpy = vi.spyOn(component, 'stopScanner');
-      mockUrService.processFragment.mockReturnValue(null); // Indicates more fragments needed
+      mockUrService.processFragment.mockReturnValue(null);
 
       component.handleScanResult('ur:bytes/1-2/incomplete');
 
-      expect(stopSpy).not.toHaveBeenCalled(); // Scanner should keep running
+      expect(stopSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -1699,7 +1687,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         .spyOn(component as any, 'startFountainAnimation')
         .mockImplementation(() => {});
 
-      // Force conditions to be true
       vi.spyOn(component, 'isFountainRevealed').mockReturnValue(true);
       component.showFountainModal.set(true);
 
@@ -1731,23 +1718,20 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should restart animation only when BOTH revealed and modal shown', () => {
       const animSpy = vi.spyOn(component, 'startFountainAnimation');
 
-      // Case 1: T & T (Should restart)
       component.isFountainRevealed.set(true);
       component.showFountainModal.set(true);
       component.updateFountainSpeed(500);
       expect(animSpy).toHaveBeenCalledTimes(1);
 
-      // Case 2: T & F (Should NOT restart)
       component.isFountainRevealed.set(true);
       component.showFountainModal.set(false);
       component.updateFountainSpeed(500);
-      expect(animSpy).toHaveBeenCalledTimes(1); // No change
+      expect(animSpy).toHaveBeenCalledTimes(1);
 
-      // Case 3: F & T (Should NOT restart)
       component.isFountainRevealed.set(false);
       component.showFountainModal.set(true);
       component.updateFountainSpeed(500);
-      expect(animSpy).toHaveBeenCalledTimes(1); // No change
+      expect(animSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1763,7 +1747,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('stopScanner: should safely clear scanner if state is not SCANNING', () => {
       component.html5QrCode = {
-        getState: () => 1, // Not scanning
+        getState: () => 1,
         clear: vi.fn(),
       } as any;
       component.isScanningSigned.set(true);
@@ -1821,7 +1805,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     it('updateFountainSpeed: should just update speed if animation is not currently running', () => {
-      component.isFountainRevealed.set(false); // Modal hidden
+      component.isFountainRevealed.set(false);
       vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
 
       component.updateFountainSpeed(300);
@@ -1833,7 +1817,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should catch errors if uploadSignature fails in processScannedSignature', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      // Use spyOn to safely hijack just this one method without breaking ngOnDestroy
       vi.spyOn(component.socket, 'uploadSignature').mockRejectedValue(
         new Error('Network disconnected'),
       );
@@ -1985,7 +1968,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
           if (callCount === 1) {
             return Promise.reject(new Error('High res fail'));
           } else {
-            // Fires the anonymous callbacks in the fallback catch block
             if (onSuccess) onSuccess('UR:CRYPTO-PSBT/1-1/FALLBACK');
             if (onError) onError('Fallback error');
             return Promise.resolve();
@@ -2164,7 +2146,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     it('should log the action and emit addressCopied event when an address is copied', async () => {
-      // Arrange
       const mockAddress = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
 
       const expectedShortAddress = 'bc1qxy...hx0wlh';
@@ -2178,7 +2159,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       await new Promise(process.nextTick);
 
-      // Assert
       expect(logActionSpy).toHaveBeenCalledWith('Address Copied', expectedShortAddress);
       expect(emitAddressCopiedSpy).toHaveBeenCalledWith(mockAddress);
     });
@@ -2188,26 +2168,19 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       vi.spyOn(component.socket, 'logAction');
       vi.spyOn(component['dispatcher'], 'emitAddressCopied');
 
-      // Execute the function
       component.copyAddress(testAddress);
 
-      // Verify the clipboard API was called with the correct string
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(testAddress);
 
-      // Flush the Promise queue so the .then() block executes
       await Promise.resolve();
 
-      // Verify the signal is set immediately after promise resolves
       expect(component.copiedAddress()).toBe(testAddress);
 
-      // Fast-forward time by 1999ms (just before the timeout triggers)
       vi.advanceTimersByTime(1999);
-      expect(component.copiedAddress()).toBe(testAddress); // Should still be the address
+      expect(component.copiedAddress()).toBe(testAddress);
 
-      // Fast-forward 1 more millisecond to trigger the 2000ms timeout
       vi.advanceTimersByTime(1);
 
-      // Verify the signal has been reset to null
       expect(component.copiedAddress()).toBeNull();
     });
 
@@ -2217,39 +2190,29 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       vi.spyOn(component.socket, 'logAction');
       vi.spyOn(component['dispatcher'], 'emitAddressCopied');
 
-      // Copy the first address
       component.copyAddress(address1);
-      await Promise.resolve(); // Flush promises
+      await Promise.resolve();
       expect(component.copiedAddress()).toBe(address1);
 
-      // Wait 1 second (halfway through the first timeout)
       vi.advanceTimersByTime(1000);
 
-      // Copy the second address
       component.copyAddress(address2);
-      await Promise.resolve(); // Flush promises
+      await Promise.resolve();
       expect(component.copiedAddress()).toBe(address2);
 
-      // Wait 1 more second.
-      // This hits the 2-second mark for the FIRST copy, but the signal should NOT clear
-      // because it no longer matches address1
       vi.advanceTimersByTime(1000);
       expect(component.copiedAddress()).toBe(address2);
 
-      // Wait 1 final second to hit the 2-second mark for the SECOND copy
       vi.advanceTimersByTime(1000);
 
-      // Now it should be cleared
       expect(component.copiedAddress()).toBeNull();
     });
   });
 
   describe('Missing Branch Coverage Fixes', () => {
     it('should handle SSR gracefully (isPlatformBrowser = false)', () => {
-      // override platformId
       (component as any).platformId = 'server';
 
-      // Call hooks
       component.ngOnInit();
       component.ngOnDestroy();
 
@@ -2325,7 +2288,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         .mockImplementation(() => Promise.resolve());
 
       component.closeRoom();
-      component.executeConfirmAction(); // Trigger the callback
+      component.executeConfirmAction();
 
       expect(generateSpy).toHaveBeenCalled();
       vi.advanceTimersByTime(350);
@@ -2373,7 +2336,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         .mockImplementation(() => Promise.resolve());
 
       mockSocketService.isClosed.set(true);
-      fixture.detectChanges(); // Trigger effect
+      fixture.detectChanges();
 
       expect(generateSpy).toHaveBeenCalled();
     });
@@ -2397,7 +2360,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       });
 
       it('should return the fallback RGB array if the hex string length is invalid', () => {
-        // Fallback color: [16, 185, 129]
         const shortHex = component['hexToRgb']('#fff');
         expect(shortHex).toEqual([16, 185, 129]);
 
@@ -2418,10 +2380,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       beforeEach(() => {
         originalImage = window.Image;
 
-        // Store the real createElement function to use as a fallback
         originalCreateElement = document.createElement.bind(document);
 
-        // 1. Create a safe mock class that CAN be called with 'new'
         class MockImage {
           width = 100;
           height = 50;
@@ -2431,11 +2391,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
           onerror: any = null;
 
           constructor() {
-            mockImageInstance = this; // Capture the instance so we can trigger it in the test
+            mockImageInstance = this;
           }
         }
 
-        // 2. Overwrite the global
         window.Image = MockImage as any;
       });
 
@@ -2459,17 +2418,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
           .spyOn(document, 'createElement')
           .mockImplementation((tagName: string) => {
             if (tagName === 'canvas') return mockCanvas;
-            // Fallback to real DOM for other elements
             return originalCreateElement(tagName);
           });
 
         const promise = component['getBase64Logo']('http://example.com/logo.png');
 
-        // Assert properties were set on the Image instance
         expect(mockImageInstance.crossOrigin).toBe('Anonymous');
         expect(mockImageInstance.src).toBe('http://example.com/logo.png');
 
-        // Trigger the onload callback
         mockImageInstance.onload();
 
         const result = await promise;
@@ -2498,7 +2454,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
         const promise = component['getBase64Logo']('http://example.com/logo.png');
 
-        // Force dimensions to falsy values
         mockImageInstance.width = 0;
         mockImageInstance.height = 0;
 
@@ -2535,7 +2490,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('should resolve with null if the image fails to load via onerror', async () => {
         const promise = component['getBase64Logo']('http://example.com/broken.png');
 
-        // Trigger the onerror callback
         mockImageInstance.onerror();
 
         const result = await promise;

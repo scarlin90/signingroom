@@ -363,6 +363,83 @@ describe('SigningRoom Durable Object', () => {
 		}
 	});
 
+	it.only('should update address labels (admin only)', async () => {
+		await initRoom();
+		const { client, received } = await createWebSocketClient();
+
+		try {
+			client.send(JSON.stringify({ type: 'AUTH', token: 'admin-secret' }));
+			await vi.waitFor(() => received.some((m) => m.type === 'ROLE_UPDATE'));
+
+			client.send(
+				JSON.stringify({
+					type: 'UPDATE_ADDRESS_LABEL',
+					blindedAddress: 'blinded-addr-123',
+					label: 'Corporate Treasury',
+					encryptedLogBlob: 'address-label-log',
+				}),
+			);
+
+			await vi.waitFor(() => {
+				expect(received.some((m) => m.type === 'ADDRESS_LABELS_UPDATED')).toBe(true);
+			});
+		} finally {
+			await cleanupClient(client);
+		}
+	});
+
+	it.only('should reject UPDATE_LABEL if the encrypted label payload exceeds 200 characters', async () => {
+		await initRoom();
+		const { client, received } = await createWebSocketClient();
+
+		try {
+			client.send(JSON.stringify({ type: 'AUTH', token: 'admin-secret' }));
+			await vi.waitFor(() => received.some((m) => m.type === 'ROLE_UPDATE'));
+
+			const massiveLabel = 'a'.repeat(201);
+			client.send(
+				JSON.stringify({
+					type: 'UPDATE_LABEL',
+					fingerprint: 'abc123',
+					label: massiveLabel,
+					encryptedLogBlob: 'label-log',
+				}),
+			);
+
+			await vi.waitFor(() => {
+				expect(received.some((m) => m.type === 'ERROR' && m.message === 'Label payload too large.')).toBe(true);
+			});
+		} finally {
+			await cleanupClient(client);
+		}
+	});
+
+	it.only('should reject UPDATE_ADDRESS_LABEL if the encrypted label payload exceeds 200 characters', async () => {
+		await initRoom();
+		const { client, received } = await createWebSocketClient();
+
+		try {
+			client.send(JSON.stringify({ type: 'AUTH', token: 'admin-secret' }));
+			await vi.waitFor(() => received.some((m) => m.type === 'ROLE_UPDATE'));
+
+			const massiveLabel = 'a'.repeat(201);
+			client.send(
+				JSON.stringify({
+					type: 'UPDATE_ADDRESS_LABEL',
+					blindedAddress: 'blinded-addr-123',
+					label: massiveLabel,
+					encryptedLogBlob: 'address-label-log',
+				}),
+			);
+
+			await vi.waitFor(() => {
+				expect(received.some((m) => m.type === 'ERROR' && m.message === 'Label payload too large.')).toBe(true);
+			});
+		} finally {
+			await cleanupClient(client);
+		}
+	});
+
 	it.only('should close room and clean up on CLOSE_ROOM (admin)', async () => {
 		await initRoom();
 		const { client, received } = await createWebSocketClient();
