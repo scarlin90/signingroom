@@ -152,8 +152,8 @@ export class RoomPage {
     this.psbtModalDownloadButton = page.getByRole('button', { name: 'Download PSBT', exact: true });
 
     // Search Locators
-    this.inputSearchInput = page.getByPlaceholder('Search input address...');
-    this.outputSearchInput = page.getByPlaceholder('Search output address...');
+    this.inputSearchInput = page.getByPlaceholder('Search inputs by address or label...');
+    this.outputSearchInput = page.getByPlaceholder('Search outputs by address or label...');
 
     // QR Code Locators
     this.qrCodeActionButton = page.getByRole('button', { name: 'QR Code' });

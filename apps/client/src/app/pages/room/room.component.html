@@ -1452,7 +1452,7 @@
                     @if (viewMode() === 'inputs') {
                         <div class="relative flex items-center">
                             <svg lucideSearch class="w-4 h-4 text-brand-text-muted absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></svg>
-                            <input type="text" [ngModel]="inputSearchQuery()" (ngModelChange)="updateSearchQuery('inputs', $event)" placeholder="Search input address..."
+                            <input type="text" [ngModel]="inputSearchQuery()" (ngModelChange)="updateSearchQuery('inputs', $event)" placeholder="Search inputs by address or label..."
                             class="w-full bg-brand-bg border border-brand-card-border text-brand-text text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-brand-accent/50 transition"/>
                             <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-brand-text-muted bg-brand-card px-2 py-0.5 rounded border border-brand-card-border pointer-events-none" title="Filtered Results">
                                 {{ filteredInputs().length }}
@@ -1461,7 +1461,7 @@
                     } @else {
                         <div class="relative flex items-center">
                             <svg lucideSearch class="w-4 h-4 text-brand-text-muted absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></svg>
-                            <input type="text" [ngModel]="outputSearchQuery()" (ngModelChange)="updateSearchQuery('outputs', $event)" placeholder="Search output address..."
+                            <input type="text" [ngModel]="outputSearchQuery()" (ngModelChange)="updateSearchQuery('outputs', $event)" placeholder="Search outputs by address or label..."
                             class="w-full bg-brand-bg border border-brand-card-border text-brand-text text-xs rounded-lg block py-2.5 pr-20 pl-10 outline-none focus:border-brand-accent/50 transition"/>
                             <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-brand-text-muted bg-brand-card px-2 py-0.5 rounded border border-brand-card-border pointer-events-none" title="Filtered Results">
                                 {{ filteredOutputs().length }}
