@@ -32,6 +32,8 @@ export type RoomEventType =
   | 'STATE_CHANGED'
   | 'TOGGLE_LOCK'
   | 'UPDATE_LABEL'
+  | 'UPDATE_ADDRESS_LABEL'
+  | 'ADDRESS_LABELS_DECRYPTED'
   | 'THRESHOLD_MET';
 
 /**

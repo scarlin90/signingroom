@@ -122,7 +122,7 @@ export class UrService {
         return null;
       }
 
-      // --- PROTOCOL 2: BBQr (Coldcard / Compressed Relay) ---
+      // --- PROTOCOL 2: BBQr ---
       if (upper.startsWith('B$')) {
         const encoding = upper[2]; // 'H' (Hex) or 'Z' (Zlib)
         const totalStr = upper.substring(4, 6);

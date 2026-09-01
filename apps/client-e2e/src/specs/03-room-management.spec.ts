@@ -115,6 +115,61 @@ test.describe('Room Management and OpSec', () => {
     });
   });
 
+  test('should allow labeling UTXO addresses', async () => {
+    // --- Interaction: Navigate to the Outputs tab ---
+    await roomPage.switchTab('Outputs');
+
+    // --- Interaction: Open the label modal for the first output ---
+    await roomPage.getEditAddressLabelButton('output', 0).click({ force: true });
+
+    // --- Verification: Modal should be visible ---
+    await expect(roomPage.addressLabelInput).toBeVisible();
+
+    // --- Interaction: Assign a new label ---
+    await roomPage.addressLabelInput.fill('Corporate Treasury Cold Storage');
+    await roomPage.saveAddressLabelButton.click();
+
+    // --- Verification: The label should be rendered on the specific card ---
+    const outputCard = roomPage.getOutputCard(0);
+    await expect(outputCard.getByText('Corporate Treasury Cold Storage')).toBeVisible();
+  });
+
+  test('should allow filtering UTXOs by raw address and custom labels', async () => {
+    // --- Interaction: Navigate to the Outputs tab ---
+    await roomPage.switchTab('Outputs');
+
+    // --- Interaction: Assign a new label to the first output ---
+    const customLabel = 'Project Fund Wallet';
+    await roomPage.getEditAddressLabelButton('output', 0).click({ force: true });
+    await expect(roomPage.addressLabelInput).toBeVisible();
+    await roomPage.addressLabelInput.fill(customLabel);
+    await roomPage.saveAddressLabelButton.click();
+
+    // Verify label is applied before searching
+    const outputCard = roomPage.getOutputCard(0);
+    await expect(outputCard.getByText(customLabel)).toBeVisible();
+
+    // --- Verification: Search by partial raw address ---
+    await roomPage.outputSearchInput.fill('tb1qqn3');
+    // Ensure the target card remains visible while filtering
+    await expect(outputCard).toBeVisible();
+
+    // --- Verification: Search by the new custom label (case-insensitive) ---
+    await roomPage.outputSearchInput.fill('project fund');
+    await expect(outputCard.getByText(customLabel)).toBeVisible();
+
+    // --- Verification: Search by non-existent string ---
+    await roomPage.outputSearchInput.fill('NO_MATCH_12345');
+    // The cards should completely disappear
+    await expect(roomPage.page.locator('.address-card')).toHaveCount(0);
+    // The empty state message should appear
+    await expect(roomPage.page.getByText('No outputs match your search.')).toBeVisible();
+
+    // --- Cleanup: Clear search and verify cards return ---
+    await roomPage.outputSearchInput.fill('');
+    await expect(roomPage.getOutputCard(0)).toBeVisible();
+  });
+
   test('should record actions in the Audit Log and trigger download', async () => {
     // --- Interaction: room activity already generated with unveal for the log ---
 

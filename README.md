@@ -104,7 +104,7 @@ This software is the reference implementation of **"The Stateless Pattern"** —
 - **Multi-Network Support** — Mainnet, Testnet, and Signet.
 - **PWA** — Installable on iOS/Android directly from the browser (censorship-resistant, no App Store required).
 - **Real-Time Sync** — WebSockets for instant state propagation between signers.
-- **Hardware Agnostic** — Coldcard, Sparrow, Electrum, Ledger, Trezor, and any BIP-174 compatible wallet.
+- **Hardware Agnostic** — Sparrow, Electrum, Ledger, Trezor, and any BIP-174 compatible wallet.
 - **Ephemeral Rooms** — All rooms and data self-destruct after 24 hours.
 - **Audit Logs** — Client-side, cryptographically verifiable PDF audit trail of the signing ceremony, including persistent witness tracking for disconnected signers.
 
