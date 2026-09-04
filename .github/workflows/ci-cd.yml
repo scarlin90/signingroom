@@ -82,7 +82,7 @@ jobs:
 
       - name: Post Worker Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+        uses: davelosert/vitest-coverage-report-action@c4bbc33a89b7ace0e63d35f1f7d4bcee31155a73 # v2
         with:
           name: 'Worker Relay Coverage'
           json-summary-path: ./worker-summary.json
@@ -90,7 +90,7 @@ jobs:
 
       - name: Post Client Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+        uses: davelosert/vitest-coverage-report-action@c4bbc33a89b7ace0e63d35f1f7d4bcee31155a73 # v2
         with:
           name: 'Client Dashboard Coverage'
           json-summary-path: ./client-summary.json
@@ -98,7 +98,7 @@ jobs:
 
       - name: Post SDK Coverage to Summary
         if: always()
-        uses: davelosert/vitest-coverage-report-action@8b157684c6a6b259b97d45e72b44242865c0f6a5 # v2
+        uses: davelosert/vitest-coverage-report-action@c4bbc33a89b7ace0e63d35f1f7d4bcee31155a73 # v2
         with:
           name: 'SDK Coverage'
           json-summary-path: ./sdk-summary.json
