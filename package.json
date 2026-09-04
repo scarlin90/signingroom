@@ -53,7 +53,7 @@
     "@angular/platform-server": "^22.0.0",
     "@angular/pwa": "^22.0.0",
     "@angular/ssr": "^22.0.0",
-    "@cloudflare/vitest-pool-workers": "^0.21.0",
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@eslint/js": "^9.8.0",
     "@nx/angular": "^23.0.1",
     "@nx/devkit": "^23.0.1",
