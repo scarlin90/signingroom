@@ -57,6 +57,13 @@ function getConfig(env: Env, key: ConfigKey): number {
 	return value ? parseInt(value, 10) : CONFIG_DEFAULTS[key];
 }
 
+export interface RoleConstraints {
+	tokenId?: string;
+	canUploadSignature: boolean;
+	canExportPsbt: boolean;
+	canExportAudit: boolean;
+}
+
 interface SessionData {
 	id: string;
 	role: 'admin' | 'guest';
@@ -65,6 +72,7 @@ interface SessionData {
 	lastMsgTime: number;
 	ip: string;
 	encryptedDisplayName?: string;
+	constraints?: RoleConstraints;
 }
 
 // =============================================================================
@@ -148,7 +156,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
 	return c.json({
 		status: 'healthy',
-		version: '3.3.0',
+		version: '3.4.0',
 		timestamp: Date.now(),
 	});
 });
@@ -300,6 +308,7 @@ export class SigningRoom implements DurableObject {
 				network: network || 'bitcoin',
 				protocolVersion: protocolVersion || '1.0.0',
 				roomName: encryptedRoomName || 'Untitled Room',
+				roleTokens: {},
 			};
 
 			if (encryptedLogBlob) {
@@ -403,7 +412,7 @@ export class SigningRoom implements DurableObject {
 		this.broadcastConnections();
 
 		// Send initial state sync
-		const { adminToken, ...safeRoomState } = this.roomState;
+		const { adminToken, roleTokens, ...safeRoomState } = this.roomState;
 
 		webSocket.send(JSON.stringify({ type: 'STATE_SYNC', ...safeRoomState, connectedCount: this.sessions.size }));
 
@@ -478,6 +487,50 @@ export class SigningRoom implements DurableObject {
 				this.broadcastConnections();
 			}
 
+			// Register Role Link (Admin Only)
+			if (msg.type === 'REGISTER_ROLE') {
+				if (session?.role !== 'admin') {
+					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Unauthorized' }));
+				}
+
+				if (!this.roomState.roleTokens) this.roomState.roleTokens = {};
+
+				if (Object.keys(this.roomState.roleTokens).length >= 50) {
+					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Maximum role links generated (50)' }));
+				}
+
+				this.roomState.roleTokens[msg.tokenHash] = msg.constraints;
+				await this.saveRoomState();
+
+				// Direct acknowledgment to creator of the role link
+				return webSocket.send(JSON.stringify({ type: 'ROLE_REGISTERED_SUCCESS' }));
+			}
+
+			// Authenticate Role Link (Guest Flow)
+			if (msg.type === 'AUTH_ROLE') {
+				try {
+					const incomingBuffer = new TextEncoder().encode(msg.token);
+					const incomingHashBuffer = await crypto.subtle.digest('SHA-256', incomingBuffer);
+					const tokenHash = Array.from(new Uint8Array(incomingHashBuffer))
+						.map((b) => b.toString(16).padStart(2, '0'))
+						.join('');
+
+					if (this.roomState?.roleTokens && this.roomState.roleTokens[tokenHash]) {
+						const constraints = this.roomState.roleTokens[tokenHash];
+
+						// Tag this specific socket session with the restrictions
+						this.sessions.set(webSocket, { ...session!, constraints });
+
+						webSocket.send(JSON.stringify({ type: 'CONSTRAINT_UPDATE', constraints }));
+					} else {
+						webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid or revoked role token' }));
+					}
+				} catch (e) {
+					webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Failed to authenticate role' }));
+				}
+				return;
+			}
+
 			// Label Updates (Admin Only)
 			if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
 				if (msg.label && msg.label.length > 200) {
@@ -541,6 +594,16 @@ export class SigningRoom implements DurableObject {
 
 			// PSBT Chunk Upload
 			if (msg.type === 'UPLOAD_PARTIAL') {
+				// Enforce capability constraints
+				if (session?.constraints && session.constraints.canUploadSignature === false) {
+					return webSocket.send(
+						JSON.stringify({
+							type: 'ERROR_POLICY_VIOLATION',
+							message: 'Your role link does not permit signature uploads.',
+						}),
+					);
+				}
+
 				if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
 				if (this.roomState.signatures.length >= getConfig(this.env, 'MAX_SIGNATURES')) {
 					webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
