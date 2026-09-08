@@ -84,6 +84,13 @@ export class SigningRoomClient {
   }
 
   /**
+   * Retrieves the current role token actively authenticating this session.
+   */
+  public get currentRoleToken(): string | null {
+    return this._roleToken;
+  }
+
+  /**
    * Returns a human-readable identifier for the current user's session and role.
    */
   public get userContext(): string {
@@ -657,7 +664,7 @@ export class SigningRoomClient {
     // 6. Keep the timeline transparent via the audit log
     await this.logParticipantAction(
       'Role Link Generated',
-      `Constraints -> Uploads: ${flags.canUploadSignature}, PSBT: ${flags.canExportPsbt}, Audit: ${flags.canExportAudit}`,
+      `Uploads: ${flags.canUploadSignature}, PSBT: ${flags.canExportPsbt}, Audit: ${flags.canExportAudit}`,
     );
 
     return encryptedToken;

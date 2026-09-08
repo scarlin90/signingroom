@@ -414,8 +414,8 @@ export class RoomAuditor {
         if (log.detail) {
           doc.setTextColor(100);
           const detailStr = String(log.detail);
-          const detailText = detailStr.length > 30 ? detailStr.substring(0, 27) + '...' : detailStr;
-          doc.text(detailText, 150, y);
+          const detailText = detailStr.length > 40 ? detailStr.substring(0, 37) + '...' : detailStr;
+          doc.text(detailText, 140, y);
         }
         y += 7;
       });

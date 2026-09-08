@@ -251,6 +251,17 @@ export class SocketService {
     return this.encryptionKey;
   }
 
+  /**
+   * Reconstructs the complete URL fragment required to access the room with the current role.
+   */
+  public getCurrentFragment(): string | null {
+    const fbek = this.getRoomKey();
+    if (!fbek) return null;
+
+    const roleToken = this.sdk.currentRoleToken;
+    return roleToken ? `${fbek}:${roleToken}` : fbek;
+  }
+
   async connect(roomId: string, fragment: string | null) {
     if (this.status() === 'connecting') return;
 
@@ -269,8 +280,6 @@ export class SocketService {
       }
 
       await this.sdk.joinRoom(roomId, fragment);
-
-      this.currentConstraints.set(this.sdk.getConstraints());
 
       if (this.isBrowser) {
         const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);

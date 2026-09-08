@@ -60,6 +60,7 @@ import {
   LucideShieldCheck,
   LucideShieldOff,
   LucideUser,
+  LucideLink,
 } from '@lucide/angular';
 import { SocketService } from '../../services/socket/socket.service';
 import * as QRCode from 'qrcode';
@@ -115,6 +116,7 @@ import { ConfigService } from '../../services/config/config.service';
     LucideShieldCheck,
     LucideShieldOff,
     LucideUser,
+    LucideLink,
   ],
   templateUrl: './room.component.html',
   providers: [EncryptionEngine],
@@ -211,6 +213,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   public keyCopied = signal(false);
   public adminCopied = signal(false);
   public roomIdCopied = signal(false);
+  public roomLinkCopied = signal(false);
 
   // --- Granular Role Generation Signals ---
   public roleFlags = signal({
@@ -220,6 +223,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   });
   public isGeneratingRole = signal(false);
   public roleLinkCopied = signal(false);
+  public activeGenType = signal<'full' | 'key' | null>(null);
 
   // --- Address Label Signals ---
   public showAddressLabelModal = signal(false);
@@ -293,7 +297,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       }
 
       if (this.socket.isClosed()) {
-        if (!this.isEmbedded) {
+        if (!this.isEmbedded && this.socket.currentConstraints()?.canExportAudit !== false) {
           this.generateAuditLog();
         }
       }
@@ -1099,6 +1103,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   async generateAuditLog() {
+    if (this.socket.currentConstraints()?.canExportAudit === false) return;
     const config = this.configService.config();
     const reportHeading = config.brandName;
 
@@ -1193,39 +1198,41 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Generates a restricted role token, registers it with the worker,
-   * and copies the combined URL fragment to the clipboard.
+   * Generates a restricted role link and copies either the full URL or just the fragment key.
    */
-  async generateAndCopyRoleLink() {
+  async generateAndCopy(type: 'full' | 'key') {
+    this.activeGenType.set(type);
     this.isGeneratingRole.set(true);
     try {
-      // Generate and register the token via the SocketService
       const token = await this.socket.generateAndRegisterRole(this.roleFlags());
+      const fbek = this.socket.getRoomKey();
+      const fullFragment = `${fbek}:${token}`;
+      const baseUrl = window.location.href.split('#')[0];
+      const fullLink = `${baseUrl}#${fullFragment}`;
 
-      // Build the full `#<FBEK>:<TOKEN>` URL
-      const link = this.socket.getRoomLink(window.location.origin, true, token);
+      if (type === 'full') {
+        this.doCopy(fullLink, this.fullLinkCopied);
+        this.dispatcher.emitDataCopied('share-link-full' as any);
+      } else {
+        this.doCopy(fullFragment, this.keyCopied);
+        this.dispatcher.emitDataCopied('decryption-key' as any);
+      }
 
-      // Copy to clipboard
-      this.doCopy(link, this.roleLinkCopied);
-      this.dispatcher.emitDataCopied('share-link-full' as any);
-
-      // Close the modal after a brief success indication
       setTimeout(() => this.closeShareModal(), 1500);
     } catch (e) {
       console.error('Failed to generate role link', e);
       this.openAlert('Generation Failed', 'An error occurred while generating the role token.');
     } finally {
       this.isGeneratingRole.set(false);
+      this.activeGenType.set(null);
     }
   }
 
   copySecureLink() {
     const baseUrl = window.location.href.split('#')[0];
     this.doCopy(baseUrl, this.secureLinkCopied);
-    this.socket.logAction('Link Copied (No Key)', 'User copied room link');
-
+    this.socket.logAction('Link Copied (No Key)', 'User copied base room link');
     this.dispatcher.emitDataCopied('share-link');
-    this.closeShareModal();
   }
 
   copyFullLink() {
@@ -1262,10 +1269,13 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   copyKey() {
-    this.doCopy(this.socket.getRoomKey() || '', this.keyCopied);
-    this.socket.logAction('Key Copied', 'Copied room decryption key');
-    this.dispatcher.emitDataCopied('decryption-key');
-    this.closeKeyModal();
+    const fragment = this.socket.getCurrentFragment();
+    if (fragment) {
+      this.doCopy(fragment, this.keyCopied);
+      this.socket.logAction('Key Copied', 'Copied full room access fragment');
+      this.dispatcher.emitDataCopied('decryption-key');
+      setTimeout(() => this.closeKeyModal(), 1500);
+    }
   }
 
   async copyAdminToken() {
@@ -1295,6 +1305,14 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.dispatcher.emitDataCopied('room-id');
       this.closeRoomIdModal();
     }
+  }
+
+  copyRoomLinkOnly() {
+    const baseUrl = window.location.href.split('#')[0];
+    this.doCopy(baseUrl, this.roomLinkCopied);
+    this.socket.logAction('Room Link Copied', 'Copied the base room URL');
+    this.dispatcher.emitDataCopied('share-link' as any);
+    setTimeout(() => this.closeRoomIdModal(), 1500);
   }
 
   blurStates = signal<Record<PrivacySection, boolean>>({
