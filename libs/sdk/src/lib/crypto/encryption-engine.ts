@@ -145,4 +145,18 @@ export class EncryptionEngine {
       .join('')
       .slice(0, 16);
   }
+
+  /**
+   * Generates a full SHA-256 hex string from the input data.
+   * @param data - The string payload to hash.
+   * @returns A Promise resolving to a 64-character hex-encoded SHA-256 digest.
+   */
+  async sha256(data: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const cryptoSubtle = this.getCrypto();
+    const hashBuffer = await cryptoSubtle.digest('SHA-256', encoder.encode(data));
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
 }

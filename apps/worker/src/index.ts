@@ -51,6 +51,13 @@ const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
 	MAX_SIGNATURES: 100, // Max signatures per room
 };
 
+// Safe routes that even an unauthenticated guest can use
+const GUEST_SAFE_ROUTES = new Set([
+	'AUTH', // Allow them to try and claim admin
+	'AUTH_ROLE', // Allow them to authenticate their role
+	'SET_DISPLAY_NAME', // Allow them to change their local display name
+]);
+
 // Helper to safely fetch a specific config property
 function getConfig(env: Env, key: ConfigKey): number {
 	const value = env[key];
@@ -167,7 +174,7 @@ app.get('/api/health', (c) => {
 
 app.post('/api/room', async (c) => {
 	const body = await c.req.json();
-	const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion } = body;
+	const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens } = body;
 
 	if (encryptedPsbt && encryptedPsbt.length > getConfig(c.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
 		return c.json({ error: 'Payload too large. Max 500KB.' }, 413);
@@ -278,7 +285,7 @@ export class SigningRoom implements DurableObject {
 
 		// 1. Initialize Room
 		if (url.pathname === '/init') {
-			const { roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, encryptedLogBlob, encryptedRoomName } =
+			const { roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, encryptedLogBlob, encryptedRoomName, roleTokens } =
 				await request.json<any>();
 			const now = Date.now();
 
@@ -308,7 +315,8 @@ export class SigningRoom implements DurableObject {
 				network: network || 'bitcoin',
 				protocolVersion: protocolVersion || '1.0.0',
 				roomName: encryptedRoomName || 'Untitled Room',
-				roleTokens: {},
+				roleTokens: roleTokens || {},
+				strictRoles: roleTokens !== undefined && Object.keys(roleTokens).length > 0,
 			};
 
 			if (encryptedLogBlob) {
@@ -454,6 +462,34 @@ export class SigningRoom implements DurableObject {
 			const msg = JSON.parse(event.data as string);
 			const userLabel = session?.role === 'admin' ? 'Coordinator' : `Guest (${session?.id})`;
 
+			if (session.role !== 'admin' && this.roomState.strictRoles) {
+				// If strict mode is active, block everything except safe routes unless they have an authorized token
+				if (!GUEST_SAFE_ROUTES.has(msg.type)) {
+					// If they have NO token (Downgrade attempt)
+					if (!session.constraints) {
+						return webSocket.send(
+							JSON.stringify({
+								type: 'ERROR_POLICY_VIOLATION',
+								message: 'Strict Mode Active: A valid role token is required to interact.',
+							}),
+						);
+					}
+
+					// If they have a token, enforce the specific granular constraints
+					if (msg.type === 'UPLOAD_PARTIAL' && session.constraints.canUploadSignature === false) {
+						return webSocket.send(
+							JSON.stringify({
+								type: 'ERROR_POLICY_VIOLATION',
+								message: 'Your assigned role restricts signature uploads.',
+							}),
+						);
+					}
+
+					// You can add further constraint checks here if you expand the RoleConstraints interface
+					// e.g., if (msg.type === 'LOG_ACTION' && session.constraints.canLog === false) { ... }
+				}
+			}
+
 			if (msg.type === 'AUTH') {
 				if (this.isLockedOut) {
 					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Room locked due to multiple failed attempts' }));
@@ -594,16 +630,6 @@ export class SigningRoom implements DurableObject {
 
 			// PSBT Chunk Upload
 			if (msg.type === 'UPLOAD_PARTIAL') {
-				// Enforce capability constraints
-				if (session?.constraints && session.constraints.canUploadSignature === false) {
-					return webSocket.send(
-						JSON.stringify({
-							type: 'ERROR_POLICY_VIOLATION',
-							message: 'Your role link does not permit signature uploads.',
-						}),
-					);
-				}
-
 				if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
 				if (this.roomState.signatures.length >= getConfig(this.env, 'MAX_SIGNATURES')) {
 					webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
