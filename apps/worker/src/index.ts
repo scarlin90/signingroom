@@ -187,7 +187,7 @@ app.post('/api/room', async (c) => {
 	const initRes = await room.fetch(
 		new Request('http://internal/init', {
 			method: 'POST',
-			body: JSON.stringify({ roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion }),
+			body: JSON.stringify({ roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, roleTokens }),
 		}),
 	);
 
@@ -297,6 +297,8 @@ export class SigningRoom implements DurableObject {
 			const secureStoredHash = Array.from(new Uint8Array(hashBuffer))
 				.map((b) => b.toString(16).padStart(2, '0'))
 				.join('');
+
+			console.log('[WORKER] /init - Saving Admin Token Hash:', secureStoredHash);
 
 			this.roomState = {
 				roomId,
@@ -491,6 +493,7 @@ export class SigningRoom implements DurableObject {
 			}
 
 			if (msg.type === 'AUTH') {
+				console.log('[WORKER] Received AUTH frame. Raw Token:', msg.token);
 				if (this.isLockedOut) {
 					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Room locked due to multiple failed attempts' }));
 				}
@@ -501,7 +504,11 @@ export class SigningRoom implements DurableObject {
 					.map((b) => b.toString(16).padStart(2, '0'))
 					.join('');
 
+				console.log('[WORKER] Expected Hash in DB:', this.roomState?.adminToken);
+				console.log('[WORKER] Attempted Hash:', attemptedHash);
+
 				if (attemptedHash === this.roomState?.adminToken) {
+					console.log('[WORKER] AUTH SUCCESS! Upgrading session to Admin.');
 					this.authFailures = 0;
 					this.sessions.set(webSocket, { ...session!, role: 'admin' });
 
@@ -513,6 +520,7 @@ export class SigningRoom implements DurableObject {
 
 					webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
 				} else {
+					console.log('[WORKER] ❌ AUTH FAILED. Hashes do not match.');
 					this.authFailures++;
 					if (this.authFailures >= getConfig(this.env, 'MAX_AUTH_FAILURES')) {
 						this.isLockedOut = true;
@@ -525,6 +533,7 @@ export class SigningRoom implements DurableObject {
 
 			// Register Role Link (Admin Only)
 			if (msg.type === 'REGISTER_ROLE') {
+				console.log('[WORKER] Received REGISTER_ROLE frame. Token Hash:', msg.tokenHash, 'Constraints:', msg.constraints);
 				if (session?.role !== 'admin') {
 					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Unauthorized' }));
 				}
@@ -536,6 +545,7 @@ export class SigningRoom implements DurableObject {
 				}
 
 				this.roomState.roleTokens[msg.tokenHash] = msg.constraints;
+				console.log('[WORKER] Role Link Registered. Current Role Tokens:', this.roomState.roleTokens);
 				await this.saveRoomState();
 
 				// Direct acknowledgment to creator of the role link

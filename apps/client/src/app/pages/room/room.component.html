@@ -481,7 +481,7 @@
         <div class="p-4 border-b border-brand-card-border flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <svg lucideCopy class="w-5 h-5 text-brand-text"></svg>
-                <h3 class="font-bold text-brand-text">Share Room Securely</h3>
+                <h3 class="font-bold text-brand-text">Generate Share Link</h3>
             </div>
             <button id="btn-modal-close" (click)="closeShareModal()" class="text-brand-text-muted hover:text-brand-text transition cursor-pointer">
                 <svg lucideX class="w-5 h-5"></svg>
@@ -489,51 +489,74 @@
         </div>
 
         <div class="p-6 flex flex-col gap-4">
+            <p class="text-sm text-brand-text-muted mb-1">Configure the capabilities for this invite link.</p>
             
-            <div class="border border-brand-accent/30 bg-brand-accent/5 rounded-xl p-4 relative overflow-hidden group">
-                <div class="flex justify-between items-start mb-2 relative z-10">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <svg lucideShield class="w-4 h-4 text-brand-accent"></svg>
-                            <h4 class="text-brand-text font-bold text-sm">Maximum Security (Split)</h4>
+            <div class="space-y-3 bg-brand-bg border border-brand-card-border rounded-xl p-4">
+                
+                <!-- Toggle 1: Upload Signatures -->
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded bg-brand-accent/10 flex items-center justify-center text-brand-accent">
+                            <svg lucideUploadCloud class="w-4 h-4"></svg>
                         </div>
-                        <p class="text-xs text-brand-text-muted mt-1 leading-relaxed">
-                            Copies the room URL <strong>without</strong> the decryption key. Send this link, then use the <em>"Link Key"</em> action to send the key via a separate, secure channel (e.g., Signal vs Email).
-                        </p>
+                        <div>
+                            <div class="text-sm font-bold text-brand-text">Submit Signatures</div>
+                            <div class="text-xs text-brand-text-muted">Allow guest to upload signed PSBTs</div>
+                        </div>
                     </div>
-                </div>
-                <button id="btn-copy-secure-link" (click)="copySecureLink()" class="mt-3 w-full py-2.5 bg-brand-accent/20 hover:bg-brand-accent/30 text-brand-accent text-xs font-bold rounded-lg border border-brand-accent/20 transition flex items-center justify-center gap-2 relative z-10 cursor-pointer">
-                    @if (secureLinkCopied()) {
-                        <svg lucideCheck class="w-4 h-4"></svg>
-                    } @else {
-                        <svg lucideCopy class="w-4 h-4"></svg>
-                    }
-                    {{ secureLinkCopied() ? 'Secure Link Copied!' : 'Copy Link Only (No Key)' }}
-                </button>
+                    <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors" [class.bg-brand-accent]="roleFlags().canUploadSignature" [class.bg-brand-card-border]="!roleFlags().canUploadSignature">
+                        <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canUploadSignature" (change)="toggleRoleFlag('canUploadSignature')">
+                        <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canUploadSignature" [class.translate-x-1]="!roleFlags().canUploadSignature"></span>
+                    </div>
+                </label>
+
+                <!-- Toggle 2: Export PSBT -->
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded bg-purple-500/10 flex items-center justify-center text-purple-400">
+                            <svg lucideDownloadCloud class="w-4 h-4"></svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold text-brand-text">Export Transaction</div>
+                            <div class="text-xs text-brand-text-muted">Allow guest to download raw PSBT</div>
+                        </div>
+                    </div>
+                    <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors" [class.bg-purple-500]="roleFlags().canExportPsbt" [class.bg-brand-card-border]="!roleFlags().canExportPsbt">
+                        <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canExportPsbt" (change)="toggleRoleFlag('canExportPsbt')">
+                        <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canExportPsbt" [class.translate-x-1]="!roleFlags().canExportPsbt"></span>
+                    </div>
+                </label>
+
+                <!-- Toggle 3: Export Audit -->
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded bg-blue-500/10 flex items-center justify-center text-blue-400">
+                            <svg lucideFileCheck class="w-4 h-4"></svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold text-brand-text">Export Audit Logs</div>
+                            <div class="text-xs text-brand-text-muted">Allow guest to download PDF & CSV</div>
+                        </div>
+                    </div>
+                    <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors" [class.bg-blue-500]="roleFlags().canExportAudit" [class.bg-brand-card-border]="!roleFlags().canExportAudit">
+                        <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canExportAudit" (change)="toggleRoleFlag('canExportAudit')">
+                        <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canExportAudit" [class.translate-x-1]="!roleFlags().canExportAudit"></span>
+                    </div>
+                </label>
             </div>
 
-            <div class="border border-brand-card-border bg-brand-bg/50 rounded-xl p-4">
-                <div class="flex justify-between items-start mb-2">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <svg lucideAlertTriangle class="w-4 h-4 text-amber-500"></svg>
-                            <h4 class="text-brand-text font-bold text-sm">Standard (Combined)</h4>
-                        </div>
-                        <p class="text-xs text-brand-text-muted mt-1 leading-relaxed">
-                            Copies the full URL including the decryption key (<code>#key</code>). Convenient for quick sharing, but if this single link is intercepted, the room is compromised.
-                        </p>
-                    </div>
-                </div>
-                <button id="btn-copy-full-link" (click)="copyFullLink()" class="mt-3 w-full py-2.5 bg-brand-card-border/50 hover:bg-brand-card-border text-brand-text text-xs font-bold rounded-lg border border-brand-card-border transition flex items-center justify-center gap-2 cursor-pointer">
-                    @if (fullLinkCopied()) {
-                        <svg lucideCheck class="w-4 h-4"></svg>
-                    } @else {
-                        <svg lucideCopy class="w-4 h-4"></svg>
-                    }
-                    {{ fullLinkCopied() ? 'Full Link Copied!' : 'Copy Full Link (Link + Key)' }}
-                </button>
-            </div>
-
+            <button id="btn-generate-role-link" (click)="generateAndCopyRoleLink()" [disabled]="isGeneratingRole()" class="mt-2 w-full py-3 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg text-sm font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                @if (isGeneratingRole()) {
+                    <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg>
+                    Generating...
+                } @else if (roleLinkCopied()) {
+                    <svg lucideCheck class="w-4 h-4"></svg>
+                    Link Copied!
+                } @else {
+                    <svg lucideCopy class="w-4 h-4"></svg>
+                    Generate & Copy Link
+                }
+            </button>
         </div>
     </div>
 </div>
@@ -998,8 +1021,17 @@
                 
                 @if (!isExpired() && !socket.isClosed()) {
                     <div class="relative group">
-                        <button id="btn-action-audit" (click)="promptAuditLogDownload()" class="px-3 py-2 text-brand-accent hover:bg-brand-accent/10 hover:text-brand-accent-hover rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-brand-accent/20 cursor-pointer">
-                            <svg lucideFileCheck class="w-4 h-4"></svg>
+                        <button id="btn-action-audit" 
+                                (click)="socket.currentConstraints()?.canExportAudit === false ? null : promptAuditLogDownload()" 
+                                class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [disabled]="socket.currentConstraints()?.canExportAudit === false"
+                                [class]="socket.currentConstraints()?.canExportAudit === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'text-brand-accent hover:bg-brand-accent/10 hover:text-brand-accent-hover border-transparent hover:border-brand-accent/20'"
+                                [title]="socket.currentConstraints()?.canExportAudit === false ? 'Your role restricts audit log exports.' : 'Audit Log'">
+                            @if (socket.currentConstraints()?.canExportAudit === false) {
+                                <svg lucideLock class="w-4 h-4"></svg>
+                            } @else {
+                                <svg lucideFileCheck class="w-4 h-4"></svg>
+                            }
                             Audit Log
                         </button>
                     </div>
@@ -1007,8 +1039,17 @@
                     <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div> 
 
                     <div class="relative group">
-                        <button id="btn-action-csv" (click)="promptCsvDownload()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20 cursor-pointer">
-                            <svg lucideDownload class="w-4 h-4"></svg>
+                        <button id="btn-action-csv" 
+                                (click)="socket.currentConstraints()?.canExportAudit === false ? null : promptCsvDownload()" 
+                                class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [disabled]="socket.currentConstraints()?.canExportAudit === false"
+                                [class]="socket.currentConstraints()?.canExportAudit === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 border-transparent hover:border-blue-500/20'"
+                                [title]="socket.currentConstraints()?.canExportAudit === false ? 'Your role restricts CSV exports.' : 'CSV'">
+                            @if (socket.currentConstraints()?.canExportAudit === false) {
+                                <svg lucideLock class="w-4 h-4"></svg>
+                            } @else {
+                                <svg lucideDownload class="w-4 h-4"></svg>
+                            }
                             CSV
                         </button>
                     </div>
@@ -1333,34 +1374,69 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                <div class="flex flex-col gap-2">
-                    <div class="text-xs text-brand-text-muted mb-1">1. Export Unsigned Transaction</div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button id="btn-export-show-qr" (click)="openFountainModal()" class="flex items-center justify-center p-3 bg-brand-bg border border-brand-card-border rounded-lg hover:border-brand-accent/50 hover:bg-brand-accent/5 transition-all text-sm font-medium text-brand-text group cursor-pointer">
-                            <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                <div class="grid grid-cols-2 gap-2">
+                        <button id="btn-export-show-qr" 
+                                (click)="socket.currentConstraints()?.canExportPsbt === false ? null : openFountainModal()" 
+                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [disabled]="socket.currentConstraints()?.canExportPsbt === false"
+                                [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
+                                [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                            @if (socket.currentConstraints()?.canExportPsbt === false) {
+                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                            } @else {
+                                <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                            }
                             Show QR
                         </button>
-                        <button id="btn-export-download-file" (click)="promptPsbtDownload()" class="flex items-center justify-center p-3 bg-brand-bg border border-brand-card-border rounded-lg hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-sm font-medium text-brand-text group cursor-pointer">
-                            <svg lucideDownloadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                        <button id="btn-export-download-file" 
+                                (click)="socket.currentConstraints()?.canExportPsbt === false ? null : promptPsbtDownload()" 
+                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [disabled]="socket.currentConstraints()?.canExportPsbt === false"
+                                [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text'"
+                                [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                            @if (socket.currentConstraints()?.canExportPsbt === false) {
+                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                            } @else {
+                                <svg lucideDownloadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                            }
                             Download File
                         </button>
                     </div>
-                </div>
 
-                <div class="flex flex-col gap-2">
-                    <div class="text-xs text-brand-text-muted mb-1">2. Import Signed Transaction</div>
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="btn-import-scan-qr" (click)="startScanner()" [disabled]="isScanningSigned()" class="flex items-center justify-center p-3 bg-brand-bg border border-brand-card-border rounded-lg hover:border-brand-accent/50 hover:bg-brand-accent/5 transition-all text-sm font-medium text-brand-text group disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
-                            <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                        <button id="btn-import-scan-qr" 
+                                (click)="startScanner()" 
+                                [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false" 
+                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
+                                [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
+                            @if (socket.currentConstraints()?.canUploadSignature === false) {
+                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                            } @else {
+                                <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                            }
                             Scan QR
                         </button>
-                        <label id="btn-import-upload-file" class="relative group cursor-pointer flex items-center justify-center p-3 bg-brand-bg border border-brand-card-border rounded-lg hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-sm font-medium text-brand-text disabled:opacity-50">
-                            <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" class="absolute inset-0 opacity-0 cursor-pointer z-10" [disabled]="isScanningSigned()">
-                            <svg lucideUploadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                        <label id="btn-import-upload-file" 
+                               class="relative flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium"
+                               [class.opacity-50]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                               [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                               [class.pointer-events-none]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                               [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text group cursor-pointer'"
+                               [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
+                            
+                            <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" 
+                                   class="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                                   [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false">
+                            
+                            @if (socket.currentConstraints()?.canUploadSignature === false) {
+                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                            } @else {
+                                <svg lucideUploadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                            }
                             Upload File
                         </label>
                     </div>
-                </div>
             </div>
 
             @if (isScanningSigned()) {

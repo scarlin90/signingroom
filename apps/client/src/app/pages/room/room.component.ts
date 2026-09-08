@@ -212,6 +212,15 @@ export class RoomComponent implements OnInit, OnDestroy {
   public adminCopied = signal(false);
   public roomIdCopied = signal(false);
 
+  // --- Granular Role Generation Signals ---
+  public roleFlags = signal({
+    canUploadSignature: true,
+    canExportPsbt: true,
+    canExportAudit: true,
+  });
+  public isGeneratingRole = signal(false);
+  public roleLinkCopied = signal(false);
+
   // --- Address Label Signals ---
   public showAddressLabelModal = signal(false);
   public editingAddress = signal<string | null>(null);
@@ -351,6 +360,11 @@ export class RoomComponent implements OnInit, OnDestroy {
       }
 
       this.previousSessions = currentSessions;
+    });
+
+    effect(() => {
+      console.log('[UI] Reacting to Role Change. Current Role:', this.socket.role());
+      console.log('[UI] isCoordinator Signal:', this.socket.isCoordinator());
     });
 
     // --- SIGNATURE NETWORK TRACKER ---
@@ -1169,6 +1183,40 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   closeShareModal() {
     this.showShareModal.set(false);
+  }
+
+  /**
+   * Toggles a specific capability flag for the link generator.
+   */
+  toggleRoleFlag(flag: 'canUploadSignature' | 'canExportPsbt' | 'canExportAudit') {
+    this.roleFlags.update((f) => ({ ...f, [flag]: !f[flag] }));
+  }
+
+  /**
+   * Generates a restricted role token, registers it with the worker,
+   * and copies the combined URL fragment to the clipboard.
+   */
+  async generateAndCopyRoleLink() {
+    this.isGeneratingRole.set(true);
+    try {
+      // Generate and register the token via the SocketService
+      const token = await this.socket.generateAndRegisterRole(this.roleFlags());
+
+      // Build the full `#<FBEK>:<TOKEN>` URL
+      const link = this.socket.getRoomLink(window.location.origin, true, token);
+
+      // Copy to clipboard
+      this.doCopy(link, this.roleLinkCopied);
+      this.dispatcher.emitDataCopied('share-link-full' as any);
+
+      // Close the modal after a brief success indication
+      setTimeout(() => this.closeShareModal(), 1500);
+    } catch (e) {
+      console.error('Failed to generate role link', e);
+      this.openAlert('Generation Failed', 'An error occurred while generating the role token.');
+    } finally {
+      this.isGeneratingRole.set(false);
+    }
   }
 
   copySecureLink() {

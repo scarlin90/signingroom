@@ -230,6 +230,17 @@ export class RelayClient {
           roomVersion: msg.roomVersion,
         });
         break;
+      case 'ROLE_REGISTERED_SUCCESS':
+        this.events.dispatch('ROLE_REGISTERED_SUCCESS', msg);
+        break;
+      case 'CONSTRAINT_UPDATE':
+        this.events.dispatch('CONSTRAINT_UPDATE', msg);
+        break;
+      case 'ERROR':
+      case 'ERROR_POLICY_VIOLATION':
+        this.events.dispatch('ERROR', msg);
+        break;
+
       default:
         this.events.dispatch('RAW_MESSAGE', msg);
     }

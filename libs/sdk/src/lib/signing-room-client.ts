@@ -196,6 +196,7 @@ export class SigningRoomClient {
 
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
     const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
+    const stateSyncEvent = firstValueFrom(this.relay.events.on('STATE_SYNC_DECRYPTED'));
 
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(payload.localData.roomId, this.protocolVersion);
@@ -208,12 +209,13 @@ export class SigningRoomClient {
 
     await connectionEvent;
     await sessionEvent;
+    await stateSyncEvent;
 
     await this.logParticipantAction('User Joined', `Session: ${this._sessionId}`);
 
     const roleEvent = firstValueFrom(this.relay.events.on('ROLE_UPDATE'));
-    this.relay.claimCoordinator(payload.httpPayload.adminToken);
     await roleEvent;
+    this.relay.claimCoordinator(payload.httpPayload.adminToken);
 
     return {
       roomId: payload.localData.roomId,
@@ -227,11 +229,19 @@ export class SigningRoomClient {
   public async joinRoom(roomId: string, fragment: string) {
     const { fbek, roleToken } = this.parseFragment(fragment);
 
+    console.log(
+      '[SDK] joinRoom parsed fragment. FBEK Length:',
+      fbek?.length,
+      'RoleToken Length:',
+      roleToken?.length,
+    );
+
     this._encryptionKey = fbek;
     this._roleToken = roleToken;
 
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
     const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
+    const stateSyncEvent = firstValueFrom(this.relay.events.on('STATE_SYNC_DECRYPTED'));
 
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(roomId, this.protocolVersion);
@@ -240,24 +250,10 @@ export class SigningRoomClient {
 
     await connectionEvent;
     await sessionEvent;
+    await stateSyncEvent;
 
-    // Authenticate the granular role link if provided
     if (this._roleToken) {
       this.relay.send('AUTH_ROLE', { token: this._roleToken });
-
-      const response = await Promise.race([
-        firstValueFrom(this.relay.events.on('CONSTRAINT_UPDATE')),
-        firstValueFrom(this.relay.events.on('ERROR')),
-      ]);
-
-      if (response.type === 'ERROR') {
-        this.disconnect();
-        throw new Error(
-          `Role Authentication Failed: ${response.payload?.message || 'Invalid token'}`,
-        );
-      }
-
-      this._constraints = response.payload as RoleConstraints;
     }
 
     await this.logParticipantAction('User Joined', `Session: ${this._sessionId}`);
@@ -583,10 +579,16 @@ export class SigningRoomClient {
   public parseFragment(hash: string): { fbek: string; roleToken: string | null } {
     const cleanHash = hash.replace(/^#/, '');
     if (!cleanHash.includes(':')) {
-      return { fbek: cleanHash, roleToken: null };
+      return {
+        fbek: decodeURIComponent(cleanHash).replace(/ /g, '+'),
+        roleToken: null,
+      };
     }
     const [fbek, roleToken] = cleanHash.split(':');
-    return { fbek, roleToken };
+    return {
+      fbek: decodeURIComponent(fbek).replace(/ /g, '+'),
+      roleToken: decodeURIComponent(roleToken).replace(/ /g, '+'),
+    };
   }
 
   /**
@@ -642,12 +644,15 @@ export class SigningRoomClient {
     // 3. Hash the encrypted token for the stateless worker
     const tokenHash = await this.engine.sha256(encryptedToken);
 
+    console.log('[SDK] Generated Role Link. Token Hash:', tokenHash, 'Constraints:', payload);
     // 4. Setup listener for the unicast success response
     const confirmation = this.waitForEvent('ROLE_REGISTERED_SUCCESS');
 
     // 5. Send to worker
     this.relay.send('REGISTER_ROLE', { tokenHash, constraints: flags });
     await confirmation;
+
+    console.log('[SDK] REGISTER_ROLE Confirmed');
 
     // 6. Keep the timeline transparent via the audit log
     await this.logParticipantAction(
@@ -695,6 +700,7 @@ export class SigningRoomClient {
    * This is used for session recovery after re-joining a room.
    */
   public async claimCoordinator(adminSecret: string): Promise<void> {
+    console.log('[SDK] Sending AUTH message to worker with token:', adminSecret);
     if (this.store.getState() === null) {
       throw new Error('Must join room before claiming coordinator role.');
     }

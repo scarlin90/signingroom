@@ -161,7 +161,7 @@ export class CreateComponent implements OnInit {
   async launchRoom() {
     this.isLoading.set(true);
     try {
-      const createRoomPayload = await this.socket.createRoom(
+      const { payload: createRoomPayload, defaultRoleToken } = await this.socket.createRoom(
         this.rawHex,
         this.selectedNetwork(),
         'Untitled Room',
@@ -174,8 +174,14 @@ export class CreateComponent implements OnInit {
 
       sessionStorage.setItem(`admin_token_${createRoomPayload.localData.roomId}`, encryptedToken);
       this.dispatcher.emitRoomCreated(createRoomPayload.localData.roomId, this.selectedNetwork());
+
+      let fullFragment = encodeURIComponent(createRoomPayload.localData.encryptionKey);
+      if (defaultRoleToken) {
+        fullFragment += `:${encodeURIComponent(defaultRoleToken)}`;
+      }
+
       this.router.navigate(['/room', createRoomPayload.localData.roomId], {
-        fragment: createRoomPayload.localData.encryptionKey,
+        fragment: fullFragment,
       });
     } catch (e) {
       console.error(e);

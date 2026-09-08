@@ -13,6 +13,7 @@ import {
   RoomStateStore,
   EncryptionEngine,
   AuditLogOptions,
+  RoleConstraints,
 } from '@signing-room/sdk';
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
 import { Subject } from 'rxjs';
@@ -55,6 +56,13 @@ export class SocketService {
 
     this.relay.events.on('ROOM_CONNECTED').subscribe(() => {
       this.status.set('connected');
+    });
+
+    this.relay.events.on('CONSTRAINT_UPDATE' as any).subscribe((e) => {
+      const payload = e.payload;
+      const actualConstraints = payload?.constraints ? payload.constraints : payload;
+      console.log('[SERVICE] Applied Constraints:', actualConstraints);
+      this.currentConstraints.set(actualConstraints);
     });
 
     this.relay.events
@@ -178,6 +186,14 @@ export class SocketService {
         this.hasAnnouncedJoin = true;
       }
 
+      if (syncData.strictRoles && this.role() !== 'admin' && !this.currentConstraints()) {
+        this.currentConstraints.set({
+          canUploadSignature: false,
+          canExportPsbt: false,
+          canExportAudit: false,
+        });
+      }
+
       if (this.isCoordinator() && !this.hasSyncedLocalAddressBook) {
         this.hasSyncedLocalAddressBook = true;
         setTimeout(() => {
@@ -206,7 +222,12 @@ export class SocketService {
 
     this.relay.events.on('ROLE_UPDATE').subscribe((e) => {
       const newRole = e.payload;
+      console.log('[SERVICE] 4. Received ROLE_UPDATE from server:', newRole);
       this.role.set(newRole);
+
+      if (newRole === 'admin') {
+        this.currentConstraints.set(null);
+      }
 
       if (!this.hasAnnouncedJoin && newRole === 'admin') {
         this.hasAnnouncedJoin = true;
@@ -230,33 +251,52 @@ export class SocketService {
     return this.encryptionKey;
   }
 
-  async connect(roomId: string, key: string | null) {
+  async connect(roomId: string, fragment: string | null) {
     if (this.status() === 'connecting') return;
 
     this.reset();
     this.status.set('connecting');
 
     try {
-      if (!key) throw new Error('Decryption key required');
+      if (!fragment) throw new Error('Decryption key required');
+
+      const { fbek } = this.sdk.parseFragment(fragment);
+      this.setRoomKey(fbek);
 
       if (this.sdk.store.getState() !== null) {
         this.sdk.disconnect();
         await new Promise((r) => setTimeout(r, 50));
       }
 
-      await this.sdk.joinRoom(roomId, key);
+      await this.sdk.joinRoom(roomId, fragment);
+
+      this.currentConstraints.set(this.sdk.getConstraints());
 
       if (this.isBrowser) {
         const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
+        console.log(
+          '[SERVICE] 1. Retrieved secureToken from sessionStorage:',
+          secureToken ? 'FOUND' : 'MISSING',
+        );
 
         if (secureToken) {
           try {
-            const decryptedToken = await this.encryptionEngine.decrypt(secureToken, key);
+            console.log(
+              '[SERVICE] 2. Attempting decryption with FBEK:',
+              fbek.substring(0, 10) + '...',
+            );
+            const decryptedToken = await this.encryptionEngine.decrypt(secureToken, fbek);
+
+            console.log('[SERVICE] 3. Decryption successful! Plaintext Token:', decryptedToken);
+
             if (decryptedToken) {
               await this.sdk.claimCoordinator(decryptedToken);
             }
           } catch (decryptError) {
-            console.warn('Failed to decrypt local admin token. Proceeding as guest.');
+            console.error(
+              '[SERVICE] ❌ Decryption failed! The FBEK might be incorrect or token corrupted.',
+              decryptError,
+            );
             sessionStorage.removeItem(`admin_token_${roomId}`);
           }
         }
@@ -284,7 +324,7 @@ export class SocketService {
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName: string = 'Untitled Room',
   ) {
-    return await this.sdk.createRoom(psbtBase64, network, roomName);
+    return await this.sdk.createRoom(psbtBase64, network, roomName, { strictMode: true });
   }
 
   public async renameRoom(name: string) {
@@ -320,8 +360,20 @@ export class SocketService {
     this.sdk.claimCoordinator(secureToken);
   }
 
-  public getRoomLink(appBaseUrl: string, includeKey: boolean = false): string {
-    return this.sdk.getRoomLink(appBaseUrl, includeKey);
+  public getRoomLink(
+    appBaseUrl: string,
+    includeKey: boolean = false,
+    customRoleToken?: string,
+  ): string {
+    return this.sdk.getRoomLink(appBaseUrl, includeKey, customRoleToken);
+  }
+
+  public async generateAndRegisterRole(flags: {
+    canUploadSignature: boolean;
+    canExportPsbt: boolean;
+    canExportAudit: boolean;
+  }): Promise<string> {
+    return await this.sdk.generateAndRegisterRole(flags);
   }
 
   async logAction(action: string, detail: string) {
@@ -465,6 +517,7 @@ export class SocketService {
 
     this.activeSessions.set([]);
     this.status.set('disconnected');
+    this.currentConstraints.set(null);
 
     this.hasSyncedLocalAddressBook = false;
   }
@@ -478,6 +531,7 @@ export class SocketService {
   public status = signal<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   public role = signal<'guest' | 'admin'>('guest');
   public currentSessionId = signal<string | null>(null);
+  public currentConstraints = signal<RoleConstraints | null>(null);
   public activeSessions = signal<{ id: string; role: string; displayName?: string }[]>([]);
   public networkSignatureReceived$ = new Subject<{ fingerprint: string; sessionId: string }>();
 
