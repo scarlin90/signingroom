@@ -229,6 +229,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   public isGeneratingRole = signal(false);
   public roleLinkCopied = signal(false);
   public activeGenType = signal<'full' | 'key' | null>(null);
+  public shareStep = signal<1 | 2>(1);
 
   // --- Address Label Signals ---
   public showAddressLabelModal = signal(false);
@@ -1196,6 +1197,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   closeShareModal() {
     this.showShareModal.set(false);
+    setTimeout(() => this.shareStep.set(1), 300);
   }
 
   /**
