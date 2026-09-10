@@ -393,6 +393,14 @@ export class RoomComponent implements OnInit, OnDestroy {
         `Failed decryption attempt ${event.count}/3`,
       );
     });
+
+    this.socket.sdk.onEvent('ERROR_POLICY_VIOLATION').subscribe((event: any) => {
+      const message = event.payload?.message || 'Action restricted by assigned role.';
+
+      this.openAlert('Access Denied', message);
+
+      this.dispatcher.emitPolicyViolation(message);
+    });
   }
 
   ngOnInit() {
@@ -1205,6 +1213,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     this.isGeneratingRole.set(true);
     try {
       const token = await this.socket.generateAndRegisterRole(this.roleFlags());
+      this.dispatcher.emitRoleGenerated(this.roleFlags());
       const fbek = this.socket.getRoomKey();
       const fullFragment = `${fbek}:${token}`;
       const baseUrl = window.location.href.split('#')[0];
