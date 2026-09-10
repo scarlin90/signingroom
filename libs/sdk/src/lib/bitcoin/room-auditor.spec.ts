@@ -27,6 +27,9 @@ describe('RoomAuditor', () => {
       setDrawColor: vi.fn(),
       setLineWidth: vi.fn(),
       line: vi.fn(),
+      splitTextToSize: vi.fn().mockImplementation((text) => [text]),
+      getImageProperties: vi.fn().mockReturnValue({ width: 550, height: 160 }),
+      addImage: vi.fn(),
     } as unknown as jsPDF;
   };
 
@@ -239,7 +242,7 @@ describe('RoomAuditor', () => {
       expect(mockDoc.text).toHaveBeenCalledWith('tb1qmockaddress', 25, expect.any(Number));
     });
 
-    it('should trigger string truncation for log details exceeding 30 characters', async () => {
+    it('should wrap text for log details using splitTextToSize', async () => {
       const mockDoc = createMockDoc();
       const longLogState = {
         ...mockState,
@@ -254,10 +257,14 @@ describe('RoomAuditor', () => {
       };
 
       await RoomAuditor.generateAuditPdf(mockDoc, longLogState, mockTx, mockSigners, null);
-      // Hits L301 string truncation logic
+
+      expect(mockDoc.splitTextToSize).toHaveBeenCalledWith(
+        'This detail is explicitly longer than thirty characters.',
+        65,
+      );
       expect(mockDoc.text).toHaveBeenCalledWith(
-        'This detail is explicitly l...',
-        150,
+        ['This detail is explicitly longer than thirty characters.'],
+        130,
         expect.any(Number),
       );
     });
@@ -266,17 +273,14 @@ describe('RoomAuditor', () => {
       const mockDoc = createMockDoc();
       const badLogState: any = {
         ...mockState,
-        auditLog: [
-          null, // Hits L282 (!log) return
-          { timestamp: 0, event: '', user: '' }, // Hits L285, L286, L288, L289 fallbacks
-        ],
+        auditLog: [null, { timestamp: 0, event: '', user: '' }],
       };
 
       await RoomAuditor.generateAuditPdf(mockDoc, badLogState, mockTx, mockSigners, null);
 
       expect(mockDoc.text).toHaveBeenCalledWith(
         expect.stringContaining('System Event'),
-        65,
+        55,
         expect.any(Number),
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
@@ -358,6 +362,45 @@ describe('RoomAuditor', () => {
 
       await RoomAuditor.generateAuditPdf(mockDoc, hugeLogState, mockTx, mockSigners, null);
       expect(mockDoc.addPage).toHaveBeenCalled();
+    });
+
+    it('should apply custom whitelabel branding and logo when provided in options', async () => {
+      const mockDoc = createMockDoc();
+      const options = {
+        isWhitelabel: true,
+        brandName: 'Acme Corp Vault',
+        brandColor: [220, 38, 38] as [number, number, number], // Deep Red
+        logoDataUrl: 'data:image/png;base64,mockBase64DataString',
+      };
+
+      const { filename } = await RoomAuditor.generateAuditPdf(
+        mockDoc,
+        mockState,
+        mockTx,
+        mockSigners,
+        mockState.finalTxHex!,
+        options,
+      );
+
+      // Verify custom text color was applied to the header
+      expect(mockDoc.setTextColor).toHaveBeenCalledWith(220, 38, 38);
+
+      // Verify custom brand name was printed
+      expect(mockDoc.text).toHaveBeenCalledWith('Acme Corp Vault', expect.any(Number), 20);
+
+      // Verify logo extraction and placement was called correctly
+      expect(mockDoc.getImageProperties).toHaveBeenCalledWith(options.logoDataUrl);
+      expect(mockDoc.addImage).toHaveBeenCalledWith(
+        options.logoDataUrl,
+        'PNG',
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number),
+        12,
+      );
+
+      // Verify the filename stripped spaces from the custom brand name
+      expect(filename).toContain('AcmeCorpVault_Audit_');
     });
   });
 

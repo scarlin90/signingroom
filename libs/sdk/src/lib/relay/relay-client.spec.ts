@@ -136,6 +136,37 @@ describe('RelayClient', () => {
       MockWebSocket.lastInstance!.readyState = MockWebSocket.OPEN;
     });
 
+    it('should abort routing and emit DECRYPTION_ERROR if encryptedPsbt is present without an active key', async () => {
+      let errorFired = false;
+      client.events.on('DECRYPTION_ERROR').subscribe(() => (errorFired = true));
+
+      const ws = MockWebSocket.lastInstance!;
+      client.setKey(null); // Ensure key is missing
+
+      await ws.onmessage!({ data: JSON.stringify({ encryptedPsbt: 'enc-data' }) });
+      expect(errorFired).toBe(true);
+    });
+
+    it('should return empty structures for sessions and participants if encryption key is missing', async () => {
+      client.setKey(null);
+      let sessionResult: any = null;
+      let participantResult: any = null;
+
+      client.events.on('CONNECTIONS_DECRYPTED').subscribe((v) => (sessionResult = v.payload));
+      client.events.on('PARTICIPANTS_DECRYPTED').subscribe((v) => (participantResult = v.payload));
+
+      const ws = MockWebSocket.lastInstance!;
+      await ws.onmessage!({
+        data: JSON.stringify({ type: 'CONNECTIONS_UPDATE', count: 1, sessions: [{ id: '1' }] }),
+      });
+      await ws.onmessage!({
+        data: JSON.stringify({ type: 'PARTICIPANTS_UPDATE', participants: { sid: { id: 'sid' } } }),
+      });
+
+      expect(sessionResult.sessions).toEqual([]);
+      expect(participantResult).toEqual({});
+    });
+
     it('should return DECRYPTION_ERROR alerts if security tokens are completely absent', async () => {
       let errorFired = false;
       client.events.on('DECRYPTION_ERROR').subscribe(() => (errorFired = true));
@@ -550,6 +581,34 @@ describe('RelayClient', () => {
       MockWebSocket.lastInstance!.readyState = MockWebSocket.OPEN;
     });
 
+    it('should short-circuit all state modifiers completely if the encryption key is null', async () => {
+      client.setKey(null);
+      const ws = MockWebSocket.lastInstance!;
+
+      // Attempt all outbound actions without a key
+      await client.uploadSignature('psbt', 'fp', 'usr');
+      await client.renameRoom('name', 'usr');
+      await client.updateSignerLabel('fp', 'label', 'usr');
+      await client.updateAddressLabel('addr', 'label', 'usr');
+      await client.setDisplayName('name');
+      await client.updateWhitelist(['a'], 'det', 'usr');
+      await client.toggleLock(true, 'usr');
+      await client.broadcastFinalization('hex', 'id', 'usr');
+
+      // None of them should have triggered a network send
+      expect(ws.send).not.toHaveBeenCalled();
+    });
+
+    it('should handle empty string labels safely during updateSignerLabel and updateAddressLabel', async () => {
+      const ws = MockWebSocket.lastInstance!;
+
+      await client.updateSignerLabel('12345678', '', 'usr');
+      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('UPDATE_LABEL'));
+
+      await client.updateAddressLabel('tb1q123...', '', 'usr');
+      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('UPDATE_ADDRESS_LABEL'));
+    });
+
     it('should abort operational logs completely if active keys are missing', async () => {
       client.setKey(null);
       const res = await client.createSecureLogBlob('A', 'B', 'C');
@@ -612,6 +671,42 @@ describe('RelayClient', () => {
 
       vi.advanceTimersByTime(100);
       expect(client.blindFingerprintMap.size).toBe(0); // Proves client state cleanup completed
+    });
+
+    it('should pass individual topic strings seamlessly down custom event lines', async () => {
+      const ws = MockWebSocket.lastInstance!;
+      client.setKey('valid-key');
+
+      const expectations: Record<string, any> = {
+        SESSION_CONNECTED: { type: 'SESSION_CONNECTED', sessionId: 'sid-1' },
+        ROLE_UPDATE: { type: 'ROLE_UPDATE', role: 'admin' },
+        ROOM_CLOSED: { type: 'ROOM_CLOSED' },
+        LOCK_UPDATED: { type: 'LOCK_UPDATED', isLocked: true },
+        ERROR_LOCKED: { type: 'ERROR_LOCKED' },
+        ERROR_NOT_FOUND: { type: 'ERROR_NOT_FOUND' },
+        ERROR_VERSION_MISMATCH: { type: 'ERROR_VERSION_MISMATCH', roomVersion: '2' },
+        ROLE_REGISTERED_SUCCESS: { type: 'ROLE_REGISTERED_SUCCESS' },
+        CONSTRAINT_UPDATE: { type: 'CONSTRAINT_UPDATE', constraints: { canExportPsbt: true } },
+        ERROR_POLICY_VIOLATION: { type: 'ERROR_POLICY_VIOLATION', message: 'Action blocked' },
+        ERROR: { type: 'ERROR', message: 'Generic error' },
+        UNKNOWN_RAW_TOPIC: { type: 'UNKNOWN_RAW_TOPIC', data: 'xyz' },
+      };
+
+      for (const [topic, frame] of Object.entries(expectations)) {
+        let routed = false;
+        const targetBus =
+          topic === 'UNKNOWN_RAW_TOPIC'
+            ? 'RAW_MESSAGE'
+            : topic === 'ERROR_LOCKED' ||
+                topic === 'ERROR_NOT_FOUND' ||
+                topic === 'ERROR_VERSION_MISMATCH'
+              ? 'PROTOCOL_ERROR'
+              : topic;
+        const sub = client.events.on(targetBus as any).subscribe(() => (routed = true));
+        await ws.onmessage!({ data: JSON.stringify(frame) });
+        expect(routed).toBe(true);
+        sub.unsubscribe();
+      }
     });
   });
 });

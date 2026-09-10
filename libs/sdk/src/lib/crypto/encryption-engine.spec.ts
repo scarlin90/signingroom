@@ -216,4 +216,19 @@ describe('Unsupported Environments', () => {
       (global as any).window = originalWindow;
     }
   });
+
+  it('should generate a valid 64-character hex SHA-256 hash', async () => {
+    const engine = new EncryptionEngine();
+    const expectedHash = '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08';
+    const data = 'test';
+
+    const hash1 = await engine.sha256(data);
+    const hash2 = await engine.sha256(data);
+
+    // Assertions
+    expect(typeof hash1).toBe('string');
+    expect(hash1.length).toBe(64);
+    expect(hash1).toBe(expectedHash);
+    expect(hash1).toBe(hash2);
+  });
 });
