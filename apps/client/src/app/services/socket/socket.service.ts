@@ -284,20 +284,10 @@ export class SocketService {
 
       if (this.isBrowser) {
         const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
-        console.log(
-          '[SERVICE] 1. Retrieved secureToken from sessionStorage:',
-          secureToken ? 'FOUND' : 'MISSING',
-        );
 
         if (secureToken) {
           try {
-            console.log(
-              '[SERVICE] 2. Attempting decryption with FBEK:',
-              fbek.substring(0, 10) + '...',
-            );
             const decryptedToken = await this.encryptionEngine.decrypt(secureToken, fbek);
-
-            console.log('[SERVICE] 3. Decryption successful! Plaintext Token:', decryptedToken);
 
             if (decryptedToken) {
               await this.sdk.claimCoordinator(decryptedToken);

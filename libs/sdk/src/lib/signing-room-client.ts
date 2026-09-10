@@ -710,8 +710,6 @@ export class SigningRoomClient {
 
     await confirmation;
 
-    console.log('[SDK] REGISTER_ROLE Confirmed');
-
     const allowed = [];
     if (flags.canUploadSignature) allowed.push('Sign');
     if (flags.canExportPsbt) allowed.push('PSBT');
@@ -765,7 +763,6 @@ export class SigningRoomClient {
    * This is used for session recovery after re-joining a room.
    */
   public async claimCoordinator(adminSecret: string): Promise<void> {
-    console.log('[SDK] Sending AUTH message to worker with token:', adminSecret);
     if (this.store.getState() === null) {
       throw new Error('Must join room before claiming coordinator role.');
     }
