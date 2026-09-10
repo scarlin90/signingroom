@@ -61,7 +61,6 @@ export class SocketService {
     this.relay.events.on('CONSTRAINT_UPDATE' as any).subscribe((e) => {
       const payload = e.payload;
       const actualConstraints = payload?.constraints ? payload.constraints : payload;
-      console.log('[SERVICE] Applied Constraints:', actualConstraints);
       this.currentConstraints.set(actualConstraints);
     });
 
@@ -191,6 +190,9 @@ export class SocketService {
           canUploadSignature: false,
           canExportPsbt: false,
           canExportAudit: false,
+          canViewDetails: false,
+          canViewSigners: false,
+          canShareSession: false,
         });
       }
 
@@ -222,7 +224,6 @@ export class SocketService {
 
     this.relay.events.on('ROLE_UPDATE').subscribe((e) => {
       const newRole = e.payload;
-      console.log('[SERVICE] 4. Received ROLE_UPDATE from server:', newRole);
       this.role.set(newRole);
 
       if (newRole === 'admin') {
@@ -333,7 +334,7 @@ export class SocketService {
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName: string = 'Untitled Room',
   ) {
-    return await this.sdk.createRoom(psbtBase64, network, roomName, { strictMode: true });
+    return await this.sdk.createRoom(psbtBase64, network, roomName);
   }
 
   public async renameRoom(name: string) {
@@ -381,6 +382,9 @@ export class SocketService {
     canUploadSignature: boolean;
     canExportPsbt: boolean;
     canExportAudit: boolean;
+    canViewDetails: boolean;
+    canViewSigners: boolean;
+    canShareSession: boolean;
   }): Promise<string> {
     return await this.sdk.generateAndRegisterRole(flags);
   }

@@ -486,9 +486,6 @@ export class SigningRoom implements DurableObject {
 							}),
 						);
 					}
-
-					// You can add further constraint checks here if you expand the RoleConstraints interface
-					// e.g., if (msg.type === 'LOG_ACTION' && session.constraints.canLog === false) { ... }
 				}
 			}
 

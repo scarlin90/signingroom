@@ -38,7 +38,8 @@ export type RoomEventType =
   | 'REGISTER_ROLE'
   | 'AUTH_ROLE'
   | 'ROLE_REGISTERED_SUCCESS'
-  | 'CONSTRAINT_UPDATE';
+  | 'CONSTRAINT_UPDATE'
+  | 'ERROR_POLICY_VIOLATION';
 
 /**
  * Common environmental metadata attached to every room event.
@@ -79,4 +80,7 @@ export interface RoleConstraints {
   canExportPsbt: boolean;
   /** If false, the client UI strips the ability to download the unencrypted Audit Log or CSVs. */
   canExportAudit: boolean;
+  canViewDetails: boolean;
+  canViewSigners: boolean;
+  canShareSession: boolean;
 }

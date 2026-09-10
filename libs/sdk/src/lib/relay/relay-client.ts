@@ -234,10 +234,12 @@ export class RelayClient {
         this.events.dispatch('ROLE_REGISTERED_SUCCESS', msg);
         break;
       case 'CONSTRAINT_UPDATE':
-        this.events.dispatch('CONSTRAINT_UPDATE', msg);
+        this.events.dispatch('CONSTRAINT_UPDATE', msg.constraints);
+        break;
+      case 'ERROR_POLICY_VIOLATION':
+        this.events.dispatch('ERROR_POLICY_VIOLATION', msg);
         break;
       case 'ERROR':
-      case 'ERROR_POLICY_VIOLATION':
         this.events.dispatch('ERROR', msg);
         break;
 

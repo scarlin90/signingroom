@@ -406,16 +406,20 @@ export class RoomAuditor {
 
         doc.setTextColor(0);
         doc.setFont('helvetica', 'bold');
-        doc.text(safeEvent, 65, y);
+        doc.text(safeEvent, 55, y);
 
         doc.setFont('helvetica', 'normal');
-        doc.text(safeUser, 110, y);
+        doc.text(safeUser, 100, y);
 
         if (log.detail) {
           doc.setTextColor(100);
           const detailStr = String(log.detail);
-          const detailText = detailStr.length > 40 ? detailStr.substring(0, 37) + '...' : detailStr;
-          doc.text(detailText, 140, y);
+
+          const wrappedText = doc.splitTextToSize(detailStr, 65);
+
+          doc.text(wrappedText, 130, y);
+
+          y += (wrappedText.length - 1) * 4;
         }
         y += 7;
       });

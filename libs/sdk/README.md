@@ -5,7 +5,7 @@
 
 The official JavaScript/TypeScript SDK for **SigningRoom**.
 
-This SDK provides a robust, programmatic interface to create, manage, and participate in secure, ephemeral Bitcoin multi-signature ceremonies. It handles end-to-end encryption, WebSocket relay coordination, and PSBT (Partially Signed Bitcoin Transaction) merging automatically.
+This SDK provides a robust, programmatic interface to create, manage, and participate in secure, ephemeral Bitcoin multi-signature ceremonies. It handles end-to-end encryption, Zero-Trust Role-Based Access Control (RBAC), WebSocket relay coordination, and PSBT (Partially Signed Bitcoin Transaction) merging automatically.
 
 ---
 
@@ -15,6 +15,7 @@ Install the package via npm:
 
 ```bash
 npm install @signing-room/sdk
+
 ```
 
 ---
@@ -23,7 +24,7 @@ npm install @signing-room/sdk
 
 Looking for a working implementation? Check out our **[signingroom-sdk-demo](https://github.com/scarlin90/signingroom/blob/main/libs/sdk/signingroom-sdk-demo)**.
 
-This repository provides a complete, runnable TypeScript project that demonstrates the full SDK lifecycle—from room creation and guest participation to threshold signing and forensic audit verification.
+This repository provides a complete, runnable TypeScript project that demonstrates the full SDK lifecycle—from room creation and granular RBAC enforcement to threshold signing and forensic audit verification.
 
 ---
 
@@ -33,10 +34,10 @@ The SDK is built around the `SigningRoomClient`.
 
 A user can act as either:
 
-- **Coordinator** — administrative privileges, room management, finalization, auditing
-- **Guest** — signing, monitoring, and participation
+- **Coordinator** — administrative privileges, room management, capability generation, finalization, auditing
+- **Guest** — cryptographically restricted access (e.g., Signer, Blind Signer, Auditor)
 
-Below is a complete lifecycle example demonstrating how to orchestrate a Bitcoin multi-signature signing ceremony.
+Below is a complete lifecycle example demonstrating how to orchestrate a secure Bitcoin multi-signature signing ceremony.
 
 ---
 
@@ -71,9 +72,41 @@ await coordinator.setDisplayName('Treasury Manager');
 
 ---
 
-## 2. Joining an Existing Room (Guest / Signer)
+## 2. Generating Zero-Trust RBAC Roles (Coordinator)
 
-Guests only require the `roomId` and the `encryptionKey` to securely connect and decrypt the room state.
+The Coordinator can generate cryptographically secure, capability-restricted role tokens. The server statelessly enforces these constraints without ever having access to the base encryption keys.
+
+```javascript
+// Generate a Standard Signer Role
+const signerRole = await coordinator.generateAndRegisterRole({
+  canUploadSignature: true,
+  canExportPsbt: true,
+  canExportAudit: false,
+  canViewDetails: true,
+  canViewSigners: true,
+  canShareSession: false,
+});
+
+// Generate an Auditor / Observer Role
+const auditorRole = await coordinator.generateAndRegisterRole({
+  canUploadSignature: false,
+  canExportPsbt: false,
+  canExportAudit: true,
+  canViewDetails: true,
+  canViewSigners: true,
+  canShareSession: false,
+});
+
+// Easily generate ready-to-click share links for frontend UIs
+const UI_APP_URL = '[https://signingroom.io](https://signingroom.io)';
+console.log(`Signer Link: ${coordinator.getRoomLink(UI_APP_URL, true, signerRole)}`);
+```
+
+---
+
+## 3. Joining an Existing Room (Guest)
+
+Guests securely connect and authenticate their specific capabilities using the room ID, base encryption key, and their assigned role token.
 
 ```javascript
 import { SigningRoomClient } from '@signing-room/sdk';
@@ -82,7 +115,8 @@ const guest = new SigningRoomClient({
   apiUrl: API_URL,
 });
 
-await guest.joinRoom(session.roomId, session.encryptionKey);
+// Join the room using the explicit role token generated above
+await guest.joinRoom(session.roomId, session.encryptionKey, signerRole);
 
 await guest.setDisplayName('Alice (Hardware Wallet 1)');
 
@@ -94,9 +128,9 @@ guest.onStateChange().subscribe((state) => {
 
 ---
 
-## 3. Room Management & Operational Security
+## 4. Room Management & Operational Security
 
-The Coordinator can rename the room, map signer fingerprints, label UTXO addresses, manage address whitelists, and lock the room.
+The Coordinator can rename the room, map signer fingerprints, label UTXO addresses, manage address whitelists, and lock the room to prevent new participants from joining.
 
 ```javascript
 // Rename the room
@@ -120,12 +154,12 @@ await coordinator.setAddressLabel(
 );
 
 // Prevent any new participants from joining
-await coordinator.toggleLock(true, 'Coordinator');
+await coordinator.toggleLock(true);
 ```
 
 ---
 
-## 4. Event-Driven Monitoring & Uploading Signatures
+## 5. Event-Driven Monitoring & Uploading Signatures
 
 The SDK exposes an RxJS event bus, making it incredibly easy to build reactive UIs or trigger automated alarms when certain conditions are met.
 
@@ -154,16 +188,15 @@ coordinator
 const ALICE_SIGNED_PSBT = 'cHNidP8BA...';
 const fingerprint = guest.extractFingerprintFromSignature(ALICE_SIGNED_PSBT);
 
+// Will automatically be rejected by the server if the guest's role restricts uploads
 await guest.uploadSignature(ALICE_SIGNED_PSBT, fingerprint);
-
-// (Note: For procedural CLI scripts, you can also use await coordinator.waitForState(state => state.signatures.length >= 1) instead of event listeners).
 ```
 
 ---
 
-## 5. Automated Finalization & Forensic Auditing
+## 6. Automated Finalization & Forensic Auditing
 
-When the PSBT signature threshold is met, the SDK emits a THRESHOLD_MET event. The Coordinator can use this to instantly finalize the transaction and extract cryptographic audit proofs.
+When the PSBT signature threshold is met, the SDK emits a `THRESHOLD_MET` event. The Coordinator can use this to instantly finalize the transaction and extract cryptographic audit proofs.
 
 ```javascript
 coordinator
@@ -197,7 +230,7 @@ coordinator
 
 ---
 
-## 6. Coordinator Role Recovery
+## 7. Coordinator Role Recovery
 
 If the Coordinator disconnects, they can reclaim administrative privileges using the encrypted admin token returned during room creation.
 
@@ -223,5 +256,10 @@ await recoveryClient.claimCoordinator(session.encryptedAdminToken);
 
 ### 🔗 Contact Stateless Research for Licensing
 
-Distributed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.  
+Distributed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
 If you modify this code and run it over a network, you must release your source code. See `LICENSE` for more information.
+
+```
+
+```

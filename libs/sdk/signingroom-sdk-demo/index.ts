@@ -20,6 +20,8 @@ const WHITELIST_INPUT = 'tb1qww078psjaee79gh0cfrqpf6gtzvxzk7gcfs869vnxtruhj6xj03
 
 const QUORUM_THRESHOLD = 3;
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // --- INTERACTIVE HELPER ---
 const rl = readline.createInterface({
   input: process.stdin,
@@ -70,25 +72,70 @@ async function runDemo() {
   console.log('-> Metadata applied successfully.');
 
   // ==========================================
-  // SECTION 2: Guest Join
+  // SECTION 1.5: Generate RBAC Constraints
   // ==========================================
-  await wait('2. Guest Join (Alice, Bob & Charlie)');
-  printHeader('Phase 2: Participant Entry');
+  console.log('\n-> Generating Zero-Trust RBAC Role Links...');
+  console.log('   [Rate Limiter] Pausing briefly to avoid triggering anti-spam protections...');
+  await sleep(1500);
+
+  const signerRole = await coordinatorClient.generateAndRegisterRole({
+    canUploadSignature: true,
+    canExportPsbt: true,
+    canExportAudit: false,
+    canViewDetails: true,
+    canViewSigners: true,
+    canShareSession: false,
+  });
+  console.log(`\n   [Generated] Standard Signer Role`);
+  console.log(`   [UI Link]   ${coordinatorClient.getRoomLink(UI_APP_URL, true, signerRole)}`);
+
+  const blindSignerRole = await coordinatorClient.generateAndRegisterRole({
+    canUploadSignature: true,
+    canExportPsbt: true,
+    canExportAudit: false,
+    canViewDetails: false,
+    canViewSigners: false,
+    canShareSession: false,
+  });
+  console.log(`\n   [Generated] Blind Signer Role`);
+  console.log(`   [UI Link]   ${coordinatorClient.getRoomLink(UI_APP_URL, true, blindSignerRole)}`);
+
+  const observerRole = await coordinatorClient.generateAndRegisterRole({
+    canUploadSignature: false,
+    canExportPsbt: false,
+    canExportAudit: true,
+    canViewDetails: true,
+    canViewSigners: true,
+    canShareSession: false,
+  });
+  console.log(`\n   [Generated] Observer Role`);
+  console.log(`   [UI Link]   ${coordinatorClient.getRoomLink(UI_APP_URL, true, observerRole)}\n`);
+
+  // ==========================================
+  // SECTION 2: Guest Join with Explicit RBAC Roles
+  // ==========================================
+  await wait('2. Guest Join (Alice, Bob, Charlie & Dave)');
+  printHeader('Phase 2: Participant Entry with Specific Constraints');
 
   const aliceClient = new SigningRoomClient({ apiUrl: API_URL });
-  await aliceClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey);
-  await aliceClient.setDisplayName('Alice');
+  await aliceClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);
+  await aliceClient.setDisplayName('Alice (Signer)');
   console.log('-> Alice joined the room.');
 
   const bobClient = new SigningRoomClient({ apiUrl: API_URL });
-  await bobClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey);
-  await bobClient.setDisplayName('Bob');
+  await bobClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, blindSignerRole);
+  await bobClient.setDisplayName('Bob (Blind Signer)');
   console.log('-> Bob joined the room.');
 
   const charlieClient = new SigningRoomClient({ apiUrl: API_URL });
-  await charlieClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey);
-  await charlieClient.setDisplayName('Charlie');
+  await charlieClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);
+  await charlieClient.setDisplayName('Charlie (Signer)');
   console.log('-> Charlie joined the room.');
+
+  const daveClient = new SigningRoomClient({ apiUrl: API_URL });
+  await daveClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, observerRole);
+  await daveClient.setDisplayName('Dave (Observer)');
+  console.log('-> Dave joined the room.');
 
   // ==========================================
   // SECTION 3: Address Approval & Labelling
@@ -138,7 +185,6 @@ async function runDemo() {
       console.log('\n[ALARM] 2 Signatures collected. Paging Human-in-the-loop for final review...');
     });
 
-  // We wrap the concurrent execution in a Promise to hold the CLI open until threshold is met
   await new Promise<void>((resolve) => {
     // 3. Finalization Listener
     coordinatorClient
@@ -206,12 +252,25 @@ async function runDemo() {
   );
 
   // ==========================================
-  // SECTION 6: Error Handling
+  // SECTION 6: Error Handling & Security Enforcement
   // ==========================================
-  await wait('6. Latecomer & Error Code Handling');
-  printHeader('Phase 6: Integrator Error Handling');
+  await wait('6. Latecomer & Security Constraint Enforcement');
+  printHeader('Phase 6: Integrator Error Handling & RBAC');
 
-  console.log('-> Latecomer: Attempting to join locked room...');
+  console.log('-> RBAC Test: Observer attempting to upload a signature...');
+  await new Promise<void>((resolve) => {
+    // The Worker sends 'ERROR_POLICY_VIOLATION' for constraint rejections
+    daveClient.relay.events.on('ERROR_POLICY_VIOLATION' as any).subscribe((event: any) => {
+      console.log(
+        `   [Caught RBAC Error] Server successfully rejected action: ${event.payload?.message}`,
+      );
+      resolve();
+    });
+    // Dave tries to upload, which should fail statelessly on the server
+    daveClient.uploadSignature(CHARLIE_SIGNED_PSBT, 'fake-fingerprint').catch(() => {});
+  });
+
+  console.log('\n-> Latecomer: Attempting to join locked room...');
   const latecomerClient = new SigningRoomClient({ apiUrl: API_URL });
 
   await new Promise<void>((resolve) => {
@@ -267,6 +326,7 @@ async function runDemo() {
   await coordinatorClient.closeRoom();
 
   console.log('-> Terminating local WebSocket instances...');
+  daveClient.disconnect();
   charlieClient.disconnect();
   bobClient.disconnect();
   aliceClient.disconnect();

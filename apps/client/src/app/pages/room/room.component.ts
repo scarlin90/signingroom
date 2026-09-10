@@ -61,6 +61,7 @@ import {
   LucideShieldOff,
   LucideUser,
   LucideLink,
+  LucideShare2,
 } from '@lucide/angular';
 import { SocketService } from '../../services/socket/socket.service';
 import * as QRCode from 'qrcode';
@@ -117,6 +118,7 @@ import { ConfigService } from '../../services/config/config.service';
     LucideShieldOff,
     LucideUser,
     LucideLink,
+    LucideShare2,
   ],
   templateUrl: './room.component.html',
   providers: [EncryptionEngine],
@@ -220,6 +222,9 @@ export class RoomComponent implements OnInit, OnDestroy {
     canUploadSignature: true,
     canExportPsbt: true,
     canExportAudit: true,
+    canViewDetails: true,
+    canViewSigners: true,
+    canShareSession: true,
   });
   public isGeneratingRole = signal(false);
   public roleLinkCopied = signal(false);
@@ -364,11 +369,6 @@ export class RoomComponent implements OnInit, OnDestroy {
       }
 
       this.previousSessions = currentSessions;
-    });
-
-    effect(() => {
-      console.log('[UI] Reacting to Role Change. Current Role:', this.socket.role());
-      console.log('[UI] isCoordinator Signal:', this.socket.isCoordinator());
     });
 
     // --- SIGNATURE NETWORK TRACKER ---
@@ -1193,7 +1193,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   /**
    * Toggles a specific capability flag for the link generator.
    */
-  toggleRoleFlag(flag: 'canUploadSignature' | 'canExportPsbt' | 'canExportAudit') {
+  toggleRoleFlag(flag: keyof ReturnType<typeof this.roleFlags>) {
     this.roleFlags.update((f) => ({ ...f, [flag]: !f[flag] }));
   }
 
@@ -1543,12 +1543,9 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   handleScanResult(decodedText: string) {
-    console.log('Scanned fragment:', decodedText.substring(0, 80) + '...');
-
     const fullHex = this.urService.processFragment(decodedText);
 
     if (fullHex) {
-      console.log('Full PSBT decoded, length:', fullHex.length);
       this.stopScanner();
       this.processScannedSignature(fullHex);
     }
@@ -1593,7 +1590,6 @@ export class RoomComponent implements OnInit, OnDestroy {
       const normalizedBase64 = base64.encode(psbtBytes);
 
       await this.socket.uploadSignature(normalizedBase64);
-      console.log('Successfully ingested signed PSBT via optics!');
       this.dispatcher.emitPsbtImported('scan');
     } catch (e) {
       console.error('Failed to parse signed PSBT from scanner', e);
