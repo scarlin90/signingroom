@@ -665,8 +665,8 @@
                                 <button id="btn-generate-key-only" (click)="generateAndCopy('key')" [disabled]="isGeneratingRole()" class="w-2/3 py-2.5 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-brand-accent/20">
                                     @if (isGeneratingRole() && activeGenType() === 'key') {
                                         <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg> Generating...
-                                    } @else if (keyCopied() && activeGenType() === 'key') {
-                                        <svg lucideCheck class="w-4 h-4"></svg> Guest Key Copied!
+                                    } @else if (keyCopied()) {
+                                        <svg lucideCheck class="w-4 h-4"></svg> Copied
                                     } @else {
                                         <svg lucideKey class="w-4 h-4"></svg> 2. Copy Guest Key
                                     }
@@ -686,8 +686,8 @@
                             <button id="btn-generate-full-link" (click)="generateAndCopy('full')" [disabled]="isGeneratingRole()" class="w-full py-2.5 bg-brand-card-border/30 hover:bg-brand-card-border/50 text-brand-text text-xs font-bold rounded-lg border border-brand-card-border transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
                                 @if (isGeneratingRole() && activeGenType() === 'full') {
                                     <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg> Generating...
-                                } @else if (fullLinkCopied() && activeGenType() === 'full') {
-                                    <svg lucideCheck class="w-4 h-4 text-brand-accent"></svg> <span class="text-brand-accent">Full Link Copied!</span>
+                                } @else if (fullLinkCopied()) {
+                                    <svg lucideCheck class="w-4 h-4 text-brand-accent"></svg> <span class="text-brand-accent">Copied</span>
                                 } @else {
                                     <svg lucideCopy class="w-4 h-4"></svg> Copy Full Link (Link + Key)
                                 }
