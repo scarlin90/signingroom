@@ -930,6 +930,135 @@ describe('SigningRoom Durable Object', () => {
 		});
 	});
 
+	describe('RBAC & Role Management', () => {
+		it.only('should allow admins to register new role tokens up to the limit', async () => {
+			await initRoom();
+			const { client, received } = await createWebSocketClient();
+
+			try {
+				// Verify non-admins are rejected
+				client.send(
+					JSON.stringify({
+						type: 'REGISTER_ROLE',
+						tokenHash: 'hash',
+						constraints: {},
+					}),
+				);
+				await vi.waitFor(() => expect(received.some((m) => m.type === 'ERROR' && m.message === 'Unauthorized')).toBe(true));
+
+				// Auth as Admin
+				client.send(JSON.stringify({ type: 'AUTH', token: 'admin-secret' }));
+				await vi.waitFor(() => expect(received.some((m) => m.type === 'ROLE_UPDATE')).toBe(true));
+
+				// Register successfully
+				client.send(
+					JSON.stringify({
+						type: 'REGISTER_ROLE',
+						tokenHash: 'hashed-token-123',
+						constraints: { canUploadSignature: true },
+					}),
+				);
+				await vi.waitFor(() => expect(received.some((m) => m.type === 'ROLE_REGISTERED_SUCCESS')).toBe(true));
+
+				// Hit the 50 limit guard
+				await runInDurableObject(roomStub, async (instance: any) => {
+					instance.roomState.roleTokens = {};
+					for (let i = 0; i < 50; i++) instance.roomState.roleTokens[`hash${i}`] = {};
+				});
+
+				client.send(
+					JSON.stringify({
+						type: 'REGISTER_ROLE',
+						tokenHash: 'hashed-token-51',
+						constraints: {},
+					}),
+				);
+				await vi.waitFor(() =>
+					expect(received.some((m) => m.type === 'ERROR' && m.message.includes('Maximum role links generated'))).toBe(true),
+				);
+			} finally {
+				await cleanupClient(client);
+			}
+		});
+
+		it.only('should authenticate a valid role token and dispatch constraints', async () => {
+			const rawToken = 'my-secret-token';
+			// Pre-calculate the SHA-256 hash exactly how the worker does it
+			const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawToken));
+			const tokenHash = Array.from(new Uint8Array(hashBuffer))
+				.map((b) => b.toString(16).padStart(2, '0'))
+				.join('');
+
+			await initRoom({
+				roleTokens: {
+					[tokenHash]: { canUploadSignature: true, canExportPsbt: false },
+				},
+			});
+
+			const { client, received } = await createWebSocketClient();
+			try {
+				// Invalid Token
+				client.send(JSON.stringify({ type: 'AUTH_ROLE', token: 'wrong-token' }));
+				await vi.waitFor(() => expect(received.some((m) => m.type === 'ERROR' && m.message.includes('Invalid or revoked'))).toBe(true));
+
+				// Valid Token
+				client.send(JSON.stringify({ type: 'AUTH_ROLE', token: rawToken }));
+				await vi.waitFor(() =>
+					expect(received.some((m) => m.type === 'CONSTRAINT_UPDATE' && m.constraints.canUploadSignature === true)).toBe(true),
+				);
+
+				// Exception branch (pass a malformed type to intentionally trigger the catch block)
+				client.send(JSON.stringify({ type: 'AUTH_ROLE', token: { unexpected: 'object' } }));
+				await vi.waitFor(() => expect(received.some((m) => m.type === 'ERROR' && m.message === 'Failed to authenticate role')).toBe(true));
+			} finally {
+				await cleanupClient(client);
+			}
+		});
+
+		it.only('should enforce strict mode policy violations for guests without tokens or with restricted tokens', async () => {
+			const rawToken = 'restricted-token';
+			const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawToken));
+			const tokenHash = Array.from(new Uint8Array(hashBuffer))
+				.map((b) => b.toString(16).padStart(2, '0'))
+				.join('');
+
+			await initRoom({
+				roleTokens: {
+					[tokenHash]: { canUploadSignature: false }, // Strict rule: explicitly deny uploads
+				},
+			});
+
+			const { client, received } = await createWebSocketClient();
+			try {
+				// Try to upload without ANY token (Downgrade protection)
+				client.send(JSON.stringify({ type: 'UPLOAD_PARTIAL', data: {} }));
+				await vi.waitFor(() =>
+					expect(received.some((m) => m.type === 'ERROR_POLICY_VIOLATION' && m.message.includes('A valid role token is required'))).toBe(
+						true,
+					),
+				);
+
+				// Authenticate using the restricted token
+				client.send(JSON.stringify({ type: 'AUTH_ROLE', token: rawToken }));
+				await vi.waitFor(() => expect(received.some((m) => m.type === 'CONSTRAINT_UPDATE')).toBe(true));
+
+				const currentMsgCount = received.length;
+
+				// Try to upload again (Blocked by token constraints)
+				client.send(JSON.stringify({ type: 'UPLOAD_PARTIAL', data: {} }));
+				await vi.waitFor(() =>
+					expect(
+						received
+							.slice(currentMsgCount)
+							.some((m) => m.type === 'ERROR_POLICY_VIOLATION' && m.message.includes('restricts signature uploads')),
+					).toBe(true),
+				);
+			} finally {
+				await cleanupClient(client);
+			}
+		});
+	});
+
 	describe('Deep Edge Cases and Catch Blocks', () => {
 		// it.only('should gracefully handle a missing IP address during connection', async () => {
 		//   await initRoom();
