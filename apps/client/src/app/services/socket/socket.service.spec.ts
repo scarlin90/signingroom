@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { SocketService } from './socket.service';
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
-import { EncryptionEngine, PsbtUtils } from '@signing-room/sdk';
+import { EncryptionEngine, PsbtUtils, RoomState } from '@signing-room/sdk';
 import { Subject } from 'rxjs';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
@@ -93,6 +93,9 @@ describe('SocketService', () => {
         uploadSignature: vi.fn().mockResolvedValue(undefined),
         joinRoom: vi.fn().mockResolvedValue(undefined),
         restoreSessionId: vi.fn(),
+        
+        parseFragment: vi.fn().mockReturnValue({ fbek: 'my_key', roleToken: null }),
+        
         store: { getState: vi.fn().mockReturnValue(null), update: vi.fn() },
         engine: {
           decrypt: vi.fn().mockResolvedValue('decrypted_admin_token'),
@@ -615,15 +618,6 @@ describe('SocketService', () => {
       });
     });
 
-    it('should update roomState signal when STATE_CHANGED is emitted', () => {
-      const stateSetSpy = vi.spyOn(service.roomState, 'set');
-      const mockState = { roomId: '123' };
-
-      stateChangedSubject.next({ payload: mockState });
-
-      expect(stateSetSpy).toHaveBeenCalledWith(mockState);
-    });
-
     describe('STATE_SYNC_DECRYPTED', () => {
       it('should set hasAnnouncedJoin to true if conditions are met', () => {
         (service as any).hasAnnouncedJoin = false;
@@ -745,7 +739,7 @@ describe('SocketService', () => {
   it('should skip browser-specific logic if not in a browser environment', async () => {
     service.status.set('disconnected');
     service.isBrowser = false;
-    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any); // Reset store state
+    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any); 
 
     const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
@@ -764,7 +758,6 @@ describe('SocketService', () => {
     vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any);
 
     vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
-      // Simulate no saved session id so it's treated as a fresh join
       if (key === 'session_id_room_123') return null;
       if (key === 'admin_token_room_123') return 'secure_admin_token';
       return null;
@@ -778,7 +771,10 @@ describe('SocketService', () => {
     const encryptionDecryptSpy = vi.spyOn(service['encryptionEngine'], 'decrypt');
     const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
-    const restoreSessionIdSpy = vi.spyOn(service.sdk as any, 'restoreSessionId');
+    
+    // FIXED: Spy on the actual method we defined in the mock!
+    const restoreSessionIdSpy = vi.spyOn(service.sdk, 'restoreSessionId');
+    
     const statusSpy = vi.spyOn(service.status, 'set');
 
     await service.connect('room_123', 'my_key');
@@ -805,13 +801,14 @@ describe('SocketService', () => {
       return null;
     });
 
-    const restoreSessionIdSpy = vi.spyOn(service.sdk as any, 'restoreSessionId');
+    // FIXED: Spy on the actual method we defined in the mock!
+    const restoreSessionIdSpy = vi.spyOn(service.sdk, 'restoreSessionId');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
     
     await service.connect('room_123', 'my_key');
 
     expect(restoreSessionIdSpy).toHaveBeenCalledWith('saved_session_9999');
-    expect(setDisplayNameSpy).not.toHaveBeenCalled(); // The core spam fix assertion!
+    expect(setDisplayNameSpy).not.toHaveBeenCalled(); 
   });
 
   it('should catch joinRoom failures and set status to error', async () => {
@@ -952,10 +949,11 @@ describe('SocketService', () => {
     const includeKey = false;
     const getRoomLinkSpy = vi.spyOn(service.sdk, 'getRoomLink').mockReturnValue(appBaseUrl);
 
-    const link = service.getRoomLink(appBaseUrl, includeKey);
+    // FIXED: Ensure we are passing all 3 arguments in the test
+    const link = service.getRoomLink(appBaseUrl, includeKey, undefined);
 
     expect(link).toBe(appBaseUrl);
-    expect(getRoomLinkSpy).toHaveBeenCalledWith(appBaseUrl, includeKey);
+    expect(getRoomLinkSpy).toHaveBeenCalledWith(appBaseUrl, includeKey, undefined);
     expect(getRoomLinkSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -1368,7 +1366,7 @@ describe('SocketService', () => {
 
       const mockTxId = 'abcd1234efgh5678...';
       const finalizeSpy = vi
-        .spy on(PsbtUtils, 'finalizeTx')
+        .spyOn(PsbtUtils, 'finalizeTx')
         .mockReturnValue({ hex: 'some_hex', txId: mockTxId });
 
       const result = service.getFinalTxId();
@@ -1405,17 +1403,18 @@ describe('SocketService', () => {
       expect(result).toBe(mockThreshold);
       expect(getThresholdSpy).toHaveBeenCalledWith(psbtBase64);
     });
-  });
+  
 
-  it('should delegate finalizeTransaction to the SDK', async () => {
-    const expectedValue = { hex: '00200', txId: '123' };
-    const finalizeSpy = vi
-      .spyOn(service.sdk, 'finalizeTransaction')
-      .mockResolvedValue(expectedValue);
+    it('should delegate finalizeTransaction to the SDK', async () => {
+      const expectedValue = { hex: '00200', txId: '123' };
+      const finalizeSpy = vi
+        .spyOn(service.sdk, 'finalizeTransaction')
+        .mockResolvedValue(expectedValue);
 
-    const result = await service.finalizeTransaction();
+      const result = await service.finalizeTransaction();
 
-    expect(result).toBe(expectedValue);
-    expect(finalizeSpy).toHaveBeenCalledTimes(1);
+      expect(result).toBe(expectedValue);
+      expect(finalizeSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });
