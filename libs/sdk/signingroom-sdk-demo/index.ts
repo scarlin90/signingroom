@@ -64,7 +64,6 @@ async function runDemo() {
   console.log('Room ID:              ', roomInfo.roomId);
   console.log('Encryption Key:       ', roomInfo.encryptionKey);
   console.log('Encrypted Admin Token:', roomInfo.encryptedAdminToken);
-  console.log(`\nMonitor Live via UI:   ${coordinatorClient.getRoomLink(UI_APP_URL, true)}`);
 
   console.log('\n-> Updating Room Metadata...');
   await coordinatorClient.setRoomName('Q1 Settlement - Approved');
@@ -87,7 +86,6 @@ async function runDemo() {
     canShareSession: false,
   });
   console.log(`\n   [Generated] Standard Signer Role`);
-  console.log(`   [UI Link]   ${coordinatorClient.getRoomLink(UI_APP_URL, true, signerRole)}`);
 
   const blindSignerRole = await coordinatorClient.generateAndRegisterRole({
     canUploadSignature: true,
@@ -97,8 +95,7 @@ async function runDemo() {
     canViewSigners: false,
     canShareSession: false,
   });
-  console.log(`\n   [Generated] Blind Signer Role`);
-  console.log(`   [UI Link]   ${coordinatorClient.getRoomLink(UI_APP_URL, true, blindSignerRole)}`);
+  console.log(`   [Generated] Blind Signer Role`);
 
   const observerRole = await coordinatorClient.generateAndRegisterRole({
     canUploadSignature: false,
@@ -108,8 +105,21 @@ async function runDemo() {
     canViewSigners: true,
     canShareSession: false,
   });
-  console.log(`\n   [Generated] Observer Role`);
-  console.log(`   [UI Link]   ${coordinatorClient.getRoomLink(UI_APP_URL, true, observerRole)}\n`);
+  console.log(`   [Generated] Observer Role`);
+
+  const fullAccessRole = await coordinatorClient.generateAndRegisterRole({
+    canUploadSignature: true,
+    canExportPsbt: true,
+    canExportAudit: true,
+    canViewDetails: true,
+    canViewSigners: true,
+    canShareSession: true,
+  });
+  console.log(`   [Generated] Full Access Role`);
+
+  printHeader('Ready to Watch');
+  console.log(`Open this Full Access link in your browser to watch and interact with the demo live:`);
+  console.log(`-> ${coordinatorClient.getRoomLink(UI_APP_URL, true, fullAccessRole)}\n`);
 
   // ==========================================
   // SECTION 2: Guest Join with Explicit RBAC Roles
@@ -117,10 +127,18 @@ async function runDemo() {
   await wait('2. Guest Join (Alice, Bob, Charlie & Dave)');
   printHeader('Phase 2: Participant Entry with Specific Constraints');
 
+  let aliceSessionId = '';
   const aliceClient = new SigningRoomClient({ apiUrl: API_URL });
+  
+  // Capture AND log her session ID the exact moment the socket connects
+  aliceClient.onEvent('SESSION_CONNECTED').subscribe((e) => {
+    aliceSessionId = e.payload;
+    console.log(`   [Network] Alice received and cached Session ID: ${aliceSessionId}`);
+  });
+  
   await aliceClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);
   await aliceClient.setDisplayName('Alice (Signer)');
-  console.log('-> Alice joined the room.');
+  console.log('-> Alice fully joined the room.');
 
   const bobClient = new SigningRoomClient({ apiUrl: API_URL });
   await bobClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, blindSignerRole);
@@ -230,7 +248,7 @@ async function runDemo() {
   // ==========================================
   // SECTION 5: Finalization & Validation
   // ==========================================
-  await wait('5. Finalize transaction & Validate Integrity');
+  await wait('5. Finalize transaction & Validate Active Integrity');
   printHeader('Phase 5: Cryptographic Finalization');
 
   const finalTx = await coordinatorClient.finalizeTransaction();
@@ -245,7 +263,7 @@ async function runDemo() {
   const report = await coordinatorClient.getIntegrityReport();
   console.log(`Forensic SHA-256 Anchor: ${report.anchor}`);
 
-  console.log('\n-> Verifying timeline integrity...');
+  console.log('\n-> Verifying active timeline integrity in-memory...');
   const isValid = await coordinatorClient.verifyIntegrity(report.anchor);
   console.log(
     `Integrity Check Result:  ${isValid.isValid ? 'PASSED [Valid]' : 'FAILED [Compromised]'}`,
@@ -317,6 +335,27 @@ async function runDemo() {
   console.log('-> Success. Recovery client is now the Coordinator.');
 
   // ==========================================
+  // SECTION 7.5: Session Resumption (Network Drop)
+  // ==========================================
+  await wait('7.5. Network Drop & Session Resumption');
+  printHeader('Phase 7.5: Seamless Identity Restoration');
+
+  console.log('-> Simulating Alice losing internet connection (Dirty disconnect)...');
+  aliceClient.disconnect();
+  await sleep(1000);
+
+  console.log('-> Alice regains internet and spins up a new client connection...');
+  const aliceReconnectedClient = new SigningRoomClient({ apiUrl: API_URL });
+
+  console.log(`-> Injecting cached Session ID [${aliceSessionId}] prior to joining...`);
+  aliceReconnectedClient.restoreSessionId(aliceSessionId);
+
+  // Notice we pass the same signerRole token she used originally
+  await aliceReconnectedClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);
+  
+  console.log('-> Success! Alice resumed her exact session identity. Check the Audit Log for "Session Reconnected".');
+
+  // ==========================================
   // SECTION 8: Teardown
   // ==========================================
   await wait('8. Disconnect & Destroy Room');
@@ -331,7 +370,34 @@ async function runDemo() {
   bobClient.disconnect();
   aliceClient.disconnect();
   recoveryClient.disconnect();
+  aliceReconnectedClient.disconnect();
   coordinatorClient.disconnect();
+
+  // ==========================================
+  // SECTION 9: Offline Third-Party Audit
+  // ==========================================
+  await wait('9. Independent Offline Audit');
+  printHeader('Phase 9: Offline Third-Party Verification');
+
+  console.log('-> Simulating an external auditor verifying the artifacts...');
+  console.log('-> Room is completely destroyed. Verifying strictly from CSV and Hex strings.');
+
+  // Pass the raw strings we saved from Phase 5 directly to the static method
+  if (finalTx?.hex && csvLog && report?.anchor) {
+    const offlineResult = await SigningRoomClient.verifyOfflineIntegrity(
+      csvLog,
+      finalTx.hex,
+      report.anchor
+    );
+
+    console.log(`\nAuditor Computed Anchor: ${offlineResult.anchor}`);
+    console.log(`Expected Anchor:         ${report.anchor}`);
+    console.log(
+      `\nOffline Audit Result:    ${offlineResult.isValid ? 'PASSED [Cryptographically Proven]' : 'FAILED [Data Tampered]'}`,
+    );
+  } else {
+    console.log('\n[Error] Missing artifacts to conduct offline audit.');
+  }
 
   printHeader('SDK LIFECYCLE WALKTHROUGH COMPLETE!');
   rl.close();

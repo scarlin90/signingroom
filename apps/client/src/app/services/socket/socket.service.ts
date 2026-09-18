@@ -190,6 +190,13 @@ export class SocketService {
       const syncData = event.payload;
       const hasAdminToken = !!sessionStorage.getItem(`admin_token_${syncData.roomId}`);
 
+      if (syncData.strictRoles && !hasAdminToken && !this.sdk.currentRoleToken) {
+        this.decryptionError.set('Strict Mode Active: A valid role token is required to enter this room.');
+        this.setRoomKey(null);
+        this.disconnect();
+        return;
+      }
+
       if (!this.hasAnnouncedJoin && this.currentSessionId() && !hasAdminToken) {
         this.hasAnnouncedJoin = true;
       }
@@ -288,15 +295,6 @@ export class SocketService {
         this.sdk.disconnect();
         await new Promise((r) => setTimeout(r, 50));
       }
-
-      if (this.isBrowser) {
-        const savedSessionId = sessionStorage.getItem(`session_id_${roomId}`);
-        if (savedSessionId) {
-          this.sdk.restoreSessionId(savedSessionId);
-        }
-      }
-
-      await this.sdk.joinRoom(roomId, fragment);
 
       let isReconnecting = false;
       if (this.isBrowser) {

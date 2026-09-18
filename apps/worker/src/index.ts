@@ -281,7 +281,7 @@ export class SigningRoom implements DurableObject {
         if (!this.roomState) return;
         if (!this.roomState.auditLog) this.roomState.auditLog = [];
 
-        if (this.roomState.auditLog.length > getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH')) {
+        if (this.roomState.auditLog.length >= getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH')) {
             this.roomState.auditLog.shift();
         }
 
@@ -671,13 +671,16 @@ export class SigningRoom implements DurableObject {
 
 				this.sessions.set(webSocket, { ...session!, encryptedDisplayName: safeName });
 
-				if (this.roomState.participants && this.roomState.participants[session.id]) {
-					this.roomState.participants[session.id].encryptedDisplayName = safeName;
-					await this.saveRoomState();
-					this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
-				}
+				if (!this.roomState.participants) this.roomState.participants = {};
+                if (!this.roomState.participants[session.id]) {
+                    this.roomState.participants[session.id] = { id: session.id, role: session.role };
+                }
 
-				this.broadcastConnections();
+                this.roomState.participants[session.id].encryptedDisplayName = safeName;
+                await this.saveRoomState();
+                this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+
+                this.broadcastConnections();
 			}
 
 			// Rename Room (Admin Only)

@@ -21,6 +21,7 @@ vi.mock('./bitcoin/room-auditor', () => ({
     verifyRoomIntegrity: vi.fn(),
     calculateForensicAnchor: vi.fn(),
     getIntegrityReport: vi.fn(),
+    verifyOfflineIntegrity: vi.fn(),
   },
 }));
 
@@ -453,6 +454,18 @@ describe('SigningRoomClient', () => {
         isValid: true,
       });
       expect(await client.verifyIntegrity('anc')).toEqual({ anchor: 'abc', isValid: true });
+    });
+
+    it('should delegate offline integrity verifications correctly', async () => {
+      vi.mocked(RoomAuditor.verifyOfflineIntegrity).mockResolvedValue({
+        anchor: 'offline-anchor',
+        isValid: true,
+      });
+
+      const res = await SigningRoomClient.verifyOfflineIntegrity('csv-data', 'hex-data', 'offline-anchor');
+      
+      expect(RoomAuditor.verifyOfflineIntegrity).toHaveBeenCalledWith('csv-data', 'hex-data', 'offline-anchor');
+      expect(res).toEqual({ anchor: 'offline-anchor', isValid: true });
     });
   });
 

@@ -471,4 +471,35 @@ describe('RoomAuditor', () => {
       );
     });
   });
+
+  describe('Offline Integrity Verification', () => {
+    it('should correctly parse exported CSVs, un-escape quotes, and verify the anchor offline', async () => {
+      // Setup an exported CSV string (with a header and escaped quotes)
+      const mockCsv = `Timestamp,Event,User,Detail\n2026-09-18T12:00:00.000Z,"Signature Uploaded","Alice","Device ""Trezor"""`;
+      const mockHex = '02000000000101';
+      
+      // Mathematically derive what the exact Anchor should be
+      const expectedString = '2026-09-18T12:00:00.000Z|Signature Uploaded|Alice|Device "Trezor"02000000000101';
+      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(expectedString));
+      const expectedAnchor = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Test that the stateless parser correctly rebuilds the string and verifies it
+      const result = await RoomAuditor.verifyOfflineIntegrity(mockCsv, mockHex, expectedAnchor);
+      
+      expect(result.isValid).toBe(true);
+      expect(result.anchor).toBe(expectedAnchor);
+    });
+
+    it('should handle CSVs without headers safely', async () => {
+      const mockCsvNoHeader = `2026-09-18T12:00:00.000Z,"Action","User","Detail"`;
+      const mockHex = '0100';
+      
+      const expectedString = '2026-09-18T12:00:00.000Z|Action|User|Detail0100';
+      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(expectedString));
+      const expectedAnchor = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+      const result = await RoomAuditor.verifyOfflineIntegrity(mockCsvNoHeader, mockHex, expectedAnchor);
+      expect(result.isValid).toBe(true);
+    });
+  });
 });

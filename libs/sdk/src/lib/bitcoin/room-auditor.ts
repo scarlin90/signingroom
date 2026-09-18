@@ -624,6 +624,61 @@ export class RoomAuditor {
   }
 
   /**
+   * Validates the forensic integrity of a signing ceremony completely offline.
+   * Allows independent auditors to verify the cryptographic seal using only
+   * the exported CSV and Hex artifacts, without joining the live room session.
+   * 
+   * @param auditLogCsv - The complete exported CSV audit log string.
+   * @param finalTxHex - The finalized transaction hex.
+   * @param expectedAnchor - The expected SHA-256 anchor to verify against.
+   */
+  static async verifyOfflineIntegrity(
+    auditLogCsv: string,
+    finalTxHex: string,
+    expectedAnchor: string
+  ): Promise<{ anchor: string; isValid: boolean }> {
+    const lines = auditLogCsv.trim().split('\n');
+    
+    // Remove the CSV header row if it exists
+    if (lines.length > 0 && lines[0].startsWith('Timestamp')) {
+      lines.shift();
+    }
+
+    // Reconstruct the exact pipe-delimited payload string used in calculateForensicAnchor
+    const logStrings = lines.map(line => {
+      // The CSV exporter formats columns as: time,"event","user","detail"
+      // with internal quotes escaped as ""
+      const rowRegex = /^([^,]+),"((?:[^"]|"")*)","((?:[^"]|"")*)","((?:[^"]|"")*)"$/;
+      const match = line.match(rowRegex);
+      
+      if (match) {
+         const time = match[1];
+         const event = match[2].replace(/""/g, '"');
+         const user = match[3].replace(/""/g, '"');
+         const detail = match[4].replace(/""/g, '"');
+         
+         return `${time}|${event}|${user}|${detail}`;
+      }
+      return ''; 
+    });
+
+    const payload = logStrings.join('') + finalTxHex.trim();
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(payload);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+    const calculatedAnchor = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    return {
+      anchor: calculatedAnchor,
+      isValid: calculatedAnchor === expectedAnchor,
+    };
+  }
+
+  /**
    * Verifies that the current audit log and transaction hex match a previously issued forensic anchor.
    * @param state - The finalized RoomState to verify.
    * @param expectedAnchor - The known, previously calculated SHA-256 hash.

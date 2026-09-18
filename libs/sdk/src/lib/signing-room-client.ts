@@ -825,4 +825,21 @@ export class SigningRoomClient {
     if (code === 1006) return 'AUTH_FAILED';
     return 'UNKNOWN';
   }
+
+  /**
+   * Validates the forensic integrity of a signing ceremony completely offline.
+   * Allows independent auditors to verify the cryptographic seal using only
+   * the exported artifacts (CSV and Hex), without joining the live room session.
+   * 
+   * @param auditLogCsv - The complete exported CSV audit log string.
+   * @param finalTxHex - The finalized transaction hex.
+   * @param expectedAnchor - The expected SHA-256 anchor to verify against.
+   */
+  public static async verifyOfflineIntegrity(
+    auditLogCsv: string,
+    finalTxHex: string,
+    expectedAnchor: string,
+  ): Promise<{ anchor: string; isValid: boolean }> {
+    return await RoomAuditor.verifyOfflineIntegrity(auditLogCsv, finalTxHex, expectedAnchor);
+  }
 }
