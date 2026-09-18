@@ -280,9 +280,11 @@ export class CreateComponent implements OnInit {
   isHighFee(): boolean {
     const analysis = this.psbtAnalysis();
     if (!analysis || analysis.networkFeeSat === 0) return false;
-    const estVBytes = analysis.signerCount * 68 + analysis.outputCount * 31 + 10;
+    
+    const estVBytes = analysis.estimatedVBytes; 
     const rate = analysis.networkFeeSat / estVBytes;
     const totalSats = analysis.amountBtc * 100000000;
+    
     return rate > 100 || (totalSats > 0 && analysis.networkFeeSat / totalSats > 0.05);
   }
 

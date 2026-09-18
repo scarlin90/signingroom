@@ -268,7 +268,14 @@ export class SigningRoomClient {
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(roomId, this.protocolVersion);
 
-    await this.relay.joinRoom(wsUrl, roomId, this._encryptionKey, this.protocolVersion);
+    const isReconnecting = this._sessionId !== null;
+    await this.relay.joinRoom(
+      wsUrl, 
+      roomId, 
+      this._encryptionKey, 
+      this.protocolVersion, 
+      this._sessionId
+    );
 
     await connectionEvent;
     await sessionEvent;
@@ -303,7 +310,18 @@ export class SigningRoomClient {
       detailText = 'Legacy Guest Access';
     }
 
-    await this.logParticipantAction('User Joined', detailText);
+    // Use a different log action depending on if they are arriving for the first time or reconnecting
+    const logAction = isReconnecting ? 'Session Reconnected' : 'User Joined';
+    await this.logParticipantAction(logAction, detailText);
+  }
+
+  /**
+   * Manually restores a session ID (useful for recovering identity across hard page reloads).
+   * Must be called prior to joinRoom().
+   * @param sessionId - The 4-character session ID to restore.
+   */
+  public restoreSessionId(sessionId: string) {
+    this._sessionId = sessionId;
   }
 
   /** * Updates the display name of the room.

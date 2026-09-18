@@ -58,6 +58,15 @@ export class SocketService {
       this.status.set('connected');
     });
 
+    this.relay.events.on('SESSION_CONNECTED').subscribe((e) => {
+      this.currentSessionId.set(e.payload);
+      
+      const roomId = this.roomState()?.roomId;
+      if (roomId && this.isBrowser) {
+        sessionStorage.setItem(`session_id_${roomId}`, e.payload);
+      }
+    });
+
     this.relay.events.on('CONSTRAINT_UPDATE' as any).subscribe((e) => {
       const payload = e.payload;
       const actualConstraints = payload?.constraints ? payload.constraints : payload;
@@ -280,6 +289,24 @@ export class SocketService {
         await new Promise((r) => setTimeout(r, 50));
       }
 
+      if (this.isBrowser) {
+        const savedSessionId = sessionStorage.getItem(`session_id_${roomId}`);
+        if (savedSessionId) {
+          this.sdk.restoreSessionId(savedSessionId);
+        }
+      }
+
+      await this.sdk.joinRoom(roomId, fragment);
+
+      let isReconnecting = false;
+      if (this.isBrowser) {
+        const savedSessionId = sessionStorage.getItem(`session_id_${roomId}`);
+        if (savedSessionId) {
+          this.sdk.restoreSessionId(savedSessionId);
+          isReconnecting = true;
+        }
+      }
+
       await this.sdk.joinRoom(roomId, fragment);
 
       if (this.isBrowser) {
@@ -288,21 +315,17 @@ export class SocketService {
         if (secureToken) {
           try {
             const decryptedToken = await this.encryptionEngine.decrypt(secureToken, fbek);
-
             if (decryptedToken) {
               await this.sdk.claimCoordinator(decryptedToken);
             }
           } catch (decryptError) {
-            console.error(
-              '[SERVICE] ❌ Decryption failed! The FBEK might be incorrect or token corrupted.',
-              decryptError,
-            );
+            console.error('[SERVICE] Decryption failed!', decryptError);
             sessionStorage.removeItem(`admin_token_${roomId}`);
           }
         }
 
         const savedName = localStorage.getItem(`display_name_${roomId}`);
-        if (savedName) {
+        if (savedName && !isReconnecting) {
           await this.sdk.setDisplayName(savedName);
         }
       }

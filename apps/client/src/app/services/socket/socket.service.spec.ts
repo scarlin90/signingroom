@@ -92,6 +92,7 @@ describe('SocketService', () => {
         extractFingerprintFromSignature: vi.fn(),
         uploadSignature: vi.fn().mockResolvedValue(undefined),
         joinRoom: vi.fn().mockResolvedValue(undefined),
+        restoreSessionId: vi.fn(),
         store: { getState: vi.fn().mockReturnValue(null), update: vi.fn() },
         engine: {
           decrypt: vi.fn().mockResolvedValue('decrypted_admin_token'),
@@ -166,12 +167,17 @@ describe('SocketService', () => {
       expect(statusSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('should set currentSessionId when SESSION_CONNECTED is emitted', () => {
+    it('should set currentSessionId and save to sessionStorage when SESSION_CONNECTED is emitted', () => {
       const setSpy = vi.spyOn(service.currentSessionId, 'set');
+      const setItemSpy = vi.spyOn(globalThis.sessionStorage, 'setItem');
+      
+      service.roomState.set({ roomId: 'room_123' } as any);
+      service.isBrowser = true;
 
       sessionConnectedSubject.next({ payload: 'session_abc123' });
 
       expect(setSpy).toHaveBeenCalledWith('session_abc123');
+      expect(setItemSpy).toHaveBeenCalledWith('session_id_room_123', 'session_abc123');
     });
 
     it('should update store with signerLabels when LABELS_DECRYPTED is emitted', () => {
@@ -752,12 +758,14 @@ describe('SocketService', () => {
     expect(statusSpy).toHaveBeenCalledWith('connected');
   });
 
-  it('should claim coordinator and set display name if tokens exist in the browser', async () => {
+  it('should claim coordinator and set display name if tokens exist in the browser and not reconnecting', async () => {
     service.status.set('disconnected');
     service.isBrowser = true;
     vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any);
 
     vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
+      // Simulate no saved session id so it's treated as a fresh join
+      if (key === 'session_id_room_123') return null;
       if (key === 'admin_token_room_123') return 'secure_admin_token';
       return null;
     });
@@ -770,14 +778,40 @@ describe('SocketService', () => {
     const encryptionDecryptSpy = vi.spyOn(service['encryptionEngine'], 'decrypt');
     const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
+    const restoreSessionIdSpy = vi.spyOn(service.sdk as any, 'restoreSessionId');
     const statusSpy = vi.spyOn(service.status, 'set');
 
     await service.connect('room_123', 'my_key');
 
+    expect(restoreSessionIdSpy).not.toHaveBeenCalled();
     expect(encryptionDecryptSpy).toHaveBeenCalledWith('secure_admin_token', 'my_key');
     expect(claimCoordinatorSpy).toHaveBeenCalledWith('decrypted_admin_token');
     expect(setDisplayNameSpy).toHaveBeenCalledWith('Alice');
     expect(statusSpy).toHaveBeenCalledWith('connected');
+  });
+
+  it('should restore session ID and NOT set display name if reconnecting', async () => {
+    service.status.set('disconnected');
+    service.isBrowser = true;
+    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any);
+
+    vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
+      if (key === 'session_id_room_123') return 'saved_session_9999';
+      return null;
+    });
+
+    vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation((key: string) => {
+      if (key === 'display_name_room_123') return 'Alice';
+      return null;
+    });
+
+    const restoreSessionIdSpy = vi.spyOn(service.sdk as any, 'restoreSessionId');
+    const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
+    
+    await service.connect('room_123', 'my_key');
+
+    expect(restoreSessionIdSpy).toHaveBeenCalledWith('saved_session_9999');
+    expect(setDisplayNameSpy).not.toHaveBeenCalled(); // The core spam fix assertion!
   });
 
   it('should catch joinRoom failures and set status to error', async () => {
@@ -1334,7 +1368,7 @@ describe('SocketService', () => {
 
       const mockTxId = 'abcd1234efgh5678...';
       const finalizeSpy = vi
-        .spyOn(PsbtUtils, 'finalizeTx')
+        .spy on(PsbtUtils, 'finalizeTx')
         .mockReturnValue({ hex: 'some_hex', txId: mockTxId });
 
       const result = service.getFinalTxId();

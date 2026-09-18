@@ -163,9 +163,32 @@ describe('SigningRoomClient', () => {
         'room-id',
         'existing-key',
         '1.2.0',
+        null
       );
       expect(client.userContext).toContain('sid-2');
       expect(client.currentRoleToken).toBeNull();
+    });
+
+    it('should pass restored session ID and log reconnection when joining', async () => {
+      const joinSpy = vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
+        client.relay.events.dispatch('ROOM_CONNECTED');
+        client.relay.events.dispatch('SESSION_CONNECTED', 'sid-old');
+        client.relay.events.dispatch('STATE_SYNC_DECRYPTED');
+      });
+
+      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
+
+      client.restoreSessionId('sid-old');
+      await client.joinRoom('room-id', 'existing-key');
+
+      expect(joinSpy).toHaveBeenCalledWith(
+        'wss://api.signingroom.com',
+        'room-id',
+        'existing-key',
+        '1.2.0',
+        'sid-old'
+      );
+      expect(logSpy).toHaveBeenCalledWith('Session Reconnected', 'Legacy Guest Access');
     });
   });
 
@@ -225,7 +248,7 @@ describe('SigningRoomClient', () => {
       const spy = vi.spyOn(client.relay, 'setDisplayName').mockImplementation(async () => {
         client.relay.events.dispatch('PARTICIPANTS_DECRYPTED');
       });
-      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue();
+      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
 
       await client.setDisplayName('Alice');
 
@@ -656,4 +679,56 @@ describe('SigningRoomClient', () => {
       expect(client.getConstraints()?.canExportPsbt).toBe(false);
     });
   });
+
+  describe('Defensive Branches & Edge Cases', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should log an action when role updates from guest to admin (Line 78)', async () => {
+      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
+      // @ts-ignore
+      client._sessionId = 'sess-123'; 
+      // @ts-ignore
+      client._role = 'guest'; // Force initial state
+      
+      // Trigger the role update
+      client.relay.events.dispatch('ROLE_UPDATE', 'admin');
+      await new Promise(process.nextTick);
+      
+      expect(logSpy).toHaveBeenCalledWith(
+        'Role Claimed Coordinator',
+        'Session ID: sess-123 upgraded',
+        'Coordinator'
+      );
+      // @ts-ignore
+      expect(client._role).toBe('admin');
+    });
+
+    it('should dispatch THRESHOLD_MET when a new partial signature completes the threshold (Line 113)', () => {
+      const dispatchSpy = vi.spyOn(client.relay.events, 'dispatch');
+      
+      // Mock the state to simulate the exact threshold being met
+      vi.spyOn(client, 'getSignatureProgress').mockReturnValue({ totalSigners: 3, signaturesReceived: 3 });
+      vi.spyOn(client, 'isThresholdMet').mockReturnValue(true);
+      vi.spyOn(client, 'getRoomState').mockReturnValue({ psbt: 'data' } as any);
+      vi.spyOn(client, 'getThreshold').mockReturnValue(3);
+
+      // Fire the decrypted event
+      client.relay.events.dispatch('NEW_PARTIAL_DECRYPTED', { fingerprint: 'fp-123' });
+      
+      expect(dispatchSpy).toHaveBeenCalledWith('THRESHOLD_MET', {
+        signaturesReceived: 3,
+        threshold: 3
+      });
+    });
+
+    it('should correctly classify websocket error codes in getErrorCategory (Line 758)', () => {
+      expect(client.getErrorCategory(4026)).toBe('PROTOCOL_MISMATCH');
+      expect(client.getErrorCategory(4001)).toBe('ROOM_FULL');
+      expect(client.getErrorCategory(1006)).toBe('AUTH_FAILED');
+      expect(client.getErrorCategory(9999)).toBe('UNKNOWN');
+    });
+  });
+
 });

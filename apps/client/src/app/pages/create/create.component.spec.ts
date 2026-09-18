@@ -362,9 +362,10 @@ describe('CreateComponent', () => {
         outputCount: 2,
         amountBtc: 1,
         networkFeeSat: 50000,
+        estimatedVBytes: 208 // Inject calculated size
       } as any);
 
-      // Estimated vBytes = 2*68 + 2*31 + 10 = 208
+      // Estimated vBytes = 208
       // 50000 / 208 = ~240 sats/vByte (> 100 limit)
       expect(component.isHighFee()).toBe(true);
 
@@ -373,7 +374,9 @@ describe('CreateComponent', () => {
         outputCount: 2,
         amountBtc: 1,
         networkFeeSat: 5000,
+        estimatedVBytes: 208
       } as any);
+      
       // 5000 / 208 = ~24 sats/vB
       expect(component.isHighFee()).toBe(false);
     });
@@ -397,6 +400,7 @@ describe('CreateComponent', () => {
         outputCount: 2,
         networkFeeSat: 1000,
         amountBtc: 0.0001, // 10,000 sats
+        estimatedVBytes: 208
       } as any);
 
       expect(component.isHighFee()).toBe(true);

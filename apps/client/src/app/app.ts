@@ -68,7 +68,7 @@ import {
 
             @if (!configService.config().hideNetworkBadges) {
               <div class="hidden md:flex items-center gap-6 text-sm font-medium text-brand-text-muted">
-                <span>Stateless</span>
+                <span>Zero-Knowledge</span>
                 <span>Non-Custodial</span>
                 <span>Real-time</span>
               </div>
@@ -91,7 +91,7 @@ import {
 
             @if (!configService.config().hideNetworkBadges) {
               <div class="hidden md:flex items-center gap-6 text-sm font-medium text-brand-text-muted">
-                <span>Stateless</span>
+                 <span>Zero-Knowledge</span>
                 <span>Non-Custodial</span>
                 <span>Real-time</span>
               </div>
@@ -258,10 +258,9 @@ import {
                     class="underline hover:text-white"
                     >AGPLv3 License</a
                   >. It is provided "as is", without warranty of any kind. <br /><br />
-                  <strong>NON-CUSTODIAL:</strong> {{ configService.config().brandName }} is a stateless coordination tool,
+                  <strong>NON-CUSTODIAL:</strong> {{ configService.config().brandName }} is a zero-knowledge coordination tool,
                   not a wallet or financial institution. We do not have access to your private keys,
-                  funds, or unencrypted transaction data. We do not maintain user accounts or
-                  historical logs. <br /><br />
+                  funds, or unencrypted transaction data. All room data is ephemeral and permanently wiped upon closure or expiration. <br /><br />
                   <strong>USER RESPONSIBILITY:</strong> You are solely responsible for verifying
                   transaction details (addresses, amounts, fees) on your hardware device screen
                   before signing. The developers assume no liability for lost funds or software
@@ -383,7 +382,7 @@ export class App implements OnInit {
 
     const pageTitle = `${brandFullName} | ${config.tagline || 'Real-Time Multisig Coordinator'}`;
     const pageDesc =
-      config.subTagline || 'The stateless, zero-knowledge Bitcoin multisig coordinator.';
+      config.subTagline || 'The ephemeral, zero-knowledge Bitcoin multisig coordinator.';
 
     this.titleService.setTitle(pageTitle);
     this.metaService.updateTag({ name: 'description', content: pageDesc });
@@ -410,7 +409,7 @@ export class App implements OnInit {
       featureList: [
         'Real-time PSBT Merging',
         'Zero-Knowledge Encryption',
-        'Stateless Architecture',
+        'Ephemeral Architecture',
         'Cryptographic Audit Logs',
         'Hardware Wallet Compatibility',
       ],
