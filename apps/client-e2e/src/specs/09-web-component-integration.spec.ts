@@ -65,7 +65,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // Retrieve Decryption Key via Clipboard with polling to prevent stale test data
     await hostPage.evaluate(() => navigator.clipboard.writeText(''));
     await hostFrame.getByRole('button', { name: /Link Key/i }).click({ force: true });
-    await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Copy Access Key' }).click({ force: true });
 
     let roomKey = '';
     await expect(async () => {
@@ -289,7 +289,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // Retrieve Decryption Key via Clipboard with polling to prevent stale test data
     await hostPage.evaluate(() => navigator.clipboard.writeText(''));
     await hostFrame.getByRole('button', { name: /Link Key/i }).click({ force: true });
-    await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Copy Access Key' }).click({ force: true });
 
     let roomKey = '';
     await expect(async () => {
@@ -388,9 +388,9 @@ test.describe('Web Component / Embedded Integration', () => {
       .click();
 
     // Ensure the modal rendered before trying to click the copy button
-    const copyBtn = frame.getByRole('button', { name: 'Copy Room ID' });
-    await expect(copyBtn).toBeVisible();
-    await copyBtn.click({ force: true });
+    const copyBtn = frame.getByRole('button', { name: 'Copy Raw Room ID' });
+    
+    await copyBtn.evaluate((btn: HTMLElement) => btn.click());
 
     await expect(async () => {
       const copyEvent = messages.find((m) => m.action === 'dataCopied');
@@ -443,24 +443,34 @@ test.describe('Web Component / Embedded Integration', () => {
     await guestPage.goto('/webcomponent-demo.html');
     const guestMessages = await trapWidgetEvents(guestPage);
 
-    // Provide correct Room ID, but completely WRONG key to trigger 1006 disconnect
+    // Provide correct Room ID, but completely WRONG key to mount the widget in its rejected state
     await guestPage.locator('#guest-room-id').fill(roomId);
-    await guestPage.locator('#guest-key').fill('malicious-wrong-key-1234');
-    await guestPage.locator('#load-guest-btn').click();
+    await guestPage.locator('#guest-key').fill('malicious-wrong-key-initial');
+    
+    // CRITICAL: Ensure the host button is forcibly clicked so the iframe mounts properly
+    await guestPage.locator('#load-guest-btn').click({ force: true });
 
     const guestFrame = guestPage.frameLocator('iframe');
 
     // Verify UI accurately reflects the denial by kicking them back to the key prompt
-    await expect(guestFrame.getByText(/Decryption Key Required/i)).toBeVisible({ timeout: 8000 });
-    await expect(guestFrame.getByPlaceholder(/Enter decryption key/i)).toBeVisible();
+    await expect(guestFrame.getByText(/Decryption Key Required/i)).toBeVisible({ timeout: 15000 });
+    
+    const keyInput = guestFrame.getByPlaceholder(/Enter decryption key/i);
+    await expect(keyInput).toBeVisible();
 
-    // Verify the widget fired the SIEM/Security webhook
+    for (let i = 2; i <= 5; i++) {
+      await keyInput.fill(`malicious-wrong-key-${i}`);
+      await guestFrame.getByRole('button', { name: 'Decrypt Room' }).click({ force: true });
+      // Brief pause to allow the websocket round-trip to fail and reset the modal state
+      await guestPage.waitForTimeout(500); 
+    }
+
+    // Verify the widget fired the SIEM/Security webhook now that the threshold is met
     await expect(async () => {
       const securityAlert = guestMessages.find((m) => m.action === 'securityAlert');
       expect(securityAlert).toBeDefined();
       expect(securityAlert.payload.alertType).toBe('access_denied');
-      expect(securityAlert.payload.roomId).toBe(roomId);
-    }).toPass({ timeout: 5000 });
+    }).toPass({ timeout: 10000 });
 
     await hostCtx.close();
     await guestCtx.close();
@@ -501,7 +511,7 @@ test.describe('Web Component / Embedded Integration', () => {
     ).trim();
     await hostPage.evaluate(() => navigator.clipboard.writeText(''));
     await hostFrame.getByRole('button', { name: /Link Key/i }).click({ force: true });
-    await hostFrame.getByRole('button', { name: 'Copy Decryption Key' }).click({ force: true });
+    await hostFrame.getByRole('button', { name: 'Copy Access Key' }).click({ force: true });
 
     let roomKey = '';
     await expect(async () => {

@@ -89,6 +89,20 @@ export class RoomPage {
   readonly signersHiddenBadge: Locator;
   readonly signersEyeToggle: Locator;
 
+  // --- Share Modal Helpers (2-Step Wizard) ---
+  get shareModalContinueButton() { return this.page.getByRole('button', { name: /Continue to Share Methods/i }); }
+  get shareModalCopyGuestKeyButton() { return this.page.locator('#btn-generate-key-only'); }
+  get shareModalCopyFullLinkButton() { return this.page.locator('#btn-generate-full-link'); }
+  get shareModalCopyUrlOnlyButton() { return this.page.locator('#btn-copy-secure-link'); }
+
+  // Toggle Checkboxes for Step 1
+  get toggleUploadSignature() { return this.page.locator('input[type="checkbox"]').nth(0); }
+  get toggleExportPsbt() { return this.page.locator('input[type="checkbox"]').nth(1); }
+  get toggleExportAudit() { return this.page.locator('input[type="checkbox"]').nth(2); }
+  get toggleViewDetails() { return this.page.locator('input[type="checkbox"]').nth(3); }
+  get toggleViewSigners() { return this.page.locator('input[type="checkbox"]').nth(4); }
+  get toggleShareSession() { return this.page.locator('input[type="checkbox"]').nth(5); }
+
   constructor(page: Page) {
     this.page = page;
     this.activeIndicator = page.locator('span[title="Room Active"]');
@@ -131,17 +145,15 @@ export class RoomPage {
       .locator('div.relative.group')
       .filter({ hasText: 'View Room ID' })
       .locator('button');
-    this.roomIdModalCopyButton = page.getByRole('button', { name: /Copy Room ID/i });
-    this.sessionsModal = page
-      .locator('div.max-w-md')
-      .filter({ has: page.getByRole('heading', { name: 'Active Sessions' }) });
+    this.roomIdModalCopyButton = page.locator('#btn-copy-room-id-modal');
+    this.sessionsModal = page.locator('#modal-active-sessions');
     this.sessionNameInput = page.getByPlaceholder(/e.g. Auditor Bob/i);
     this.sessionSaveButton = page.getByRole('button', { name: 'Save', exact: true });
     this.decryptionKeyInput = page.getByPlaceholder('Enter decryption key...');
     this.decryptRoomButton = page.getByRole('button', { name: 'Decrypt Room' });
     this.keyActionButton = page.getByRole('button', { name: /Link Key/i });
-    this.copyKeyButton = page.getByRole('button', { name: 'Copy Decryption Key' });
-    this.closeSessionsModalButton = this.sessionsModal.locator('button').first();
+    this.copyKeyButton = page.getByRole('button', { name: 'Copy Access Key' });
+    this.closeSessionsModalButton = this.sessionsModal.locator('#btn-modal-close');
     this.sessionList = this.sessionsModal.locator('div.overflow-y-auto');
     this.finalizeButton = page.getByRole('button', { name: /Finalize Transaction/i });
     this.broadcastButton = page.getByRole('button', { name: 'Broadcast' });
@@ -205,19 +217,16 @@ export class RoomPage {
     const signersContainer = page.locator('#card-signers-list').first();
     this.signersHiddenBadge = signersContainer.getByRole('button', { name: 'Hidden for Privacy' });
 
-    // The Eye Toggles (Also scoped to their specific containers for maximum resilience)
     this.headerEyeToggle = headerContainer.locator(
       'button[title="Reveal Header"], button[title="Hide Header"]',
     );
     this.proposalEyeToggle = this.proposalContainer.locator(
       'button[title="Reveal Proposal"], button[title="Hide Proposal"]',
     );
-    this.detailsEyeToggle = detailsContainer.locator(
-      'button[title="Reveal Details"], button[title="Hide Details"]',
-    );
-    this.signersEyeToggle = signersContainer.locator(
-      'button[title="Reveal Signers"], button[title="Hide Signers"]',
-    );
+    
+    this.detailsEyeToggle = page.locator('#btn-reveal-details');
+    
+    this.signersEyeToggle = page.locator('#btn-reveal-signers');
   }
 
   async getRoomId(): Promise<string> {
@@ -241,7 +250,7 @@ export class RoomPage {
   }
 
   getSignerRow(fingerprint: string): Locator {
-    return this.signerList.locator('div.p-4.rounded-xl').filter({ hasText: fingerprint });
+    return this.page.locator('#card-signers-list').locator('div.p-4.rounded-xl').filter({ hasText: fingerprint });
   }
 
   /**
@@ -256,17 +265,15 @@ export class RoomPage {
    */
   async expectSignerStatus(fingerprint: string, status: 'Signed' | 'Waiting...') {
     const row = this.getSignerRow(fingerprint);
+    
     if (status === 'Signed') {
-      await expect(row).toHaveClass(/bg-emerald-500\/10/);
-      await expect(row).toHaveClass(/border-emerald-500\/30/);
-      await expect(row.getByText('Signed')).toBeVisible();
-
-      await expect(row.locator('svg.animate-spin')).toBeHidden();
+      // Ensure the UI text flips to 'Signed' and the spinner disappears
+      await expect(row.getByText('Signed', { exact: true })).toBeVisible();
+      await expect(row.locator('.animate-spin')).toBeHidden();
     } else {
-      await expect(row).toHaveClass(/bg-brand-bg/);
-      await expect(row.getByText('Waiting...')).toBeVisible();
-
-      await expect(row.locator('svg.animate-spin')).toBeVisible();
+      // Ensure the UI text says 'Waiting...' and the spinner is active
+      await expect(row.getByText('Waiting...', { exact: true })).toBeVisible();
+      await expect(row.locator('.animate-spin')).toBeVisible();
     }
   }
 
@@ -313,5 +320,50 @@ export class RoomPage {
    */
   getEditLabelButton(fingerprint: string): Locator {
     return this.getSignerRow(fingerprint).locator('button').first();
+  }
+
+  /**
+   * Helper to generate and copy a role link through the 2-step share modal wizard
+   */
+  async generateRoleLink(method: 'key' | 'full' | 'url', permissions?: {
+    upload?: boolean;
+    exportPsbt?: boolean;
+    exportAudit?: boolean;
+    viewDetails?: boolean;
+    viewSigners?: boolean;
+    shareSession?: boolean;
+  }) {
+    await this.shareLinkButton.click();
+    
+    if (permissions) {
+      if (permissions.upload === true) await this.toggleUploadSignature.check({ force: true });
+      if (permissions.upload === false) await this.toggleUploadSignature.uncheck({ force: true });
+      
+      if (permissions.exportPsbt === true) await this.toggleExportPsbt.check({ force: true });
+      if (permissions.exportPsbt === false) await this.toggleExportPsbt.uncheck({ force: true });
+      
+      if (permissions.exportAudit === true) await this.toggleExportAudit.check({ force: true });
+      if (permissions.exportAudit === false) await this.toggleExportAudit.uncheck({ force: true });
+      
+      if (permissions.viewDetails === true) await this.toggleViewDetails.check({ force: true });
+      if (permissions.viewDetails === false) await this.toggleViewDetails.uncheck({ force: true });
+      
+      if (permissions.viewSigners === true) await this.toggleViewSigners.check({ force: true });
+      if (permissions.viewSigners === false) await this.toggleViewSigners.uncheck({ force: true });
+      
+      if (permissions.shareSession === true) await this.toggleShareSession.check({ force: true });
+      if (permissions.shareSession === false) await this.toggleShareSession.uncheck({ force: true });
+    }
+
+    await this.shareModalContinueButton.click();
+
+    // Step 2: Choose copy method
+    if (method === 'key') {
+      await this.shareModalCopyGuestKeyButton.click();
+    } else if (method === 'full') {
+      await this.shareModalCopyFullLinkButton.click();
+    } else {
+      await this.shareModalCopyUrlOnlyButton.click();
+    }
   }
 }

@@ -219,13 +219,17 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   // --- Granular Role Generation Signals ---
   public roleFlags = signal({
-    canUploadSignature: true,
+    // Core Signing Flow (Default ON)
+    canUploadSignature: true,  
     canExportPsbt: true,
-    canExportAudit: true,
     canViewDetails: true,
-    canViewSigners: true,
-    canShareSession: true,
+    
+    // Privacy & Lateral Movement (Default OFF)
+    canExportAudit: false,     
+    canViewSigners: false,     
+    canShareSession: false,    
   });
+
   public isGeneratingRole = signal(false);
   public roleLinkCopied = signal(false);
   public activeGenType = signal<'full' | 'key' | null>(null);
@@ -387,11 +391,11 @@ export class RoomComponent implements OnInit, OnDestroy {
     });
 
     this.socket.securityAlert$.subscribe((event) => {
-      const severity = event.count >= 3 ? 'high' : 'medium';
+      const severity = event.count >= 5 ? 'high' : 'medium';
       this.dispatcher.emitSecurityAlert(
         event.type,
         severity,
-        `Failed decryption attempt ${event.count}/3`,
+        `Failed decryption attempt ${event.count}/5`,
       );
     });
 

@@ -12,24 +12,40 @@ test.describe('Multi-User Signing Workflow', () => {
   
   test('Coordinator should see Guest signatures in real-time', async ({ browser }) => {
     // --- Setup: Multi-context browser environment ---
-    // Create isolated contexts to simulate two distinct users on different machines
     const coordinatorContext = await browser.newContext();
     const guestContext = await browser.newContext();
     
-    // Grant clipboard permissions to the coordinator for link sharing functionality
-    await coordinatorContext.grantPermissions(['clipboard-read', 'clipboard-write']);
-
     const coordinatorPage = await coordinatorContext.newPage();
     const guestPage = await guestContext.newPage();
 
     // --- Interaction: Coordinator Room Initialization ---
-    // Establish the initial session from an unsigned PSBT fixture
     const coordinatorRoom = await launchRoomFromFixture(coordinatorPage, '3_5_unsigned.psbt.txt');
     
-    // Open share options and capture the full invite link (Room ID + Decryption Key)
-    await coordinatorRoom.shareLinkButton.click();
-    await coordinatorPage.getByRole('button', { name: /Copy Full Link/i }).click();
-    const sharedLink = await coordinatorPage.evaluate(() => navigator.clipboard.readText());
+    await coordinatorPage.evaluate(() => {
+      (window as any).__capturedClipboard = '';
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: (text: string) => {
+            (window as any).__capturedClipboard = text;
+            return Promise.resolve();
+          },
+          readText: () => Promise.resolve((window as any).__capturedClipboard)
+        },
+        configurable: true,
+        writable: true
+      });
+    });
+
+    // Open share options, sequence through the 2-step wizard, and copy the full link.
+    // Explicitly grant 'viewSigners' so the guest can see and verify the fingerprint UI updates.
+    await coordinatorRoom.generateRoleLink('full', { viewSigners: true });
+    
+    // Ensure the modal has successfully closed after the copy action
+    await expect(coordinatorPage.getByText('Share Room Securely')).toBeHidden();
+
+    // Retrieve the securely generated link from our interceptor
+    const sharedLink = await coordinatorPage.evaluate(() => (window as any).__capturedClipboard);
+    expect(sharedLink).toContain('http');
 
     // --- Interaction: Guest Entry ---
     // Guest joins the session using the secure shared link
@@ -55,7 +71,7 @@ test.describe('Multi-User Signing Workflow', () => {
     // Confirm the Guest UI updated locally to reflect the signature submission
     await guestRoom.expectSignerStatus(aliceFingerprint, 'Signed');
 
-    // CRITICAL: Verify the Coordinator UI received the update in real-time via WebSocket relay
+    // Verify the Coordinator UI received the update in real-time via WebSocket relay
     await coordinatorRoom.expectSignerStatus(aliceFingerprint, 'Signed');
     
     // Confirm the global progress indicators and badges are synchronized for all participants
