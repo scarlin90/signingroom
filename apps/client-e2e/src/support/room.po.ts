@@ -268,6 +268,13 @@ export class RoomPage {
   }
 
   /**
+   * Helper to fetch the exact locator for an address label button by index
+   */
+  getEditAddressLabelButton(type: 'input' | 'output', index: number): Locator {
+    return this.page.locator(`#btn-label-${type}-${index}`);
+  }
+
+  /**
    * Helper to verify a specific signer has successfully signed
    */
   async expectSignerStatus(fingerprint: string, status: 'Signed' | 'Waiting...') {

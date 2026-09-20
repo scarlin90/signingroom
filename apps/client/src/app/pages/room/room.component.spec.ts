@@ -479,6 +479,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('getAddressLabel should return the mapping from state', () => {
         expect(component.getAddressLabel('bc1qtrusted')).toBe('Vault');
       });
+
+      it('getAddressLabel should return the mapping from state', () => {
+        expect(component.getAddressLabel('bc1qtrusted')).toBe('Vault');
+      });
     });
 
     describe('isEmbedded', () => {
