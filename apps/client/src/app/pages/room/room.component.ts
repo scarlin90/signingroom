@@ -241,6 +241,12 @@ export class RoomComponent implements OnInit, OnDestroy {
   public editingAddressLabel = signal('');
   public saveAddressToBook = signal(true);
 
+  // --- Address Label Signals ---
+  public showAddressLabelModal = signal(false);
+  public editingAddress = signal<string | null>(null);
+  public editingAddressLabel = signal('');
+  public saveAddressToBook = signal(true);
+
   public claimPassword = '';
   public manualKey = '';
 

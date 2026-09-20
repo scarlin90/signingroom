@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SocketService } from '../../services/socket/socket.service';
 import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
+import * as confetti from 'canvas-confetti';
 import { EncryptionEngine } from '@signing-room/sdk';
 
 let mockSocketService: any;
@@ -469,6 +470,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('isSaved should return true if a local label exists in address book', () => {
         expect(component.isSaved('fingerprintB')).toBe(true);
         expect(component.isSaved('fingerprintA')).toBe(false); 
+      });
+
+      it('getAddressLabel should return the mapping from state', () => {
+        expect(component.getAddressLabel('bc1qtrusted')).toBe('Vault');
       });
 
       it('getAddressLabel should return the mapping from state', () => {
