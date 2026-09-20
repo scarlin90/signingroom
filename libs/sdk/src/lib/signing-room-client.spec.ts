@@ -113,7 +113,7 @@ describe('SigningRoomClient', () => {
 
     it('should successfully create a room and store keys including the default role token', async () => {
       mockFetch.mockResolvedValue({ ok: true });
-      vi.spyOn(client.engine, 'encrypt').mockResolvedValue('mock-role-token');
+      vi.spyOn(client.engine, 'encrypt').mockResolvedValue('mock-encrypted-blob');
       vi.spyOn(client.engine, 'sha256').mockResolvedValue('mock-hash');
 
       const res = await client.createRoom('psbtData', 'testnet', 'My Room');
@@ -121,14 +121,18 @@ describe('SigningRoomClient', () => {
       expect(RoomFactory.prepareCreationPayload).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalled();
       expect(res.payload).toEqual(mockPayload);
-      expect(res.defaultRoleToken).toBe('mock-role-token');
+      
+      // Approach B: Assert we are yielding a pure 32-char crypto random UUID fragment key
+      expect(res.defaultRoleToken).toHaveLength(32);
+      expect(typeof res.defaultRoleToken).toBe('string');
+      
       // @ts-ignore
       expect(client._encryptionKey).toBe('key');
     });
 
     it('should completely orchestrate room creation, joining, and role claiming with RBAC defaults', async () => {
       mockFetch.mockResolvedValue({ ok: true });
-      vi.spyOn(client.engine, 'encrypt').mockResolvedValue('mock-role-token');
+      vi.spyOn(client.engine, 'encrypt').mockResolvedValue('mock-encrypted-blob');
       vi.spyOn(client.engine, 'sha256').mockResolvedValue('mock-hash');
 
       const joinSpy = vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
@@ -146,7 +150,7 @@ describe('SigningRoomClient', () => {
       expect(joinSpy).toHaveBeenCalled();
       expect(claimSpy).toHaveBeenCalledWith('token');
       expect(res.roomId).toBe('room-1');
-      expect(res.defaultRoleToken).toBe('mock-role-token');
+      expect(res.defaultRoleToken).toHaveLength(32);
       expect(client.getConstraints()?.canUploadSignature).toBe(true);
     });
 
@@ -631,11 +635,13 @@ describe('SigningRoomClient', () => {
         canShareSession: false,
       });
 
-      expect(token).toBe('encrypted-token');
+      expect(token).toHaveLength(32);
       expect(sendSpy).toHaveBeenCalledWith(
         'REGISTER_ROLE',
         expect.objectContaining({
           tokenHash: 'hashed-token',
+          canUpload: true,
+          policyBlob: 'encrypted-token'
         }),
       );
     });
@@ -677,7 +683,11 @@ describe('SigningRoomClient', () => {
     });
 
     it('should dispatch AUTH_ROLE and strictly apply constraints when joining with a role fragment', async () => {
-      const sendSpy = vi.spyOn(client.relay, 'send');
+      const sendSpy = vi.spyOn(client.relay, 'send').mockImplementation((type) => {
+        if (type === 'AUTH_ROLE') {
+          client.relay.events.dispatch('CONSTRAINT_UPDATE' as any, { policyBlob: 'mock-policy-blob' });
+        }
+      });
       const joinSpy = vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
         client.relay.events.dispatch('ROOM_CONNECTED');
         client.relay.events.dispatch('SESSION_CONNECTED', 'sid-token');
@@ -698,7 +708,7 @@ describe('SigningRoomClient', () => {
       vi.restoreAllMocks();
     });
 
-    it('should log an action when role updates from guest to admin (Line 78)', async () => {
+    it('should log an action when role updates from guest to admin', async () => {
       const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
       // @ts-ignore
       client._sessionId = 'sess-123'; 
@@ -718,7 +728,7 @@ describe('SigningRoomClient', () => {
       expect(client._role).toBe('admin');
     });
 
-    it('should dispatch THRESHOLD_MET when a new partial signature completes the threshold (Line 113)', () => {
+    it('should dispatch THRESHOLD_MET when a new partial signature completes the threshold', () => {
       const dispatchSpy = vi.spyOn(client.relay.events, 'dispatch');
       
       // Mock the state to simulate the exact threshold being met

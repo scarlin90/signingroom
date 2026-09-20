@@ -122,7 +122,7 @@ export class SigningRoomClient {
 
   /**
    * Orchestrates the creation of a new collaborative cryptographic room.
-   * Strictly enforces Zero-Trust RBAC by generating a mandatory default role token.
+   * Strictly enforces Capability-based RBAC roles by generating a mandatory default role token.
    * @param psbtBase64 - The initial, unsigned PSBT string.
    * @param network - The target Bitcoin network (mainnet, testnet, or signet).
    * @param roomName - The display name for the room.
@@ -134,19 +134,15 @@ export class SigningRoomClient {
     roomName = 'Untitled Room',
   ) {
     const payload = await RoomFactory.prepareCreationPayload(
-      this.engine,
-      psbtBase64,
-      network,
-      roomName,
-      this.protocolVersion,
+      this.engine, psbtBase64, network, roomName, this.protocolVersion,
     );
 
     this._encryptionKey = payload.localData.encryptionKey;
     const httpBody: any = { ...payload.httpPayload };
 
-    const tokenId = crypto.randomUUID().substring(0, 8);
+    const roleToken = crypto.randomUUID().replace(/-/g, '');
     const constraints: RoleConstraints = {
-      tokenId,
+      tokenId: roleToken.substring(0, 8),
       canUploadSignature: true,
       canExportPsbt: true,
       canExportAudit: true,
@@ -155,14 +151,11 @@ export class SigningRoomClient {
       canShareSession: true,
     };
 
-    const defaultRoleToken = await this.engine.encrypt(
-      JSON.stringify(constraints),
-      this._encryptionKey,
-    );
-    const tokenHash = await this.engine.sha256(defaultRoleToken);
+    const policyBlob = await this.engine.encrypt(JSON.stringify(constraints), this._encryptionKey);
+    const tokenHash = await this.engine.sha256(roleToken);
 
     httpBody.roleTokens = {
-      [tokenHash]: constraints,
+      [tokenHash]: { canUpload: true, policyBlob },
     };
 
     const res = await fetch(`${this.apiUrl}/api/room`, {
@@ -173,7 +166,7 @@ export class SigningRoomClient {
 
     if (!res.ok) throw new Error(`Failed to create room: ${await res.text()}`);
 
-    return { payload, defaultRoleToken };
+    return { payload, defaultRoleToken: roleToken };
   }
 
   /**
@@ -284,33 +277,41 @@ export class SigningRoomClient {
     let detailText = '';
 
     if (this._roleToken) {
+      const constraintPromise = firstValueFrom(this.relay.events.on('CONSTRAINT_UPDATE' as any));
+      
       this.relay.send('AUTH_ROLE', { token: this._roleToken });
 
       try {
-        const decryptedRole = await this.engine.decrypt(this._roleToken, this._encryptionKey);
-        const constraints: RoleConstraints = JSON.parse(decryptedRole);
+        const cUpdate = await Promise.race([
+          constraintPromise,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Auth Timeout')), 5000))
+        ]);
 
-        this._constraints = constraints;
+        const policyBlob = cUpdate.payload?.policyBlob || (typeof cUpdate.payload === 'string' ? cUpdate.payload : null);
 
-        const allowed = [];
-        if (constraints.canUploadSignature) allowed.push('Sign');
-        if (constraints.canExportPsbt) allowed.push('PSBT');
-        if (constraints.canExportAudit) allowed.push('Audit');
-        if (constraints.canViewDetails) allowed.push('TxDetails');
-        if (constraints.canViewSigners) allowed.push('Signers');
-        if (constraints.canShareSession) allowed.push('Share');
+        if (policyBlob) {
+          const decryptedRole = await this.engine.decrypt(policyBlob, this._encryptionKey);
+          const constraints: RoleConstraints = JSON.parse(decryptedRole);
+          this._constraints = constraints;
 
-        const permissions = allowed.length > 0 ? allowed.join(', ') : 'None (Blind Read-Only)';
-        detailText = `Allowed: ${permissions}`;
+          const allowed = [];
+          if (constraints.canUploadSignature) allowed.push('Sign');
+          if (constraints.canExportPsbt) allowed.push('PSBT');
+          if (constraints.canExportAudit) allowed.push('Audit');
+          if (constraints.canViewDetails) allowed.push('TxDetails');
+          if (constraints.canViewSigners) allowed.push('Signers');
+          if (constraints.canShareSession) allowed.push('Share');
+
+          detailText = `Allowed: ${allowed.length > 0 ? allowed.join(', ') : 'None (Blind Read-Only)'}`;
+        } 
       } catch (e) {
-        console.error('[SDK] Failed to decrypt role token during join', e);
-        detailText = 'Allowed: Unknown (Decryption Error)';
+        console.error('[SDK] Failed to authenticate role token during join', e);
+        detailText = 'Allowed: Unknown (Error/Revoked)';
       }
     } else {
       detailText = 'Legacy Guest Access';
     }
 
-    // Use a different log action depending on if they are arriving for the first time or reconnecting
     const logAction = isReconnecting ? 'Session Reconnected' : 'User Joined';
     await this.logParticipantAction(logAction, detailText);
   }
@@ -702,12 +703,14 @@ export class SigningRoomClient {
   }): Promise<string> {
     if (!this._encryptionKey) throw new Error('Encryption key required to generate role links.');
 
-    const tokenId = crypto.randomUUID().substring(0, 8);
-    const payload: RoleConstraints = { tokenId, ...flags };
-    const encryptedToken = await this.engine.encrypt(JSON.stringify(payload), this._encryptionKey);
-    const tokenHash = await this.engine.sha256(encryptedToken);
+      const roleToken = crypto.randomUUID().replace(/-/g, '');
+      const tokenId = roleToken.substring(0, 8);
+      const payload: RoleConstraints = { tokenId, ...flags };
+      
+      const policyBlob = await this.engine.encrypt(JSON.stringify(payload), this._encryptionKey);
+      const tokenHash = await this.engine.sha256(roleToken);
 
-    const confirmation = new Promise<void>((resolve, reject) => {
+      const confirmation = new Promise<void>((resolve, reject) => {
       const sub1 = this.relay.events.on('ROLE_REGISTERED_SUCCESS' as any).subscribe(() => {
         cleanup();
         resolve();
@@ -724,7 +727,11 @@ export class SigningRoomClient {
       };
     });
 
-    this.relay.send('REGISTER_ROLE', { tokenHash, constraints: payload });
+    this.relay.send('REGISTER_ROLE', { 
+        tokenHash, 
+        canUpload: flags.canUploadSignature,
+        policyBlob 
+    });
 
     await confirmation;
 
@@ -741,7 +748,7 @@ export class SigningRoomClient {
 
     await this.logParticipantAction('Role Link Generated', detailText);
 
-    return encryptedToken;
+    return roleToken;
   }
 
   /**

@@ -445,6 +445,80 @@ describe('EncryptionService (Angular Wrapper)', () => {
       ) + '\n',
     );
 
+    // --- 2.12 REGISTER_ROLE ---
+    const roleTokenPt = '7483256acea64db3b3d0a38efd9104b5';
+    const roleTokenId = roleTokenPt.substring(0, 8);
+    const roleFlagsPt = JSON.stringify({
+      tokenId: roleTokenId,
+      canUploadSignature: true,
+      canExportPsbt: false,
+      canExportAudit: false,
+      canViewDetails: true,
+      canViewSigners: true,
+      canShareSession: false
+    });
+
+    currentIvSeed = 240;
+    const encPolicyBlob = await service.encrypt(roleFlagsPt, base64Key);
+    const ivPolicyBlob = Array.from({ length: 12 }, (_, i) =>
+      (240 + i).toString(16).padStart(2, '0')
+    ).join('');
+
+    const roleTokenHashBuffer = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(roleTokenPt)
+    );
+    const roleTokenHash = Array.from(new Uint8Array(roleTokenHashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    console.log(`### 2.12 REGISTER_ROLE`);
+    console.log(`* roleToken Plaintext (Hex): "${roleTokenPt}"`);
+    console.log(`* tokenHash Output (SHA-256): ${roleTokenHash}`);
+    console.log(`* policyBlob Plaintext JSON: ${roleFlagsPt}`);
+    console.log(`* policyBlob IV (Hex): ${ivPolicyBlob}`);
+    console.log(`* policyBlob Output (Base64): ${encPolicyBlob}`);
+    console.log(
+      JSON.stringify(
+        {
+          type: 'REGISTER_ROLE',
+          tokenHash: roleTokenHash,
+          canUpload: true,
+          policyBlob: encPolicyBlob,
+        },
+        null,
+        2
+      ) + '\n'
+    );
+
+    // --- 2.13 AUTH_ROLE ---
+    console.log(`### 2.13 AUTH_ROLE`);
+    console.log(`* token (Role Fragment): "${roleTokenPt}"`);
+    console.log(
+      JSON.stringify(
+        {
+          type: 'AUTH_ROLE',
+          token: roleTokenPt,
+        },
+        null,
+        2
+      ) + '\n'
+    );
+
+    // --- 2.14 CONSTRAINT_UPDATE ---
+    console.log(`### 2.14 CONSTRAINT_UPDATE (Server Response)`);
+    console.log(`* Echoes the blind policy blob back to the authenticated client`);
+    console.log(
+      JSON.stringify(
+        {
+          type: 'CONSTRAINT_UPDATE',
+          policyBlob: encPolicyBlob,
+        },
+        null,
+        2
+      ) + '\n'
+    );
+
     // --- STATE_SYNC (Server-to-Client Aggregation) ---
     console.log(`### STATE_SYNC (Relay-to-Client)`);
     console.log(

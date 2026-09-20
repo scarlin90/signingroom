@@ -289,7 +289,7 @@ import {
                     <span class="hidden sm:inline">&bull;</span>
                     <p>Made for Bitcoiners</p>
                     <span class="hidden sm:inline">&bull;</span>
-                    <p>No Tracking / No Cookies</p>
+                    <p>No tracking cookies / No third-party analytics</p>
                   </div>
                   <p class="text-[10px] opacity-60">Registered in England & Wales (No. 16990515)</p>
                 </div>
@@ -410,7 +410,7 @@ export class App implements OnInit {
         'Real-time PSBT Merging',
         'Zero-Knowledge Encryption',
         'Ephemeral Architecture',
-        'Cryptographic Audit Logs',
+        'Tamper-Evident Audit Logs',
         'Hardware Wallet Compatibility',
       ],
       url: this.document.defaultView?.location.href || '',

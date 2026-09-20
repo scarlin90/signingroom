@@ -323,6 +323,16 @@ export class RoomPage {
   }
 
   /**
+   * Helper to safely toggle custom Angular checkboxes by forcing the hidden input
+   */
+  private async setPermissionToggle(labelText: string | RegExp, targetState: boolean) {
+    const labelEl = this.page.locator('label').filter({ hasText: labelText });
+    const checkbox = labelEl.locator('input[type="checkbox"]');
+    
+    await checkbox.setChecked(targetState, { force: true });
+  }
+
+  /**
    * Helper to generate and copy a role link through the 2-step share modal wizard
    */
   async generateRoleLink(method: 'key' | 'full' | 'url', permissions?: {
@@ -336,23 +346,12 @@ export class RoomPage {
     await this.shareLinkButton.click();
     
     if (permissions) {
-      if (permissions.upload === true) await this.toggleUploadSignature.check({ force: true });
-      if (permissions.upload === false) await this.toggleUploadSignature.uncheck({ force: true });
-      
-      if (permissions.exportPsbt === true) await this.toggleExportPsbt.check({ force: true });
-      if (permissions.exportPsbt === false) await this.toggleExportPsbt.uncheck({ force: true });
-      
-      if (permissions.exportAudit === true) await this.toggleExportAudit.check({ force: true });
-      if (permissions.exportAudit === false) await this.toggleExportAudit.uncheck({ force: true });
-      
-      if (permissions.viewDetails === true) await this.toggleViewDetails.check({ force: true });
-      if (permissions.viewDetails === false) await this.toggleViewDetails.uncheck({ force: true });
-      
-      if (permissions.viewSigners === true) await this.toggleViewSigners.check({ force: true });
-      if (permissions.viewSigners === false) await this.toggleViewSigners.uncheck({ force: true });
-      
-      if (permissions.shareSession === true) await this.toggleShareSession.check({ force: true });
-      if (permissions.shareSession === false) await this.toggleShareSession.uncheck({ force: true });
+      if (permissions.upload !== undefined) await this.setPermissionToggle(/Submit Signatures/i, permissions.upload);
+      if (permissions.exportPsbt !== undefined) await this.setPermissionToggle(/Export Transaction/i, permissions.exportPsbt);
+      if (permissions.exportAudit !== undefined) await this.setPermissionToggle(/Export Audit Logs/i, permissions.exportAudit);
+      if (permissions.viewDetails !== undefined) await this.setPermissionToggle(/View Transaction Details/i, permissions.viewDetails);
+      if (permissions.viewSigners !== undefined) await this.setPermissionToggle(/View Signer Identities/i, permissions.viewSigners);
+      if (permissions.shareSession !== undefined) await this.setPermissionToggle(/Lateral Sharing/i, permissions.shareSession);
     }
 
     await this.shareModalContinueButton.click();
@@ -364,6 +363,21 @@ export class RoomPage {
       await this.shareModalCopyFullLinkButton.click();
     } else {
       await this.shareModalCopyUrlOnlyButton.click();
+    }
+  }
+
+  /**
+   * Clears all default privacy blurs on the page by clicking the signers privacy 
+   * badge and confirming the OpSec Warning modal to 'Reveal All'.
+   */
+  async revealAllPrivacySections() {
+    try {
+      await this.signersHiddenBadge.waitFor({ state: 'visible', timeout: 3000 });
+      await this.signersHiddenBadge.click();
+      await this.privacyModalRevealAll.click();
+      await expect(this.privacyModalRevealAll).toBeHidden();
+    } catch (e) {
+      // Ignore if the badge is not present or already revealed
     }
   }
 }

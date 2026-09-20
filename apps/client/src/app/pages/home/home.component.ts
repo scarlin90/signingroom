@@ -80,7 +80,7 @@ import {
         Stop emailing PSBT files. Coordinate Bitcoin multisig teams instantly.
         <br class="hidden md:block" />
         <span class="text-slate-200 font-semibold">No accounts.</span> 
-        <span class="text-slate-200 font-semibold">No database.</span> 
+        <span class="text-slate-200 font-semibold">Ephemeral rooms.</span> 
         <span class="text-slate-200 font-semibold">End-to-End Encrypted.</span>
       </p>
 
@@ -502,6 +502,41 @@ import {
           <p class="text-slate-400 text-sm leading-relaxed">
             No. Your transaction is end-to-end encrypted using a key contained in the URL hash (fragment). 
             This key is never sent to the server. The relay only handles the encrypted ciphertext, meaning we mathematically cannot read your data.
+          </p>
+        </div>
+
+        <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
+          <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+            <svg lucideHelpCircle class="w-4 h-4 text-emerald-400"></svg>
+            Is room data stored on the server?
+          </h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Room state may persist
+            <span class="text-slate-300">encrypted</span>
+            for up to the configured time-to-live (TTL) so participants can reconnect.
+            It is wiped when the room is closed or expires.
+            The operator never holds the decryption key, so stored data remains
+            ciphertext only—zero-knowledge by design.
+          </p>
+        </div>
+
+        <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
+          <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+            <svg lucideHelpCircle class="w-4 h-4 text-emerald-400"></svg>
+            What do the audit logs prove?
+          </h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Log entries are stored
+            <span class="text-slate-300">end-to-end encrypted</span>
+            so the relay cannot read them. After finalization, a
+            <span class="text-slate-300">forensic anchor</span>
+            (a cryptographic hash of the event timeline and the final transaction hex)
+            lets participants detect post-hoc changes to those artifacts.
+            This is
+            <span class="text-slate-300">tamper-evidence</span>,
+            not a cryptographic proof of identity or legal attribution.
+            Enterprise identity and access control belong in the host application
+            when you embed the web component.
           </p>
         </div>
 

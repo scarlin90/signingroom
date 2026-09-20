@@ -686,7 +686,7 @@ describe('RelayClient', () => {
         ERROR_NOT_FOUND: { type: 'ERROR_NOT_FOUND' },
         ERROR_VERSION_MISMATCH: { type: 'ERROR_VERSION_MISMATCH', roomVersion: '2' },
         ROLE_REGISTERED_SUCCESS: { type: 'ROLE_REGISTERED_SUCCESS' },
-        CONSTRAINT_UPDATE: { type: 'CONSTRAINT_UPDATE', constraints: { canExportPsbt: true } },
+        CONSTRAINT_UPDATE: { type: 'CONSTRAINT_UPDATE', policyBlob: 'enc-policy-blob' },
         ERROR_POLICY_VIOLATION: { type: 'ERROR_POLICY_VIOLATION', message: 'Action blocked' },
         ERROR: { type: 'ERROR', message: 'Generic error' },
         UNKNOWN_RAW_TOPIC: { type: 'UNKNOWN_RAW_TOPIC', data: 'xyz' },

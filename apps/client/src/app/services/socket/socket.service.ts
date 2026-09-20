@@ -67,12 +67,6 @@ export class SocketService {
       }
     });
 
-    this.relay.events.on('CONSTRAINT_UPDATE' as any).subscribe((e) => {
-      const payload = e.payload;
-      const actualConstraints = payload?.constraints ? payload.constraints : payload;
-      this.currentConstraints.set(actualConstraints);
-    });
-
     this.relay.events
       .on('SESSION_CONNECTED')
       .subscribe((e) => this.currentSessionId.set(e.payload));
@@ -306,6 +300,11 @@ export class SocketService {
       }
 
       await this.sdk.joinRoom(roomId, fragment);
+
+      const activeConstraints = this.sdk.getConstraints();
+      if (activeConstraints) {
+          this.currentConstraints.set(activeConstraints);
+      }
 
       if (this.isBrowser) {
         const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);

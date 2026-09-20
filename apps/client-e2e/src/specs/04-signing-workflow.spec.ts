@@ -21,6 +21,9 @@ test.describe('Multi-User Signing Workflow', () => {
     // --- Interaction: Coordinator Room Initialization ---
     const coordinatorRoom = await launchRoomFromFixture(coordinatorPage, '3_5_unsigned.psbt.txt');
     
+    // Clear default privacy blurs so Playwright can interact freely
+    await coordinatorRoom.revealAllPrivacySections();
+
     await coordinatorPage.evaluate(() => {
       (window as any).__capturedClipboard = '';
       Object.defineProperty(navigator, 'clipboard', {
@@ -37,8 +40,8 @@ test.describe('Multi-User Signing Workflow', () => {
     });
 
     // Open share options, sequence through the 2-step wizard, and copy the full link.
-    // Explicitly grant 'viewSigners' so the guest can see and verify the fingerprint UI updates.
-    await coordinatorRoom.generateRoleLink('full', { viewSigners: true });
+    // Explicitly grant 'viewSigners' and 'upload' so the guest can participate and see UI updates.
+    await coordinatorRoom.generateRoleLink('full', { viewSigners: true, upload: true });
     
     // Ensure the modal has successfully closed after the copy action
     await expect(coordinatorPage.getByText('Share Room Securely')).toBeHidden();
@@ -55,6 +58,9 @@ test.describe('Multi-User Signing Workflow', () => {
     // Verify that both participants are correctly registered in the active session list
     await expect(coordinatorRoom.sessionIdButton).toContainText('2');
     await expect(guestRoom.sessionIdButton).toContainText('2');
+
+    // Clear Guest default privacy blurs so Playwright assertions don't hit pointer-event blocks
+    await guestRoom.revealAllPrivacySections();
 
     // Setup: Identify a specific target signer for progress tracking
     const aliceFingerprint = 'fe0fa7b4';

@@ -939,7 +939,8 @@ describe('SigningRoom Durable Object', () => {
                     JSON.stringify({
                         type: 'REGISTER_ROLE',
                         tokenHash: 'hash',
-                        constraints: {},
+                        canUpload: true,
+                        policyBlob: 'encrypted-blob'
                     }),
                 );
                 await vi.waitFor(() => expect(received.some((m) => m.type === 'ERROR' && m.message === 'Unauthorized')).toBe(true));
@@ -953,7 +954,8 @@ describe('SigningRoom Durable Object', () => {
                     JSON.stringify({
                         type: 'REGISTER_ROLE',
                         tokenHash: 'hashed-token-123',
-                        constraints: { canUploadSignature: true },
+                        canUpload: true,
+                        policyBlob: 'encrypted-blob'
                     }),
                 );
                 await vi.waitFor(() => expect(received.some((m) => m.type === 'ROLE_REGISTERED_SUCCESS')).toBe(true));
@@ -961,14 +963,15 @@ describe('SigningRoom Durable Object', () => {
                 // Hit the 50 limit guard
                 await runInDurableObject(roomStub, async (instance: any) => {
                     instance.roomState.roleTokens = {};
-                    for (let i = 0; i < 50; i++) instance.roomState.roleTokens[`hash${i}`] = {};
+                    for (let i = 0; i < 50; i++) instance.roomState.roleTokens[`hash${i}`] = { canUpload: true, policyBlob: 'blob' };
                 });
 
                 client.send(
                     JSON.stringify({
                         type: 'REGISTER_ROLE',
                         tokenHash: 'hashed-token-51',
-                        constraints: {},
+                        canUpload: true,
+                        policyBlob: 'encrypted-blob'
                     }),
                 );
                 await vi.waitFor(() =>
@@ -988,7 +991,7 @@ describe('SigningRoom Durable Object', () => {
 
             await initRoom({
                 roleTokens: {
-                    [tokenHash]: { canUploadSignature: true, canExportPsbt: false },
+                    [tokenHash]: { canUpload: true, policyBlob: 'mock-policy-blob' },
                 },
             });
 
@@ -1001,7 +1004,7 @@ describe('SigningRoom Durable Object', () => {
                 // Valid Token
                 client.send(JSON.stringify({ type: 'AUTH_ROLE', token: rawToken }));
                 await vi.waitFor(() =>
-                    expect(received.some((m) => m.type === 'CONSTRAINT_UPDATE' && m.constraints.canUploadSignature === true)).toBe(true),
+                    expect(received.some((m) => m.type === 'CONSTRAINT_UPDATE' && m.policyBlob === 'mock-policy-blob')).toBe(true),
                 );
 
                 // Exception branch - Node TextEncoder coerces objects to "[object Object]" so it just fails auth.
@@ -1021,7 +1024,7 @@ describe('SigningRoom Durable Object', () => {
 
             await initRoom({
                 roleTokens: {
-                    [tokenHash]: { canUploadSignature: false },
+                    [tokenHash]: { canUpload: false, policyBlob: 'restricted-policy-blob' },
                 },
             });
 
@@ -1037,7 +1040,7 @@ describe('SigningRoom Durable Object', () => {
 
                 // Authenticate using the restricted token
                 client.send(JSON.stringify({ type: 'AUTH_ROLE', token: rawToken }));
-                await vi.waitFor(() => expect(received.some((m) => m.type === 'CONSTRAINT_UPDATE')).toBe(true));
+                await vi.waitFor(() => expect(received.some((m) => m.type === 'CONSTRAINT_UPDATE' && m.policyBlob === 'restricted-policy-blob')).toBe(true));
 
                 const currentMsgCount = received.length;
 

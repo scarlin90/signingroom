@@ -1,7 +1,7 @@
 {
   "name": "SigningRoom.io",
   "short_name": "SigningRoom",
-  "description": "The stateless, zero-knowledge Bitcoin multisig coordinator. Stop emailing PSBT files. Merge transactions in real-time without accounts, databases, or key person risk.",
+  "description": "The ephemeral, zero-knowledge Bitcoin multisig coordinator. Stop emailing PSBT files. Merge transactions in real-time without accounts.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#020617",

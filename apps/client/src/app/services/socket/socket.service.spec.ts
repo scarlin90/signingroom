@@ -95,6 +95,7 @@ describe('SocketService', () => {
         restoreSessionId: vi.fn(),
         
         parseFragment: vi.fn().mockReturnValue({ fbek: 'my_key', roleToken: null }),
+        getConstraints: vi.fn().mockReturnValue(null),
         
         store: { getState: vi.fn().mockReturnValue(null), update: vi.fn() },
         engine: {
@@ -148,7 +149,8 @@ describe('SocketService', () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('should create the SDK client via factory', () => {
@@ -623,7 +625,7 @@ describe('SocketService', () => {
         (service as any).hasAnnouncedJoin = false;
         service.currentSessionId.set('session_123');
 
-        vi.spyOn(globalThis.sessionStorage, 'getItem').mockReturnValue(null);
+        vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation(() => null);
 
         stateSyncDecryptedSubject.next({ payload: { roomId: 'room_1' } });
 
@@ -634,7 +636,11 @@ describe('SocketService', () => {
         (service as any).hasAnnouncedJoin = false;
         service.currentSessionId.set('session_123');
 
-        vi.spyOn(globalThis.sessionStorage, 'getItem').mockReturnValue('secure_token');
+        // ✅ Tightly scope the mock so it doesn't pollute teardown logic
+        vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
+          if (key === 'admin_token_room_1') return 'secure_token';
+          return null;
+        });
 
         stateSyncDecryptedSubject.next({ payload: { roomId: 'room_1' } });
 
@@ -772,7 +778,6 @@ describe('SocketService', () => {
     const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
     
-    // FIXED: Spy on the actual method we defined in the mock!
     const restoreSessionIdSpy = vi.spyOn(service.sdk, 'restoreSessionId');
     
     const statusSpy = vi.spyOn(service.status, 'set');
@@ -801,7 +806,6 @@ describe('SocketService', () => {
       return null;
     });
 
-    // FIXED: Spy on the actual method we defined in the mock!
     const restoreSessionIdSpy = vi.spyOn(service.sdk, 'restoreSessionId');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
     
@@ -949,7 +953,6 @@ describe('SocketService', () => {
     const includeKey = false;
     const getRoomLinkSpy = vi.spyOn(service.sdk, 'getRoomLink').mockReturnValue(appBaseUrl);
 
-    // FIXED: Ensure we are passing all 3 arguments in the test
     const link = service.getRoomLink(appBaseUrl, includeKey, undefined);
 
     expect(link).toBe(appBaseUrl);

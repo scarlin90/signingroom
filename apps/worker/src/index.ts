@@ -78,14 +78,14 @@ export interface RoleConstraints {
 }
 
 interface SessionData {
-	id: string;
-	role: 'admin' | 'guest';
-	joinedAt: number;
-	msgsInWindow: number;
-	lastMsgTime: number;
-	ip: string;
-	encryptedDisplayName?: string;
-	constraints?: RoleConstraints;
+    id: string;
+    role: 'admin' | 'guest';
+    joinedAt: number;
+    msgsInWindow: number;
+    lastMsgTime: number;
+    ip: string;
+    encryptedDisplayName?: string;
+    constraints?: { canUploadSignature: boolean };
 }
 
 // =============================================================================
@@ -602,7 +602,10 @@ export class SigningRoom implements DurableObject {
 					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Maximum role links generated (50)' }));
 				}
 
-				this.roomState.roleTokens[msg.tokenHash] = msg.constraints;
+				this.roomState.roleTokens[msg.tokenHash] = {
+                    canUpload: msg.canUpload,
+                    policyBlob: msg.policyBlob
+                };
 				await this.saveRoomState();
 
 				// Direct acknowledgment to creator of the role link
@@ -611,28 +614,31 @@ export class SigningRoom implements DurableObject {
 
 			// Authenticate Role Link (Guest Flow)
 			if (msg.type === 'AUTH_ROLE') {
-				try {
-					const incomingBuffer = new TextEncoder().encode(msg.token);
-					const incomingHashBuffer = await crypto.subtle.digest('SHA-256', incomingBuffer);
-					const tokenHash = Array.from(new Uint8Array(incomingHashBuffer))
-						.map((b) => b.toString(16).padStart(2, '0'))
-						.join('');
+                try {
+                    const incomingBuffer = new TextEncoder().encode(msg.token);
+                    const incomingHashBuffer = await crypto.subtle.digest('SHA-256', incomingBuffer);
+                    const tokenHash = Array.from(new Uint8Array(incomingHashBuffer))
+                        .map((b) => b.toString(16).padStart(2, '0'))
+                        .join('');
 
-					if (this.roomState?.roleTokens && this.roomState.roleTokens[tokenHash]) {
-						const constraints = this.roomState.roleTokens[tokenHash];
+                    if (this.roomState?.roleTokens && this.roomState.roleTokens[tokenHash]) {
+                        const roleData = this.roomState.roleTokens[tokenHash];
 
-						// Tag this specific socket session with the restrictions
-						this.sessions.set(webSocket, { ...session!, constraints });
+                        // Tag this specific socket session with the restricted Server-Side bouncer
+                        this.sessions.set(webSocket, { ...session!, constraints: { canUploadSignature: roleData.canUpload } });
 
-						webSocket.send(JSON.stringify({ type: 'CONSTRAINT_UPDATE', constraints }));
-					} else {
-						webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid or revoked role token' }));
-					}
-				} catch (e) {
-					webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Failed to authenticate role' }));
-				}
-				return;
-			}
+                        webSocket.send(JSON.stringify({ 
+                            type: 'CONSTRAINT_UPDATE', 
+                            policyBlob: roleData.policyBlob
+                        }));
+                    } else {
+                        webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid or revoked role token' }));
+                    }
+                } catch (e) {
+                    webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Failed to authenticate role' }));
+                }
+                return;
+            }
 
 			// Label Updates (Admin Only)
 			if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {

@@ -5,7 +5,7 @@
 
 The official JavaScript/TypeScript SDK for **SigningRoom**.
 
-This SDK provides a robust, programmatic interface to create, manage, and participate in secure, ephemeral Bitcoin multi-signature ceremonies. It handles end-to-end encryption, Zero-Trust Role-Based Access Control (RBAC), WebSocket relay coordination, automatic session resumption, and PSBT (Partially Signed Bitcoin Transaction) merging automatically.
+This SDK provides a robust, programmatic interface to create, manage, and participate in secure, ephemeral Bitcoin multi-signature ceremonies. It handles end-to-end encryption, Zero-knowledge RBAC (server-enforced upload limits; policy delivered encrypted), WebSocket relay coordination, automatic session resumption, and PSBT (Partially Signed Bitcoin Transaction) merging automatically.
 
 ---
 
@@ -73,9 +73,9 @@ await coordinator.setDisplayName('Treasury Manager');
 
 ---
 
-## 2. Generating Zero-Trust RBAC Roles (Coordinator)
+## 2. Generating Capability-based RBAC roles (Coordinator)
 
-The Coordinator can generate cryptographically secure, capability-restricted role tokens. The server statelessly enforces these constraints without ever having access to the base encryption keys.
+The Coordinator can generate cryptographically secure, capability-restricted role tokens. The server stores role token hashes and enforces coarse constraints (e.g. signature upload) without access to the encryption key. Fine-grained UI policies travel in an encrypted policy blob.
 
 ```javascript
 // Generate a Standard Signer Role
@@ -265,7 +265,7 @@ coordinator
 
 ## 8. Independent Offline Auditing
 
-A true Zero-Trust architecture means external auditors can independently verify the cryptographic math *after* the infrastructure is destroyed. The SDK provides a static method to verify the SHA-256 anchor using nothing but the exported artifacts.
+A true Zero-Trust architecture means external auditors can independently verify the cryptographic math *after* the infrastructure is destroyed. The SDK provides a static method to verify the SHA-256 anchor (hash of event timeline + final tx hex) using nothing but the exported artifacts.
 
 ```javascript
 import { SigningRoomClient } from '@signing-room/sdk';
