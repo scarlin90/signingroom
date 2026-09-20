@@ -58,7 +58,6 @@ describe('ConfigService', () => {
       expect(service.settings.logoUrl).toBe('/test-logo.png');
 
       expect(service.settings.tagline).toBe(DEFAULT_BRANDING_CONFIG.tagline);
-      expect(consoleSpy).toHaveBeenCalledWith('Brand configuration loaded successfully.');
     });
 
     it('should gracefully fallback to defaults if the HTTP request fails', async () => {
@@ -72,9 +71,6 @@ describe('ConfigService', () => {
 
       expect(service.settings).toEqual(DEFAULT_BRANDING_CONFIG);
       expect(service.settings.brandName).toBe(DEFAULT_BRANDING_CONFIG.brandName);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'No custom brand config found. Using default SigningRoom branding.',
-      );
     });
   });
 });

@@ -2,7 +2,7 @@ import { EncryptionEngine } from './crypto/encryption-engine';
 import { RelayClient } from './relay/relay-client';
 import { RoomStateStore, RoomState } from './relay/room-state-store';
 import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
-import { RoomEvent, RoomEventType } from './types/client-events';
+import { RoleConstraints, RoomEvent, RoomEventType } from './types/client-events';
 import { AuditLogOptions, RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils, TxDetails } from './bitcoin/psbt-utils';
 import { Observable, firstValueFrom } from 'rxjs';
@@ -33,6 +33,8 @@ export class SigningRoomClient {
   private _sessionId: string | null = null;
   private _role: 'admin' | 'guest' = 'guest';
   private _encryptionKey: string | null = null;
+  private _roleToken: string | null = null;
+  private _constraints: RoleConstraints | null = null;
 
   /**
    * Initializes a new SigningRoom client.
@@ -82,6 +84,13 @@ export class SigningRoomClient {
   }
 
   /**
+   * Retrieves the current role token actively authenticating this session.
+   */
+  public get currentRoleToken(): string | null {
+    return this._roleToken;
+  }
+
+  /**
    * Returns a human-readable identifier for the current user's session and role.
    */
   public get userContext(): string {
@@ -113,10 +122,11 @@ export class SigningRoomClient {
 
   /**
    * Orchestrates the creation of a new collaborative cryptographic room.
+   * Strictly enforces Capability-based RBAC roles by generating a mandatory default role token.
    * @param psbtBase64 - The initial, unsigned PSBT string.
    * @param network - The target Bitcoin network (mainnet, testnet, or signet).
    * @param roomName - The display name for the room.
-   * @returns The room's access credentials including the admin secret.
+   * @returns The room's access credentials and the default role token.
    */
   public async createRoom(
     psbtBase64: string,
@@ -124,24 +134,39 @@ export class SigningRoomClient {
     roomName = 'Untitled Room',
   ) {
     const payload = await RoomFactory.prepareCreationPayload(
-      this.engine,
-      psbtBase64,
-      network,
-      roomName,
-      this.protocolVersion,
+      this.engine, psbtBase64, network, roomName, this.protocolVersion,
     );
 
     this._encryptionKey = payload.localData.encryptionKey;
+    const httpBody: any = { ...payload.httpPayload };
+
+    const roleToken = crypto.randomUUID().replace(/-/g, '');
+    const constraints: RoleConstraints = {
+      tokenId: roleToken.substring(0, 8),
+      canUploadSignature: true,
+      canExportPsbt: true,
+      canExportAudit: true,
+      canViewDetails: true,
+      canViewSigners: true,
+      canShareSession: true,
+    };
+
+    const policyBlob = await this.engine.encrypt(JSON.stringify(constraints), this._encryptionKey);
+    const tokenHash = await this.engine.sha256(roleToken);
+
+    httpBody.roleTokens = {
+      [tokenHash]: { canUpload: true, policyBlob },
+    };
 
     const res = await fetch(`${this.apiUrl}/api/room`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload.httpPayload),
+      body: JSON.stringify(httpBody),
     });
 
     if (!res.ok) throw new Error(`Failed to create room: ${await res.text()}`);
 
-    return payload;
+    return { payload, defaultRoleToken: roleToken };
   }
 
   /**
@@ -149,17 +174,18 @@ export class SigningRoomClient {
    * @param psbtBase64 - The initial, unsigned PSBT string.
    * @param network - The target Bitcoin network (mainnet, testnet, or signet).
    * @param roomName - The display name for the room.
-   * @returns The room's access credentials including the admin secret.
+   * @returns The room's access credentials including the admin secret and default role token.
    */
   public async createRoomAndJoin(
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName = 'Untitled Room',
   ) {
-    const payload: RoomCreationPayload = await this.createRoom(psbtBase64, network, roomName);
+    const { payload, defaultRoleToken } = await this.createRoom(psbtBase64, network, roomName);
 
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
     const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
+    const stateSyncEvent = firstValueFrom(this.relay.events.on('STATE_SYNC_DECRYPTED'));
 
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(payload.localData.roomId, this.protocolVersion);
@@ -172,8 +198,20 @@ export class SigningRoomClient {
 
     await connectionEvent;
     await sessionEvent;
+    await stateSyncEvent;
 
-    await this.logParticipantAction('User Joined', `Session: ${this._sessionId}`);
+    this._roleToken = defaultRoleToken;
+    this._constraints = {
+      canUploadSignature: true,
+      canExportPsbt: true,
+      canExportAudit: true,
+      canViewDetails: true,
+      canViewSigners: true,
+      canShareSession: true,
+    };
+
+    const detailText = 'Allowed: Sign, PSBT, Audit, TxDetails, Signers, Share';
+    await this.logParticipantAction('User Joined', detailText);
 
     const roleEvent = firstValueFrom(this.relay.events.on('ROLE_UPDATE'));
     this.relay.claimCoordinator(payload.httpPayload.adminToken);
@@ -184,31 +222,107 @@ export class SigningRoomClient {
       encryptionKey: payload.localData.encryptionKey,
       adminSecret: payload.localData.adminSecret,
       encryptedAdminToken: payload.httpPayload.adminToken,
+      defaultRoleToken,
     };
   }
 
   /**
-   * Joins an existing room using its unique ID and encryption key.
-   * @param roomId - Unique identifier for the room.
-   * @param encryptionKey - The shared secret key for the room.
+   * Connects to an existing collaborative room and authenticates the session.
+   * @param roomId - The public ID of the room.
+   * @param encryptionKeyOrFragment - The base encryption key, OR a full URL fragment (e.g., '#key:role').
+   * @param explicitRoleToken - (Optional) The specific role token. Use this for clean programmatic integration.
    */
-  public async joinRoom(roomId: string, encryptionKey: string) {
-    this._encryptionKey = encryptionKey;
+  public async joinRoom(
+    roomId: string,
+    encryptionKeyOrFragment: string,
+    explicitRoleToken?: string,
+  ) {
+    let fbek = encryptionKeyOrFragment;
+    let roleToken = explicitRoleToken || null;
 
-    // Listen for BOTH events
+    if (!explicitRoleToken && encryptionKeyOrFragment.includes(':')) {
+      const parsed = this.parseFragment(encryptionKeyOrFragment);
+      fbek = parsed.fbek;
+      roleToken = parsed.roleToken;
+    } else {
+      fbek = decodeURIComponent(fbek.replace(/^#/, '')).replace(/ /g, '+');
+      if (roleToken) {
+        roleToken = decodeURIComponent(roleToken).replace(/ /g, '+');
+      }
+    }
+
+    this._encryptionKey = fbek;
+    this._roleToken = roleToken;
+
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
     const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
+    const stateSyncEvent = firstValueFrom(this.relay.events.on('STATE_SYNC_DECRYPTED'));
 
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(roomId, this.protocolVersion);
 
-    await this.relay.joinRoom(wsUrl, roomId, encryptionKey, this.protocolVersion);
+    const isReconnecting = this._sessionId !== null;
+    await this.relay.joinRoom(
+      wsUrl, 
+      roomId, 
+      this._encryptionKey, 
+      this.protocolVersion, 
+      this._sessionId
+    );
 
-    // Await both events
     await connectionEvent;
     await sessionEvent;
+    await stateSyncEvent;
 
-    await this.logParticipantAction('User Joined', `Session: ${this._sessionId}`);
+    let detailText = '';
+
+    if (this._roleToken) {
+      const constraintPromise = firstValueFrom(this.relay.events.on('CONSTRAINT_UPDATE' as any));
+      
+      this.relay.send('AUTH_ROLE', { token: this._roleToken });
+
+      try {
+        const cUpdate = await Promise.race([
+          constraintPromise,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Auth Timeout')), 5000))
+        ]);
+
+        const policyBlob = cUpdate.payload?.policyBlob || (typeof cUpdate.payload === 'string' ? cUpdate.payload : null);
+
+        if (policyBlob) {
+          const decryptedRole = await this.engine.decrypt(policyBlob, this._encryptionKey);
+          const constraints: RoleConstraints = JSON.parse(decryptedRole);
+          this._constraints = constraints;
+
+          const allowed = [];
+          if (constraints.canUploadSignature) allowed.push('Sign');
+          if (constraints.canExportPsbt) allowed.push('PSBT');
+          if (constraints.canExportAudit) allowed.push('Audit');
+          if (constraints.canViewDetails) allowed.push('TxDetails');
+          if (constraints.canViewSigners) allowed.push('Signers');
+          if (constraints.canShareSession) allowed.push('Share');
+
+          detailText = `Allowed: ${allowed.length > 0 ? allowed.join(', ') : 'None (Blind Read-Only)'}`;
+        } 
+      } catch (e) {
+        console.error('[SDK] Failed to authenticate role token during join', e);
+        detailText = 'Allowed: Unknown (Error/Revoked)';
+      }
+    } else {
+      detailText = 'Legacy Guest Access';
+    }
+
+    const logAction = isReconnecting ? 'Session Reconnected' : 'User Joined';
+    await this.logParticipantAction(logAction, detailText);
+  }
+
+  /**
+   * Manually restores a session ID (useful for recovering identity across hard page reloads).
+   * Must be called prior to joinRoom().
+   * @param sessionId - The 4-character session ID to restore.
+   */
+  public restoreSessionId(sessionId: string) {
+    this._sessionId = sessionId;
   }
 
   /** * Updates the display name of the room.
@@ -525,19 +639,116 @@ export class SigningRoomClient {
     });
   }
 
-  /** * Generates a sharing link for the room.
+  /**
+   * Extracts the FBEK and optional role token from a URL hash.
+   */
+  public parseFragment(hash: string): { fbek: string; roleToken: string | null } {
+    const cleanHash = hash.replace(/^#/, '');
+    if (!cleanHash.includes(':')) {
+      return {
+        fbek: decodeURIComponent(cleanHash).replace(/ /g, '+'),
+        roleToken: null,
+      };
+    }
+    const [fbek, roleToken] = cleanHash.split(':');
+    return {
+      fbek: decodeURIComponent(fbek).replace(/ /g, '+'),
+      roleToken: decodeURIComponent(roleToken).replace(/ /g, '+'),
+    };
+  }
+
+  /**
+   * Generates a sharing link for the room.
    * @param appBaseUrl The base URL of your web UI.
    * @param includeKey Whether to include the decryption key in the URL hash.
+   * @param customRoleToken Optional restricted capability token.
    */
-  public getRoomLink(appBaseUrl: string, includeKey: boolean = false): string {
+  public getRoomLink(
+    appBaseUrl: string,
+    includeKey: boolean = false,
+    customRoleToken?: string,
+  ): string {
     const state = this.getRoomState();
     if (!state || !state.roomId) return '';
 
     let link = `${appBaseUrl.replace(/\/$/, '')}/room/${state.roomId}`;
     if (includeKey && this._encryptionKey) {
       link += `#${encodeURIComponent(this._encryptionKey)}`;
+      if (customRoleToken) {
+        link += `:${encodeURIComponent(customRoleToken)}`;
+      }
     }
     return link;
+  }
+
+  /**
+   * Returns the current enforced constraints on this session.
+   */
+  public getConstraints(): RoleConstraints | null {
+    return this._constraints;
+  }
+
+  /**
+   * Generates a restricted, cryptographically secure role link and registers it with the relay.
+   * @param flags The granular feature flags governing access.
+   * @returns The raw encrypted base64 token to be appended to the URL fragment.
+   */
+  public async generateAndRegisterRole(flags: {
+    canUploadSignature: boolean;
+    canExportPsbt: boolean;
+    canExportAudit: boolean;
+    canViewDetails: boolean;
+    canViewSigners: boolean;
+    canShareSession: boolean;
+  }): Promise<string> {
+    if (!this._encryptionKey) throw new Error('Encryption key required to generate role links.');
+
+      const roleToken = crypto.randomUUID().replace(/-/g, '');
+      const tokenId = roleToken.substring(0, 8);
+      const payload: RoleConstraints = { tokenId, ...flags };
+      
+      const policyBlob = await this.engine.encrypt(JSON.stringify(payload), this._encryptionKey);
+      const tokenHash = await this.engine.sha256(roleToken);
+
+      const confirmation = new Promise<void>((resolve, reject) => {
+      const sub1 = this.relay.events.on('ROLE_REGISTERED_SUCCESS' as any).subscribe(() => {
+        cleanup();
+        resolve();
+      });
+
+      const sub2 = this.relay.events.on('ERROR').subscribe((e) => {
+        cleanup();
+        reject(new Error(e.payload?.message || 'Unauthorized'));
+      });
+
+      const cleanup = () => {
+        sub1.unsubscribe();
+        sub2.unsubscribe();
+      };
+    });
+
+    this.relay.send('REGISTER_ROLE', { 
+        tokenHash, 
+        canUpload: flags.canUploadSignature,
+        policyBlob 
+    });
+
+    await confirmation;
+
+    const allowed = [];
+    if (flags.canUploadSignature) allowed.push('Sign');
+    if (flags.canExportPsbt) allowed.push('PSBT');
+    if (flags.canExportAudit) allowed.push('Audit');
+    if (flags.canViewDetails) allowed.push('TxDetails');
+    if (flags.canViewSigners) allowed.push('Signers');
+    if (flags.canShareSession) allowed.push('Share');
+
+    const detailText =
+      allowed.length > 0 ? `Allowed: ${allowed.join(', ')}` : 'Allowed: None (Blind Read-Only)';
+
+    await this.logParticipantAction('Role Link Generated', detailText);
+
+    return roleToken;
   }
 
   /**
@@ -620,5 +831,22 @@ export class SigningRoomClient {
     if (code === 4001) return 'ROOM_FULL';
     if (code === 1006) return 'AUTH_FAILED';
     return 'UNKNOWN';
+  }
+
+  /**
+   * Validates the forensic integrity of a signing ceremony completely offline.
+   * Allows independent auditors to verify the cryptographic seal using only
+   * the exported artifacts (CSV and Hex), without joining the live room session.
+   * 
+   * @param auditLogCsv - The complete exported CSV audit log string.
+   * @param finalTxHex - The finalized transaction hex.
+   * @param expectedAnchor - The expected SHA-256 anchor to verify against.
+   */
+  public static async verifyOfflineIntegrity(
+    auditLogCsv: string,
+    finalTxHex: string,
+    expectedAnchor: string,
+  ): Promise<{ anchor: string; isValid: boolean }> {
+    return await RoomAuditor.verifyOfflineIntegrity(auditLogCsv, finalTxHex, expectedAnchor);
   }
 }

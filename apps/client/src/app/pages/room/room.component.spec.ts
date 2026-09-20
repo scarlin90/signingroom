@@ -77,6 +77,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       signerCount: signal(0),
       activeSessions: signal([]),
       currentSessionId: signal('session-1'),
+      currentConstraints: signal(null),
+      role: signal('guest'),
 
       networkSignatureReceived$: of({}),
       securityAlert$: of({}),
@@ -85,6 +87,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       signerThreshold: vi.fn().mockReturnValue(2),
       isReadyToBroadcast: vi.fn().mockReturnValue(false),
       getRoomKey: vi.fn().mockReturnValue('test-key-123'),
+      getCurrentFragment: vi.fn().mockReturnValue('test-key-123:mock-role'),
       getRoomLink: vi.fn().mockReturnValue('http://localhost/room#key'),
       getLocalLabel: vi.fn().mockReturnValue(undefined),
       getLocalAddressLabel: vi.fn().mockReturnValue(undefined),
@@ -120,10 +123,14 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       toggleLock: vi.fn(),
       closeRoom: vi.fn(),
       setDisplayName: vi.fn(),
+      generateAndRegisterRole: vi.fn().mockResolvedValue('new-role-token'),
       sdk: {
         store: {
           getState: vi.fn().mockReturnValue({ roomId: null }),
         },
+        onEvent: vi.fn().mockReturnValue({ subscribe: vi.fn() }),
+        extractFingerprintFromSignature: vi.fn(),
+        verifyOfflineIntegrity: vi.fn(),
       },
     };
 
@@ -164,6 +171,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       emitFountainStateChanged: vi.fn(),
       emitPrivacyToggle: vi.fn(),
       emitAddressCopied: vi.fn(),
+      emitRoleGenerated: vi.fn(),
     };
 
     mockRouter = {
@@ -200,9 +208,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
   });
 
   afterEach(() => {
-    if (component['timerInterval']) {
+    if (component && component['timerInterval']) {
       clearInterval(component['timerInterval']);
     }
+    vi.clearAllMocks();
   });
 
   it('should create the component', () => {
@@ -319,7 +328,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
           ],
         });
 
-        // Mock the address labels for search testing
         mockSocketService.roomState.set({
           addressLabels: {
             bc1qabc123: 'Cold Storage Vault',
@@ -406,7 +414,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('should return true if signed count meets or exceeds threshold', () => {
         mockSocketService.roomState.set({
           psbt: 'psbt',
-          signatures: ['sig1', 'sig2'], // length 2
+          signatures: ['sig1', 'sig2'], 
         });
         mockSocketService.getThreshold.mockReturnValue(2);
 
@@ -416,7 +424,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('should return false if signed count is below threshold', () => {
         mockSocketService.roomState.set({
           psbt: 'psbt',
-          signatures: ['sig1'], // length 1
+          signatures: ['sig1'], 
         });
         mockSocketService.getThreshold.mockReturnValue(2);
 
@@ -461,7 +469,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       it('isSaved should return true if a local label exists in address book', () => {
         expect(component.isSaved('fingerprintB')).toBe(true);
-        expect(component.isSaved('fingerprintA')).toBe(false); // Only in room state, not local
+        expect(component.isSaved('fingerprintA')).toBe(false); 
+      });
+
+      it('getAddressLabel should return the mapping from state', () => {
+        expect(component.getAddressLabel('bc1qtrusted')).toBe('Vault');
+      });
+
+      it('getAddressLabel should return the mapping from state', () => {
+        expect(component.getAddressLabel('bc1qtrusted')).toBe('Vault');
       });
 
       it('getAddressLabel should return the mapping from state', () => {
@@ -700,16 +716,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
   describe('Room Management, Roles, Whitelists & Finalization', () => {
     describe('Room Control & Roles', () => {
-      let setItemSpy: any;
-
-      beforeEach(() => {
-        setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
-      });
-
-      afterEach(() => {
-        setItemSpy.mockRestore();
-      });
-
       it('claimRole should save token to sessionStorage and escalate privileges', async () => {
         component.roomId.set('test-room');
         component.claimPassword = 'admin-secret-token';
@@ -765,12 +771,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
             { address: 'out2', isChange: false },
           ],
         });
-        mockSocketService.roomState.set({ whitelist: ['in1'] }); // in1 is verified, in2 is not
+        mockSocketService.roomState.set({ whitelist: ['in1'] });
         mockSocketService.updateWhitelist = vi.fn();
       });
 
       it('toggleWhitelist should prompt confirm modal to add/remove specific address', () => {
-        component.toggleWhitelist('in2'); // Currently not present
+        component.toggleWhitelist('in2');
         expect(component.confirmData().title).toBe('Update Whitelist');
 
         component.executeConfirmAction();
@@ -847,16 +853,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       });
 
       it('finalize should execute immediately if whitelist exists but is empty', () => {
-        mockSocketService.roomState.set({ whitelist: [] }); // Array exists but length is 0
+        mockSocketService.roomState.set({ whitelist: [] }); 
         const confirmSpy = vi.spyOn(component, 'openConfirm');
 
         component.finalize();
 
-        expect(confirmSpy).not.toHaveBeenCalled(); // Should not warn if whitelist is empty
+        expect(confirmSpy).not.toHaveBeenCalled(); 
       });
 
       it('finalize should intercept and warn if unverified destinations exist', () => {
-        // out2 is missing from whitelist
         mockSocketService.roomState.set({ whitelist: ['out1'] });
         mockSocketService.txDetails.set({
           outputs: [
@@ -920,9 +925,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should call getAuditLogPdf when finalized in embedded mode', async () => {
       vi.spyOn(component, 'openConfirm');
 
-      const spyTriggerConfetti = vi.mock('canvas-confetti', () => ({
-        default: vi.fn(),
-      }));
+      const spyTriggerConfetti = vi.spyOn(component as any, 'triggerConfetti').mockImplementation(() => {});
 
       vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(true);
       mockSocketService.isCoordinator.mockReturnValue(true);
@@ -1208,7 +1211,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('should render Key modal', () => {
         component.showKeyModal.set(true);
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Room Decryption Key');
+        expect(fixture.nativeElement.textContent).toContain('Room Access Key');
       });
 
       it('should render Admin Backup modal', () => {
@@ -1339,7 +1342,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
         component.qrIncludesKey.set(true);
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Contains Decryption Key');
+        expect(fixture.nativeElement.textContent).toContain('Sensitive Data');
 
         component.qrIncludesKey.set(false);
         fixture.detectChanges();
@@ -2151,7 +2154,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       const expectedShortAddress = 'bc1qxy...hx0wlh';
 
       const logActionSpy = vi.spyOn(component.socket, 'logAction');
-      const emitAddressCopiedSpy = vi.spyOn(component.dispatcher, 'emitAddressCopied');
+      const emitAddressCopiedSpy = vi.spyOn(component['dispatcher'], 'emitAddressCopied');
 
       vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
 
@@ -2164,6 +2167,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     it('should copy address, update signal, and clear it after exactly 2 seconds', async () => {
+      vi.useFakeTimers();
       const testAddress = 'bc1q_test_address_mock';
       vi.spyOn(component.socket, 'logAction');
       vi.spyOn(component['dispatcher'], 'emitAddressCopied');
@@ -2182,9 +2186,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       vi.advanceTimersByTime(1);
 
       expect(component.copiedAddress()).toBeNull();
+      vi.useRealTimers();
     });
 
     it('should not clear the signal if a new address is copied during the 2-second window', async () => {
+      vi.useFakeTimers();
       const address1 = 'address_1';
       const address2 = 'address_2';
       vi.spyOn(component.socket, 'logAction');
@@ -2206,6 +2212,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       vi.advanceTimersByTime(1000);
 
       expect(component.copiedAddress()).toBeNull();
+      vi.useRealTimers();
     });
   });
 
@@ -2305,12 +2312,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     it('copyKey should copy room key', () => {
-      mockSocketService.getRoomKey.mockReturnValue('secret-key');
+      mockSocketService.getCurrentFragment.mockReturnValue('secret-key:mock-role');
       const copySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
 
       component.copyKey();
 
-      expect(copySpy).toHaveBeenCalledWith('secret-key', component.keyCopied);
+      expect(copySpy).toHaveBeenCalledWith('secret-key:mock-role', component.keyCopied);
       expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('decryption-key');
     });
 
@@ -2331,6 +2338,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('Effect should generate audit log if room is closed and not embedded', () => {
       vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(false);
+      mockSocketService.currentConstraints.set({ canExportAudit: true });
+
       const generateSpy = vi
         .spyOn(component, 'generateAuditLog')
         .mockImplementation(() => Promise.resolve());
@@ -2495,6 +2504,88 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         const result = await promise;
         expect(result).toBeNull();
       });
+    });
+  });
+
+  describe('Granular Role Generation & Sharing', () => {
+    it('should toggle role flags correctly', () => {
+      expect(component.roleFlags().canUploadSignature).toBe(true);
+      component.toggleRoleFlag('canUploadSignature');
+      expect(component.roleFlags().canUploadSignature).toBe(false);
+    });
+
+    it('should generate a full role link and copy to clipboard', async () => {
+      vi.useFakeTimers();
+      const doCopySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
+
+      Object.defineProperty(window, 'location', {
+        value: { href: 'http://localhost/room' },
+        writable: true
+      });
+
+      await component.generateAndCopy('full');
+
+      expect(mockSocketService.generateAndRegisterRole).toHaveBeenCalledWith(component.roleFlags());
+      expect(mockDispatcher.emitRoleGenerated).toHaveBeenCalledWith(component.roleFlags());
+      expect(doCopySpy).toHaveBeenCalledWith(
+        'http://localhost/room#test-key-123:new-role-token',
+        component.fullLinkCopied,
+      );
+      expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('share-link-full');
+      expect(component.isGeneratingRole()).toBe(false);
+
+      vi.useRealTimers();
+    });
+
+    it('should generate a key-only role link and copy to clipboard', async () => {
+      vi.useFakeTimers();
+      const doCopySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
+
+      await component.generateAndCopy('key');
+
+      expect(doCopySpy).toHaveBeenCalledWith(
+        'test-key-123:new-role-token',
+        component.keyCopied,
+      );
+      expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('decryption-key');
+
+      vi.useRealTimers();
+    });
+
+    it('should handle role generation errors gracefully', async () => {
+      const alertSpy = vi.spyOn(component, 'openAlert').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockSocketService.generateAndRegisterRole.mockRejectedValueOnce(new Error('Network drop'));
+
+      await component.generateAndCopy('full');
+
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to generate role link', expect.any(Error));
+      expect(alertSpy).toHaveBeenCalledWith('Generation Failed', expect.any(String));
+      expect(component.isGeneratingRole()).toBe(false);
+    });
+
+    it('copySecureLink should copy the base URL only', () => {
+      const doCopySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
+      
+      Object.defineProperty(window, 'location', {
+        value: { href: 'http://localhost/room' },
+        writable: true
+      });
+
+      component.copySecureLink();
+
+      expect(doCopySpy).toHaveBeenCalledWith('http://localhost/room', component.secureLinkCopied);
+      expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('share-link');
+    });
+
+    it('copyFullLink should copy the full share link with the current fragment', () => {
+      const doCopySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
+      
+      component.copyFullLink();
+
+      expect(doCopySpy).toHaveBeenCalledWith('http://localhost/room#key', component.fullLinkCopied);
+      expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('share-link-full');
     });
   });
 });

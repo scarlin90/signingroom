@@ -34,7 +34,12 @@ export type RoomEventType =
   | 'UPDATE_LABEL'
   | 'UPDATE_ADDRESS_LABEL'
   | 'ADDRESS_LABELS_DECRYPTED'
-  | 'THRESHOLD_MET';
+  | 'THRESHOLD_MET'
+  | 'REGISTER_ROLE'
+  | 'AUTH_ROLE'
+  | 'ROLE_REGISTERED_SUCCESS'
+  | 'CONSTRAINT_UPDATE'
+  | 'ERROR_POLICY_VIOLATION';
 
 /**
  * Common environmental metadata attached to every room event.
@@ -61,4 +66,21 @@ export interface RoomEvent {
   type: RoomEventType;
   /** Optional contextual payload structure matching the unique demands of the event type. */
   payload?: any;
+}
+
+/**
+ * Defines the cryptographically enforced access control flags bound to a specific URL fragment token.
+ */
+export interface RoleConstraints {
+  /** Cryptographic nonce to prevent token collision and ensure uniqueness. */
+  tokenId?: string;
+  /** If false, the relay blocks signature uploads (`UPLOAD_PARTIAL`) from this session. */
+  canUploadSignature: boolean;
+  /** If false, the client UI strips the ability to export the unencrypted PSBT. */
+  canExportPsbt: boolean;
+  /** If false, the client UI strips the ability to download the unencrypted Audit Log or CSVs. */
+  canExportAudit: boolean;
+  canViewDetails: boolean;
+  canViewSigners: boolean;
+  canShareSession: boolean;
 }

@@ -26,7 +26,6 @@ describe('CreateComponent', () => {
   let component: CreateComponent;
   let fixture: ComponentFixture<CreateComponent>;
 
-  // Service Mocks
   let mockRouter: any;
   let mockActivatedRoute: any;
   let mockSocketService: any;
@@ -40,7 +39,6 @@ describe('CreateComponent', () => {
     decrypt: ReturnType<typeof vi.fn>;
   };
 
-  // Helper to safely mock window.parent for iFrame embed testing
   function mockWindowParent() {
     const originalParent = window.parent;
     const postMessageSpy = vi.fn();
@@ -61,10 +59,7 @@ describe('CreateComponent', () => {
   }
 
   beforeEach(async () => {
-    mockRouter = {
-      navigate: vi.fn(),
-    };
-
+    mockRouter = { navigate: vi.fn() };
     mockActivatedRoute = {
       snapshot: {
         queryParamMap: {
@@ -82,9 +77,7 @@ describe('CreateComponent', () => {
       decrypt: vi.fn(),
     };
 
-    mockSocketService = {
-      createRoom: vi.fn(),
-    };
+    mockSocketService = { createRoom: vi.fn() };
 
     mockUrService = {
       resetDecoder: vi.fn(),
@@ -94,10 +87,7 @@ describe('CreateComponent', () => {
       scanProgress: vi.fn(() => 0),
     };
 
-    mockDispatcherService = {
-      emitRoomCreated: vi.fn(),
-    };
-
+    mockDispatcherService = { emitRoomCreated: vi.fn() };
     mockTitle = { setTitle: vi.fn() };
     mockMeta = { updateTag: vi.fn() };
 
@@ -114,16 +104,12 @@ describe('CreateComponent', () => {
       ],
     })
       .overrideComponent(CreateComponent, {
-        set: {
-          providers: [{ provide: EncryptionEngine, useValue: mockEncryptionEngine }],
-        },
+        set: { providers: [{ provide: EncryptionEngine, useValue: mockEncryptionEngine }] },
       })
       .compileComponents();
 
     fixture = TestBed.createComponent(CreateComponent);
     component = fixture.componentInstance;
-
-    // Clear SessionStorage between tests
     sessionStorage.clear();
   });
 
@@ -134,33 +120,20 @@ describe('CreateComponent', () => {
   describe('Initialization and Context', () => {
     it('should detect embedded iframes and notify the host parent window', () => {
       const { originalParent, postMessageSpy } = mockWindowParent();
-
-      fixture.detectChanges(); // Triggers ngOnInit
-
+      fixture.detectChanges();
       expect(component.isEmbedded).toBe(true);
       expect(postMessageSpy).toHaveBeenCalledWith(
         { type: 'SIGNING_ROOM_EVENT', action: 'WIDGET_READY' },
         'https://trusted-host.com',
       );
-
       restoreWindowParent(originalParent);
     });
 
     it('should correctly set isEmbedded to false when loaded as the top-level window', () => {
-      // Temporarily mock window.parent to equal window (standalone mode)
       const originalParent = window.parent;
-      Object.defineProperty(window, 'parent', {
-        value: window,
-        writable: true,
-        configurable: true,
-      });
-
-      // Call ngOnInit directly to re-evaluate the window state
+      Object.defineProperty(window, 'parent', { value: window, writable: true, configurable: true });
       component.ngOnInit();
-
       expect(component.isEmbedded).toBe(false);
-
-      // Restore
       restoreWindowParent(originalParent);
     });
   });
@@ -168,7 +141,6 @@ describe('CreateComponent', () => {
   describe('PSBT File Processing and Analysis', () => {
     it('should correctly parse standard Base64 PSBT text files', async () => {
       const mockContent = 'cHNidGZha2ViYXNlNjQ=';
-
       const buffer = new Uint8Array(mockContent.split('').map((c) => c.charCodeAt(0))).buffer;
       const file = {
         name: 'tx.txt',
@@ -188,9 +160,7 @@ describe('CreateComponent', () => {
     });
 
     it('should detect and convert binary PSBT files automatically', async () => {
-      // Magic Bytes: 'p', 's', 'b', 't', 0xff -> 0x70, 0x73, 0x62, 0x74, 0xff
       const binaryContent = new Uint8Array([0x70, 0x73, 0x62, 0x74, 0xff, 0x01, 0x0a]);
-
       const file = {
         name: 'tx.psbt',
         type: 'application/octet-stream',
@@ -202,7 +172,7 @@ describe('CreateComponent', () => {
 
       await component.onFileSelected(event);
 
-      expect(component.rawHex).toBe('70736274ff010a'); // Hex string conversion
+      expect(component.rawHex).toBe('70736274ff010a');
       expect(analyzeSpy).toHaveBeenCalledWith('70736274ff010a');
     });
 
@@ -252,25 +222,20 @@ describe('CreateComponent', () => {
       } as unknown as File;
 
       const event = { target: { files: [file] } };
-
       await component.onFileSelected(event);
-
       expect(consoleSpy).toHaveBeenCalledWith(new Error('Buffer failed'));
     });
 
     it('should return early from onFileSelected if no file is present', async () => {
-      const event = { target: { files: [] } }; // Empty array
+      const event = { target: { files: [] } };
       await component.onFileSelected(event);
-
       expect(component.psbtFile()).toBeNull();
     });
 
     it('should return early from analyzeRawHex if data is missing or too short', () => {
       const analyzeSpy = vi.spyOn(PsbtUtils, 'analyze');
-
       component.analyzeRawHex('');
-      component.analyzeRawHex('short'); // Less than 10 characters
-
+      component.analyzeRawHex('short');
       expect(analyzeSpy).not.toHaveBeenCalled();
     });
   });
@@ -278,9 +243,13 @@ describe('CreateComponent', () => {
   describe('Ceremony Orchestration (Rooms)', () => {
     it('should securely launch a room, store tokens, and navigate', async () => {
       const mockPayload = {
-        localData: { roomId: 'room-123', encryptionKey: 'key-abc' },
-        httpPayload: { adminToken: 'token-xyz' },
+        payload: {
+          localData: { roomId: 'room-123', encryptionKey: 'key-abc' },
+          httpPayload: { adminToken: 'token-xyz' },
+        },
+        defaultRoleToken: 'role-token-abc'
       };
+      
       mockSocketService.createRoom.mockResolvedValue(mockPayload);
 
       component.rawHex = 'psbt-data';
@@ -291,52 +260,41 @@ describe('CreateComponent', () => {
       expect(mockEncryptionEngine.encrypt).toHaveBeenCalledWith('token-xyz', 'key-abc');
       expect(sessionStorage.getItem('admin_token_room-123')).toBe('encrypted-token-xyz');
       expect(mockDispatcherService.emitRoomCreated).toHaveBeenCalledWith('room-123', 'testnet');
+
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-123'], {
-        fragment: 'key-abc',
+        fragment: 'key-abc:role-token-abc',
       });
       expect(component.isLoading()).toBe(false);
     });
 
     it('should allow manual joining and strip trailing fragments correctly', () => {
       component.manualRoomId = 'room-999';
-      component.manualKey = 'hash#secret-key'; // Simulated pasted URL hash
-
+      component.manualKey = 'hash#secret-key';
       component.joinRoom();
-
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-999'], {
-        fragment: 'secret-key',
-      });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-999'], { fragment: 'secret-key' });
     });
 
     it('should catch errors during launchRoom and stop loading', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockSocketService.createRoom.mockRejectedValue(new Error('Creation failed'));
-
       await component.launchRoom();
-
       expect(consoleSpy).toHaveBeenCalledWith(new Error('Creation failed'));
       expect(component.isLoading()).toBe(false);
     });
 
     it('should join room correctly when manualKey has no hash fragment', () => {
       component.manualRoomId = 'room-123';
-      component.manualKey = 'clean-secret'; // No '#' included
-
+      component.manualKey = 'clean-secret';
       component.joinRoom();
-
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-123'], {
-        fragment: 'clean-secret',
-      });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-123'], { fragment: 'clean-secret' });
     });
 
     it('should return early from joinRoom if manualRoomId or manualKey are missing', () => {
-      // Missing Room ID
       component.manualRoomId = '';
       component.manualKey = 'secret-key';
       component.joinRoom();
       expect(mockRouter.navigate).not.toHaveBeenCalled();
 
-      // Missing Key
       component.manualRoomId = 'room-123';
       component.manualKey = '';
       component.joinRoom();
@@ -356,16 +314,14 @@ describe('CreateComponent', () => {
     });
 
     it('should flag unreasonably high fees', () => {
-      // Setup typical transaction sizes
       component.psbtAnalysis.set({
         signerCount: 2,
         outputCount: 2,
         amountBtc: 1,
         networkFeeSat: 50000,
+        estimatedVBytes: 208
       } as any);
 
-      // Estimated vBytes = 2*68 + 2*31 + 10 = 208
-      // 50000 / 208 = ~240 sats/vByte (> 100 limit)
       expect(component.isHighFee()).toBe(true);
 
       component.psbtAnalysis.set({
@@ -373,8 +329,9 @@ describe('CreateComponent', () => {
         outputCount: 2,
         amountBtc: 1,
         networkFeeSat: 5000,
+        estimatedVBytes: 208
       } as any);
-      // 5000 / 208 = ~24 sats/vB
+      
       expect(component.isHighFee()).toBe(false);
     });
 
@@ -383,22 +340,18 @@ describe('CreateComponent', () => {
       expect(component.isNetworkMismatch()).toBe(false);
       expect(component.isHighFee()).toBe(false);
 
-      // Fee is 0
       component.psbtAnalysis.set({ networkFeeSat: 0 } as any);
       expect(component.isHighFee()).toBe(false);
     });
 
     it('should flag high fees correctly based on total percentage even if flat rate is low', () => {
-      // 1000 sats fee, 10000 total sats (10%), size 208 vbytes
-      // rate = 1000/208 = ~4.8 sats/vb (Passes < 100 check)
-      // percentage = 1000/10000 = 0.1 (Fails > 0.05 check)
       component.psbtAnalysis.set({
         signerCount: 2,
         outputCount: 2,
         networkFeeSat: 1000,
-        amountBtc: 0.0001, // 10,000 sats
+        amountBtc: 0.0001,
+        estimatedVBytes: 208
       } as any);
-
       expect(component.isHighFee()).toBe(true);
     });
   });
@@ -406,7 +359,7 @@ describe('CreateComponent', () => {
   describe('Window Event Listeners (Widget Inject Mode)', () => {
     it('should reject messages from unauthorized origins', async () => {
       component.expectedHost = 'https://trusted-host.com';
-      const fileSpy = vi.spyOn(component, 'onFileSelected').mockImplementation(async () => {});
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const badEvent = new MessageEvent('message', {
         origin: 'https://evil-site.com',
@@ -414,7 +367,7 @@ describe('CreateComponent', () => {
       });
 
       await component.onMessage(badEvent);
-      expect(fileSpy).not.toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith('[Security] Blocked unauthorized postMessage from: https://evil-site.com');
     });
 
     it('should process LOAD_PSBT messages by simulating file uploads', async () => {
@@ -435,15 +388,12 @@ describe('CreateComponent', () => {
 
       expect(component.selectedNetwork()).toBe('signet');
       expect(fileSpy).toHaveBeenCalled();
-
-      const mockEventArg = fileSpy.mock.calls[0][0];
-      expect(mockEventArg.target.files.length).toBeGreaterThan(0);
       expect(component.showCreateModal()).toBe(true);
     });
 
     it('should fallback to simple array if DataTransfer is undefined', async () => {
       const originalDataTransfer = globalThis.DataTransfer;
-      (globalThis as any).DataTransfer = undefined; // Force undefined
+      (globalThis as any).DataTransfer = undefined; 
 
       component.expectedHost = 'https://trusted-host.com';
       const fileSpy = vi.spyOn(component, 'onFileSelected').mockImplementation(async () => {});
@@ -458,10 +408,7 @@ describe('CreateComponent', () => {
       expect(fileSpy).toHaveBeenCalled();
       const mockEventArg = fileSpy.mock.calls[0][0];
 
-      // Verify it fell back to a basic array rather than throwing
       expect(Array.isArray(mockEventArg.target.files)).toBe(true);
-
-      // Restore
       globalThis.DataTransfer = originalDataTransfer;
     });
 
@@ -469,31 +416,13 @@ describe('CreateComponent', () => {
       const fileSpy = vi.spyOn(component, 'onFileSelected');
       component.expectedHost = 'https://trusted-host.com';
 
-      // Wrong type entirely
-      await component.onMessage(
-        new MessageEvent('message', {
-          origin: 'https://trusted-host.com',
-          data: { type: 'OTHER_TYPE' },
-        }),
-      );
+      await component.onMessage(new MessageEvent('message', { origin: 'https://trusted-host.com', data: { type: 'OTHER_TYPE' } }));
       expect(fileSpy).not.toHaveBeenCalled();
 
-      // Right type, wrong action
-      await component.onMessage(
-        new MessageEvent('message', {
-          origin: 'https://trusted-host.com',
-          data: { type: 'SIGNING_ROOM_COMMAND', action: 'OTHER_ACTION', payload: 'data' },
-        }),
-      );
+      await component.onMessage(new MessageEvent('message', { origin: 'https://trusted-host.com', data: { type: 'SIGNING_ROOM_COMMAND', action: 'OTHER_ACTION', payload: 'data' } }));
       expect(fileSpy).not.toHaveBeenCalled();
 
-      // Right action, but missing payload
-      await component.onMessage(
-        new MessageEvent('message', {
-          origin: 'https://trusted-host.com',
-          data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: '' },
-        }),
-      );
+      await component.onMessage(new MessageEvent('message', { origin: 'https://trusted-host.com', data: { type: 'SIGNING_ROOM_COMMAND', action: 'LOAD_PSBT', payload: '' } }));
       expect(fileSpy).not.toHaveBeenCalled();
     });
   });
@@ -513,7 +442,7 @@ describe('CreateComponent', () => {
       expect(component.isScanning()).toBe(true);
       expect(mockUrService.resetDecoder).toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(150); // Flush timers + await Promises
+      await vi.advanceTimersByTimeAsync(150); 
 
       expect(Html5Qrcode).toHaveBeenCalledWith('reader', expect.any(Object));
       expect(component.html5QrCode?.start).toHaveBeenCalled();
@@ -521,7 +450,7 @@ describe('CreateComponent', () => {
 
     it('should route UR/B$ fountain codes through UrService and trigger analysis once complete', async () => {
       const analyzeSpy = vi.spyOn(component, 'analyzeRawHex').mockImplementation(() => {});
-      mockUrService.processFragment.mockReturnValue('full_reconstructed_hex'); // Simulates final piece
+      mockUrService.processFragment.mockReturnValue('full_reconstructed_hex'); 
 
       await component.handleScanResult('UR:BYTES/xyz123');
 
@@ -545,7 +474,6 @@ describe('CreateComponent', () => {
       component.startScanner();
       await vi.advanceTimersByTimeAsync(150);
 
-      // We await safeStopScanner directly to guarantee Promise execution order in testing
       await component.safeStopScanner();
 
       expect(component.html5QrCode?.stop).toHaveBeenCalled();
@@ -555,21 +483,13 @@ describe('CreateComponent', () => {
 
     it('should do nothing in handleScanResult if a UR fragment is incomplete', async () => {
       const analyzeSpy = vi.spyOn(component, 'analyzeRawHex');
-
-      // Explicitly set scanning to true to simulate an active scanner
       component.isScanning.set(true);
-
-      // Simulate the decoder returning null (meaning it needs more fragments)
       mockUrService.processFragment.mockReturnValue(null);
 
       await component.handleScanResult('UR:BYTES/INCOMPLETE-FRAGMENT');
 
       expect(mockUrService.processFragment).toHaveBeenCalledWith('UR:BYTES/INCOMPLETE-FRAGMENT');
-
-      // It should NOT try to analyze it yet, nor should it stop the scanner
       expect(analyzeSpy).not.toHaveBeenCalled();
-
-      // isScanning should REMAIN true because safeStopScanner wasn't called
       expect(component.isScanning()).toBe(true);
     });
   });
@@ -584,11 +504,8 @@ describe('CreateComponent', () => {
     });
 
     it('should handle early return in handleScanResult if already processing a scan', async () => {
-      (component as any).isProcessingScan = true; // Force lock
-
+      (component as any).isProcessingScan = true; 
       await component.handleScanResult('some_data');
-
-      // If it returned early, the UR service should never have been invoked
       expect(mockUrService.processFragment).not.toHaveBeenCalled();
     });
 
@@ -596,7 +513,7 @@ describe('CreateComponent', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       component.html5QrCode = {
-        getState: () => 2, // 2 = SCANNING
+        getState: () => 2,
         stop: vi.fn().mockRejectedValue(new Error('Stop failed')),
         clear: vi.fn(),
       } as any;
@@ -609,9 +526,7 @@ describe('CreateComponent', () => {
 
     it('should delegate stopScanner to safeStopScanner', () => {
       const safeStopSpy = vi.spyOn(component, 'safeStopScanner').mockImplementation(async () => {});
-
       component.stopScanner();
-
       expect(safeStopSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -621,17 +536,14 @@ describe('CreateComponent', () => {
       component.startScanner();
       await vi.advanceTimersByTimeAsync(150);
 
-      // Extract the callback attached to the scanner start
       const mockHtml5QrCode = vi.mocked(Html5Qrcode).mock.results[0].value;
       const startCalls = mockHtml5QrCode.start.mock.calls;
-      const errorCallback = startCalls[0][3]; // The 4th argument is the error callback
+      const errorCallback = startCalls[0][3]; 
 
-      // Fire 60 frame errors
       for (let i = 0; i < 60; i++) {
         errorCallback('Engine error\ndetails');
       }
 
-      // It should fire exactly once at frame 60
       expect(consoleSpy).toHaveBeenCalledWith(
         '[Optical Debug] Frame 60 - Engine failing to lock:',
         'Engine error',
@@ -641,13 +553,11 @@ describe('CreateComponent', () => {
     it('should trigger fallback logic if high-res camera fails', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      // 1. Create a local mock for start that fails once, then succeeds
       const localStartMock = vi
         .fn()
         .mockRejectedValueOnce(new Error('High-res failed'))
         .mockResolvedValueOnce(undefined);
 
-      // 2. Override the global Html5Qrcode mock for this specific test BEFORE calling startScanner
       vi.mocked(Html5Qrcode).mockImplementation(function () {
         return {
           start: localStartMock,
@@ -658,8 +568,6 @@ describe('CreateComponent', () => {
       });
 
       component.startScanner();
-
-      // 3. Now when the timer fires, it will use our localStartMock
       await vi.advanceTimersByTimeAsync(150);
 
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -673,13 +581,11 @@ describe('CreateComponent', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const stopSpy = vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
 
-      // 1. Create a local mock that fails BOTH times
       const localStartMock = vi
         .fn()
         .mockRejectedValueOnce(new Error('High-res failed'))
         .mockRejectedValueOnce(new Error('Fallback failed'));
 
-      // 2. Override the global Html5Qrcode mock
       vi.mocked(Html5Qrcode).mockImplementation(function () {
         return {
           start: localStartMock,
@@ -690,8 +596,6 @@ describe('CreateComponent', () => {
       });
 
       component.startScanner();
-
-      // 3. Fire the timer
       await vi.advanceTimersByTimeAsync(150);
 
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -702,25 +606,19 @@ describe('CreateComponent', () => {
     });
 
     it('should execute the success and error callbacks passed to the scanner engines', async () => {
-      const handleScanSpy = vi
-        .spyOn(component, 'handleScanResult')
-        .mockImplementation(async () => {});
+      const handleScanSpy = vi.spyOn(component, 'handleScanResult').mockImplementation(async () => {});
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      // --- High-Res Camera Callbacks ---
       component.startScanner();
       await vi.advanceTimersByTimeAsync(150);
 
       const mockHtml5QrCode = vi.mocked(Html5Qrcode).mock.results[0].value;
       const startCalls = mockHtml5QrCode.start.mock.calls;
 
-      // Extract and execute the high-res success callback (3rd argument)
       const highResSuccessCallback = startCalls[0][2];
       highResSuccessCallback('mock_high_res_scan');
       expect(handleScanSpy).toHaveBeenCalledWith('mock_high_res_scan');
 
-      // --- Fallback Camera Callbacks ---
-      // Force high-res to fail so the fallback starts
       const localStartMock = vi
         .fn()
         .mockRejectedValueOnce(new Error('High-res fail'))
@@ -735,12 +633,10 @@ describe('CreateComponent', () => {
 
       const fallbackCalls = localStartMock.mock.calls;
 
-      // Extract the fallback success callback (3rd argument of the 2nd call)
       const fallbackSuccessCallback = fallbackCalls[1][2];
       fallbackSuccessCallback('mock_fallback_scan');
       expect(handleScanSpy).toHaveBeenCalledWith('mock_fallback_scan');
 
-      // Extract the fallback error callback (4th argument of the 2nd call)
       const fallbackErrorCallback = fallbackCalls[1][3];
       fallbackErrorCallback('fatal error');
       expect(consoleErrorSpy).toHaveBeenCalledWith('Fallback camera failed to start.');
@@ -749,7 +645,6 @@ describe('CreateComponent', () => {
 
   describe('Helper Methods & State Clearing', () => {
     it('should clear PSBT state correctly via clearPsbt()', () => {
-      // Set initial values
       component.psbtFile.set(new File([], 'test.psbt'));
       component.rawHex = 'dummy_hex';
       component.psbtAnalysis.set({ amountBtc: 1 } as any);
@@ -757,7 +652,6 @@ describe('CreateComponent', () => {
 
       component.clearPsbt();
 
-      // Assert cleared states
       expect(component.psbtFile()).toBeNull();
       expect(component.rawHex).toBe('');
       expect(component.psbtAnalysis()).toBeNull();

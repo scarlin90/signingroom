@@ -5,7 +5,7 @@ A framework-agnostic Web Component for integrating the [SigningRoom.io](https://
 ![NPM Version](https://img.shields.io/npm/v/@signing-room/embed)
 ![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)
 
-The Signing Room widget provides a stateless, non-custodial, real-time interface for coordinating Bitcoin multisig transactions via PSBTs (Partially Signed Bitcoin Transactions). It requires zero framework dependencies and works seamlessly with React, Vue, Angular, or Vanilla JS.
+The Signing Room widget provides an ephemeral, non-custodial, real-time interface for coordinating Bitcoin multisig transactions via PSBTs (Partially Signed Bitcoin Transactions). It requires zero framework dependencies and works seamlessly with React, Vue, Angular, or Vanilla JS.
 
 **👉 [View the Live Demo & API Documentation](https://signingroom.io/webcomponent-demo.html)**
 

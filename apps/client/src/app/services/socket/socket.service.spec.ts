@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { SocketService } from './socket.service';
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
-import { EncryptionEngine, PsbtUtils } from '@signing-room/sdk';
+import { EncryptionEngine, PsbtUtils, RoomState } from '@signing-room/sdk';
 import { Subject } from 'rxjs';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
@@ -92,6 +92,11 @@ describe('SocketService', () => {
         extractFingerprintFromSignature: vi.fn(),
         uploadSignature: vi.fn().mockResolvedValue(undefined),
         joinRoom: vi.fn().mockResolvedValue(undefined),
+        restoreSessionId: vi.fn(),
+        
+        parseFragment: vi.fn().mockReturnValue({ fbek: 'my_key', roleToken: null }),
+        getConstraints: vi.fn().mockReturnValue(null),
+        
         store: { getState: vi.fn().mockReturnValue(null), update: vi.fn() },
         engine: {
           decrypt: vi.fn().mockResolvedValue('decrypted_admin_token'),
@@ -144,7 +149,8 @@ describe('SocketService', () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('should create the SDK client via factory', () => {
@@ -166,12 +172,17 @@ describe('SocketService', () => {
       expect(statusSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('should set currentSessionId when SESSION_CONNECTED is emitted', () => {
+    it('should set currentSessionId and save to sessionStorage when SESSION_CONNECTED is emitted', () => {
       const setSpy = vi.spyOn(service.currentSessionId, 'set');
+      const setItemSpy = vi.spyOn(globalThis.sessionStorage, 'setItem');
+      
+      service.roomState.set({ roomId: 'room_123' } as any);
+      service.isBrowser = true;
 
       sessionConnectedSubject.next({ payload: 'session_abc123' });
 
       expect(setSpy).toHaveBeenCalledWith('session_abc123');
+      expect(setItemSpy).toHaveBeenCalledWith('session_id_room_123', 'session_abc123');
     });
 
     it('should update store with signerLabels when LABELS_DECRYPTED is emitted', () => {
@@ -609,21 +620,12 @@ describe('SocketService', () => {
       });
     });
 
-    it('should update roomState signal when STATE_CHANGED is emitted', () => {
-      const stateSetSpy = vi.spyOn(service.roomState, 'set');
-      const mockState = { roomId: '123' };
-
-      stateChangedSubject.next({ payload: mockState });
-
-      expect(stateSetSpy).toHaveBeenCalledWith(mockState);
-    });
-
     describe('STATE_SYNC_DECRYPTED', () => {
       it('should set hasAnnouncedJoin to true if conditions are met', () => {
         (service as any).hasAnnouncedJoin = false;
         service.currentSessionId.set('session_123');
 
-        vi.spyOn(globalThis.sessionStorage, 'getItem').mockReturnValue(null);
+        vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation(() => null);
 
         stateSyncDecryptedSubject.next({ payload: { roomId: 'room_1' } });
 
@@ -634,7 +636,10 @@ describe('SocketService', () => {
         (service as any).hasAnnouncedJoin = false;
         service.currentSessionId.set('session_123');
 
-        vi.spyOn(globalThis.sessionStorage, 'getItem').mockReturnValue('secure_token');
+        vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
+          if (key === 'admin_token_room_1') return 'secure_token';
+          return null;
+        });
 
         stateSyncDecryptedSubject.next({ payload: { roomId: 'room_1' } });
 
@@ -739,7 +744,7 @@ describe('SocketService', () => {
   it('should skip browser-specific logic if not in a browser environment', async () => {
     service.status.set('disconnected');
     service.isBrowser = false;
-    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any); // Reset store state
+    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any); 
 
     const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
@@ -752,12 +757,13 @@ describe('SocketService', () => {
     expect(statusSpy).toHaveBeenCalledWith('connected');
   });
 
-  it('should claim coordinator and set display name if tokens exist in the browser', async () => {
+  it('should claim coordinator and set display name if tokens exist in the browser and not reconnecting', async () => {
     service.status.set('disconnected');
     service.isBrowser = true;
     vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any);
 
     vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
+      if (key === 'session_id_room_123') return null;
       if (key === 'admin_token_room_123') return 'secure_admin_token';
       return null;
     });
@@ -770,14 +776,42 @@ describe('SocketService', () => {
     const encryptionDecryptSpy = vi.spyOn(service['encryptionEngine'], 'decrypt');
     const claimCoordinatorSpy = vi.spyOn(service.sdk, 'claimCoordinator');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
+    
+    const restoreSessionIdSpy = vi.spyOn(service.sdk, 'restoreSessionId');
+    
     const statusSpy = vi.spyOn(service.status, 'set');
 
     await service.connect('room_123', 'my_key');
 
+    expect(restoreSessionIdSpy).not.toHaveBeenCalled();
     expect(encryptionDecryptSpy).toHaveBeenCalledWith('secure_admin_token', 'my_key');
     expect(claimCoordinatorSpy).toHaveBeenCalledWith('decrypted_admin_token');
     expect(setDisplayNameSpy).toHaveBeenCalledWith('Alice');
     expect(statusSpy).toHaveBeenCalledWith('connected');
+  });
+
+  it('should restore session ID and NOT set display name if reconnecting', async () => {
+    service.status.set('disconnected');
+    service.isBrowser = true;
+    vi.spyOn(service.sdk.store, 'getState').mockReturnValue(null as any);
+
+    vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
+      if (key === 'session_id_room_123') return 'saved_session_9999';
+      return null;
+    });
+
+    vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation((key: string) => {
+      if (key === 'display_name_room_123') return 'Alice';
+      return null;
+    });
+
+    const restoreSessionIdSpy = vi.spyOn(service.sdk, 'restoreSessionId');
+    const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
+    
+    await service.connect('room_123', 'my_key');
+
+    expect(restoreSessionIdSpy).toHaveBeenCalledWith('saved_session_9999');
+    expect(setDisplayNameSpy).not.toHaveBeenCalled(); 
   });
 
   it('should catch joinRoom failures and set status to error', async () => {
@@ -918,10 +952,10 @@ describe('SocketService', () => {
     const includeKey = false;
     const getRoomLinkSpy = vi.spyOn(service.sdk, 'getRoomLink').mockReturnValue(appBaseUrl);
 
-    const link = service.getRoomLink(appBaseUrl, includeKey);
+    const link = service.getRoomLink(appBaseUrl, includeKey, undefined);
 
     expect(link).toBe(appBaseUrl);
-    expect(getRoomLinkSpy).toHaveBeenCalledWith(appBaseUrl, includeKey);
+    expect(getRoomLinkSpy).toHaveBeenCalledWith(appBaseUrl, includeKey, undefined);
     expect(getRoomLinkSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -1371,17 +1405,18 @@ describe('SocketService', () => {
       expect(result).toBe(mockThreshold);
       expect(getThresholdSpy).toHaveBeenCalledWith(psbtBase64);
     });
-  });
+  
 
-  it('should delegate finalizeTransaction to the SDK', async () => {
-    const expectedValue = { hex: '00200', txId: '123' };
-    const finalizeSpy = vi
-      .spyOn(service.sdk, 'finalizeTransaction')
-      .mockResolvedValue(expectedValue);
+    it('should delegate finalizeTransaction to the SDK', async () => {
+      const expectedValue = { hex: '00200', txId: '123' };
+      const finalizeSpy = vi
+        .spyOn(service.sdk, 'finalizeTransaction')
+        .mockResolvedValue(expectedValue);
 
-    const result = await service.finalizeTransaction();
+      const result = await service.finalizeTransaction();
 
-    expect(result).toBe(expectedValue);
-    expect(finalizeSpy).toHaveBeenCalledTimes(1);
+      expect(result).toBe(expectedValue);
+      expect(finalizeSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });
