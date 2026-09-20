@@ -19,9 +19,7 @@ export class ConfigService {
         this.http.get<Partial<BrandingConfig>>(`${environment.configUrl}?t=${Date.now()}`),
       );
       this._config.set({ ...DEFAULT_BRANDING_CONFIG, ...response });
-      console.log('Brand configuration loaded successfully.');
     } catch {
-      console.log('No custom brand config found. Using default SigningRoom branding.');
       this._config.set(DEFAULT_BRANDING_CONFIG);
     }
   }

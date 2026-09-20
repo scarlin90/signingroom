@@ -110,3 +110,11 @@ export interface AddressLabelledPayload extends BaseEventContext {
   address: string;
   label: string;
 }
+
+export interface RoleGeneratedPayload extends BaseEventContext {
+  constraints: Record<string, boolean>;
+}
+
+export interface PolicyViolationPayload extends BaseEventContext {
+  message: string;
+}

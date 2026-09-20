@@ -13,6 +13,7 @@ import {
   RoomStateStore,
   EncryptionEngine,
   AuditLogOptions,
+  RoleConstraints,
 } from '@signing-room/sdk';
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
 import { Subject } from 'rxjs';
@@ -55,6 +56,15 @@ export class SocketService {
 
     this.relay.events.on('ROOM_CONNECTED').subscribe(() => {
       this.status.set('connected');
+    });
+
+    this.relay.events.on('SESSION_CONNECTED').subscribe((e) => {
+      this.currentSessionId.set(e.payload);
+      
+      const roomId = this.roomState()?.roomId;
+      if (roomId && this.isBrowser) {
+        sessionStorage.setItem(`session_id_${roomId}`, e.payload);
+      }
     });
 
     this.relay.events
@@ -174,8 +184,26 @@ export class SocketService {
       const syncData = event.payload;
       const hasAdminToken = !!sessionStorage.getItem(`admin_token_${syncData.roomId}`);
 
+      if (syncData.strictRoles && !hasAdminToken && !this.sdk.currentRoleToken) {
+        this.decryptionError.set('Strict Mode Active: A valid role token is required to enter this room.');
+        this.setRoomKey(null);
+        this.disconnect();
+        return;
+      }
+
       if (!this.hasAnnouncedJoin && this.currentSessionId() && !hasAdminToken) {
         this.hasAnnouncedJoin = true;
+      }
+
+      if (syncData.strictRoles && this.role() !== 'admin' && !this.currentConstraints()) {
+        this.currentConstraints.set({
+          canUploadSignature: false,
+          canExportPsbt: false,
+          canExportAudit: false,
+          canViewDetails: false,
+          canViewSigners: false,
+          canShareSession: false,
+        });
       }
 
       if (this.isCoordinator() && !this.hasSyncedLocalAddressBook) {
@@ -208,6 +236,10 @@ export class SocketService {
       const newRole = e.payload;
       this.role.set(newRole);
 
+      if (newRole === 'admin') {
+        this.currentConstraints.set(null);
+      }
+
       if (!this.hasAnnouncedJoin && newRole === 'admin') {
         this.hasAnnouncedJoin = true;
       }
@@ -230,39 +262,67 @@ export class SocketService {
     return this.encryptionKey;
   }
 
-  async connect(roomId: string, key: string | null) {
+  /**
+   * Reconstructs the complete URL fragment required to access the room with the current role.
+   */
+  public getCurrentFragment(): string | null {
+    const fbek = this.getRoomKey();
+    if (!fbek) return null;
+
+    const roleToken = this.sdk.currentRoleToken;
+    return roleToken ? `${fbek}:${roleToken}` : fbek;
+  }
+
+  async connect(roomId: string, fragment: string | null) {
     if (this.status() === 'connecting') return;
 
     this.reset();
     this.status.set('connecting');
 
     try {
-      if (!key) throw new Error('Decryption key required');
+      if (!fragment) throw new Error('Decryption key required');
+
+      const { fbek } = this.sdk.parseFragment(fragment);
+      this.setRoomKey(fbek);
 
       if (this.sdk.store.getState() !== null) {
         this.sdk.disconnect();
         await new Promise((r) => setTimeout(r, 50));
       }
 
-      await this.sdk.joinRoom(roomId, key);
+      let isReconnecting = false;
+      if (this.isBrowser) {
+        const savedSessionId = sessionStorage.getItem(`session_id_${roomId}`);
+        if (savedSessionId) {
+          this.sdk.restoreSessionId(savedSessionId);
+          isReconnecting = true;
+        }
+      }
+
+      await this.sdk.joinRoom(roomId, fragment);
+
+      const activeConstraints = this.sdk.getConstraints();
+      if (activeConstraints) {
+          this.currentConstraints.set(activeConstraints);
+      }
 
       if (this.isBrowser) {
         const secureToken = sessionStorage.getItem(`admin_token_${roomId}`);
 
         if (secureToken) {
           try {
-            const decryptedToken = await this.encryptionEngine.decrypt(secureToken, key);
+            const decryptedToken = await this.encryptionEngine.decrypt(secureToken, fbek);
             if (decryptedToken) {
               await this.sdk.claimCoordinator(decryptedToken);
             }
           } catch (decryptError) {
-            console.warn('Failed to decrypt local admin token. Proceeding as guest.');
+            console.error('[SERVICE] Decryption failed!', decryptError);
             sessionStorage.removeItem(`admin_token_${roomId}`);
           }
         }
 
         const savedName = localStorage.getItem(`display_name_${roomId}`);
-        if (savedName) {
+        if (savedName && !isReconnecting) {
           await this.sdk.setDisplayName(savedName);
         }
       }
@@ -320,8 +380,23 @@ export class SocketService {
     this.sdk.claimCoordinator(secureToken);
   }
 
-  public getRoomLink(appBaseUrl: string, includeKey: boolean = false): string {
-    return this.sdk.getRoomLink(appBaseUrl, includeKey);
+  public getRoomLink(
+    appBaseUrl: string,
+    includeKey: boolean = false,
+    customRoleToken?: string,
+  ): string {
+    return this.sdk.getRoomLink(appBaseUrl, includeKey, customRoleToken);
+  }
+
+  public async generateAndRegisterRole(flags: {
+    canUploadSignature: boolean;
+    canExportPsbt: boolean;
+    canExportAudit: boolean;
+    canViewDetails: boolean;
+    canViewSigners: boolean;
+    canShareSession: boolean;
+  }): Promise<string> {
+    return await this.sdk.generateAndRegisterRole(flags);
   }
 
   async logAction(action: string, detail: string) {
@@ -465,6 +540,7 @@ export class SocketService {
 
     this.activeSessions.set([]);
     this.status.set('disconnected');
+    this.currentConstraints.set(null);
 
     this.hasSyncedLocalAddressBook = false;
   }
@@ -478,6 +554,7 @@ export class SocketService {
   public status = signal<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   public role = signal<'guest' | 'admin'>('guest');
   public currentSessionId = signal<string | null>(null);
+  public currentConstraints = signal<RoleConstraints | null>(null);
   public activeSessions = signal<{ id: string; role: string; displayName?: string }[]>([]);
   public networkSignatureReceived$ = new Subject<{ fingerprint: string; sessionId: string }>();
 

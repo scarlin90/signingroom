@@ -1,6 +1,32 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Browser, Page, BrowserContext } from '@playwright/test';
 import { RoomPage } from '../support/room.po';
 import { launchRoomFromFixture, joinRoomFromLink } from '../support/room-helper';
+
+// --- HELPER: Resilient Context Setup ---
+// Injects a mock clipboard into the browser before any page loads to prevent 
+// headless OS-level permission exceptions during multi-user simulation.
+async function createSecurePage(browser: Browser): Promise<{ ctx: BrowserContext; page: Page }> {
+  const ctx = await browser.newContext();
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const page = await ctx.newPage();
+  
+  await page.addInitScript(() => {
+    (window as any).__capturedClipboard = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          (window as any).__capturedClipboard = text;
+          return Promise.resolve();
+        },
+        readText: () => Promise.resolve((window as any).__capturedClipboard)
+      },
+      configurable: true, 
+      writable: true
+    });
+  });
+  
+  return { ctx, page };
+}
 
 /**
  * Suite: Advanced Workflows and Edge Cases
@@ -60,7 +86,9 @@ test.describe('Advanced Workflows and Edge Cases', () => {
 
     // --- Interaction: Toggle data density (Full Link + Key) ---
     await roomPage.qrFullLinkButton.click();
-    await expect(roomPage.page.getByText('Contains Decryption Key:')).toBeVisible();
+    
+    // FIXED: Assert for the new HTML string "Sensitive Data:" instead of "Contains Decryption Key:"
+    await expect(roomPage.page.getByText('Sensitive Data:')).toBeVisible();
 
     // --- Interaction: Reveal obscured QR data ---
     await roomPage.qrRevealButton.click();
@@ -77,24 +105,23 @@ test.describe('Advanced Workflows and Edge Cases', () => {
   });
 
   test('Guest should be able to claim the Coordinator role using an Admin Token', async ({ browser }) => {
-    // --- Setup: Secure multi-context coordination ---
-    const coordCtx = await browser.newContext();
-    const guestCtx = await browser.newContext();
-    await coordCtx.grantPermissions(['clipboard-read', 'clipboard-write']);
-
-    const coordPage = await coordCtx.newPage();
-    const guestPage = await guestCtx.newPage();
+    // --- Setup: Secure multi-context coordination using the resilient helper ---
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
 
     // --- Interaction: Host Setup & Token Extraction ---
     const coordRoom = await launchRoomFromFixture(coordPage, '3_5_unsigned.psbt.txt');
     
-    await coordRoom.shareLinkButton.click();
-    await coordPage.getByRole('button', { name: /Copy Full Link/i }).click();
-    const sharedLink = await coordPage.evaluate(() => navigator.clipboard.readText());
+    // FIXED: Use the 2-step share wizard and wait for the modal to close
+    await coordRoom.generateRoleLink('full');
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
 
+    // Extract the Admin Token
     await coordRoom.backupAdminActionButton.click();
     await coordRoom.copyAdminTokenButton.click();
-    const adminToken = await coordPage.evaluate(() => navigator.clipboard.readText());
+    await expect(coordPage.locator('#modal-backup-admin')).toBeHidden({ timeout: 5000 });
+    const adminToken = await coordPage.evaluate(() => (window as any).__capturedClipboard);
 
     // --- Interaction: Guest Entry ---
     const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
@@ -114,7 +141,6 @@ test.describe('Advanced Workflows and Edge Cases', () => {
     await expect(guestRoom.renameButton).toBeVisible();
 
     // Cleanup
-    await coordCtx.close();
-    await guestCtx.close();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
   });
 });

@@ -133,16 +133,28 @@
                     </p>
                 </div>
                 <p class="text-xs text-brand-text-muted leading-relaxed">
-                    If you are practicing strict Operational Security (OpSec), send this Room ID to your signers first. Send the Decryption Key later via a separate, secure channel (e.g., Signal vs Email).
+                    If you are practicing strict Operational Security (OpSec), send this Room Link to your signers first. Send the Decryption Key later via a separate, secure channel (e.g., Signal vs Email).
                 </p>
-                <button id="btn-copy-room-id-modal" (click)="copyRoomId()" class="mt-2 w-full py-2.5 bg-brand-accent/20 hover:bg-brand-accent/30 text-brand-accent text-xs font-bold rounded-lg border border-brand-accent/20 transition flex items-center justify-center gap-2 cursor-pointer">
-                    @if (roomIdCopied()) {
-                        <svg lucideCheck class="w-4 h-4"></svg>
-                    } @else {
-                        <svg lucideCopy class="w-4 h-4"></svg>
-                    }
-                    {{ roomIdCopied() ? 'Room ID Copied!' : 'Copy Room ID' }}
-                </button>
+                
+                <div class="grid grid-cols-1 gap-3 mt-2">
+                    <button id="btn-copy-room-link-modal" (click)="copyRoomLinkOnly()" class="w-full py-2.5 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg text-xs font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                        @if (roomLinkCopied()) {
+                            <svg lucideCheck class="w-4 h-4"></svg>
+                        } @else {
+                            <svg lucideCopy class="w-4 h-4"></svg>
+                        }
+                        {{ roomLinkCopied() ? 'Room Link Copied!' : 'Copy Base Room Link' }}
+                    </button>
+                    
+                    <button id="btn-copy-room-id-modal" (click)="copyRoomId()" class="w-full py-2.5 bg-brand-card-border/30 hover:bg-brand-card-border/50 text-brand-text text-xs font-bold rounded-xl border border-brand-card-border transition flex items-center justify-center gap-2 cursor-pointer">
+                        @if (roomIdCopied()) {
+                            <svg lucideCheck class="w-4 h-4 text-brand-accent"></svg>
+                        } @else {
+                            <svg lucideHash class="w-4 h-4"></svg>
+                        }
+                        {{ roomIdCopied() ? 'Raw ID Copied!' : 'Copy Raw Room ID' }}
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -416,9 +428,9 @@
 
             @if (qrIncludesKey()) {
                 <div class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
-                    <svg lucideAlertTriangle class="w-5 h-5 text-amber-50 shrink-0"></svg>
+                    <svg lucideAlertTriangle class="w-5 h-5 text-amber-500 shrink-0"></svg>
                     <p class="text-xs text-amber-200/80 leading-relaxed">
-                        <strong>Contains Decryption Key:</strong> Anyone who scans this can join the room and view data. Treat it like a password.
+                        <strong>Sensitive Data:</strong> This QR code contains the private decryption key and your role capabilities. Anyone who scans this can access the room with your exact permissions. Treat it like a password.
                     </p>
                 </div>
             } @else {
@@ -476,11 +488,18 @@
 
 @if (showShareModal()) {
 <div id="modal-share-room" class="fixed inset-0 z-[100] flex items-center justify-center bg-brand-bg/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-    <div class="bg-brand-card border border-brand-card-border rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative">
+    <div class="bg-brand-card border border-brand-card-border rounded-2xl shadow-2xl max-w-md w-full overflow-hidden relative flex flex-col max-h-[90vh]">
 
-        <div class="p-4 border-b border-brand-card-border flex items-center justify-between">
+        <!-- Fixed Header -->
+        <div class="p-4 border-b border-brand-card-border flex items-center justify-between shrink-0">
             <div class="flex items-center gap-2">
-                <svg lucideCopy class="w-5 h-5 text-brand-text"></svg>
+                @if (shareStep() === 2) {
+                    <button (click)="shareStep.set(1)" class="mr-1 text-brand-text-muted hover:text-brand-text transition cursor-pointer" title="Back to Configure">
+                        <svg lucideArrowRight class="w-5 h-5 rotate-180"></svg>
+                    </button>
+                } @else {
+                    <svg lucideCopy class="w-5 h-5 text-brand-text"></svg>
+                }
                 <h3 class="font-bold text-brand-text">Share Room Securely</h3>
             </div>
             <button id="btn-modal-close" (click)="closeShareModal()" class="text-brand-text-muted hover:text-brand-text transition cursor-pointer">
@@ -488,51 +507,195 @@
             </button>
         </div>
 
-        <div class="p-6 flex flex-col gap-4">
+        <!-- Scrollable Content Area -->
+        <div class="p-6 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
             
-            <div class="border border-brand-accent/30 bg-brand-accent/5 rounded-xl p-4 relative overflow-hidden group">
-                <div class="flex justify-between items-start mb-2 relative z-10">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <svg lucideShield class="w-4 h-4 text-brand-accent"></svg>
-                            <h4 class="text-brand-text font-bold text-sm">Maximum Security (Split)</h4>
-                        </div>
-                        <p class="text-xs text-brand-text-muted mt-1 leading-relaxed">
-                            Copies the room URL <strong>without</strong> the decryption key. Send this link, then use the <em>"Link Key"</em> action to send the key via a separate, secure channel (e.g., Signal vs Email).
+            @if (shareStep() === 1) {
+                <!-- STEP 1: CONFIGURE -->
+                <div class="animate-in slide-in-from-left-4 duration-300">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-xs font-bold text-brand-text-muted uppercase tracking-wider">Step 1 - Set Link Permissions</h4>
+                        <span class="text-[10px] font-bold text-brand-accent bg-brand-accent/10 px-2 py-0.5 rounded">1 / 2</span>
+                    </div>
+                    
+                    <div class="w-full bg-brand-accent/10 border border-brand-accent/20 rounded-lg p-3 mb-4 flex items-start gap-3">
+                        <svg lucideShield class="w-5 h-5 text-brand-accent shrink-0 mt-0.5"></svg>
+                        <p class="text-xs text-brand-accent/90 leading-relaxed">
+                            <strong>Link Capabilities:</strong> The toggles below define the permissions for this specific link. Anyone who joins the room using this link will have exactly these capabilities.
                         </p>
                     </div>
-                </div>
-                <button id="btn-copy-secure-link" (click)="copySecureLink()" class="mt-3 w-full py-2.5 bg-brand-accent/20 hover:bg-brand-accent/30 text-brand-accent text-xs font-bold rounded-lg border border-brand-accent/20 transition flex items-center justify-center gap-2 relative z-10 cursor-pointer">
-                    @if (secureLinkCopied()) {
-                        <svg lucideCheck class="w-4 h-4"></svg>
-                    } @else {
-                        <svg lucideCopy class="w-4 h-4"></svg>
-                    }
-                    {{ secureLinkCopied() ? 'Secure Link Copied!' : 'Copy Link Only (No Key)' }}
-                </button>
-            </div>
 
-            <div class="border border-brand-card-border bg-brand-bg/50 rounded-xl p-4">
-                <div class="flex justify-between items-start mb-2">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <svg lucideAlertTriangle class="w-4 h-4 text-amber-500"></svg>
-                            <h4 class="text-brand-text font-bold text-sm">Standard (Combined)</h4>
+                    <div class="space-y-3 bg-brand-bg border border-brand-card-border rounded-xl p-4 shadow-sm">
+                        
+                        <!-- Toggle 1: Upload Signatures -->
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded bg-brand-accent/10 flex items-center justify-center text-brand-accent shrink-0">
+                                    <svg lucideUploadCloud class="w-4 h-4"></svg>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-brand-text">Submit Signatures</div>
+                                    <div class="text-xs text-brand-text-muted pr-2">Allow guest to upload signed PSBTs</div>
+                                </div>
+                            </div>
+                            <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors shrink-0 ml-2" [class.bg-brand-accent]="roleFlags().canUploadSignature" [class.bg-brand-card-border]="!roleFlags().canUploadSignature">
+                                <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canUploadSignature" (change)="toggleRoleFlag('canUploadSignature')">
+                                <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canUploadSignature" [class.translate-x-1]="!roleFlags().canUploadSignature"></span>
+                            </div>
+                        </label>
+
+                        <!-- Toggle 2: Export PSBT -->
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded bg-brand-accent/10 flex items-center justify-center text-brand-accent shrink-0">
+                                    <svg lucideDownloadCloud class="w-4 h-4"></svg>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-brand-text">Export Transaction</div>
+                                    <div class="text-xs text-brand-text-muted pr-2">Allow guest to download raw PSBT</div>
+                                </div>
+                            </div>
+                            <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors shrink-0 ml-2" [class.bg-brand-accent]="roleFlags().canExportPsbt" [class.bg-brand-card-border]="!roleFlags().canExportPsbt">
+                                <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canExportPsbt" (change)="toggleRoleFlag('canExportPsbt')">
+                                <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canExportPsbt" [class.translate-x-1]="!roleFlags().canExportPsbt"></span>
+                            </div>
+                        </label>
+
+                        <!-- Toggle 3: Export Audit -->
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded bg-brand-accent/10 flex items-center justify-center text-brand-accent shrink-0">
+                                    <svg lucideFileCheck class="w-4 h-4"></svg>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-brand-text">Export Audit Logs</div>
+                                    <div class="text-xs text-brand-text-muted pr-2">Allow guest to download PDF & CSV</div>
+                                </div>
+                            </div>
+                            <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors shrink-0 ml-2" [class.bg-brand-accent]="roleFlags().canExportAudit" [class.bg-brand-card-border]="!roleFlags().canExportAudit">
+                                <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canExportAudit" (change)="toggleRoleFlag('canExportAudit')">
+                                <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canExportAudit" [class.translate-x-1]="!roleFlags().canExportAudit"></span>
+                            </div>
+                        </label>
+
+                        <!-- Toggle 4: View Details -->
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded bg-brand-accent/10 flex items-center justify-center text-brand-accent shrink-0">
+                                    <svg lucideSearch class="w-4 h-4"></svg>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-brand-text">View Transaction Details</div>
+                                    <div class="text-xs text-brand-text-muted pr-2">Allow guest to inspect UTXOs and outputs</div>
+                                </div>
+                            </div>
+                            <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors shrink-0 ml-2" [class.bg-brand-accent]="roleFlags().canViewDetails" [class.bg-brand-card-border]="!roleFlags().canViewDetails">
+                                <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canViewDetails" (change)="toggleRoleFlag('canViewDetails')">
+                                <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canViewDetails" [class.translate-x-1]="!roleFlags().canViewDetails"></span>
+                            </div>
+                        </label>
+
+                        <!-- Toggle 5: View Signers -->
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded bg-brand-accent/10 flex items-center justify-center text-brand-accent shrink-0">
+                                    <svg lucideUsers class="w-4 h-4"></svg>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-brand-text">View Signer Identities</div>
+                                    <div class="text-xs text-brand-text-muted pr-2">Allow guest to see other participant labels</div>
+                                </div>
+                            </div>
+                            <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors shrink-0 ml-2" [class.bg-brand-accent]="roleFlags().canViewSigners" [class.bg-brand-card-border]="!roleFlags().canViewSigners">
+                                <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canViewSigners" (change)="toggleRoleFlag('canViewSigners')">
+                                <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canViewSigners" [class.translate-x-1]="!roleFlags().canViewSigners"></span>
+                            </div>
+                        </label>
+
+                        <!-- Toggle 6: Lateral Sharing -->
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded bg-brand-accent/10 flex items-center justify-center text-brand-accent shrink-0">
+                                    <svg lucideShare2 class="w-4 h-4"></svg>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-brand-text">Lateral Sharing</div>
+                                    <div class="text-xs text-brand-text-muted pr-2">Allow guest to view their own Link Key & QR</div>
+                                </div>
+                            </div>
+                            <div class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors shrink-0 ml-2" [class.bg-brand-accent]="roleFlags().canShareSession" [class.bg-brand-card-border]="!roleFlags().canShareSession">
+                                <input type="checkbox" class="sr-only peer" [checked]="roleFlags().canShareSession" (change)="toggleRoleFlag('canShareSession')">
+                                <span class="inline-block w-3.5 h-3.5 transform bg-white rounded-full transition-transform" [class.translate-x-4]="roleFlags().canShareSession" [class.translate-x-1]="!roleFlags().canShareSession"></span>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <button (click)="shareStep.set(2)" class="w-full mt-6 py-3.5 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-brand-accent/20">
+                        Continue to Share Methods <svg lucideArrowRight class="w-4 h-4"></svg>
+                    </button>
+                </div>
+            }
+
+            @if (shareStep() === 2) {
+                <!-- STEP 2: SHARE METHODS -->
+                <div class="animate-in slide-in-from-right-4 duration-300">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-xs font-bold text-brand-text-muted uppercase tracking-wider">Step 2 - Share Methods</h4>
+                        <span class="text-[10px] font-bold text-brand-accent bg-brand-accent/10 px-2 py-0.5 rounded">2 / 2</span>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <!-- Maximum Security (Split) -->
+                        <div class="bg-brand-accent/10 border border-brand-accent/20 rounded-xl p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg lucideShield class="w-5 h-5 text-brand-accent"></svg>
+                                <h4 class="font-bold text-brand-text">Maximum Security (Split)</h4>
+                            </div>
+                            <p class="text-xs text-brand-text-muted leading-relaxed mb-4">
+                                Copies the room URL and decryption key separately. Send the URL link first, then generate and send the specific Guest Key via a separate, secure channel (e.g., Signal vs Email).
+                            </p>
+                            <div class="flex gap-2">
+                                <button id="btn-copy-secure-link" (click)="copySecureLink()" class="w-1/3 py-2.5 bg-brand-card hover:bg-brand-card-border text-brand-text text-xs font-bold rounded-lg border border-brand-accent/30 shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
+                                    @if (secureLinkCopied()) {
+                                        <svg lucideCheck class="w-4 h-4 text-brand-accent"></svg> Copied
+                                    } @else {
+                                        <svg lucideLink class="w-4 h-4"></svg> 1. URL
+                                    }
+                                </button>
+                                <button id="btn-generate-key-only" (click)="generateAndCopy('key')" [disabled]="isGeneratingRole()" class="w-2/3 py-2.5 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-brand-accent/20">
+                                    @if (isGeneratingRole() && activeGenType() === 'key') {
+                                        <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg> Generating...
+                                    } @else if (keyCopied()) {
+                                        <svg lucideCheck class="w-4 h-4"></svg> Copied
+                                    } @else {
+                                        <svg lucideKey class="w-4 h-4"></svg> 2. Copy Guest Key
+                                    }
+                                </button>
+                            </div>
                         </div>
-                        <p class="text-xs text-brand-text-muted mt-1 leading-relaxed">
-                            Copies the full URL including the decryption key (<code>#key</code>). Convenient for quick sharing, but if this single link is intercepted, the room is compromised.
-                        </p>
+
+                        <!-- Standard (Combined) -->
+                        <div class="bg-brand-bg border border-brand-card-border rounded-xl p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg lucideShieldAlert class="w-5 h-5 text-amber-500"></svg>
+                                <h4 class="font-bold text-brand-text">Standard (Combined)</h4>
+                            </div>
+                            <p class="text-xs text-brand-text-muted leading-relaxed mb-4">
+                                Copies the full URL including the decryption key. Convenient for quick sharing, but if this single link is intercepted, the room is compromised.
+                            </p>
+                            <button id="btn-generate-full-link" (click)="generateAndCopy('full')" [disabled]="isGeneratingRole()" class="w-full py-2.5 bg-brand-card-border/30 hover:bg-brand-card-border/50 text-brand-text text-xs font-bold rounded-lg border border-brand-card-border transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                                @if (isGeneratingRole() && activeGenType() === 'full') {
+                                    <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg> Generating...
+                                } @else if (fullLinkCopied()) {
+                                    <svg lucideCheck class="w-4 h-4 text-brand-accent"></svg> <span class="text-brand-accent">Copied</span>
+                                } @else {
+                                    <svg lucideCopy class="w-4 h-4"></svg> Copy Full Link (Link + Key)
+                                }
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <button id="btn-copy-full-link" (click)="copyFullLink()" class="mt-3 w-full py-2.5 bg-brand-card-border/50 hover:bg-brand-card-border text-brand-text text-xs font-bold rounded-lg border border-brand-card-border transition flex items-center justify-center gap-2 cursor-pointer">
-                    @if (fullLinkCopied()) {
-                        <svg lucideCheck class="w-4 h-4"></svg>
-                    } @else {
-                        <svg lucideCopy class="w-4 h-4"></svg>
-                    }
-                    {{ fullLinkCopied() ? 'Full Link Copied!' : 'Copy Full Link (Link + Key)' }}
-                </button>
-            </div>
+            }
 
         </div>
     </div>
@@ -545,7 +708,7 @@
         <div class="p-4 border-b border-brand-card-border flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <svg lucideKey class="w-5 h-5 text-cyan-400"></svg>
-                <h3 class="font-bold text-brand-text">Room Decryption Key</h3>
+                <h3 class="font-bold text-brand-text">Room Access Key</h3>
             </div>
             <button id="btn-modal-close" (click)="closeKeyModal()" class="text-brand-text-muted hover:text-brand-text transition cursor-pointer">
                 <svg lucideX class="w-5 h-5"></svg>
@@ -555,11 +718,11 @@
             <div class="w-full bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3 flex items-start gap-3">
                 <svg lucideAlertTriangle class="w-5 h-5 text-cyan-400 shrink-0"></svg>
                 <p class="text-xs text-cyan-200 leading-relaxed">
-                    <strong>Sensitive Data:</strong> This is the private encryption key for the room. Anyone with this key can decrypt and view the transaction details if they also have the room link.
+                    <strong>Sensitive Data:</strong> This fragment contains the private decryption key and your role capabilities. Anyone with this key can access the room with your exact permissions.
                 </p>
             </div>
             <p class="text-xs text-brand-text-muted leading-relaxed">
-                For maximum operational security, send this key to signers using a different communication channel than the one used for the room link (e.g., Signal vs. Email).
+                For maximum operational security, send this key to signers using a different communication channel than the one used for the room ID (e.g., Signal vs. Email).
             </p>
             <button (click)="copyKey()" class="mt-2 w-full py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-bold rounded-lg border border-cyan-500/20 transition flex items-center justify-center gap-2 cursor-pointer">
                 @if (keyCopied()) {
@@ -567,7 +730,7 @@
                 } @else {
                     <svg lucideCopy class="w-4 h-4"></svg>
                 }
-                {{ keyCopied() ? 'Key Copied!' : 'Copy Decryption Key' }}
+                {{ keyCopied() ? 'Access Key Copied!' : 'Copy Access Key' }}
             </button>
         </div>
     </div>
@@ -996,10 +1159,20 @@
             <div class="text-[10px] uppercase tracking-widest text-brand-text-muted font-bold ml-1">Room Actions</div>
             <div class="flex flex-wrap items-center p-1.5 bg-brand-bg border border-brand-card-border rounded-xl gap-2 shadow-sm w-full sm:w-auto">
                 
+                <!-- GROUP 1: EXPORTS -->
                 @if (!isExpired() && !socket.isClosed()) {
                     <div class="relative group">
-                        <button id="btn-action-audit" (click)="promptAuditLogDownload()" class="px-3 py-2 text-brand-accent hover:bg-brand-accent/10 hover:text-brand-accent-hover rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-brand-accent/20 cursor-pointer">
-                            <svg lucideFileCheck class="w-4 h-4"></svg>
+                        <button id="btn-action-audit" 
+                                (click)="socket.currentConstraints()?.canExportAudit === false ? null : promptAuditLogDownload()" 
+                                class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [disabled]="socket.currentConstraints()?.canExportAudit === false"
+                                [class]="socket.currentConstraints()?.canExportAudit === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'text-brand-accent hover:bg-brand-accent/10 hover:text-brand-accent-hover border-transparent hover:border-brand-accent/20'"
+                                [title]="socket.currentConstraints()?.canExportAudit === false ? 'Your role restricts audit log exports.' : 'Audit Log'">
+                            @if (socket.currentConstraints()?.canExportAudit === false) {
+                                <svg lucideLock class="w-4 h-4"></svg>
+                            } @else {
+                                <svg lucideFileCheck class="w-4 h-4"></svg>
+                            }
                             Audit Log
                         </button>
                     </div>
@@ -1007,17 +1180,35 @@
                     <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div> 
 
                     <div class="relative group">
-                        <button id="btn-action-csv" (click)="promptCsvDownload()" class="px-3 py-2 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-blue-500/20 cursor-pointer">
-                            <svg lucideDownload class="w-4 h-4"></svg>
+                        <button id="btn-action-csv" 
+                                (click)="socket.currentConstraints()?.canExportAudit === false ? null : promptCsvDownload()" 
+                                class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [disabled]="socket.currentConstraints()?.canExportAudit === false"
+                                [class]="socket.currentConstraints()?.canExportAudit === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 border-transparent hover:border-blue-500/20'"
+                                [title]="socket.currentConstraints()?.canExportAudit === false ? 'Your role restricts CSV exports.' : 'CSV'">
+                            @if (socket.currentConstraints()?.canExportAudit === false) {
+                                <svg lucideLock class="w-4 h-4"></svg>
+                            } @else {
+                                <svg lucideDownload class="w-4 h-4"></svg>
+                            }
                             CSV
                         </button>
                     </div>
+                    
                     <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div>
                 }
 
+                <!-- GROUP 2: LATERAL SHARING -->
                 <div class="relative group">
-                    <button id="btn-action-link-key" (click)="openKeyModal()" class="px-3 py-2 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-cyan-500/20 cursor-pointer">
-                        @if (keyCopied()) {
+                    <button id="btn-action-link-key" 
+                            (click)="socket.currentConstraints()?.canShareSession === false ? null : openKeyModal()" 
+                            class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            [disabled]="socket.currentConstraints()?.canShareSession === false"
+                            [class]="socket.currentConstraints()?.canShareSession === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300 border-transparent hover:border-cyan-500/20'"
+                            [title]="socket.currentConstraints()?.canShareSession === false ? 'Your role restricts session sharing.' : 'Link Key'">
+                        @if (socket.currentConstraints()?.canShareSession === false) {
+                            <svg lucideLock class="w-4 h-4"></svg>
+                        } @else if (keyCopied()) {
                             <svg lucideCheck class="w-4 h-4"></svg>
                         } @else {
                             <svg lucideKey class="w-4 h-4"></svg>
@@ -1025,10 +1216,29 @@
                         {{ keyCopied() ? 'Copied' : 'Link Key' }}
                     </button>
                 </div>
-
+                
                 <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div>
 
+                <div class="relative group">
+                    <button id="btn-action-qr" 
+                            (click)="socket.currentConstraints()?.canShareSession === false ? null : openQr()" 
+                            class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            [disabled]="socket.currentConstraints()?.canShareSession === false"
+                            [class]="socket.currentConstraints()?.canShareSession === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'text-brand-text hover:bg-brand-card-border border-transparent hover:border-brand-card-border'"
+                            [title]="socket.currentConstraints()?.canShareSession === false ? 'Your role restricts session sharing.' : 'QR Code'">
+                        @if (socket.currentConstraints()?.canShareSession === false) {
+                            <svg lucideLock class="w-4 h-4"></svg>
+                        } @else {
+                            <svg lucideQrCode class="w-4 h-4"></svg>
+                        }
+                        <span>QR Code</span>
+                    </button>
+                </div>
+
+                <!-- GROUP 3: COORDINATOR ONLY ACTIONS -->
                 @if (socket.isCoordinator()) {
+                    <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div>
+
                     <div class="relative group">
                         <button id="btn-action-backup-admin" (click)="openAdminModal()" class="px-3 py-2 text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-purple-500/20 cursor-pointer">
                             @if (adminCopied()) {
@@ -1041,26 +1251,16 @@
                     </div>
                     
                     <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div>
-                }
 
-                <div class="relative group">
-                    <button id="btn-action-share" (click)="openShareModal()" class="px-3 py-2 text-brand-text hover:bg-brand-card-border rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-brand-card-border cursor-pointer">
-                        <svg lucideCopy class="w-4 h-4"></svg>
-                        Share Link
-                    </button>
-                </div>
+                    <div class="relative group">
+                        <button id="btn-action-share" (click)="openShareModal()" class="px-3 py-2 text-brand-text hover:bg-brand-card-border rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-brand-card-border cursor-pointer">
+                            <svg lucideCopy class="w-4 h-4"></svg>
+                            Share Link
+                        </button>
+                    </div>
 
-                <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div>
-
-                <div class="relative group">
-                    <button id="btn-action-qr" (click)="openQr()" class="px-3 py-2 text-brand-text hover:bg-brand-card-border rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent hover:border-brand-card-border cursor-pointer">
-                        <svg lucideQrCode class="w-4 h-4"></svg>
-                        <span>QR Code</span>
-                    </button>
-                </div>
-
-                @if (socket.isCoordinator()) {
                     <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div>
+
                     <div class="relative group">
                         <button id="btn-action-lock-room" (click)="toggleLock()" 
                                 class="px-3 py-2 rounded-lg transition text-xs font-bold flex items-center gap-2 border border-transparent cursor-pointer"
@@ -1076,17 +1276,19 @@
                             {{ socket.roomState()?.isLocked ? 'Locked' : 'Lock Room' }}
                         </button>
                     </div>
+
+                    @if (!isExpired() && !socket.isClosed()) {
+                        <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div> 
+                        
+                        <div class="relative group">
+                            <button id="btn-action-close-room" (click)="closeRoom()" class="px-3 py-2 bg-rose-950/30 text-rose-400 border border-rose-900/50 hover:bg-rose-900/50 hover:border-rose-500 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 cursor-pointer">
+                                <svg lucidePower class="w-4 h-4"></svg>
+                                Close
+                            </button>
+                        </div>
+                    }
                 }
 
-                @if (socket.isCoordinator() && !isExpired() && !socket.isClosed()) {
-                    <div class="hidden sm:block w-px h-6 bg-brand-card-border mx-1"></div> 
-                    <div class="relative group">
-                        <button id="btn-action-close-room" (click)="closeRoom()" class="px-3 py-2 bg-rose-950/30 text-rose-400 border border-rose-900/50 hover:bg-rose-900/50 hover:border-rose-500 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-2 cursor-pointer">
-                            <svg lucidePower class="w-4 h-4"></svg>
-                            Close
-                        </button>
-                    </div>
-                }
             </div>
         </div>
 
@@ -1333,34 +1535,79 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
+                <!-- EXPORT TRANSACTION (Block 1) -->
                 <div class="flex flex-col gap-2">
                     <div class="text-xs text-brand-text-muted mb-1">1. Export Unsigned Transaction</div>
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="btn-export-show-qr" (click)="openFountainModal()" class="flex items-center justify-center p-3 bg-brand-bg border border-brand-card-border rounded-lg hover:border-brand-accent/50 hover:bg-brand-accent/5 transition-all text-sm font-medium text-brand-text group cursor-pointer">
-                            <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                        <button id="btn-export-show-qr" 
+                                (click)="socket.currentConstraints()?.canExportPsbt === false ? null : openFountainModal()" 
+                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [disabled]="socket.currentConstraints()?.canExportPsbt === false"
+                                [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
+                                [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                            @if (socket.currentConstraints()?.canExportPsbt === false) {
+                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                            } @else {
+                                <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                            }
                             Show QR
                         </button>
-                        <button id="btn-export-download-file" (click)="promptPsbtDownload()" class="flex items-center justify-center p-3 bg-brand-bg border border-brand-card-border rounded-lg hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-sm font-medium text-brand-text group cursor-pointer">
-                            <svg lucideDownloadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                        <button id="btn-export-download-file" 
+                                (click)="socket.currentConstraints()?.canExportPsbt === false ? null : promptPsbtDownload()" 
+                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [disabled]="socket.currentConstraints()?.canExportPsbt === false"
+                                [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text'"
+                                [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                            @if (socket.currentConstraints()?.canExportPsbt === false) {
+                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                            } @else {
+                                <svg lucideDownloadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                            }
                             Download File
                         </button>
                     </div>
                 </div>
 
+                <!-- IMPORT TRANSACTION (Block 2) -->
                 <div class="flex flex-col gap-2">
                     <div class="text-xs text-brand-text-muted mb-1">2. Import Signed Transaction</div>
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="btn-import-scan-qr" (click)="startScanner()" [disabled]="isScanningSigned()" class="flex items-center justify-center p-3 bg-brand-bg border border-brand-card-border rounded-lg hover:border-brand-accent/50 hover:bg-brand-accent/5 transition-all text-sm font-medium text-brand-text group disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
-                            <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                        <button id="btn-import-scan-qr" 
+                                (click)="startScanner()" 
+                                [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false" 
+                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
+                                [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
+                            @if (socket.currentConstraints()?.canUploadSignature === false) {
+                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                            } @else {
+                                <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                            }
                             Scan QR
                         </button>
-                        <label id="btn-import-upload-file" class="relative group cursor-pointer flex items-center justify-center p-3 bg-brand-bg border border-brand-card-border rounded-lg hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-sm font-medium text-brand-text disabled:opacity-50">
-                            <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" class="absolute inset-0 opacity-0 cursor-pointer z-10" [disabled]="isScanningSigned()">
-                            <svg lucideUploadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                        <label id="btn-import-upload-file" 
+                               class="relative flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium"
+                               [class.opacity-50]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                               [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                               [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text group cursor-pointer'"
+                               [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
+                            
+                            <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" 
+                                   class="absolute inset-0 opacity-0 z-10" 
+                                   [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                                   [class.cursor-pointer]="!(isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false)"
+                                   [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false">
+                            
+                            @if (socket.currentConstraints()?.canUploadSignature === false) {
+                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                            } @else {
+                                <svg lucideUploadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                            }
                             Upload File
                         </label>
                     </div>
                 </div>
+
             </div>
 
             @if (isScanningSigned()) {
@@ -1411,24 +1658,29 @@
                 </h2>
                 
                 <button id="btn-reveal-details"
-                (click)="togglePrivacyBlur('transaction-details')" 
-                class="p-2 rounded-lg hover:bg-brand-card-border/50 transition-colors flex items-center gap-2 cursor-pointer"
-                [class.text-amber-500]="!blurStates()['transaction-details']"
-                [class.text-brand-text-muted]="blurStates()['transaction-details']"
-                [title]="blurStates()['transaction-details'] ? 'Reveal Details' : 'Hide Details'">
-                @if (blurStates()['transaction-details']) {
-                    <svg lucideEyeOff class="w-5 h-5"></svg>
-                } @else {
-                    <svg lucideEye class="w-5 h-5"></svg>
-                }
+                    (click)="socket.currentConstraints()?.canViewDetails === false ? null : togglePrivacyBlur('transaction-details')" 
+                    class="p-2 rounded-lg transition-colors flex items-center gap-2"
+                    [class.cursor-pointer]="socket.currentConstraints()?.canViewDetails !== false"
+                    [class.cursor-not-allowed]="socket.currentConstraints()?.canViewDetails === false"
+                    [class.text-amber-500]="!blurStates()['transaction-details'] && socket.currentConstraints()?.canViewDetails !== false"
+                    [class.text-brand-text-muted]="blurStates()['transaction-details'] || socket.currentConstraints()?.canViewDetails === false"
+                    [title]="socket.currentConstraints()?.canViewDetails === false ? 'Your role restricts viewing details.' : 'Toggle Privacy'">
+                    
+                    @if (socket.currentConstraints()?.canViewDetails === false) {
+                        <svg lucideLock class="w-5 h-5 text-rose-500/50"></svg>
+                    } @else if (blurStates()['transaction-details']) {
+                        <svg lucideEyeOff class="w-5 h-5"></svg>
+                    } @else {
+                        <svg lucideEye class="w-5 h-5"></svg>
+                    }
                 </button>
             </div>
 
             <div class="transition-all duration-300"
-                [class.blur-md]="blurStates()['transaction-details']"
-                [class.opacity-30]="blurStates()['transaction-details']"
-                [class.select-none]="blurStates()['transaction-details']"
-                [class.pointer-events-none]="blurStates()['transaction-details']">
+                [class.blur-md]="blurStates()['transaction-details'] || socket.currentConstraints()?.canViewDetails === false"
+                [class.opacity-30]="blurStates()['transaction-details'] || socket.currentConstraints()?.canViewDetails === false"
+                [class.select-none]="blurStates()['transaction-details'] || socket.currentConstraints()?.canViewDetails === false"
+                [class.pointer-events-none]="blurStates()['transaction-details'] || socket.currentConstraints()?.canViewDetails === false">
                 
                 <div class="w-full flex bg-brand-bg p-1 rounded-lg border border-brand-card-border mb-4">
                     <button id="btn-tab-inputs" (click)="setViewMode('inputs')"
@@ -1527,16 +1779,18 @@
                                                     {{ getAddressLabel(input.address) || 'Input #' + $index }}
                                                 </span>
                                             }
-                                            @if (input.txId && input.txId !== '????') {
-                                                <span class="font-mono text-[10px] text-brand-text-muted truncate max-w-[120px]" title="TxID:Vout">{{ input.txId }}:{{ input.vout }}</span>
-                                            }
                                         </div>
                                         
                                         <!-- Address Box -->
                                         <div class="flex items-center justify-between bg-brand-card border border-brand-card-border rounded-lg pl-3 pr-3 py-2 group">
-                                            <span class="font-mono text-xs text-brand-text-muted break-all select-all mr-2">{{ input.address }}</span>
+                                            <span class="font-mono text-xs text-brand-text-muted break-all mr-2"
+                                                  [class.select-all]="socket.currentConstraints()?.canViewDetails !== false">
+                                                {{ socket.currentConstraints()?.canViewDetails === false ? '••••••••••••••••••••••••••••••••••••••••' : input.address }}
+                                            </span>
                                             
-                                            <button (click)="copyAddress(input.address)" class="relative group/tooltip shrink-0 focus:outline-none cursor-pointer">
+                                            <button (click)="socket.currentConstraints()?.canViewDetails === false ? null : copyAddress(input.address)" 
+                                                    [disabled]="socket.currentConstraints()?.canViewDetails === false"
+                                                    class="relative group/tooltip shrink-0 focus:outline-none cursor-pointer disabled:opacity-0">
                                                 @if (copiedAddress() === input.address) {
                                                     <svg lucideCheck class="w-4 h-4 transition-all duration-300 text-brand-accent scale-110"></svg>
                                                 } @else {
@@ -1554,7 +1808,7 @@
                                     <!-- Right Column: Amount & Action -->
                                     <div class="flex flex-col items-end justify-between gap-3 shrink-0 min-w-[130px]">
                                         <div class="text-brand-text font-medium text-sm text-right">
-                                            {{ input.amount / 100000000 | number:'1.8-8' }} <span class="text-brand-text-muted">BTC</span>
+                                            {{ socket.currentConstraints()?.canViewDetails === false ? '••••••••' : (input.amount / 100000000 | number:'1.8-8') }} <span class="text-brand-text-muted">BTC</span>
                                         </div>
                                         
                                         @if (socket.isCoordinator()) {
@@ -1630,9 +1884,14 @@
                                     
                                     <!-- Address Box -->
                                     <div class="flex items-center justify-between bg-brand-card border border-brand-card-border rounded-lg pl-3 pr-3 py-2 group">
-                                        <span class="font-mono text-xs text-brand-text-muted break-all select-all mr-2">{{ out.address }}</span>
+                                        <span class="font-mono text-xs text-brand-text-muted break-all mr-2"
+                                              [class.select-all]="socket.currentConstraints()?.canViewDetails !== false">
+                                            {{ socket.currentConstraints()?.canViewDetails === false ? '••••••••••••••••••••••••••••••••••••••••' : out.address }}
+                                        </span>
                                         
-                                        <button (click)="copyAddress(out.address)" class="relative group/tooltip shrink-0 focus:outline-none cursor-pointer">
+                                        <button (click)="socket.currentConstraints()?.canViewDetails === false ? null : copyAddress(out.address)" 
+                                                [disabled]="socket.currentConstraints()?.canViewDetails === false"
+                                                class="relative group/tooltip shrink-0 focus:outline-none cursor-pointer disabled:opacity-0">
                                             @if (copiedAddress() === out.address) {
                                                 <svg lucideCheck class="w-4 h-4 transition-all duration-300 text-brand-accent scale-110"></svg>
                                             } @else {
@@ -1650,7 +1909,7 @@
                                 <!-- Right Column: Amount & Action -->
                                 <div class="flex flex-col items-end justify-between gap-3 shrink-0 min-w-[130px]">
                                     <div class="text-brand-text font-medium text-sm text-right">
-                                        {{ out.amount / 100000000 | number:'1.8-8' }} <span class="text-brand-text-muted">BTC</span>
+                                        {{ socket.currentConstraints()?.canViewDetails === false ? '••••••••' : (out.amount / 100000000 | number:'1.8-8') }} <span class="text-brand-text-muted">BTC</span>
                                     </div>
                                     
                                     @if (socket.isCoordinator()) {
@@ -1695,12 +1954,17 @@
                 </h2>
                 
                 <button id="btn-reveal-signers"
-                    (click)="togglePrivacyBlur('signers')" 
-                    class="p-2 rounded-lg hover:bg-brand-card-border/50 transition-colors flex items-center gap-2 cursor-pointer"
-                    [class.text-amber-500]="!blurStates().signers"
-                    [class.text-brand-text-muted]="blurStates().signers"
-                    [title]="blurStates().signers ? 'Reveal Signers' : 'Hide Signers'">
-                    @if (blurStates().signers) {
+                    (click)="socket.currentConstraints()?.canViewSigners === false ? null : togglePrivacyBlur('signers')" 
+                    class="p-2 rounded-lg transition-colors flex items-center gap-2"
+                    [class.cursor-pointer]="socket.currentConstraints()?.canViewSigners !== false"
+                    [class.cursor-not-allowed]="socket.currentConstraints()?.canViewSigners === false"
+                    [class.text-amber-500]="!blurStates().signers && socket.currentConstraints()?.canViewSigners !== false"
+                    [class.text-brand-text-muted]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
+                    [title]="socket.currentConstraints()?.canViewSigners === false ? 'Your role restricts viewing signers.' : 'Toggle Privacy'">
+                    
+                    @if (socket.currentConstraints()?.canViewSigners === false) {
+                        <svg lucideLock class="w-5 h-5 text-rose-500/50"></svg>
+                    } @else if (blurStates().signers) {
                         <svg lucideEyeOff class="w-5 h-5"></svg>
                     } @else {
                         <svg lucideEye class="w-5 h-5"></svg>
@@ -1710,11 +1974,11 @@
 
             <div class="relative flex-grow flex flex-col">
                 <div class="transition-all duration-300 flex-grow"
-                        [class.blur-md]="blurStates().signers"
-                        [class.opacity-30]="blurStates().signers"
-                        [class.select-none]="blurStates().signers"
-                        [class.pointer-events-none]="blurStates().signers">
-                        
+                        [class.blur-md]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
+                        [class.opacity-30]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
+                        [class.select-none]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
+                        [class.pointer-events-none]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false">
+                    
                     <div class="space-y-4">
         @for (signer of socket.signers(); track signer.fingerprint) {
             <div class="p-4 rounded-xl flex items-center justify-between border transition-all"
@@ -1752,7 +2016,7 @@
                             </button>
                         } @else {
                             <div class="text-brand-text font-medium text-sm font-mono">
-                                {{ getSignerLabel(signer.fingerprint) }}
+                                {{ socket.currentConstraints()?.canViewSigners === false ? '•••••••• (••••••••)' : getSignerLabel(signer.fingerprint) }}
                             </div>
                         }
 

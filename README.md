@@ -5,8 +5,8 @@
 [![Whitepaper](https://img.shields.io/badge/Whitepaper-arXiv%3A2601.17875-B31B1B.svg?style=for-the-badge)](https://arxiv.org/abs/2601.17875)
 [![Research](https://img.shields.io/badge/Research-Ulster_University-blueviolet.svg)](https://www.ulster.ac.uk/)
 
-> **Stateless. Zero-Knowledge. Real-Time.**  
-> A stateless coordination layer for Bitcoin multisig transactions.
+> **Ephemeral. Zero-Knowledge. Real-Time.**  
+> An ephemeral coordination layer for Bitcoin multisig transactions.
 
 ![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_3.0-emerald.svg)
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
@@ -43,7 +43,7 @@ SigningRoom is an open-source coordination tool — **not** a wallet, custodian,
 
 - We do **not** hold your private keys.
 - We do **not** hold your funds.
-- We **cannot** recover lost data (rooms are ephemeral and exist only in RAM).
+- We **cannot** recover lost data (rooms are ephemeral; encrypted state is wiped on close or expiry).
 
 You are solely responsible for verifying every transaction detail (address, amount, fees) on your hardware device screen before signing.
 
@@ -57,8 +57,9 @@ We do not want your data. We cannot read your data.
 1. **Human Rights via Physics**  
    We enforce **UN Article 20 (Freedom of Assembly)** and **Article 12 (Privacy)** not through policy, but through physics. Ephemeral Durable Objects that self-destruct ensure the "Right to Coordinate" survives even in hostile jurisdictions.
 
-2. **Statelessness is Security**  
-   Databases are liabilities. SigningRoom stores data in RAM (Cloudflare Durable Objects) only for the duration of the session. When the room expires, the data ceases to exist.
+2. **Ephemeral storage is a security feature**  
+   Room state may persist **encrypted** only for the configured TTL so participants can reconnect.  
+   On close or expiry it is wiped. The operator never holds the decryption key.
 
 3. **Zero Knowledge**  
    All transaction data is encrypted **client-side** (AES-256-GCM) before it ever touches the network. The decryption key lives only in the URL fragment (`#key`), which is never sent to the server.
@@ -106,7 +107,7 @@ This software is the reference implementation of **"The Stateless Pattern"** —
 - **Real-Time Sync** — WebSockets for instant state propagation between signers.
 - **Hardware Agnostic** — Sparrow, Electrum, Ledger, Trezor, and any BIP-174 compatible wallet.
 - **Ephemeral Rooms** — All rooms and data self-destruct after 24 hours.
-- **Audit Logs** — Client-side, cryptographically verifiable PDF audit trail of the signing ceremony, including persistent witness tracking for disconnected signers.
+- **Audit Logs** — Client-side, tamper-evident PDF audit trail of the signing ceremony, including persistent witness tracking for disconnected signers.
 
 ## 🛠️ Architecture
 
@@ -118,11 +119,11 @@ sequenceDiagram
     participant S as Server (Blind Relay)
     participant B as Bob (Signer)
 
-    Note over S: 0KB Database (Stateless)
+    Note over S: ephemeral encrypted storage + wipe
 
     A->>A: Encrypt PSBT (Client-Side)
     A->>S: Upload Encrypted Blob
-    S->>S: Store in RAM (24h Max or Close)
+    S->>S: Store ciphertext (≤ TTL or until close)
 
     B->>S: Fetch Blob
     S->>B: Send Encrypted Blob
@@ -269,27 +270,6 @@ npm run deploy:client
 ```
 
 Configure `wrangler.jsonc` (or the Cloudflare Dashboard) with the same environment variables above, pointing to your production domains.
-
-### 🔒 Supply Chain Verification
-
-Every official container release includes:
-
-- Keyless Sigstore **Cosign** signatures
-- **OpenSSF SLSA Level 3** provenance attestations
-- CycloneDX **SBOM**
-- Automated **Trivy** vulnerability scanning
-- Immutable GitHub Actions build provenance
-
-Example verification (after installing `cosign`):
-
-```bash
-cosign verify \
-  --certificate-identity-regexp="https://github.com/scarlin90/signingroom" \
-  --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/scarlin90/signingroom/worker:latest
-```
-
-**Environment Variables**
 
 ### 🔒 Supply Chain Verification
 

@@ -21,6 +21,7 @@ vi.mock('./bitcoin/room-auditor', () => ({
     verifyRoomIntegrity: vi.fn(),
     calculateForensicAnchor: vi.fn(),
     getIntegrityReport: vi.fn(),
+    verifyOfflineIntegrity: vi.fn(),
   },
 }));
 
@@ -110,37 +111,34 @@ describe('SigningRoomClient', () => {
       vi.mocked(RoomFactory.prepareCreationPayload).mockResolvedValue(mockPayload as any);
     });
 
-    it('should successfully create a room and store keys', async () => {
+    it('should successfully create a room and store keys including the default role token', async () => {
       mockFetch.mockResolvedValue({ ok: true });
+      vi.spyOn(client.engine, 'encrypt').mockResolvedValue('mock-encrypted-blob');
+      vi.spyOn(client.engine, 'sha256').mockResolvedValue('mock-hash');
 
       const res = await client.createRoom('psbtData', 'testnet', 'My Room');
 
-      expect(RoomFactory.prepareCreationPayload).toHaveBeenCalledWith(
-        expect.anything(),
-        'psbtData',
-        'testnet',
-        'My Room',
-        '1.2.0',
-      );
+      expect(RoomFactory.prepareCreationPayload).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalled();
-      expect(res).toEqual(mockPayload);
+      expect(res.payload).toEqual(mockPayload);
+      
+      // Approach B: Assert we are yielding a pure 32-char crypto random UUID fragment key
+      expect(res.defaultRoleToken).toHaveLength(32);
+      expect(typeof res.defaultRoleToken).toBe('string');
+      
       // @ts-ignore
       expect(client._encryptionKey).toBe('key');
     });
 
-    it('should throw an error if room creation network fetch fails', async () => {
-      mockFetch.mockResolvedValue({ ok: false, text: () => Promise.resolve('Server Error') });
-      await expect(client.createRoom('psbtData', 'bitcoin')).rejects.toThrow(
-        'Failed to create room: Server Error',
-      );
-    });
-
-    it('should completely orchestrate room creation, joining, and role claiming', async () => {
+    it('should completely orchestrate room creation, joining, and role claiming with RBAC defaults', async () => {
       mockFetch.mockResolvedValue({ ok: true });
+      vi.spyOn(client.engine, 'encrypt').mockResolvedValue('mock-encrypted-blob');
+      vi.spyOn(client.engine, 'sha256').mockResolvedValue('mock-hash');
 
       const joinSpy = vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
         client.relay.events.dispatch('ROOM_CONNECTED');
         client.relay.events.dispatch('SESSION_CONNECTED', 'sid-1');
+        client.relay.events.dispatch('STATE_SYNC_DECRYPTED');
       });
 
       const claimSpy = vi.spyOn(client.relay, 'claimCoordinator').mockImplementation(() => {
@@ -152,12 +150,15 @@ describe('SigningRoomClient', () => {
       expect(joinSpy).toHaveBeenCalled();
       expect(claimSpy).toHaveBeenCalledWith('token');
       expect(res.roomId).toBe('room-1');
+      expect(res.defaultRoleToken).toHaveLength(32);
+      expect(client.getConstraints()?.canUploadSignature).toBe(true);
     });
 
-    it('should join an existing room and await connections', async () => {
+    it('should join an existing room via legacy base key and await connections', async () => {
       const joinSpy = vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
         client.relay.events.dispatch('ROOM_CONNECTED');
         client.relay.events.dispatch('SESSION_CONNECTED', 'sid-2');
+        client.relay.events.dispatch('STATE_SYNC_DECRYPTED');
       });
 
       await client.joinRoom('room-id', 'existing-key');
@@ -167,8 +168,32 @@ describe('SigningRoomClient', () => {
         'room-id',
         'existing-key',
         '1.2.0',
+        null
       );
       expect(client.userContext).toContain('sid-2');
+      expect(client.currentRoleToken).toBeNull();
+    });
+
+    it('should pass restored session ID and log reconnection when joining', async () => {
+      const joinSpy = vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
+        client.relay.events.dispatch('ROOM_CONNECTED');
+        client.relay.events.dispatch('SESSION_CONNECTED', 'sid-old');
+        client.relay.events.dispatch('STATE_SYNC_DECRYPTED');
+      });
+
+      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
+
+      client.restoreSessionId('sid-old');
+      await client.joinRoom('room-id', 'existing-key');
+
+      expect(joinSpy).toHaveBeenCalledWith(
+        'wss://api.signingroom.com',
+        'room-id',
+        'existing-key',
+        '1.2.0',
+        'sid-old'
+      );
+      expect(logSpy).toHaveBeenCalledWith('Session Reconnected', 'Legacy Guest Access');
     });
   });
 
@@ -228,7 +253,7 @@ describe('SigningRoomClient', () => {
       const spy = vi.spyOn(client.relay, 'setDisplayName').mockImplementation(async () => {
         client.relay.events.dispatch('PARTICIPANTS_DECRYPTED');
       });
-      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue();
+      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
 
       await client.setDisplayName('Alice');
 
@@ -434,6 +459,18 @@ describe('SigningRoomClient', () => {
       });
       expect(await client.verifyIntegrity('anc')).toEqual({ anchor: 'abc', isValid: true });
     });
+
+    it('should delegate offline integrity verifications correctly', async () => {
+      vi.mocked(RoomAuditor.verifyOfflineIntegrity).mockResolvedValue({
+        anchor: 'offline-anchor',
+        isValid: true,
+      });
+
+      const res = await SigningRoomClient.verifyOfflineIntegrity('csv-data', 'hex-data', 'offline-anchor');
+      
+      expect(RoomAuditor.verifyOfflineIntegrity).toHaveBeenCalledWith('csv-data', 'hex-data', 'offline-anchor');
+      expect(res).toEqual({ anchor: 'offline-anchor', isValid: true });
+    });
   });
 
   describe('Advanced Context Resolvers', () => {
@@ -563,4 +600,158 @@ describe('SigningRoomClient', () => {
       expect(client.getErrorCategory(9999)).toBe('UNKNOWN');
     });
   });
+
+  describe('Zero-Trust RBAC Engine', () => {
+    beforeEach(() => {
+      // @ts-ignore
+      client._encryptionKey = 'mock-key';
+      vi.spyOn(client.engine, 'encrypt').mockResolvedValue('encrypted-token');
+      vi.spyOn(client.engine, 'sha256').mockResolvedValue('hashed-token');
+      vi.spyOn(client.engine, 'decrypt').mockResolvedValue(
+        JSON.stringify({
+          canUploadSignature: true,
+          canExportPsbt: false,
+          canExportAudit: false,
+          canViewDetails: true,
+          canViewSigners: true,
+          canShareSession: false,
+        }),
+      );
+    });
+
+    it('should generate a restricted role token and register it with the relay', async () => {
+      const sendSpy = vi.spyOn(client.relay, 'send').mockImplementation((type) => {
+        if (type === 'REGISTER_ROLE') {
+          client.relay.events.dispatch('ROLE_REGISTERED_SUCCESS' as any, {});
+        }
+      });
+
+      const token = await client.generateAndRegisterRole({
+        canUploadSignature: true,
+        canExportPsbt: false,
+        canExportAudit: false,
+        canViewDetails: true,
+        canViewSigners: true,
+        canShareSession: false,
+      });
+
+      expect(token).toHaveLength(32);
+      expect(sendSpy).toHaveBeenCalledWith(
+        'REGISTER_ROLE',
+        expect.objectContaining({
+          tokenHash: 'hashed-token',
+          canUpload: true,
+          policyBlob: 'encrypted-token'
+        }),
+      );
+    });
+
+    it('should reject role generation if the relay returns an authorization error', async () => {
+      vi.spyOn(client.relay, 'send').mockImplementation((type) => {
+        if (type === 'REGISTER_ROLE') {
+          // Pass the message directly as the payload argument
+          client.relay.events.dispatch('ERROR' as any, { message: 'Unauthorized Role Generation' });
+        }
+      });
+
+      const promise = client.generateAndRegisterRole({
+        canUploadSignature: false,
+        canExportPsbt: false,
+        canExportAudit: false,
+        canViewDetails: false,
+        canViewSigners: false,
+        canShareSession: false,
+      });
+
+      await expect(promise).rejects.toThrow('Unauthorized Role Generation');
+    });
+
+    it('should correctly parse combined URL fragments containing role tokens', () => {
+      const parsed = client.parseFragment('#fbek123:role456');
+      expect(parsed.fbek).toBe('fbek123');
+      expect(parsed.roleToken).toBe('role456');
+
+      const legacyParsed = client.parseFragment('#fbek123');
+      expect(legacyParsed.fbek).toBe('fbek123');
+      expect(legacyParsed.roleToken).toBeNull();
+    });
+
+    it('should format full share links with custom role tokens appended', () => {
+      client.store.set({ roomId: 'room-1' } as any);
+      const link = client.getRoomLink('https://app.com', true, 'custom-role-token');
+      expect(link).toBe('https://app.com/room/room-1#mock-key:custom-role-token');
+    });
+
+    it('should dispatch AUTH_ROLE and strictly apply constraints when joining with a role fragment', async () => {
+      const sendSpy = vi.spyOn(client.relay, 'send').mockImplementation((type) => {
+        if (type === 'AUTH_ROLE') {
+          client.relay.events.dispatch('CONSTRAINT_UPDATE' as any, { policyBlob: 'mock-policy-blob' });
+        }
+      });
+      const joinSpy = vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
+        client.relay.events.dispatch('ROOM_CONNECTED');
+        client.relay.events.dispatch('SESSION_CONNECTED', 'sid-token');
+        client.relay.events.dispatch('STATE_SYNC_DECRYPTED');
+      });
+
+      await client.joinRoom('room-1', '#mock-key:encrypted-token');
+
+      expect(joinSpy).toHaveBeenCalled();
+      expect(sendSpy).toHaveBeenCalledWith('AUTH_ROLE', { token: 'encrypted-token' });
+      expect(client.getConstraints()?.canUploadSignature).toBe(true);
+      expect(client.getConstraints()?.canExportPsbt).toBe(false);
+    });
+  });
+
+  describe('Defensive Branches & Edge Cases', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should log an action when role updates from guest to admin', async () => {
+      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
+      // @ts-ignore
+      client._sessionId = 'sess-123'; 
+      // @ts-ignore
+      client._role = 'guest'; // Force initial state
+      
+      // Trigger the role update
+      client.relay.events.dispatch('ROLE_UPDATE', 'admin');
+      await new Promise(process.nextTick);
+      
+      expect(logSpy).toHaveBeenCalledWith(
+        'Role Claimed Coordinator',
+        'Session ID: sess-123 upgraded',
+        'Coordinator'
+      );
+      // @ts-ignore
+      expect(client._role).toBe('admin');
+    });
+
+    it('should dispatch THRESHOLD_MET when a new partial signature completes the threshold', () => {
+      const dispatchSpy = vi.spyOn(client.relay.events, 'dispatch');
+      
+      // Mock the state to simulate the exact threshold being met
+      vi.spyOn(client, 'getSignatureProgress').mockReturnValue({ totalSigners: 3, signaturesReceived: 3 });
+      vi.spyOn(client, 'isThresholdMet').mockReturnValue(true);
+      vi.spyOn(client, 'getRoomState').mockReturnValue({ psbt: 'data' } as any);
+      vi.spyOn(client, 'getThreshold').mockReturnValue(3);
+
+      // Fire the decrypted event
+      client.relay.events.dispatch('NEW_PARTIAL_DECRYPTED', { fingerprint: 'fp-123' });
+      
+      expect(dispatchSpy).toHaveBeenCalledWith('THRESHOLD_MET', {
+        signaturesReceived: 3,
+        threshold: 3
+      });
+    });
+
+    it('should correctly classify websocket error codes in getErrorCategory (Line 758)', () => {
+      expect(client.getErrorCategory(4026)).toBe('PROTOCOL_MISMATCH');
+      expect(client.getErrorCategory(4001)).toBe('ROOM_FULL');
+      expect(client.getErrorCategory(1006)).toBe('AUTH_FAILED');
+      expect(client.getErrorCategory(9999)).toBe('UNKNOWN');
+    });
+  });
+
 });

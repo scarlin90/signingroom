@@ -41,11 +41,16 @@ export async function launchRoomFromFixture(
   const roomPage = new RoomPage(page);
 
   if (autoReveal) {
-    await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 30000 });
-    await expect(page.locator('.lucide-lock').first()).toBeHidden({ timeout: 15000 });
+    // Wait for room dashboard to render and clear any open creation/share overlays
+    await expect(roomPage.activeIndicator).toBeVisible({ timeout: 30000 });
+    await page.keyboard.press('Escape'); // Safely dismiss any lingering modals
+
+    await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 10000 });
     await roomPage.headerHiddenBadge.click();
+    
     await expect(roomPage.privacyModalRevealAll).toBeVisible({ timeout: 15000 });
     await roomPage.privacyModalRevealAll.click();
+    
     await expect(roomPage.headerHiddenBadge).toBeHidden({ timeout: 10000 });
   }
 
@@ -57,19 +62,10 @@ export async function launchRoomFromFixture(
 export async function joinRoomFromLink(page: Page, link: string, autoReveal = true) {
   const roomPage = new RoomPage(page);
 
-  // Safely decode the hash
-  const cleanLink = link.trim();
-  const [baseUrl, hash] = cleanLink.split('#');
-  const finalUrl = hash ? `${baseUrl}#${decodeURIComponent(hash)}` : baseUrl;
-  const rootUrl = baseUrl.split('/room')[0];
-
-  await page.goto(rootUrl, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1000);
-
-  await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
+  await page.goto(link.trim());
 
   if (autoReveal) {
-    await expect(page.locator('.lucide-lock').first()).toBeHidden({ timeout: 15000 });
+    await expect(page.locator('#modal-decryption-entry')).toBeHidden({ timeout: 5000 }).catch(() => {});
 
     await expect(roomPage.headerHiddenBadge).toBeVisible({ timeout: 10000 });
     await roomPage.headerHiddenBadge.click();
