@@ -2,37 +2,82 @@ import { Transaction, getInputType, NETWORK, TEST_NETWORK, Address } from '@scur
 import { base64, hex } from '@scure/base';
 import { bech32, bech32m } from '@scure/base';
 
+/**
+ * Granular breakdown of a transaction's structural payload.
+ * Provides a human-readable summary of inputs, outputs, and network fees.
+ */
 export interface TxDetails {
+  /** The total outbound volume of the transaction, expressed in satoshis (excluding fees). */
   amount: number;
+  /** The total network fee calculated as the difference between total inputs and outputs. */
   fee: number;
+  /** The estimated virtual byte (vB) size of the finalized transaction. */
   vBytes: number;
+  /** The effective fee rate paid to miners, expressed in satoshis per vByte (sat/vB). */
   feeRate: number;
+  /** The total count of unspent transaction outputs (UTXOs) consumed as inputs. */
   inputs: number;
+  /** Detailed mapping of every consumed input, including origin txId and satoshi value. */
   inputsList: { address: string; amount: number; txId: string; vout: number }[];
+  /** Detailed mapping of every created output, indicating destination addresses and change routing. */
   outputs: { address: string; amount: number; isChange: boolean }[];
 }
 
+/**
+ * Represents the signature status of a specific hardware wallet or signing participant.
+ */
 export interface SignerStatus {
+  /** The master key fingerprint (8 hex characters) identifying the signer. */
   fingerprint: string;
+  /** Indicates whether a valid partial signature exists from this participant. */
   signed: boolean;
 }
 
+/**
+ * High-level analytical overview of a Partially Signed Bitcoin Transaction (PSBT).
+ * Used for rapid validation and environmental routing.
+ */
 export interface PsbtAnalysis {
+  /** Indicates if the provided PSBT string is structurally sound and parsable. */
   valid: boolean;
+  /** The total count of distinct extended public key fingerprints involved in the transaction. */
   signerCount: number;
+  /** The aggregate transaction output volume converted to whole Bitcoin (BTC). */
   amountBtc: number;
+  /** The absolute network fee expected by the network, expressed in satoshis. */
   networkFeeSat: number;
+  /** The total count of newly created UTXOs resulting from this transaction. */
   outputCount: number;
+  /** The estimated virtual byte (vB) size of the transaction based on input and output types. */
   estimatedVBytes: number;
+  /** The cryptographic network environment derived from BIP32 derivation paths. */
   detectedNetwork: 'bitcoin' | 'testnet' | 'unknown';
 }
 
+/**
+ * Utility class providing static methods for parsing, validating, mutating,
+ * and extracting metadata from Partially Signed Bitcoin Transactions (PSBTs).
+ */
 export class PsbtUtils {
+  /**
+   * Decodes a raw PSBT string payload into a strictly typed binary byte array.
+   * Intelligently detects and routes between hex-encoded and base64-encoded formats.
+   * 
+   * @param raw - The raw, unformatted PSBT string payload.
+   * @returns A decoded Uint8Array containing the raw binary transaction.
+   */
   static decode(raw: string): Uint8Array {
     const clean = raw.replace(/\s/g, '');
     return /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
   }
 
+  /**
+   * Normalizes an arbitrary PSBT input string into a standard Base64 representation.
+   * Auto-converts valid hex strings containing the PSBT magic bytes into Base64.
+   * 
+   * @param input - The raw PSBT string (Base64 or Hex).
+   * @returns A sanitized, Base64 encoded PSBT string.
+   */
   static normalize(input: string): string {
     const clean = input.trim();
     if (/^[0-9a-fA-F]+$/.test(clean) && clean.toLowerCase().startsWith('70736274')) {
@@ -45,6 +90,14 @@ export class PsbtUtils {
     return clean;
   }
 
+  /**
+   * Cryptographically merges two distinct PSBT payloads sharing the same underlying transaction state.
+   * Used to aggregate isolated participant signatures into a unified transaction map.
+   * 
+   * @param base - The primary Base64 PSBT payload.
+   * @param next - The secondary Base64 PSBT payload containing parallel signatures.
+   * @returns A new Base64 PSBT string containing the combined signatures, or the original base on failure.
+   */
   static merge(base: string, next: string): string {
     try {
       const txBase = Transaction.fromPSBT(this.decode(base));
@@ -57,6 +110,12 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Extracts the M-of-N multisig required threshold directly from the redeem/witness script.
+   * 
+   * @param psbtBase64 - The normalized Base64 PSBT payload.
+   * @returns The integer representing the minimum signatures required, or 0 if unreadable.
+   */
   static getThreshold(psbtBase64: string): number {
     try {
       const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
@@ -80,6 +139,12 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Identifies the primary signer's master key fingerprint associated with the first detected partial signature.
+   * 
+   * @param psbtData - The normalized Base64 PSBT payload.
+   * @returns The 8-character hex fingerprint string, or null if no valid signature mapping is found.
+   */
   static getFingerprintFromPsbt(psbtData: string): string | null {
     try {
       const bytes = this.decode(psbtData);
@@ -106,6 +171,13 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Scans a PSBT to map all expected participants and evaluates their current signature state.
+   * Works across both legacy ECDSA (partialSig) and Schnorr (tapScriptSig) signature schemes.
+   * 
+   * @param psbtBase64 - The normalized Base64 PSBT payload.
+   * @returns An array mapping participant fingerprints to their active signed status.
+   */
   static extractSigners(psbtBase64: string): SignerStatus[] {
     try {
       const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
@@ -139,6 +211,14 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Decodes an arbitrary output script into a human-readable Bitcoin address.
+   * Supports P2PKH, P2SH, SegWit v0 (Bech32), and Taproot (Bech32m).
+   * 
+   * @param script - The raw locking script byte array.
+   * @param network - The target network configuration.
+   * @returns The formatted public address, or a raw hex fallback if unsupported.
+   */
   static formatScriptAddress(
     script: Uint8Array,
     network: 'bitcoin' | 'testnet' | 'signet',
@@ -196,6 +276,9 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Validates structural equivalence between two public keys, handling compression mismatch safely.
+   */
   private static areKeysEqual(k1: Uint8Array, k2: Uint8Array): boolean {
     if (hex.encode(k1) === hex.encode(k2)) return true;
     try {
@@ -207,6 +290,12 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Finalizes an fully-signed PSBT map into an extracted, broadcast-ready raw hex string.
+   * 
+   * @param psbtBase64 - The fully signed Base64 PSBT payload.
+   * @returns An object containing the raw transaction hex and derived txId, or null on failure.
+   */
   static finalizeTx(psbtBase64: string): { hex: string; txId: string } | null {
     try {
       const tx = Transaction.fromPSBT(this.decode(psbtBase64));
@@ -217,6 +306,13 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Performs a rapid, unauthenticated surface analysis of a PSBT.
+   * Primarily utilized to ascertain high-level sanity constraints and block out-of-network payloads.
+   * 
+   * @param psbtBase64 - The normalized Base64 PSBT payload.
+   * @returns A high-level PsbtAnalysis configuration object, or null on parse failure.
+   */
   static analyze(psbtBase64: string): PsbtAnalysis | null {
     try {
       const psbtBytes = this.decode(psbtBase64);
@@ -287,6 +383,13 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Completely parses a PSBT to derive human-readable financial metrics, I/O maps, and fee estimators.
+   * 
+   * @param psbtBase64 - The normalized Base64 PSBT payload.
+   * @param network - The target network context required for accurate address formatting.
+   * @returns A structured TxDetails object, or null if the parsing engine encounters a fatal error.
+   */
   static parseTxDetails(
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet' = 'bitcoin',
@@ -380,6 +483,13 @@ export class PsbtUtils {
     }
   }
 
+  /**
+   * Safely extracts the previous output amount and script from an input's UTXO data.
+   * Handles both witness and non-witness UTXO structures securely.
+   * 
+   * @param input - The parsed transaction input object.
+   * @returns An object containing the amount and locking script, or null if unreadable.
+   */
   private static getPrevOut(
     input: ReturnType<Transaction['getInput']>
   ): { amount: bigint; script: Uint8Array } | null {
@@ -409,6 +519,13 @@ export class PsbtUtils {
     return null;
   }
 
+  /**
+   * Heuristically estimates the virtual byte (vB) size of a given transaction input.
+   * Leverages input types (e.g., Taproot, SegWit, Legacy) to calculate an accurate fee weight.
+   * 
+   * @param input - The parsed transaction input object.
+   * @returns The estimated virtual byte size.
+   */
   private static estimateInputVBytes(
     input: ReturnType<Transaction['getInput']>
   ): number {

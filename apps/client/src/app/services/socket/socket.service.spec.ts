@@ -636,7 +636,6 @@ describe('SocketService', () => {
         (service as any).hasAnnouncedJoin = false;
         service.currentSessionId.set('session_123');
 
-        // ✅ Tightly scope the mock so it doesn't pollute teardown logic
         vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
           if (key === 'admin_token_room_1') return 'secure_token';
           return null;

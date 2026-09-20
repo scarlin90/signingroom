@@ -22,7 +22,7 @@ npm install @signing-room/sdk
 
 ## Live Demo & Examples
 
-Looking for a working implementation? Check out our **[signingroom-sdk-demo](https://github.com/scarlin90/signingroom/blob/main/libs/sdk/signingroom-sdk-demo?utm_source=gemini)**.
+Looking for a working implementation? Check out our **[signingroom-sdk-demo](https://github.com/scarlin90/signingroom/blob/main/libs/sdk/signingroom-sdk-demo)**.
 
 This repository provides a complete, runnable TypeScript project that demonstrates the full SDK lifecycle—from room creation and granular RBAC enforcement to threshold signing, session resumption, and forensic offline audit verification.
 
@@ -309,10 +309,10 @@ await recoveryClient.claimCoordinator(session.encryptedAdminToken);
 
 ## 🏢 Enterprise & Commercial Licensing
 
-[SigningRoom.io](https://signingroom.io/?utm_source=gemini) is fully open-source under the **AGPLv3 License**.
+[SigningRoom.io](https://signingroom.io/) is fully open-source under the **AGPLv3 License**.
 
 * **Community Use**: If you modify the code and host it publicly, you must open-source your changes.
-* **Commercial Use**: Institutions requiring a Commercial License (AGPL Waiver) to integrate this technology into proprietary, closed-source infrastructure (e.g., internal banking systems, custodial platforms) must contact [Stateless Research Ltd](https://statelessresearch.com/?utm_source=gemini).
+* **Commercial Use**: Institutions requiring a Commercial License (AGPL Waiver) to integrate this technology into proprietary, closed-source infrastructure (e.g., internal banking systems, custodial platforms) must contact [Stateless Research Ltd](https://statelessresearch.com/).
 
 ### 🔗 Contact Stateless Research for Licensing
 
