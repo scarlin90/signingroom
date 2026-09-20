@@ -39,12 +39,12 @@ Stateless Research Ltd operates a responsible disclosure policy. Please encrypt 
 
 Email: security@signingroom.io
 
-Why "Stateless" Matters for Security
-Because the architecture is a "Vacuum" (Stateless Relay), the impact of a potential breach is fundamentally limited:
+Why "Ephemerality" Matters for Security
+Because the architecture is an e2e ephemeral Relay, the impact of a potential breach is fundamentally limited:
 
 No Database: There are no user emails, passwords, or transaction histories to leak.
 
-No Persistence: Payloads exist only in volatile RAM for the duration of the relay.
+Ephemeral: Payloads exist only in volatile RAM for the duration of the relay.
 
 Encryption: All coordination is AES-256-GCM encrypted client-side before reaching the relay.
 

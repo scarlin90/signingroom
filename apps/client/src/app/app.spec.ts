@@ -195,7 +195,7 @@ describe('AppComponent', () => {
       );
       expect(mockMetaService.updateTag).toHaveBeenCalledWith({
         name: 'description',
-        content: 'The stateless, zero-knowledge Bitcoin multisig coordinator.',
+        content: 'The ephemeral, zero-knowledge Bitcoin multisig coordinator.',
       });
 
       // Should not have called theme-color

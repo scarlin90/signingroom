@@ -80,7 +80,7 @@ import {
         Stop emailing PSBT files. Coordinate Bitcoin multisig teams instantly.
         <br class="hidden md:block" />
         <span class="text-slate-200 font-semibold">No accounts.</span> 
-        <span class="text-slate-200 font-semibold">No database.</span> 
+        <span class="text-slate-200 font-semibold">Ephemeral rooms.</span> 
         <span class="text-slate-200 font-semibold">End-to-End Encrypted.</span>
       </p>
 
@@ -172,7 +172,7 @@ import {
                     </li>
                     <li class="flex items-start gap-3 text-sm text-slate-200">
                         <svg lucideCheckCircle2 class="w-5 h-5 text-emerald-400 shrink-0"></svg>
-                        <span>Data lives in RAM, encrypted, and vanishes on expiry.</span>
+                        <span>Data is end-to-end encrypted and vanishes on expiry.</span>
                     </li>
                     <li class="flex items-start gap-3 text-sm text-slate-200">
                         <svg lucideCheckCircle2 class="w-5 h-5 text-emerald-400 shrink-0"></svg>
@@ -459,8 +459,8 @@ import {
              </div>
              <div class="p-4 rounded-lg bg-slate-900/30 border border-slate-800">
                 <svg lucideFingerprint class="w-6 h-6 text-slate-500 mx-auto mb-2"></svg>
-                <div class="text-xs text-slate-500 font-mono">Ephemeral</div>
-                <div class="text-sm font-bold text-slate-300">No Logs</div>
+                <div class="text-xs text-slate-500 font-mono">Tamper-Evident</div>
+                <div class="text-sm font-bold text-slate-300">Audit Trails</div>
              </div>
         </div>
     </div>
@@ -500,8 +500,43 @@ import {
             Can you see my transaction details?
           </h3>
           <p class="text-slate-400 text-sm leading-relaxed">
-            No. Your transaction is encrypted in your browser using a key that is contained in the URL link hash (fragment). 
-            This key is never sent to our servers, so we literally cannot decrypt your data.
+            No. Your transaction is end-to-end encrypted using a key contained in the URL hash (fragment). 
+            This key is never sent to the server. The relay only handles the encrypted ciphertext, meaning we mathematically cannot read your data.
+          </p>
+        </div>
+
+        <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
+          <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+            <svg lucideHelpCircle class="w-4 h-4 text-emerald-400"></svg>
+            Is room data stored on the server?
+          </h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Room state may persist
+            <span class="text-slate-300">encrypted</span>
+            for up to the configured time-to-live (TTL) so participants can reconnect.
+            It is wiped when the room is closed or expires.
+            The operator never holds the decryption key, so stored data remains
+            ciphertext only—zero-knowledge by design.
+          </p>
+        </div>
+
+        <div class="p-6 bg-slate-900/50 rounded-xl border border-slate-800 hover:bg-slate-900 transition">
+          <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+            <svg lucideHelpCircle class="w-4 h-4 text-emerald-400"></svg>
+            What do the audit logs prove?
+          </h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Log entries are stored
+            <span class="text-slate-300">end-to-end encrypted</span>
+            so the relay cannot read them. After finalization, a
+            <span class="text-slate-300">forensic anchor</span>
+            (a cryptographic hash of the event timeline and the final transaction hex)
+            lets participants detect post-hoc changes to those artifacts.
+            This is
+            <span class="text-slate-300">tamper-evidence</span>,
+            not a cryptographic proof of identity or legal attribution.
+            Enterprise identity and access control belong in the host application
+            when you embed the web component.
           </p>
         </div>
 

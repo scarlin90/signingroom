@@ -86,7 +86,7 @@
           <ul class="space-y-4 mb-10 flex-grow">
             <li class="flex items-center gap-3 text-slate-300">
               <svg lucideCheck class="w-5 h-5 text-brand-accent"></svg> 
-              <span>Stateless Blind Relay (RAM-Only)</span>
+              <span>Zero-Knowledge Blind Relay</span>
             </li>
             <li class="flex items-center gap-3 text-slate-300">
               <svg lucideCheck class="w-5 h-5 text-brand-accent"></svg> 
@@ -94,7 +94,7 @@
             </li>
             <li class="flex items-center gap-3 text-slate-300">
               <svg lucideCheck class="w-5 h-5 text-brand-accent"></svg> 
-              <span>Ceremony Audit Logs</span>
+              <span>Tamper-Evident Audit Logs</span>
             </li>
           </ul>
           
@@ -205,15 +205,15 @@
                   <div class="flex justify-between items-end mb-2">
                     <label class="block text-xs font-bold text-brand-text-muted uppercase tracking-wider">Decryption Key</label>
                     <span class="text-[10px] font-mono" 
-                          [class.text-red-400]="manualKey.length >= 44" 
-                          [class.text-brand-text-muted]="manualKey.length < 44">
-                      {{ manualKey.length }} / 44
+                          [class.text-red-400]="manualKey.length >= 500" 
+                          [class.text-brand-text-muted]="manualKey.length < 500">
+                      {{ manualKey.length }} / 500
                     </span>
                   </div>
                   <div class="relative">
                     <input id="input-join-key" [type]="showManualKey ? 'text' : 'password'" 
                            [(ngModel)]="manualKey" 
-                           maxlength="44" 
+                           maxlength="500" 
                            placeholder="Paste Key..." 
                            autocomplete="off" 
                            data-1p-ignore="true" 
@@ -233,11 +233,11 @@
                 
                 <button id="btn-join-existing-room"
                   (click)="joinRoom()" 
-                  [disabled]="manualRoomId.length !== 36 || manualKey.length !== 44" 
+                  [disabled]="manualRoomId.length !== 36 || manualKey.length < 44" 
                   class="w-full py-4 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg font-bold rounded-xl transition shadow-lg shadow-brand-accent/20 flex items-center justify-center gap-2 group/btn disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                   
                   <svg lucideShield class="w-4 h-4 fill-brand-bg transition-transform"
-                       [class.group-hover/btn:scale-125]="manualRoomId.length === 36 && manualKey.length === 44">
+                       [class.group-hover/btn:scale-125]="manualRoomId.length === 36 && manualKey.length >= 44">
                   </svg>
                   
                   <span>Enter {{ configService.config().brandName }}</span>

@@ -79,8 +79,9 @@ export class RelayClient {
    * @param roomId - The target workspace room uuid string.
    * @param key - The raw symmetric workspace key string argument.
    * @param version - The client version identifier string checking backend compatibility.
+   * @param sessionId - The client session identifier used for reconnecting in connection drop.
    */
-  public async joinRoom(wsBaseUrl: string, roomId: string, key: string, version: string) {
+  public async joinRoom(wsBaseUrl: string, roomId: string, key: string, version: string, sessionId?: string | null) {
     let cleanKey = key.trim();
 
     if (cleanKey.includes('%')) {
@@ -92,7 +93,13 @@ export class RelayClient {
     this.setKey(cleanKey);
 
     const roomPass = cleanKey ? await this.crypto.blindData(roomId, cleanKey) : '';
-    const url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${version}&pass=${roomPass}`;
+    let url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${version}&pass=${roomPass}`;
+    
+    // Append the resumption ID if it exists
+    if (sessionId) {
+      url += `&sessionId=${sessionId}`;
+    }
+    
     this.connect(url);
   }
 
@@ -230,6 +237,19 @@ export class RelayClient {
           roomVersion: msg.roomVersion,
         });
         break;
+      case 'ROLE_REGISTERED_SUCCESS':
+        this.events.dispatch('ROLE_REGISTERED_SUCCESS', msg);
+        break;
+      case 'CONSTRAINT_UPDATE':
+        this.events.dispatch('CONSTRAINT_UPDATE', { policyBlob: msg.policyBlob });
+        break;
+      case 'ERROR_POLICY_VIOLATION':
+        this.events.dispatch('ERROR_POLICY_VIOLATION', msg);
+        break;
+      case 'ERROR':
+        this.events.dispatch('ERROR', msg);
+        break;
+
       default:
         this.events.dispatch('RAW_MESSAGE', msg);
     }
@@ -403,7 +423,7 @@ export class RelayClient {
 
     for (const item of logs) {
       if (!item) continue;
-      const encryptedBlob = typeof item === 'string' ? item : item.encryptedLogBlob;
+      const encryptedBlob = typeof item === 'string' ? item : (item.blob || item.encryptedLogBlob);
 
       if (encryptedBlob) {
         try {

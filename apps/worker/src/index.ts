@@ -26,6 +26,8 @@ interface Env {
 	DEFAULT_ROOM_TTL_SECONDS?: string;
 	MAX_AUTH_FAILURES?: string;
 	MAX_SIGNATURES?: string;
+	MAX_IP_TRACKERS?: string;
+    LOCKOUT_DURATION_MS?: string;
 }
 
 export type ConfigKey =
@@ -37,7 +39,9 @@ export type ConfigKey =
 	| 'MAX_AUDIT_LOG_LENGTH'
 	| 'DEFAULT_ROOM_TTL_SECONDS'
 	| 'MAX_AUTH_FAILURES'
-	| 'MAX_SIGNATURES';
+	| 'MAX_SIGNATURES'
+	| 'MAX_IP_TRACKERS'
+    | 'LOCKOUT_DURATION_MS';
 
 const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
 	MAX_PAYLOAD_SIZE_BYTES: 2 * 1024 * 1024, // 2MB
@@ -49,7 +53,16 @@ const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
 	DEFAULT_ROOM_TTL_SECONDS: 86400, // 24 hours
 	MAX_AUTH_FAILURES: 5, // Lockout threshold
 	MAX_SIGNATURES: 100, // Max signatures per room
+	MAX_IP_TRACKERS: 1000, // Memory exhaustion guard
+    LOCKOUT_DURATION_MS: 30 * 60 * 1000, // 30 minutes
 };
+
+// Safe routes that even an unauthenticated guest can use
+const GUEST_SAFE_ROUTES = new Set([
+	'AUTH', // Allow them to try and claim admin
+	'AUTH_ROLE', // Allow them to authenticate their role
+	'SET_DISPLAY_NAME', // Allow them to change their local display name
+]);
 
 // Helper to safely fetch a specific config property
 function getConfig(env: Env, key: ConfigKey): number {
@@ -57,14 +70,22 @@ function getConfig(env: Env, key: ConfigKey): number {
 	return value ? parseInt(value, 10) : CONFIG_DEFAULTS[key];
 }
 
+export interface RoleConstraints {
+	tokenId?: string;
+	canUploadSignature: boolean;
+	canExportPsbt: boolean;
+	canExportAudit: boolean;
+}
+
 interface SessionData {
-	id: string;
-	role: 'admin' | 'guest';
-	joinedAt: number;
-	msgsInWindow: number;
-	lastMsgTime: number;
-	ip: string;
-	encryptedDisplayName?: string;
+    id: string;
+    role: 'admin' | 'guest';
+    joinedAt: number;
+    msgsInWindow: number;
+    lastMsgTime: number;
+    ip: string;
+    encryptedDisplayName?: string;
+    constraints?: { canUploadSignature: boolean };
 }
 
 // =============================================================================
@@ -148,7 +169,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
 	return c.json({
 		status: 'healthy',
-		version: '3.3.0',
+		version: '3.4.0',
 		timestamp: Date.now(),
 	});
 });
@@ -159,7 +180,7 @@ app.get('/api/health', (c) => {
 
 app.post('/api/room', async (c) => {
 	const body = await c.req.json();
-	const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion } = body;
+	const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens } = body;
 
 	if (encryptedPsbt && encryptedPsbt.length > getConfig(c.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
 		return c.json({ error: 'Payload too large. Max 500KB.' }, 413);
@@ -172,9 +193,14 @@ app.post('/api/room', async (c) => {
 	const initRes = await room.fetch(
 		new Request('http://internal/init', {
 			method: 'POST',
-			body: JSON.stringify({ roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion }),
+			body: JSON.stringify({ roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, roleTokens }),
 		}),
 	);
+
+	// Forward rejection if the reset is unauthorized
+	if (!initRes.ok) {
+        return c.json({ error: await initRes.text() }, initRes.status as any);
+    }
 
 	await initRes.text();
 
@@ -200,9 +226,9 @@ export class SigningRoom implements DurableObject {
 	sessions = new Map<WebSocket, SessionData>();
 	roomState: any = null;
 	env: Env;
-	private authFailures = 0;
 	private isLockedOut = false;
 	private ipConnectionCounts = new Map<string, number>();
+	private ipAuthFailures = new Map<string, { count: number, lockedUntil: number }>()
 
 	constructor(state: DurableObjectState, env: Env) {
 		this.state = state;
@@ -251,26 +277,33 @@ export class SigningRoom implements DurableObject {
 		return typeof legacyData === 'string' ? JSON.parse(legacyData) : legacyData;
 	}
 
-	async log(encryptedLogBlob: string) {
-		if (!this.roomState) return;
-		if (!this.roomState.auditLog) this.roomState.auditLog = [];
+	async log(encryptedLogBlob: string, session?: SessionData) {
+        if (!this.roomState) return;
+        if (!this.roomState.auditLog) this.roomState.auditLog = [];
 
-		if (this.roomState.auditLog.length > getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH')) {
-			this.roomState.auditLog.shift();
-		}
+        if (this.roomState.auditLog.length >= getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH')) {
+            this.roomState.auditLog.shift();
+        }
 
-		this.roomState.auditLog.push(encryptedLogBlob);
+        const envelope = {
+            serverTimestamp: Date.now(),
+            sessionId: session ? session.id : 'system',
+            role: session ? session.role : 'system',
+            blob: encryptedLogBlob
+        };
 
-		await this.saveRoomState();
-		this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
-	}
+        this.roomState.auditLog.push(envelope);
+
+        await this.saveRoomState();
+        this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
+    }
 
 	async fetch(request: Request) {
 		const url = new URL(request.url);
 
 		// 1. Initialize Room
 		if (url.pathname === '/init') {
-			const { roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, encryptedLogBlob, encryptedRoomName } =
+			const { roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, encryptedLogBlob, encryptedRoomName, roleTokens } =
 				await request.json<any>();
 			const now = Date.now();
 
@@ -283,12 +316,19 @@ export class SigningRoom implements DurableObject {
 				.map((b) => b.toString(16).padStart(2, '0'))
 				.join('');
 
+			// Ensure state cannot be reset
+			if (this.roomState) {
+                if (secureStoredHash !== this.roomState.adminToken) {
+                    return new Response('Unauthorized: Invalid Admin Token for Reset', { status: 401 });
+                }
+            }
+
 			this.roomState = {
 				roomId,
 				expectedPass,
 				encryptedPsbt,
 				adminToken: secureStoredHash,
-				signatures: [],
+				signatures: {},
 				createdAt: now,
 				expiresAt: now + ttlSeconds * 1000,
 				auditLog: [],
@@ -300,11 +340,18 @@ export class SigningRoom implements DurableObject {
 				network: network || 'bitcoin',
 				protocolVersion: protocolVersion || '1.0.0',
 				roomName: encryptedRoomName || 'Untitled Room',
+				roleTokens: roleTokens || {},
+				strictRoles: roleTokens !== undefined && Object.keys(roleTokens).length > 0,
 			};
 
 			if (encryptedLogBlob) {
-				this.roomState.auditLog.push(encryptedLogBlob);
-			}
+                this.roomState.auditLog.push({
+                    serverTimestamp: now,
+                    sessionId: 'system',
+                    role: 'admin',
+                    blob: encryptedLogBlob
+                });
+            }
 
 			await this.saveRoomState();
 			await this.state.storage.setAlarm(now + ttlSeconds * 1000);
@@ -351,12 +398,14 @@ export class SigningRoom implements DurableObject {
 			return new Response('Rate Limit Exceeded: Too many concurrent connections from this IP.', { status: 429 });
 		}
 
-		const { 0: client, 1: server } = new WebSocketPair();
-		this.handleSession(server, ip);
-		return new Response(null, { status: 101, webSocket: client });
+		const requestedSessionId = url.searchParams.get('sessionId');
+
+        const { 0: client, 1: server } = new WebSocketPair();
+        this.handleSession(server, ip, requestedSessionId);
+        return new Response(null, { status: 101, webSocket: client });
 	}
 
-	async handleSession(webSocket: WebSocket, ip: string) {
+	async handleSession(webSocket: WebSocket, ip: string, requestedSessionId: string | null) {
 		if (!this.roomState) {
 			webSocket.accept();
 			webSocket.send(JSON.stringify({ type: 'ERROR_NOT_FOUND' }));
@@ -378,23 +427,49 @@ export class SigningRoom implements DurableObject {
 		}
 
 		webSocket.accept();
-		// Generate a cryptographically secure 4-character session ID
-		const sessionId = crypto.randomUUID().substring(0, 4).toUpperCase();
+		// Resumption Logic: Use requested ID if valid, otherwise generate new
+		const sessionId = (requestedSessionId && /^[A-Z0-9]{4}$/.test(requestedSessionId)) 
+            ? requestedSessionId 
+            : crypto.randomUUID().substring(0, 4).toUpperCase();
+
+        // Cleanup: If the old broken socket is still lingering in memory, drop it
+        if (requestedSessionId) {
+            for (const [existingSocket, sess] of this.sessions.entries()) {
+                if (sess.id === sessionId) {
+                    try { existingSocket.close(1000, 'Session Replaced'); } catch (e) {}
+                    this.sessions.delete(existingSocket);
+                }
+            }
+        }
 
 		const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
 		this.ipConnectionCounts.set(ip, currentIpCount + 1);
 
+		// Restore their display name if they had one previously
+		let safeDisplayName = undefined;
+        if (this.roomState.participants && this.roomState.participants[sessionId]) {
+            safeDisplayName = this.roomState.participants[sessionId].encryptedDisplayName;
+        }
+
 		this.sessions.set(webSocket, {
-			role: 'guest',
-			id: sessionId,
-			joinedAt: Date.now(),
-			msgsInWindow: 0,
-			lastMsgTime: 0,
-			ip: ip,
-		});
+            role: 'guest', 
+            id: sessionId,
+            joinedAt: Date.now(),
+            msgsInWindow: 0,
+            lastMsgTime: 0,
+            ip: ip,
+            encryptedDisplayName: safeDisplayName
+        });
 
 		if (!this.roomState.participants) this.roomState.participants = {};
-		this.roomState.participants[sessionId] = { id: sessionId, role: 'guest' };
+        const existingRole = this.roomState.participants[sessionId]?.role || 'guest';
+        
+        this.roomState.participants[sessionId] = { 
+            id: sessionId, 
+            role: existingRole, 
+            encryptedDisplayName: safeDisplayName 
+        };
+		
 		await this.saveRoomState();
 		this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
 
@@ -403,9 +478,14 @@ export class SigningRoom implements DurableObject {
 		this.broadcastConnections();
 
 		// Send initial state sync
-		const { adminToken, ...safeRoomState } = this.roomState;
+		const { adminToken, roleTokens, signatures, ...safeRoomState } = this.roomState;
 
-		webSocket.send(JSON.stringify({ type: 'STATE_SYNC', ...safeRoomState, connectedCount: this.sessions.size }));
+		webSocket.send(JSON.stringify({ 
+            type: 'STATE_SYNC', 
+            ...safeRoomState, 
+            signatures: Object.values(signatures || {}),
+            connectedCount: this.sessions.size 
+        }));
 
 		webSocket.addEventListener('message', (event) => {
 			this.state.waitUntil(this.handleMessage(event, webSocket));
@@ -445,38 +525,120 @@ export class SigningRoom implements DurableObject {
 			const msg = JSON.parse(event.data as string);
 			const userLabel = session?.role === 'admin' ? 'Coordinator' : `Guest (${session?.id})`;
 
-			if (msg.type === 'AUTH') {
-				if (this.isLockedOut) {
-					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Room locked due to multiple failed attempts' }));
-				}
-
-				const incomingBuffer = new TextEncoder().encode(msg.token);
-				const incomingHashBuffer = await crypto.subtle.digest('SHA-256', incomingBuffer);
-				const attemptedHash = Array.from(new Uint8Array(incomingHashBuffer))
-					.map((b) => b.toString(16).padStart(2, '0'))
-					.join('');
-
-				if (attemptedHash === this.roomState?.adminToken) {
-					this.authFailures = 0;
-					this.sessions.set(webSocket, { ...session!, role: 'admin' });
-
-					if (this.roomState.participants && this.roomState.participants[session.id]) {
-						this.roomState.participants[session.id].role = 'admin';
-						await this.saveRoomState();
-						this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+			if (session.role !== 'admin' && this.roomState.strictRoles) {
+				// If strict mode is active, block everything except safe routes unless they have an authorized token
+				if (!GUEST_SAFE_ROUTES.has(msg.type)) {
+					// If they have NO token (Downgrade attempt)
+					if (!session.constraints) {
+						return webSocket.send(
+							JSON.stringify({
+								type: 'ERROR_POLICY_VIOLATION',
+								message: 'Strict Mode Active: A valid role token is required to interact.',
+							}),
+						);
 					}
 
-					webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
-				} else {
-					this.authFailures++;
-					if (this.authFailures >= getConfig(this.env, 'MAX_AUTH_FAILURES')) {
-						this.isLockedOut = true;
-						await this.state.storage.setAlarm(Date.now() + 30 * 60 * 1000);
+					// If they have a token, enforce the specific granular constraints
+					if (msg.type === 'UPLOAD_PARTIAL' && session.constraints.canUploadSignature === false) {
+						return webSocket.send(
+							JSON.stringify({
+								type: 'ERROR_POLICY_VIOLATION',
+								message: 'Your assigned role restricts signature uploads.',
+							}),
+						);
 					}
-					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Admin Token' }));
 				}
-				this.broadcastConnections();
 			}
+
+			if (msg.type === 'AUTH') {
+                const ip = session.ip;
+                const penalty = this.ipAuthFailures.get(ip) || { count: 0, lockedUntil: 0 };
+
+                if (Date.now() < penalty.lockedUntil) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Too many failed attempts. IP temporarily locked.' }));
+                }
+
+                const incomingBuffer = new TextEncoder().encode(msg.token);
+                const incomingHashBuffer = await crypto.subtle.digest('SHA-256', incomingBuffer);
+                const attemptedHash = Array.from(new Uint8Array(incomingHashBuffer))
+                    .map((b) => b.toString(16).padStart(2, '0'))
+                    .join('');
+
+                if (attemptedHash === this.roomState?.adminToken) {
+                    this.ipAuthFailures.delete(ip);
+                    this.sessions.set(webSocket, { ...session!, role: 'admin' });
+
+                    if (this.roomState.participants && this.roomState.participants[session.id]) {
+                        this.roomState.participants[session.id].role = 'admin';
+                        await this.saveRoomState();
+                        this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+                    }
+
+                    webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
+                } else {
+                    penalty.count++;
+                    if (penalty.count >= getConfig(this.env, 'MAX_AUTH_FAILURES')) {
+                        penalty.lockedUntil = Date.now() + getConfig(this.env, 'LOCKOUT_DURATION_MS');
+                    }
+
+                    if (this.ipAuthFailures.size >= getConfig(this.env, 'MAX_IP_TRACKERS')) {
+                        this.ipAuthFailures.clear(); 
+                    }
+                    this.ipAuthFailures.set(ip, penalty);
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Admin Token' }));
+                }
+                this.broadcastConnections();
+            }
+
+			// Register Role Link (Admin Only)
+			if (msg.type === 'REGISTER_ROLE') {
+				if (session?.role !== 'admin') {
+					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Unauthorized' }));
+				}
+
+				if (!this.roomState.roleTokens) this.roomState.roleTokens = {};
+
+				if (Object.keys(this.roomState.roleTokens).length >= 50) {
+					return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Maximum role links generated (50)' }));
+				}
+
+				this.roomState.roleTokens[msg.tokenHash] = {
+                    canUpload: msg.canUpload,
+                    policyBlob: msg.policyBlob
+                };
+				await this.saveRoomState();
+
+				// Direct acknowledgment to creator of the role link
+				return webSocket.send(JSON.stringify({ type: 'ROLE_REGISTERED_SUCCESS' }));
+			}
+
+			// Authenticate Role Link (Guest Flow)
+			if (msg.type === 'AUTH_ROLE') {
+                try {
+                    const incomingBuffer = new TextEncoder().encode(msg.token);
+                    const incomingHashBuffer = await crypto.subtle.digest('SHA-256', incomingBuffer);
+                    const tokenHash = Array.from(new Uint8Array(incomingHashBuffer))
+                        .map((b) => b.toString(16).padStart(2, '0'))
+                        .join('');
+
+                    if (this.roomState?.roleTokens && this.roomState.roleTokens[tokenHash]) {
+                        const roleData = this.roomState.roleTokens[tokenHash];
+
+                        // Tag this specific socket session with the restricted Server-Side bouncer
+                        this.sessions.set(webSocket, { ...session!, constraints: { canUploadSignature: roleData.canUpload } });
+
+                        webSocket.send(JSON.stringify({ 
+                            type: 'CONSTRAINT_UPDATE', 
+                            policyBlob: roleData.policyBlob
+                        }));
+                    } else {
+                        webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid or revoked role token' }));
+                    }
+                } catch (e) {
+                    webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Failed to authenticate role' }));
+                }
+                return;
+            }
 
 			// Label Updates (Admin Only)
 			if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
@@ -490,7 +652,7 @@ export class SigningRoom implements DurableObject {
 
 				await this.saveRoomState();
 
-				this.log(msg.encryptedLogBlob);
+				this.log(msg.encryptedLogBlob, session)
 				this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
 			}
 
@@ -505,7 +667,7 @@ export class SigningRoom implements DurableObject {
 
 				await this.saveRoomState();
 
-				await this.log(msg.encryptedLogBlob);
+				await this.log(msg.encryptedLogBlob, session)
 				this.broadcast({ type: 'ADDRESS_LABELS_UPDATED', addressLabels: this.roomState.addressLabels });
 			}
 
@@ -515,13 +677,16 @@ export class SigningRoom implements DurableObject {
 
 				this.sessions.set(webSocket, { ...session!, encryptedDisplayName: safeName });
 
-				if (this.roomState.participants && this.roomState.participants[session.id]) {
-					this.roomState.participants[session.id].encryptedDisplayName = safeName;
-					await this.saveRoomState();
-					this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
-				}
+				if (!this.roomState.participants) this.roomState.participants = {};
+                if (!this.roomState.participants[session.id]) {
+                    this.roomState.participants[session.id] = { id: session.id, role: session.role };
+                }
 
-				this.broadcastConnections();
+                this.roomState.participants[session.id].encryptedDisplayName = safeName;
+                await this.saveRoomState();
+                this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+
+                this.broadcastConnections();
 			}
 
 			// Rename Room (Admin Only)
@@ -529,34 +694,39 @@ export class SigningRoom implements DurableObject {
 				this.roomState.roomName = msg.encryptedName;
 				await this.saveRoomState();
 
-				await this.log(msg.encryptedLogBlob);
+				await this.log(msg.encryptedLogBlob, session)
 				this.broadcast({ type: 'ROOM_RENAMED', encryptedName: msg.encryptedName });
 			}
 
 			// Action Logging
 			if (msg.type === 'LOG_ACTION') {
-				await this.log(msg.encryptedLogBlob);
+				await this.log(msg.encryptedLogBlob, session)
 				this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
 			}
 
 			// PSBT Chunk Upload
 			if (msg.type === 'UPLOAD_PARTIAL') {
-				if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
-				if (this.roomState.signatures.length >= getConfig(this.env, 'MAX_SIGNATURES')) {
-					webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
-					return;
-				}
+                if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
+                
+                const sigs = this.roomState.signatures || {};
+                const isNewSigner = !sigs[msg.fingerprint];
 
-				this.roomState.signatures.push(msg.data.encryptedData);
-				await this.saveRoomState();
+                if (isNewSigner && Object.keys(sigs).length >= getConfig(this.env, 'MAX_SIGNATURES')) {
+                    webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
+                    return;
+                }
 
-				await this.log(msg.encryptedLogBlob);
-				this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
-			}
+                // Store uniquely by fingerprint (deduplication)
+                this.roomState.signatures[msg.fingerprint] = msg.data.encryptedData;
+                await this.saveRoomState();
+
+                await this.log(msg.encryptedLogBlob, session)
+                this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
+            }
 
 			// Destroy Room (Admin Only)
 			if (msg.type === 'CLOSE_ROOM' && session?.role === 'admin') {
-				await this.log(msg.encryptedLogBlob);
+				await this.log(msg.encryptedLogBlob, session)
 				this.broadcast({ type: 'ROOM_CLOSED', finalLog: this.roomState.auditLog });
 				await this.state.storage.deleteAll();
 				this.roomState = null;
@@ -575,7 +745,7 @@ export class SigningRoom implements DurableObject {
 				this.roomState.whitelist = msg.encryptedWhitelist;
 				await this.saveRoomState();
 
-				await this.log(msg.encryptedLogBlob);
+				await this.log(msg.encryptedLogBlob, session)
 				this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
 			}
 
@@ -583,7 +753,7 @@ export class SigningRoom implements DurableObject {
 			if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {
 				this.roomState.isLocked = msg.isLocked;
 				await this.saveRoomState();
-				await this.log(msg.encryptedLogBlob);
+				await this.log(msg.encryptedLogBlob, session)
 				this.broadcast({ type: 'LOCK_UPDATED', isLocked: this.roomState.isLocked });
 			}
 
@@ -593,7 +763,7 @@ export class SigningRoom implements DurableObject {
 				this.roomState.encryptedFinalTxId = msg.encryptedFinalTxId;
 				await this.saveRoomState();
 
-				await this.log(msg.encryptedLogBlob);
+				await this.log(msg.encryptedLogBlob, session)
 
 				this.broadcast({
 					type: 'TX_FINALIZED_BROADCAST',
@@ -636,26 +806,17 @@ export class SigningRoom implements DurableObject {
 	}
 
 	async alarm() {
-		const now = Date.now();
-
-		if (this.isLockedOut) {
-			this.isLockedOut = false;
-			this.authFailures = 0;
-
-			if (this.roomState && now < this.roomState.expiresAt) {
-				await this.state.storage.setAlarm(this.roomState.expiresAt);
-				return;
-			}
-		}
-
-		this.isLockedOut = false;
-		this.authFailures = 0;
-		await this.state.storage.deleteAll();
-		this.roomState = null;
-		for (const socket of this.sessions.keys()) {
-			socket.close(1000, 'Expired');
-		}
-	}
+        await this.state.storage.deleteAll();
+        this.roomState = null;
+        for (const socket of this.sessions.keys()) {
+            try {
+                socket.close(1000, 'Expired');
+            } catch (e) {
+                
+            }
+        }
+        this.sessions.clear();
+    }
 
 	broadcastConnections() {
 		const activeSessions = Array.from(this.sessions.values()).map((s) => ({

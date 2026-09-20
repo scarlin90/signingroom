@@ -220,4 +220,13 @@ export class WidgetDispatcherService {
   ): void {
     this.dispatchEvent('securityAlert', { alertType, severity, message });
   }
+
+  // --- RBAC & SECURITY ---
+  emitRoleGenerated(constraints: Record<string, boolean>): void {
+    this.dispatchEvent('roleGenerated', { constraints });
+  }
+
+  emitPolicyViolation(message: string): void {
+    this.dispatchEvent('policyViolation', { message });
+  }
 }

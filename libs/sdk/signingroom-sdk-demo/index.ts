@@ -20,6 +20,8 @@ const WHITELIST_INPUT = 'tb1qww078psjaee79gh0cfrqpf6gtzvxzk7gcfs869vnxtruhj6xj03
 
 const QUORUM_THRESHOLD = 3;
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // --- INTERACTIVE HELPER ---
 const rl = readline.createInterface({
   input: process.stdin,
@@ -62,7 +64,6 @@ async function runDemo() {
   console.log('Room ID:              ', roomInfo.roomId);
   console.log('Encryption Key:       ', roomInfo.encryptionKey);
   console.log('Encrypted Admin Token:', roomInfo.encryptedAdminToken);
-  console.log(`\nMonitor Live via UI:   ${coordinatorClient.getRoomLink(UI_APP_URL, true)}`);
 
   console.log('\n-> Updating Room Metadata...');
   await coordinatorClient.setRoomName('Q1 Settlement - Approved');
@@ -70,25 +71,89 @@ async function runDemo() {
   console.log('-> Metadata applied successfully.');
 
   // ==========================================
-  // SECTION 2: Guest Join
+  // SECTION 1.5: Generate RBAC Constraints
   // ==========================================
-  await wait('2. Guest Join (Alice, Bob & Charlie)');
-  printHeader('Phase 2: Participant Entry');
+  console.log('\n-> Generating Zero-Trust RBAC Role Links...');
+  console.log('   [Rate Limiter] Pausing briefly to avoid triggering anti-spam protections...');
+  await sleep(1500);
 
+  const signerRole = await coordinatorClient.generateAndRegisterRole({
+    canUploadSignature: true,
+    canExportPsbt: true,
+    canExportAudit: false,
+    canViewDetails: true,
+    canViewSigners: true,
+    canShareSession: false,
+  });
+  console.log(`\n   [Generated] Standard Signer Role`);
+
+  const blindSignerRole = await coordinatorClient.generateAndRegisterRole({
+    canUploadSignature: true,
+    canExportPsbt: true,
+    canExportAudit: false,
+    canViewDetails: false,
+    canViewSigners: false,
+    canShareSession: false,
+  });
+  console.log(`   [Generated] Blind Signer Role`);
+
+  const observerRole = await coordinatorClient.generateAndRegisterRole({
+    canUploadSignature: false,
+    canExportPsbt: false,
+    canExportAudit: true,
+    canViewDetails: true,
+    canViewSigners: true,
+    canShareSession: false,
+  });
+  console.log(`   [Generated] Observer Role`);
+
+  const fullAccessRole = await coordinatorClient.generateAndRegisterRole({
+    canUploadSignature: true,
+    canExportPsbt: true,
+    canExportAudit: true,
+    canViewDetails: true,
+    canViewSigners: true,
+    canShareSession: true,
+  });
+  console.log(`   [Generated] Full Access Role`);
+
+  printHeader('Ready to Watch');
+  console.log(`Open this Full Access link in your browser to watch and interact with the demo live:`);
+  console.log(`-> ${coordinatorClient.getRoomLink(UI_APP_URL, true, fullAccessRole)}\n`);
+
+  // ==========================================
+  // SECTION 2: Guest Join with Explicit RBAC Roles
+  // ==========================================
+  await wait('2. Guest Join (Alice, Bob, Charlie & Dave)');
+  printHeader('Phase 2: Participant Entry with Specific Constraints');
+
+  let aliceSessionId = '';
   const aliceClient = new SigningRoomClient({ apiUrl: API_URL });
-  await aliceClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey);
-  await aliceClient.setDisplayName('Alice');
-  console.log('-> Alice joined the room.');
+  
+  // Capture AND log her session ID the exact moment the socket connects
+  aliceClient.onEvent('SESSION_CONNECTED').subscribe((e) => {
+    aliceSessionId = e.payload;
+    console.log(`   [Network] Alice received and cached Session ID: ${aliceSessionId}`);
+  });
+  
+  await aliceClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);
+  await aliceClient.setDisplayName('Alice (Signer)');
+  console.log('-> Alice fully joined the room.');
 
   const bobClient = new SigningRoomClient({ apiUrl: API_URL });
-  await bobClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey);
-  await bobClient.setDisplayName('Bob');
+  await bobClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, blindSignerRole);
+  await bobClient.setDisplayName('Bob (Blind Signer)');
   console.log('-> Bob joined the room.');
 
   const charlieClient = new SigningRoomClient({ apiUrl: API_URL });
-  await charlieClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey);
-  await charlieClient.setDisplayName('Charlie');
+  await charlieClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);
+  await charlieClient.setDisplayName('Charlie (Signer)');
   console.log('-> Charlie joined the room.');
+
+  const daveClient = new SigningRoomClient({ apiUrl: API_URL });
+  await daveClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, observerRole);
+  await daveClient.setDisplayName('Dave (Observer)');
+  console.log('-> Dave joined the room.');
 
   // ==========================================
   // SECTION 3: Address Approval & Labelling
@@ -138,7 +203,6 @@ async function runDemo() {
       console.log('\n[ALARM] 2 Signatures collected. Paging Human-in-the-loop for final review...');
     });
 
-  // We wrap the concurrent execution in a Promise to hold the CLI open until threshold is met
   await new Promise<void>((resolve) => {
     // 3. Finalization Listener
     coordinatorClient
@@ -184,7 +248,7 @@ async function runDemo() {
   // ==========================================
   // SECTION 5: Finalization & Validation
   // ==========================================
-  await wait('5. Finalize transaction & Validate Integrity');
+  await wait('5. Finalize transaction & Validate Active Integrity');
   printHeader('Phase 5: Cryptographic Finalization');
 
   const finalTx = await coordinatorClient.finalizeTransaction();
@@ -199,19 +263,32 @@ async function runDemo() {
   const report = await coordinatorClient.getIntegrityReport();
   console.log(`Forensic SHA-256 Anchor: ${report.anchor}`);
 
-  console.log('\n-> Verifying timeline integrity...');
+  console.log('\n-> Verifying active timeline integrity in-memory...');
   const isValid = await coordinatorClient.verifyIntegrity(report.anchor);
   console.log(
     `Integrity Check Result:  ${isValid.isValid ? 'PASSED [Valid]' : 'FAILED [Compromised]'}`,
   );
 
   // ==========================================
-  // SECTION 6: Error Handling
+  // SECTION 6: Error Handling & Security Enforcement
   // ==========================================
-  await wait('6. Latecomer & Error Code Handling');
-  printHeader('Phase 6: Integrator Error Handling');
+  await wait('6. Latecomer & Security Constraint Enforcement');
+  printHeader('Phase 6: Integrator Error Handling & RBAC');
 
-  console.log('-> Latecomer: Attempting to join locked room...');
+  console.log('-> RBAC Test: Observer attempting to upload a signature...');
+  await new Promise<void>((resolve) => {
+    // The Worker sends 'ERROR_POLICY_VIOLATION' for constraint rejections
+    daveClient.relay.events.on('ERROR_POLICY_VIOLATION' as any).subscribe((event: any) => {
+      console.log(
+        `   [Caught RBAC Error] Server successfully rejected action: ${event.payload?.message}`,
+      );
+      resolve();
+    });
+    // Dave tries to upload, which should fail statelessly on the server
+    daveClient.uploadSignature(CHARLIE_SIGNED_PSBT, 'fake-fingerprint').catch(() => {});
+  });
+
+  console.log('\n-> Latecomer: Attempting to join locked room...');
   const latecomerClient = new SigningRoomClient({ apiUrl: API_URL });
 
   await new Promise<void>((resolve) => {
@@ -258,6 +335,27 @@ async function runDemo() {
   console.log('-> Success. Recovery client is now the Coordinator.');
 
   // ==========================================
+  // SECTION 7.5: Session Resumption (Network Drop)
+  // ==========================================
+  await wait('7.5. Network Drop & Session Resumption');
+  printHeader('Phase 7.5: Seamless Identity Restoration');
+
+  console.log('-> Simulating Alice losing internet connection (Dirty disconnect)...');
+  aliceClient.disconnect();
+  await sleep(1000);
+
+  console.log('-> Alice regains internet and spins up a new client connection...');
+  const aliceReconnectedClient = new SigningRoomClient({ apiUrl: API_URL });
+
+  console.log(`-> Injecting cached Session ID [${aliceSessionId}] prior to joining...`);
+  aliceReconnectedClient.restoreSessionId(aliceSessionId);
+
+  // Notice we pass the same signerRole token she used originally
+  await aliceReconnectedClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);
+  
+  console.log('-> Success! Alice resumed her exact session identity. Check the Audit Log for "Session Reconnected".');
+
+  // ==========================================
   // SECTION 8: Teardown
   // ==========================================
   await wait('8. Disconnect & Destroy Room');
@@ -267,11 +365,39 @@ async function runDemo() {
   await coordinatorClient.closeRoom();
 
   console.log('-> Terminating local WebSocket instances...');
+  daveClient.disconnect();
   charlieClient.disconnect();
   bobClient.disconnect();
   aliceClient.disconnect();
   recoveryClient.disconnect();
+  aliceReconnectedClient.disconnect();
   coordinatorClient.disconnect();
+
+  // ==========================================
+  // SECTION 9: Offline Third-Party Audit
+  // ==========================================
+  await wait('9. Independent Offline Audit');
+  printHeader('Phase 9: Offline Third-Party Verification');
+
+  console.log('-> Simulating an external auditor verifying the artifacts...');
+  console.log('-> Room is completely destroyed. Verifying strictly from CSV and Hex strings.');
+
+  // Pass the raw strings we saved from Phase 5 directly to the static method
+  if (finalTx?.hex && csvLog && report?.anchor) {
+    const offlineResult = await SigningRoomClient.verifyOfflineIntegrity(
+      csvLog,
+      finalTx.hex,
+      report.anchor
+    );
+
+    console.log(`\nAuditor Computed Anchor: ${offlineResult.anchor}`);
+    console.log(`Expected Anchor:         ${report.anchor}`);
+    console.log(
+      `\nOffline Audit Result:    ${offlineResult.isValid ? 'PASSED [Cryptographically Proven]' : 'FAILED [Data Tampered]'}`,
+    );
+  } else {
+    console.log('\n[Error] Missing artifacts to conduct offline audit.');
+  }
 
   printHeader('SDK LIFECYCLE WALKTHROUGH COMPLETE!');
   rl.close();

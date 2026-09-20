@@ -76,7 +76,7 @@
             
             <div class="flex items-center gap-8">
                 <div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
-                    <span>Stateless</span>
+                    <span>Zero-Knowledge</span>
                     <span>Non-Custodial</span>
                     <span>Real-time</span>
                 </div>
@@ -257,6 +257,20 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
                 </div>
 
                 <h4 style="border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem;">Core Lifecycle & Security</h4>
+
+                <p class="mt-4 mb-2"><strong style="color: var(--accent);">roleGenerated</strong>: Fired when the Coordinator generates a new cryptographically secure RBAC token.</p>
+                <div class="code-block">
+<span class="code-tag">export interface</span> RoleGeneratedPayload <span class="code-tag">extends</span> BaseEventContext {
+  constraints: {
+    canUploadSignature: <span class="code-tag">boolean</span>;
+    canExportPsbt: <span class="code-tag">boolean</span>;
+    canExportAudit: <span class="code-tag">boolean</span>;
+    canViewDetails: <span class="code-tag">boolean</span>;
+    canViewSigners: <span class="code-tag">boolean</span>;
+    canShareSession: <span class="code-tag">boolean</span>;
+  };
+}
+                </div>
                 
                 <p class="mt-4 mb-2"><strong style="color: var(--accent);">roomCreated</strong>: Fired immediately after the Coordinator successfully initializes a new signing room.</p>
                 <div class="code-block">
@@ -305,6 +319,14 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
                 </div>
 
                 <h4 style="border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem;">Security Alerts</h4>
+
+                <p class="mt-4 mb-2"><strong style="color: #f43f5e;">policyViolation</strong>: Fired when the backend actively blocks a guest from performing an action restricted by their RBAC token.</p>
+                <div class="code-block">
+<span class="code-tag">export interface</span> PolicyViolationPayload <span class="code-tag">extends</span> BaseEventContext {
+  message: <span class="code-tag">string</span>; <span class="code-comment">// The specific rejection reason from the server</span>
+}
+                </div>
+
                 <p class="mt-4 mb-2"><strong style="color: #f43f5e;">securityAlert</strong>: Fired when suspicious activity (like failed decryption attempts) is detected.</p>
                 <div class="code-block">
 <span class="code-tag">export interface</span> SecurityAlertPayload <span class="code-tag">extends</span> BaseEventContext {
@@ -578,6 +600,28 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
                     };
                     logOutput.prepend(downloadLink);
                 }
+            });
+
+            newWidget.addEventListener('roleGenerated', (e) => {
+                const data = e.detail;
+                const c = data.constraints || {};
+                
+                const allowed = [];
+                if (c.canUploadSignature) allowed.push('Sign');
+                if (c.canExportPsbt) allowed.push('PSBT');
+                if (c.canExportAudit) allowed.push('Audit');
+                if (c.canViewDetails) allowed.push('TxDetails');
+                if (c.canViewSigners) allowed.push('Signers');
+                if (c.canShareSession) allowed.push('Share');
+
+                const permissions = allowed.length > 0 ? allowed.join(', ') : 'None (Blind Read-Only)';
+                
+                log(`${getContextPrefix(data)} RBAC: Coordinator generated role link. Allowed: ${permissions}`);
+            });
+
+            newWidget.addEventListener('policyViolation', (e) => {
+                const data = e.detail;
+                log(`${getContextPrefix(data)} RBAC BLOCK: ${data.message}`);
             });
 
             newWidget.addEventListener('roomStateChanged', (e) => {

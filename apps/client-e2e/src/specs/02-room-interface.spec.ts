@@ -25,7 +25,7 @@ test.describe('Room Interface Verification', () => {
     await roomPage.headerHiddenBadge.click({ force: true });
     await roomPage.privacyModalRevealSection.click();
 
-    // CRITICAL: Force Playwright to wait for the CSS animation to complete
+    // Force Playwright to wait for the CSS animation to complete
     await expect(roomPage.headerHiddenBadge).toBeHidden();
 
     await expect(roomPage.activeIndicator).toBeVisible();
@@ -76,7 +76,7 @@ test.describe('Room Interface Verification', () => {
     // --- Verification: Proposal Financials ---
     await expect(roomPage.proposalContainer).toContainText('0.00100913 BTC');
     await expect(roomPage.proposalContainer).toContainText('100,913 sats');
-    await expect(roomPage.proposalContainer).toContainText('1.37 sats/vB');
+    await expect(roomPage.proposalContainer).toContainText('1.77 sats/vB');
 
     // --- Interaction: Re-blur Proposal ---
     await roomPage.proposalEyeToggle.click({ force: true });
@@ -112,7 +112,7 @@ test.describe('Room Interface Verification', () => {
 
     // --- Verification: Inputs Details ---
     const inputCard = roomPage.getOutputCard(0);
-    await expect(outputCard).toBeVisible();
+    await expect(inputCard).toBeVisible();
 
     const inputVerificationBadge = inputCard.locator('.verification-badge');
     await expect(inputVerificationBadge).toContainText('Unverified Input', { ignoreCase: true });
