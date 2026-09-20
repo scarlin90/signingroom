@@ -195,7 +195,6 @@ export class SocketService {
         this.hasAnnouncedJoin = true;
       }
 
-<<<<<<< HEAD
       if (syncData.strictRoles && this.role() !== 'admin' && !this.currentConstraints()) {
         this.currentConstraints.set({
           canUploadSignature: false,
@@ -207,8 +206,6 @@ export class SocketService {
         });
       }
 
-=======
->>>>>>> staging
       if (this.isCoordinator() && !this.hasSyncedLocalAddressBook) {
         this.hasSyncedLocalAddressBook = true;
         setTimeout(() => {
@@ -543,10 +540,7 @@ export class SocketService {
 
     this.activeSessions.set([]);
     this.status.set('disconnected');
-<<<<<<< HEAD
     this.currentConstraints.set(null);
-=======
->>>>>>> staging
 
     this.hasSyncedLocalAddressBook = false;
   }

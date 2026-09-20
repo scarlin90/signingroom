@@ -552,8 +552,4 @@ describe('EncryptionService (Angular Wrapper)', () => {
     window.crypto.getRandomValues = originalGetRandomValues;
     expect(adminHash).toBeDefined();
   });
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> staging
