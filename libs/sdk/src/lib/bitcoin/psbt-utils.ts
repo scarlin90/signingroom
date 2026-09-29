@@ -17,8 +17,14 @@ export interface TxDetails {
   feeRate: number;
   /** The total count of unspent transaction outputs (UTXOs) consumed as inputs. */
   inputs: number;
+  /** absolute locktime (nLockTime) */
+  lockTime: number; 
+  /** whether any input has a BIP-68 relative lock */
+  hasRelativeTimelock: boolean;
+  /** human-readable string of the strictest relative lock(s) */
+  relativeTimelockValue: string | null;
   /** Detailed mapping of every consumed input, including origin txId and satoshi value. */
-  inputsList: { address: string; amount: number; txId: string; vout: number }[];
+  inputsList: { address: string; amount: number; txId: string; vout: number; sequence: number }[];
   /** Detailed mapping of every created output, indicating destination addresses and change routing. */
   outputs: { address: string; amount: number; isChange: boolean }[];
 }
@@ -111,36 +117,79 @@ export class PsbtUtils {
   }
 
   /**
-   * Extracts the M-of-N multisig required threshold directly from the redeem/witness script.
+   * Extracts the required signature threshold for the PSBT UI.
+   * Calculates the MAXIMUM threshold required by any single input, accurately reflecting 
+   * the minimum number of physical device uploads required.
    * 
    * @param psbtBase64 - The normalized Base64 PSBT payload.
-   * @returns The integer representing the minimum signatures required, or 0 if unreadable.
+   * @returns The integer representing the required device uploads.
    */
   static getThreshold(psbtBase64: string): number {
     try {
       const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
 
+      let maxThreshold = 0;
+      let unknownInputs = 0;
+
       for (let i = 0; i < tx.inputsLength; i++) {
         const input = tx.getInput(i);
         if (!input) continue;
 
-        const script = input.witnessScript || input.redeemScript;
-        if (!script || script.length === 0) continue;
+        let inputThreshold = 0;
 
-        const firstOp = script[0];
-        if (firstOp >= 0x51 && firstOp <= 0x60) {
-          return firstOp - 0x50;
+        // 1. Legacy SegWit / P2SH multisig
+        const legacyScript = input.witnessScript || input.redeemScript;
+        if (legacyScript && legacyScript.length > 0) {
+          inputThreshold = this.extractThresholdFromScript(legacyScript);
+        }
+
+        // 2. Taproot script-path – take the highest threshold among all leaves
+        if (input.tapLeafScript && input.tapLeafScript.length > 0) {
+          let highestLeaf = 0;
+
+          for (const leaf of input.tapLeafScript) {
+            // leaf is typically [controlBlock, scriptWithVersion]
+            // scriptWithVersion = script bytes + 1-byte leaf version at the end
+            const rawValue = (leaf as any)[1] as Uint8Array | undefined;
+            if (!rawValue || rawValue.length < 2) continue;
+
+            const script = rawValue.slice(0, -1);
+            const leafReq = this.extractThresholdFromScript(script);
+
+            if (leafReq > highestLeaf) highestLeaf = leafReq;
+          }
+
+          if (highestLeaf > inputThreshold) inputThreshold = highestLeaf;
+        }
+
+        // 3. Pure Taproot key-path (no leaves)
+        if (
+          inputThreshold === 0 &&
+          (!input.tapLeafScript || input.tapLeafScript.length === 0) &&
+          input.tapBip32Derivation &&
+          input.tapBip32Derivation.length > 0
+        ) {
+          inputThreshold = 1;
+        }
+
+        if (inputThreshold > 0) {
+          if (inputThreshold > maxThreshold) maxThreshold = inputThreshold;
+        } else {
+          unknownInputs++;
         }
       }
 
-      return 0;
-    } catch {
+      if (maxThreshold === 0 && unknownInputs > 0) return 0;
+      return maxThreshold;
+    } catch (e) {
+      console.error('[PsbtUtils] Error extracting threshold:', e);
       return 0;
     }
   }
 
   /**
    * Identifies the primary signer's master key fingerprint associated with the first detected partial signature.
+   * Works across Legacy, Segwit, and Taproot.
    * 
    * @param psbtData - The normalized Base64 PSBT payload.
    * @returns The 8-character hex fingerprint string, or null if no valid signature mapping is found.
@@ -153,13 +202,44 @@ export class PsbtUtils {
       for (let i = 0; i < tx.inputsLength; i++) {
         const input = tx.getInput(i);
 
+        // 1. Legacy ECDSA Signatures
         if (input.partialSig && input.partialSig.length > 0) {
           const pubkeySigned = input.partialSig[0][0];
-
           if (input.bip32Derivation) {
             for (const [pubkey, meta] of input.bip32Derivation) {
-              if (hex.encode(pubkey) === hex.encode(pubkeySigned)) {
+              if (this.areKeysEqual(pubkey, pubkeySigned)) {
                 return meta.fingerprint.toString(16).padStart(8, '0');
+              }
+            }
+          }
+        }
+
+        // 2. Taproot Script Path Signatures
+        if (input.tapScriptSig && input.tapScriptSig.length > 0) {
+          const sigEntry = input.tapScriptSig[0] as any;
+          const pubkeySigned = sigEntry.pubkey || (sigEntry[0] && sigEntry[0].pubKey);
+
+          if (pubkeySigned && input.tapBip32Derivation) {
+            for (const [pubkey, meta] of input.tapBip32Derivation) {
+              if (this.areKeysEqual(pubkey, pubkeySigned)) {
+                const derInfo = (meta as any).der || meta;
+                const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
+                if (fp != null) {
+                  return fp.toString(16).padStart(8, '0');
+                }
+              }
+            }
+          }
+        }
+
+        // 3. Taproot Keypath Signatures
+        if (input.tapKeySig && input.tapInternalKey && input.tapBip32Derivation) {
+          for (const [pubkey, meta] of input.tapBip32Derivation) {
+            if (this.areKeysEqual(pubkey, input.tapInternalKey)) {
+              const derInfo = (meta as any).der || meta;
+              const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
+              if (fp != null) {
+                return fp.toString(16).padStart(8, '0');
               }
             }
           }
@@ -173,7 +253,7 @@ export class PsbtUtils {
 
   /**
    * Scans a PSBT to map all expected participants and evaluates their current signature state.
-   * Works across both legacy ECDSA (partialSig) and Schnorr (tapScriptSig) signature schemes.
+   * Works across legacy ECDSA (partialSig), Schnorr (tapScriptSig), and Keypath (tapKeySig).
    * 
    * @param psbtBase64 - The normalized Base64 PSBT payload.
    * @returns An array mapping participant fingerprints to their active signed status.
@@ -185,23 +265,49 @@ export class PsbtUtils {
 
       for (let i = 0; i < tx.inputsLength; i++) {
         const input = tx.getInput(i);
-        const derivations = input.bip32Derivation as any[];
 
-        if (derivations) {
-          for (const [pubkey, meta] of derivations) {
-            if (!meta?.fingerprint) continue;
-            const fpHex = meta.fingerprint.toString(16).padStart(8, '0');
-            let isSigned = false;
+        // Helper to evaluate signatures for a given pubkey and fingerprint
+        const processDerivation = (pubkey: Uint8Array, fp: any) => {
+          if (fp == null) return;
+          const fpHex = fp.toString(16).padStart(8, '0');
+          let isSigned = false;
 
-            if (input.partialSig) {
-              isSigned = input.partialSig.some((p) => this.areKeysEqual(p[0], pubkey));
+          // Check Legacy ECDSA
+          if (input.partialSig) {
+            isSigned = input.partialSig.some((p) => this.areKeysEqual(p[0], pubkey));
+          }
+          
+          // Check Tapscript Schnorr (Leaf Spend)
+          if (!isSigned && input.tapScriptSig) {
+            isSigned = input.tapScriptSig.some((p: any) => {
+              const pKey = p.pubkey || (p[0] && p[0].pubKey);
+              return pKey ? this.areKeysEqual(pKey, pubkey) : false;
+            });
+          }
+          
+          // Check Taproot Keypath (ONLY mark true if the derivation matches the internal key)
+          if (!isSigned && input.tapKeySig && input.tapInternalKey) {
+            if (this.areKeysEqual(input.tapInternalKey, pubkey)) {
+              isSigned = true;
             }
-            if (!isSigned && input.tapScriptSig) {
-              isSigned = input.tapScriptSig.some((p: any) => this.areKeysEqual(p.pubKey, pubkey));
-            }
+          }
 
-            const current = signersMap.get(fpHex) || false;
-            signersMap.set(fpHex, current || isSigned);
+          const current = signersMap.get(fpHex) || false;
+          signersMap.set(fpHex, current || isSigned);
+        };
+
+        // Process Legacy SegWit Derivations
+        if (input.bip32Derivation) {
+          for (const [pubkey, meta] of input.bip32Derivation) {
+            processDerivation(pubkey, meta?.fingerprint);
+          }
+        }
+
+        // Process Taproot Derivations
+        if (input.tapBip32Derivation) {
+          for (const [pubkey, meta] of input.tapBip32Derivation) {
+            const derInfo = (meta as any).der || meta;
+            processDerivation(pubkey, derInfo?.fingerprint ?? derInfo?.masterFingerprint);
           }
         }
       }
@@ -291,6 +397,53 @@ export class PsbtUtils {
   }
 
   /**
+   * Heuristically extracts an M-of-N threshold from a Bitcoin script.
+   * Looks for OP_n CHECKMULTISIG / CHECKSIG patterns.
+   * Returns 0 when no clear threshold can be determined.
+   */
+  private static extractThresholdFromScript(script: Uint8Array): number {
+    if (!script || script.length === 0) return 0;
+
+    // --- Tapscript multi_a (BIP 342) ---
+    // Structure: <pk1> OP_CHECKSIG <pk2> OP_CHECKSIGADD ... <k> OP_NUMEQUAL (or OP_EQUAL)
+    if (script.length >= 2) {
+      const lastByte = script[script.length - 1];
+      const preLastByte = script[script.length - 2];
+
+      if (lastByte === 0x9c || lastByte === 0x87) {
+        if (preLastByte >= 0x51 && preLastByte <= 0x60) {
+          return preLastByte - 0x50; // OP_1 (0x51) -> 1, OP_2 (0x52) -> 2, etc.
+        }
+      }
+    }
+
+    // --- Classic Multisig (Legacy P2SH / SegWit P2WSH) ---
+    // Structure: OP_m <pubkeys...> OP_n OP_CHECKMULTISIG(VERIFY)
+    const firstOp = script[0];
+    const lastOp = script[script.length - 1];
+    if (lastOp === 0xae || lastOp === 0xaf) { // OP_CHECKMULTISIG / OP_CHECKMULTISIGVERIFY
+      if (firstOp >= 0x51 && firstOp <= 0x60) {
+        return firstOp - 0x50;
+      }
+    }
+
+    // --- Single-Key Fallback ---
+    // Tapscript single-sig ends with OP_CHECKSIG (0xac) or OP_CHECKSIGVERIFY (0xad)
+    if (script[script.length - 1] === 0xac || script[script.length - 1] === 0xad) {
+      return 1;
+    }
+
+    // If OP_CHECKSIG exists anywhere in a non-multisig script
+    for (let i = 0; i < script.length; i++) {
+      if (script[i] === 0xac || script[i] === 0xad) {
+        return 1;
+      }
+    }
+
+    return 0;
+  }
+
+  /**
    * Finalizes an fully-signed PSBT map into an extracted, broadcast-ready raw hex string.
    * 
    * @param psbtBase64 - The fully signed Base64 PSBT payload.
@@ -336,6 +489,7 @@ export class PsbtUtils {
         }
         estimatedVBytes += this.estimateInputVBytes(input);
 
+        // Process Legacy SegWit Derivations
         if (input.bip32Derivation) {
           for (const [, meta] of input.bip32Derivation) {
             if (meta?.fingerprint != null) {
@@ -343,6 +497,24 @@ export class PsbtUtils {
             }
             if (meta?.path?.length >= 2) {
               const coinType = meta.path[1];
+              if (coinType === 2147483648) networkScore--;
+              if (coinType === 2147483649) networkScore++;
+            }
+          }
+        }
+
+        // Process Taproot Derivations
+        if (input.tapBip32Derivation) {
+          for (const [pubkey, meta] of input.tapBip32Derivation) {
+            const derInfo = (meta as any).der || meta;
+            const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
+            const path = derInfo?.path;
+
+            if (fp != null) {
+              fingerprints.add(fp.toString(16).padStart(8, '0'));
+            }
+            if (path?.length >= 2) {
+              const coinType = path[1];
               if (coinType === 2147483648) networkScore--;
               if (coinType === 2147483649) networkScore++;
             }
@@ -379,6 +551,7 @@ export class PsbtUtils {
         detectedNetwork: networkScore > 0 ? 'testnet' : 'bitcoin',
       };
     } catch (e) {
+      console.error('[PsbtUtils] Analysis failed:', e);
       return null;
     }
   }
@@ -405,6 +578,9 @@ export class PsbtUtils {
       let totalInput = BigInt(0);
       let totalOutput = BigInt(0);
       let estimatedVBytes = 10;
+      let hasRelativeTimelock = false;
+      let maxBlocks = 0;
+      let maxSeconds = 0;
 
       for (let i = 0; i < tx.inputsLength; i++) {
         const input = tx.getInput(i);
@@ -412,6 +588,23 @@ export class PsbtUtils {
         let address = 'Unknown';
         let txId = '????';
         let vout = input.index ?? 0;
+
+        const sequence = input.sequence ?? 0xffffffff;
+
+        // BIP 68: If the 31st bit is NOT set, a relative timelock is active.
+        if ((sequence & 0x80000000) === 0) {
+            hasRelativeTimelock = true;
+
+            const isTimeBased = (sequence & 0x400000) !== 0;
+            const value = sequence & 0xffff;
+            
+            if (isTimeBased) {
+                const seconds = value * 512;
+                if (seconds > maxSeconds) maxSeconds = seconds;
+            } else {
+                if (value > maxBlocks) maxBlocks = value;
+            }
+        }
 
         if (input.txid) {
           const full = hex.encode(input.txid);
@@ -428,7 +621,7 @@ export class PsbtUtils {
         }
 
         estimatedVBytes += this.estimateInputVBytes(input);
-        inputsList.push({ address, amount: Number(amount), txId, vout });
+        inputsList.push({ address, amount: Number(amount), txId, vout, sequence });
       }
 
       for (let i = 0; i < tx.outputsLength; i++) {
@@ -468,11 +661,23 @@ export class PsbtUtils {
 
       const feeRate = vBytes > 0 ? Number((Number(fee) / vBytes).toFixed(2)) : 0;
 
+      let relativeValueStr = null;
+      if (hasRelativeTimelock) {
+          if (maxBlocks > 0) relativeValueStr = `${maxBlocks} Blocks`;
+          if (maxSeconds > 0) {
+              const days = (maxSeconds / 86400).toFixed(1);
+              relativeValueStr = relativeValueStr ? `${relativeValueStr} and ≈${days} Days` : `≈${days} Days`;
+          }
+      }
+
       return {
         amount: Number(totalOutput),
         fee: Number(fee),
         vBytes,
         feeRate,
+        lockTime: tx.lockTime || 0,
+        hasRelativeTimelock,
+        relativeTimelockValue: relativeValueStr,
         inputs: tx.inputsLength,
         inputsList,
         outputs,
@@ -485,10 +690,6 @@ export class PsbtUtils {
 
   /**
    * Safely extracts the previous output amount and script from an input's UTXO data.
-   * Handles both witness and non-witness UTXO structures securely.
-   * 
-   * @param input - The parsed transaction input object.
-   * @returns An object containing the amount and locking script, or null if unreadable.
    */
   private static getPrevOut(
     input: ReturnType<Transaction['getInput']>
@@ -521,10 +722,6 @@ export class PsbtUtils {
 
   /**
    * Heuristically estimates the virtual byte (vB) size of a given transaction input.
-   * Leverages input types (e.g., Taproot, SegWit, Legacy) to calculate an accurate fee weight.
-   * 
-   * @param input - The parsed transaction input object.
-   * @returns The estimated virtual byte size.
    */
   private static estimateInputVBytes(
     input: ReturnType<Transaction['getInput']>
@@ -537,7 +734,6 @@ export class PsbtUtils {
       if (type.includes('sh-wpkh')) return 91;
       if (type === 'pkh' || type === 'sh' || type.startsWith('sh-')) return 148;
     } catch {
-      // fall through to heuristics
     }
 
     if (input.witnessUtxo) {

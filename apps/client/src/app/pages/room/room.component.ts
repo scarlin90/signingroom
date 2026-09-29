@@ -208,6 +208,10 @@ export class RoomComponent implements OnInit, OnDestroy {
   });
 
   public finalHex = computed(() => this.socket.roomState()?.finalTxHex || null);
+  public absoluteTimelock = computed(() => this.socket.txDetails()?.lockTime || 0);
+  public hasRelativeTimelock = computed(() => this.socket.txDetails()?.hasRelativeTimelock || false);
+  public relativeTimelockValue = computed(() => this.socket.txDetails()?.relativeTimelockValue || null);
+
   public copied = signal(false);
   public showShareModal = signal(false);
   public secureLinkCopied = signal(false);
