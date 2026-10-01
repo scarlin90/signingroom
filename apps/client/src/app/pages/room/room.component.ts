@@ -1622,4 +1622,20 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.startFountainAnimation();
     }
   }
+
+  getScriptTypeInfo(scriptType: string): { label: string; tooltip: string } {
+  switch (scriptType) {
+    case 'P2TR':
+      return { label: 'Taproot', tooltip: 'Pay-to-Taproot (P2TR)' };
+    case 'P2WSH':
+    case 'P2WPKH':
+      return { label: 'SegWit', tooltip: `Native SegWit (${scriptType})` };
+    case 'P2SH':
+      return { label: 'Nested-Segwit', tooltip: 'Pay-to-Script-Hash / Nested SegWit (P2SH)' };
+    case 'P2PKH':
+      return { label: 'Legacy', tooltip: 'Pay-to-Public-Key-Hash (Legacy)' };
+    default:
+      return { label: 'Unknown', tooltip: `Standard Script (${scriptType})` };
+  }
+}
 }

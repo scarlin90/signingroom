@@ -24,9 +24,11 @@ export interface TxDetails {
   /** human-readable string of the strictest relative lock(s) */
   relativeTimelockValue: string | null;
   /** Detailed mapping of every consumed input, including origin txId and satoshi value. */
-  inputsList: { address: string; amount: number; txId: string; vout: number; sequence: number }[];
+  inputsList: { address: string; amount: number; txId: string; vout: number; sequence: number, isRbfEnabled:boolean, scriptType: string; }[];
   /** Detailed mapping of every created output, indicating destination addresses and change routing. */
-  outputs: { address: string; amount: number; isChange: boolean }[];
+  outputs: { address: string; amount: number; isChange: boolean, scriptType: string; }[];
+  /** If any input has Replace-By-Fee (BIP-125) enabled for transaction*/
+  isRbfEnabled: boolean;
 }
 
 /**
@@ -579,6 +581,7 @@ export class PsbtUtils {
       let totalOutput = BigInt(0);
       let estimatedVBytes = 10;
       let hasRelativeTimelock = false;
+      let isRbfEnabled = false;
       let maxBlocks = 0;
       let maxSeconds = 0;
 
@@ -588,8 +591,27 @@ export class PsbtUtils {
         let address = 'Unknown';
         let txId = '????';
         let vout = input.index ?? 0;
+        let scriptType = 'UNKNOWN';
 
         const sequence = input.sequence ?? 0xffffffff;
+
+        // BIP-125: Check if any input signals Replace-By-Fee
+        if (sequence < 0xfffffffe) {
+          isRbfEnabled = true;
+        }
+
+        // Determine Input Script Type based on PSBT fields and address prefix
+        if (input.tapInternalKey || input.tapLeafScript || input.tapBip32Derivation) {
+          scriptType = 'P2TR';
+        } else if (input.witnessScript) {
+          scriptType = 'P2WSH';
+        } else if (address.startsWith('bc1q') || address.startsWith('tb1q')) {
+          scriptType = 'P2WPKH';
+        } else if (address.startsWith('3') || address.startsWith('2')) {
+          scriptType = 'P2SH';
+        } else {
+          scriptType = 'P2PKH';
+        }
 
         // BIP 68: If the 31st bit is NOT set, a relative timelock is active.
         if ((sequence & 0x80000000) === 0) {
@@ -621,7 +643,7 @@ export class PsbtUtils {
         }
 
         estimatedVBytes += this.estimateInputVBytes(input);
-        inputsList.push({ address, amount: Number(amount), txId, vout, sequence });
+        inputsList.push({ address, amount: Number(amount), txId, vout, sequence, isRbfEnabled: sequence < 0xfffffffe, scriptType });
       }
 
       for (let i = 0; i < tx.outputsLength; i++) {
@@ -632,16 +654,35 @@ export class PsbtUtils {
 
         const address = this.formatScriptAddress(output.script ?? new Uint8Array([]), network);
         let isChange = false;
+        let scriptType = 'UNKNOWN';
 
-        if (output.bip32Derivation) {
-          for (const [, meta] of output.bip32Derivation as any[]) {
-            if (meta?.path && meta.path.length >= 2 && meta.path[meta.path.length - 2] === 1) {
-              isChange = true;
-              break;
-            }
-          }
+        if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
+          scriptType = 'P2TR';
+        } else if (address.startsWith('bc1q') || address.startsWith('tb1q')) {
+          scriptType = address.length > 42 ? 'P2WSH' : 'P2WPKH';
+        } else if (address.startsWith('3') || address.startsWith('2')) {
+          scriptType = 'P2SH';
+        } else {
+          scriptType = 'P2PKH';
         }
-        outputs.push({ address, amount: Number(amount), isChange });
+
+        // Check Legacy & SegWit Outputs
+        if (output.bip32Derivation) {
+            isChange = output.bip32Derivation.some(([_, meta]) => {
+                const path = meta.path || [];
+                return path.length >= 2 && (path[path.length - 2] === (2147483648 + 1) || path[path.length - 2] === 1);
+            });
+        }
+
+        // Check Taproot Outputs
+        if (output.tapBip32Derivation) {
+            isChange = output.tapBip32Derivation.some(([_, meta]) => {
+                const path = meta.der?.path || [];
+                return path.length >= 2 && (path[path.length - 2] === (2147483648 + 1) || path[path.length - 2] === 1);
+            });
+        }
+
+        outputs.push({ address, amount: Number(amount), isChange, scriptType });
       }
 
       outputs.sort((a, b) => Number(b.isChange) - Number(a.isChange));
@@ -681,6 +722,7 @@ export class PsbtUtils {
         inputs: tx.inputsLength,
         inputsList,
         outputs,
+        isRbfEnabled,
       };
     } catch (e) {
       console.error('Failed to parse PSBT', e);
