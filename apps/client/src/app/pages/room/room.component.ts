@@ -269,6 +269,19 @@ export class RoomComponent implements OnInit, OnDestroy {
   fountainInterval: any;
   fountainSpeed = signal<number>(400);
 
+  formattedAbsoluteTimelock = computed(() => {
+    const lockTime = this.absoluteTimelock();
+    if (!lockTime) return '';
+    
+    // Bitcoin consensus: values >= 500,000,000 are Unix timestamps (seconds)
+    if (lockTime >= 500000000) {
+      return `Timestamp: ${new Date(lockTime * 1000).toLocaleString()}`;
+    }
+    
+    // Values < 500,000,000 are block heights
+    return `Block Height: ${lockTime.toLocaleString()}`;
+  });
+
   constructor(
     private route: ActivatedRoute,
     public socket: SocketService,

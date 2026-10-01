@@ -1535,7 +1535,11 @@
                                     <p class="text-xs font-bold text-amber-500 uppercase tracking-wide">Absolute Timelock Active</p>
                                     <p class="text-xs text-amber-200/80 leading-relaxed mt-0.5 mb-1">
                                         This transaction contains a network constraint set to 
-                                        <strong>{{ absoluteTimelock() >= 500000000 ? 'Timestamp' : 'Block Height' }} {{ absoluteTimelock() | number }}</strong>.
+                                        @if (absoluteTimelock() >= 500000000) {
+                                            <strong>Timestamp: {{ absoluteTimelock() * 1000 | date:'short' }}</strong>.
+                                        } @else {
+                                            <strong>Block Height: {{ absoluteTimelock() | number }}</strong>.
+                                        }
                                     </p>
                                     <p class="text-[10px] text-amber-500/60 font-medium">
                                         If this matches the current block height, it is likely standard Anti-Fee Sniping protection applied by your wallet, and will broadcast immediately.
