@@ -110,14 +110,12 @@ app.use(
             const isOfficialDomain = origin === exactMatchHttps || origin.endsWith(subDomainMatch);
 
             if (isOfficialDomain) {
-                console.log('[CORS] Allowed: Matches official domain');
                 return origin;
             }
 
             if (c.env.ENVIRONMENT === 'development') {
                 const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
                 if (isLocalhost) {
-                    console.log('[CORS] Allowed: Matches localhost/127.0.0.1 regex');
                     return origin;
                 }
             }
