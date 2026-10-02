@@ -8,7 +8,7 @@ RUN npm ci --legacy-peer-deps
 COPY apps/worker/package*.json ./apps/worker/
 RUN cd apps/worker && npm install --legacy-peer-deps
 
-RUN npx playwright@1.62.1 install chromium --with-deps
+RUN npx playwright install chromium --with-deps
 
 # Copy source code
 COPY . .
