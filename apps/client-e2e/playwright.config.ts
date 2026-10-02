@@ -25,9 +25,11 @@ export default defineConfig({
         {
           command: 'npx nx run client:serve --host 127.0.0.1',
           url: 'http://127.0.0.1:4200',
-          reuseExistingServer: true,
+          reuseExistingServer: false,
           cwd: workspaceRoot,
           timeout: 120000,
+          stdout: 'pipe',
+          stderr: 'pipe',
         },
         {
           command: 'npx wrangler dev apps/worker/src/index.ts --ip 0.0.0.0 --port 8787',

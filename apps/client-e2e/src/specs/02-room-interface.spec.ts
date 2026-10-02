@@ -177,6 +177,6 @@ test.describe('Room Interface Verification', () => {
     await roomPage.confirmButton.click();
 
     // Verification: Redirection
-    await expect(page).toHaveURL('http://localhost:4200/');
+    await expect(page).toHaveURL('/');
   });
 });

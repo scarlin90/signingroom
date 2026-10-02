@@ -13,12 +13,11 @@ RUN npx playwright install chromium --with-deps
 # Copy source code
 COPY . .
 
-RUN echo 'ALLOWED_ORIGIN="http://127.0.0.1:4200"' > .dev.vars && \
-    echo 'API_PUBLIC_URL="http://127.0.0.1:8787"' >> .dev.vars && \
-    echo 'ENVIRONMENT="development"' >> .dev.vars && \
-    cp .dev.vars .env && \
-    mkdir -p apps/worker && \
-    cp .dev.vars apps/worker/.dev.vars
+# Configure the Backend (Worker)
+RUN mkdir -p apps/worker && \
+    echo "ALLOWED_ORIGIN=http://127.0.0.1:4200" > apps/worker/.dev.vars && \
+    echo "ENVIRONMENT=development" >> apps/worker/.dev.vars && \
+    echo "API_PUBLIC_URL=http://127.0.0.1:8787" >> apps/worker/.dev.vars
 
 # Strip Windows CRLF line endings and set permissions
 RUN sed -i 's/\r$//' run-all-tests.sh
