@@ -2,12 +2,12 @@ FROM node:26-bookworm@sha256:0353e48e0e8a993db87b720c242f54b207059d1bcc010653489
 
 WORKDIR /app
 
-# Install dependencies
 COPY package*.json ./
-COPY apps/worker/package*.json ./apps/worker/
 RUN npm ci --legacy-peer-deps
 
-# Install Playwright Chromium browser AND its required OS system dependencies
+COPY apps/worker/package*.json ./apps/worker/
+RUN cd apps/worker && npm install --legacy-peer-deps
+
 RUN npx playwright@1.62.1 install chromium --with-deps
 
 # Copy source code
