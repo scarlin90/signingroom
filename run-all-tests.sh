@@ -18,7 +18,7 @@ echo "------------------------------------------------------"
 echo "🚀 RUNNING WORKER TESTS"
 echo "------------------------------------------------------"
 # Using --ci and --code-coverage=true
-npx nx run worker:test --ci --code-coverage=true --watch=false -- --max-workers=1
+npx nx run worker:test --watch=false -- --max-workers=1
 
 echo "------------------------------------------------------"
 echo "🚀 RUNNING END-TO-END TESTS (PLAYWRIGHT)"
