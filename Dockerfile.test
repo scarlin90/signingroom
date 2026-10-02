@@ -14,7 +14,7 @@ RUN npx playwright install chromium --with-deps
 COPY . .
 
 RUN mkdir -p apps/worker && \
-    echo "ALLOWED_ORIGIN=http://localhost:4200" > apps/worker/.dev.vars && \
+    echo "ALLOWED_ORIGIN=http://127.0.0.1:4200" > apps/worker/.dev.vars && \
     echo "ENVIRONMENT=development" >> apps/worker/.dev.vars && \
     echo "API_PUBLIC_URL=http://127.0.0.1:8787" >> apps/worker/.dev.vars
 
