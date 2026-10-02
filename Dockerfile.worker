@@ -9,7 +9,11 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 COPY package*.json ./
 COPY apps/worker/package*.json ./apps/worker/
 
+# Install root dependencies
 RUN npm ci --legacy-peer-deps
+
+# Install worker-specific dependencies
+RUN cd apps/worker && npm install --legacy-peer-deps
 
 COPY . .
 
