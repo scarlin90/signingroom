@@ -95,35 +95,40 @@ interface SessionData {
 const app = new Hono<{ Bindings: Env }>();
 
 app.use(
-	'/*',
-	cors({
-		origin: (origin, c) => {
-			const rawOrigin = c.env.ALLOWED_ORIGIN || 'signingroom.io';
-			const baseDomain = rawOrigin.replace(/^https?:\/\//, '');
+    '/*',
+    cors({
+        origin: (origin, c) => {
+            if (origin === c.env.ALLOWED_ORIGIN) {
+                return origin;
+            }
 
-			const exactMatch = `https://${baseDomain}`;
-			const subDomainMatch = `.${baseDomain}`;
+            const rawOrigin = c.env.ALLOWED_ORIGIN || 'signingroom.io';
+            const baseDomain = rawOrigin.replace(/^https?:\/\//, '');
 
-			const isOfficialDomain = origin === exactMatch || origin.endsWith(subDomainMatch);
+            const exactMatchHttps = `https://${baseDomain}`;
+            const subDomainMatch = `.${baseDomain}`;
+            const isOfficialDomain = origin === exactMatchHttps || origin.endsWith(subDomainMatch);
 
-			if (isOfficialDomain) {
-				return origin;
-			}
+            if (isOfficialDomain) {
+                console.log('[CORS] Allowed: Matches official domain');
+                return origin;
+            }
 
-			if (c.env.ENVIRONMENT === 'development') {
-				const isLocalhost = /^https?:\/\/localhost(:\d+)?$/.test(origin);
-				if (isLocalhost) {
-					return origin;
-				}
-			}
+            if (c.env.ENVIRONMENT === 'development') {
+                const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+                if (isLocalhost) {
+                    console.log('[CORS] Allowed: Matches localhost/127.0.0.1 regex');
+                    return origin;
+                }
+            }
 
-			return null;
-		},
-		allowHeaders: ['Upgrade', 'Content-Type', 'Authorization', 'X-Requested-With'],
-		allowMethods: ['GET', 'POST', 'OPTIONS'],
-		maxAge: 86400,
-		credentials: true,
-	}),
+            return null;
+        },
+        allowHeaders: ['Upgrade', 'Content-Type', 'Authorization', 'X-Requested-With'],
+        allowMethods: ['GET', 'POST', 'OPTIONS'],
+        maxAge: 86400,
+        credentials: true,
+    }),
 );
 
 app.use('/*', async (c, next) => {
@@ -169,7 +174,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
 	return c.json({
 		status: 'healthy',
-		version: '3.4.0',
+		version: '3.5.0',
 		timestamp: Date.now(),
 	});
 });

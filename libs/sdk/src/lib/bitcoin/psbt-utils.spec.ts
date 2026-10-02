@@ -147,7 +147,8 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     const mockTx = {
       inputsLength: 1,
       getInput: vi.fn().mockReturnValue({
-        witnessScript: new Uint8Array([0x52, 0x21]), // OP_2 (0x52)
+        // Added 0xae (OP_CHECKMULTISIG) to the end of the mock script
+        witnessScript: new Uint8Array([0x52, 0x21, 0xae]),
       }),
     };
     vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
@@ -265,7 +266,7 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
       inputsLength: 1,
       getInput: vi.fn().mockReturnValue({
         partialSig: [[pubkey1, new Uint8Array([0xaa])]],
-        tapScriptSig: [{ pubKey: pubkey2, signature: new Uint8Array([0xbb]) }],
+        tapScriptSig: [{ pubkey: pubkey2, signature: new Uint8Array([0xbb]) }],
         bip32Derivation: [
           [pubkey1, { fingerprint: 0x11111111 }],
           [pubkey2, { fingerprint: 0x22222222 }],
@@ -296,6 +297,270 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     expect(mockTx.finalize).toHaveBeenCalled();
     expect(finalTx?.hex).toBe('aabbcc');
     expect(finalTx?.txId).toBe('mocked-tx-id');
+  });
+
+  it('should correctly evaluate Absolute Timelocks (lockTime) in parseTxDetails', () => {
+    const mockTx = {
+      inputsLength: 1,
+      outputsLength: 0,
+      lockTime: 840000,
+      get fee() { return BigInt(1000); },
+      get vsize() { return 100; },
+      getInput: vi.fn().mockReturnValue({}),
+      getOutput: vi.fn(),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const details = PsbtUtils.parseTxDetails(validPsbtBase64);
+    expect(details?.lockTime).toBe(840000);
+    expect(details?.hasRelativeTimelock).toBe(false);
+  });
+
+  it('should correctly evaluate Relative Timelocks (BIP 68 / sequence mask) in parseTxDetails', () => {
+    const mockTx = {
+      inputsLength: 2,
+      outputsLength: 0,
+      get fee() { return BigInt(1000); },
+      get vsize() { return 100; },
+      getInput: vi.fn()
+        // Input 0: Block-based CSV (144 blocks). Bit 22 is NOT set.
+        .mockReturnValueOnce({ sequence: 144 }) 
+        // Input 1: Time-based CSV (5 ticks). Bit 22 (0x400000) IS set. 5 * 512 = 2560 seconds.
+        .mockReturnValueOnce({ sequence: 0x400000 | 5 }), 
+      getOutput: vi.fn(),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const details = PsbtUtils.parseTxDetails(validPsbtBase64);
+    expect(details?.hasRelativeTimelock).toBe(true);
+    // The string format logic should display both Blocks and Days if both exist
+    expect(details?.relativeTimelockValue).toContain('144 Blocks');
+    expect(details?.relativeTimelockValue).toContain('Days'); 
+  });
+
+  it('should calculate the maximum required threshold across multi-leaf Tapscript trees', () => {
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        tapLeafScript: [
+          // Leaf 1: Single sig fallback (OP_CHECKSIG / 0xac)
+          [new Uint8Array([0x00]), new Uint8Array([0xac, 0xc0])], 
+          // Leaf 2: 3-of-X multi_a (OP_CHECKSIGADD / 0xba ... OP_3 / 0x53 ... OP_NUMEQUAL / 0x9c)
+          // Moved 0x53 to immediately precede 0x9c
+          [new Uint8Array([0x00]), new Uint8Array([0xba, 0xba, 0x53, 0x9c, 0xc0])], 
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const threshold = PsbtUtils.getThreshold(validPsbtBase64);
+    expect(threshold).toBe(3); 
+  });
+
+  it('should extract threshold using classic OP_CHECKMULTISIG for legacy P2WSH', () => {
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        // OP_2 (0x52) ... OP_CHECKMULTISIG (0xae)
+        witnessScript: new Uint8Array([0x52, 0x21, 0x21, 0x21, 0x53, 0xae]), 
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const threshold = PsbtUtils.getThreshold(validPsbtBase64);
+    expect(threshold).toBe(2); 
+  });
+
+  it('should map the primary fingerprint for pure Taproot Keypath signatures', () => {
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        tapKeySig: new Uint8Array([0xbb]),
+        tapInternalKey: new Uint8Array([0x11]),
+        tapBip32Derivation: [
+          [new Uint8Array([0x11]), { fingerprint: 0xaabbccdd }]
+        ],
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const fingerprint = PsbtUtils.getFingerprintFromPsbt(validPsbtBase64);
+    expect(fingerprint).toBe('aabbccdd');
+  });
+
+  it('should properly extract signature state for Tapscript Schnorr (tapScriptSig)', () => {
+    const pubkey1 = new Uint8Array([0x02, 0x00]);
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        tapScriptSig: [{ pubkey: pubkey1 }], 
+        tapBip32Derivation: [
+          [pubkey1, { fingerprint: 0x99999999 }]
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const signers = PsbtUtils.extractSigners(validPsbtBase64);
+    expect(signers.find(s => s.fingerprint === '99999999')?.signed).toBe(true);
+  });
+
+  it('should explicitly ignore tapKeySig for signers that do not own the tapInternalKey', () => {
+    const internalKey = new Uint8Array([0x11]);
+    const scriptKey = new Uint8Array([0x22]);
+
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        tapKeySig: new Uint8Array([0xbb]), // Keypath is signed
+        tapInternalKey: internalKey,
+        tapBip32Derivation: [
+          [internalKey, { fingerprint: 0x11111111 }],
+          [scriptKey, { fingerprint: 0x22222222 }] // Participant in a script leaf
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const signers = PsbtUtils.extractSigners(validPsbtBase64);
+    // The internal key owner should be marked signed
+    expect(signers.find(s => s.fingerprint === '11111111')?.signed).toBe(true);
+    // The script key owner should NOT be marked signed, as they didn't provide a tapScriptSig
+    expect(signers.find(s => s.fingerprint === '22222222')?.signed).toBe(false);
+  });
+
+  it('should extract threshold from Tapscript using OP_EQUAL (0x87)', () => {
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        tapLeafScript: [
+          // OP_2 (0x52) followed by OP_EQUAL (0x87)
+          [new Uint8Array([0x00]), new Uint8Array([0x52, 0x87, 0xc0])] 
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+    expect(PsbtUtils.getThreshold(validPsbtBase64)).toBe(2);
+  });
+
+  it('should extract threshold from Legacy script using OP_CHECKMULTISIGVERIFY (0xaf)', () => {
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        witnessScript: new Uint8Array([0x53, 0x21, 0xaf]), // OP_3 ... OP_CHECKMULTISIGVERIFY
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+    expect(PsbtUtils.getThreshold(validPsbtBase64)).toBe(3);
+  });
+
+  it('should extract single-sig threshold using OP_CHECKSIGVERIFY (0xad) at the end of a script', () => {
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        tapLeafScript: [
+          [new Uint8Array([0x00]), new Uint8Array([0xad, 0xc0])] // OP_CHECKSIGVERIFY
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+    expect(PsbtUtils.getThreshold(validPsbtBase64)).toBe(1);
+  });
+
+  it('should extract single-sig threshold if OP_CHECKSIG (0xac) exists anywhere in the script body', () => {
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        witnessScript: new Uint8Array([0x00, 0xac, 0x00]), // OP_CHECKSIG hidden in the middle
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+    expect(PsbtUtils.getThreshold(validPsbtBase64)).toBe(1);
+  });
+
+  it('should skip tapLeafScript parsing if the script is too short (only contains version byte)', () => {
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        tapLeafScript: [
+          [new Uint8Array([0x00]), new Uint8Array([0xc0])] 
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+    expect(PsbtUtils.getThreshold(validPsbtBase64)).toBe(0);
+  });
+
+  it('should extract signer from tapScriptSig using tuple array format [ { pubKey }, sig ]', () => {
+    const pubkey1 = new Uint8Array([0x02, 0x00]);
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        // Scure sometimes returns signatures as arrays where [0] is the key object
+        tapScriptSig: [[{ pubKey: pubkey1 }, new Uint8Array([0xbb])]],
+        tapBip32Derivation: [
+          [pubkey1, { fingerprint: 0x99999999 }]
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const signers = PsbtUtils.extractSigners(validPsbtBase64);
+    expect(signers.find(s => s.fingerprint === '99999999')?.signed).toBe(true);
+
+    const fp = PsbtUtils.getFingerprintFromPsbt(validPsbtBase64);
+    expect(fp).toBe('99999999');
+  });
+
+  it('should safely return null in getFingerprintFromPsbt if tapScriptSig key does not match derivation', () => {
+    const pubkey1 = new Uint8Array([0x02, 0x00]);
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        tapScriptSig: [{ pubkey: pubkey1 }],
+        tapBip32Derivation: [
+          [new Uint8Array([0x03]), { fingerprint: 0x99999999 }] // Mismatched pubkey
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+    expect(PsbtUtils.getFingerprintFromPsbt(validPsbtBase64)).toBeNull();
+  });
+
+  it('should default sequence to 0xffffffff and hasRelativeTimelock to false if undefined in parseTxDetails', () => {
+    const mockTx = {
+      inputsLength: 1,
+      outputsLength: 0,
+      get fee() { return BigInt(1000); },
+      get vsize() { return 100; },
+      // By omitting sequence, it triggers the fallback logic
+      getInput: vi.fn().mockReturnValue({}), 
+      getOutput: vi.fn(),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const details = PsbtUtils.parseTxDetails(validPsbtBase64);
+    expect(details?.inputsList[0].sequence).toBe(0xffffffff);
+    expect(details?.hasRelativeTimelock).toBe(false);
+  });
+
+  it('should fallback to masterFingerprint in Taproot Derivations during analysis if fingerprint is null', () => {
+    const mockTx = {
+      inputsLength: 1,
+      outputsLength: 0,
+      get fee() { return BigInt(1000); },
+      get vsize() { return 100; },
+      getInput: vi.fn().mockReturnValue({
+        tapBip32Derivation: [
+          [new Uint8Array([1]), { masterFingerprint: 0x12345678, path: [0, 2147483648] }], 
+        ],
+      }),
+      getOutput: vi.fn(),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const analysis = PsbtUtils.analyze(validPsbtBase64);
+    expect(analysis?.signerCount).toBe(1); 
   });
 });
 
@@ -602,4 +867,48 @@ describe('PsbtUtils - Input VByte Estimation Branches', () => {
     // Branch 4: Native Segwit (Primary)
     expect((PsbtUtils as any).estimateInputVBytes({ _mockInputType: 'wpkh' })).toBe(68);
   });
+
+  describe('PsbtUtils - Script Types & RBF Signaling', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should correctly flag RBF enabled inputs based on sequence numbers', () => {
+    const mockTx = {
+      inputsLength: 1,
+      outputsLength: 0,
+      get fee() { return BigInt(1000); },
+      get vsize() { return 100; },
+      getInput: vi.fn().mockReturnValue({ sequence: 0xf0000000 }), // Less than 0xfffffffe triggers RBF
+      getOutput: vi.fn(),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const details = PsbtUtils.parseTxDetails('cHNidP8A');
+    expect(details?.inputsList[0].isRbfEnabled).toBe(true);
+    expect(details?.isRbfEnabled).toBe(true);
+  });
+
+  it('should parse and assign standard script types to inputs and outputs', () => {
+    const mockTx = {
+      inputsLength: 1,
+      outputsLength: 1,
+      get fee() { return BigInt(1000); },
+      get vsize() { return 100; },
+      getInput: vi.fn().mockReturnValue({
+        tapInternalKey: new Uint8Array([1]),
+        witnessUtxo: { amount: BigInt(50000), script: new Uint8Array([0x51, 0x20]) }
+      }),
+      getOutput: vi.fn().mockReturnValue({
+        amount: BigInt(40000),
+        script: hex.decode('512089abcdefabaabcdeffedcbaabaabcdefaba1234589abcdefabaabcdeffedcbaa') // P2TR script
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const details = PsbtUtils.parseTxDetails('cHNidP8A', 'bitcoin');
+    expect(details?.inputsList[0].scriptType).toBe('P2TR');
+    expect(details?.outputs[0].scriptType).toBe('P2TR');
+  });
+});
 });
