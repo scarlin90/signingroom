@@ -17,9 +17,8 @@ npx nx run sdk:test --ci --code-coverage=true --watch=false
 echo "------------------------------------------------------"
 echo "🚀 RUNNING WORKER TESTS"
 echo "------------------------------------------------------"
-cd apps/worker
-npx vitest run --watch=false --max-workers=1
-cd ../..
+# Using --ci and --code-coverage=true
+npx nx run worker:test --watch=false -- --max-workers=1
 
 echo "------------------------------------------------------"
 echo "🚀 RUNNING END-TO-END TESTS (PLAYWRIGHT)"
