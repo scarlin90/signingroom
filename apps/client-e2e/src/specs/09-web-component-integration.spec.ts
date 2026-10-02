@@ -756,8 +756,11 @@ test.describe('Web Component / Embedded Integration', () => {
       expect(latestQrEvent.payload.includesKey).toBe(true);
     }).toPass({ timeout: 5000 });
 
-    // Close the entry QR modal
-    await frame.getByRole('button', { name: 'Close' }).first().click();
+    // Target the close button explicitly by its ID
+    await frame.locator('#btn-modal-close').click({ force: true });
+    
+    // Explicitly wait for the modal backdrop to fully close
+    await expect(frame.locator('#modal-qr-code')).toBeHidden();
 
     // ==========================================
     // Verify `fountainStateChanged` & `fountainFormatChanged`
