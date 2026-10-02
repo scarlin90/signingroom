@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-20_August_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Audit](https://img.shields.io/badge/Last_Audit-17_September_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/scarlin90/signingroom/badge)](https://scorecard.dev/viewer/?uri=github.com/scarlin90/signingroom)
 
 ### 📦 Official SDK Ecosystem
@@ -159,7 +159,7 @@ We are actively seeking funding and grants to evolve SigningRoom from a standalo
 - [x] TypeScript Client Library
 - [x] YouTube SDK walkthrough
 - [x] Docker images and setup
-- [ ] Tapscript support
+- [x] Tapscript support
 - [ ] **Stealth Room** — Prototype OHTTP with WebTransport / QUIC and MASQUE
 - [ ] **Public API** — Well-documented API for automated agents and services
 
