@@ -4,7 +4,7 @@ import { workspaceRoot } from '@nx/devkit';
 
 // Check if we are targeting a deployed environment
 const isRemote = process.env['BASE_URL'] !== undefined;
-const baseURL = process.env['BASE_URL'] || 'http://localhost:4200';
+const baseURL = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
 
 export default defineConfig({
   ...nxE2EPreset(__filename, { testDir: './src' }),
@@ -23,8 +23,8 @@ export default defineConfig({
     ? undefined
     : [
         {
-          command: 'npx nx run client:serve',
-          url: 'http://localhost:4200',
+          command: 'npx nx run client:serve --host 127.0.0.1',
+          url: 'http://127.0.0.1:4200',
           reuseExistingServer: true,
           cwd: workspaceRoot,
           timeout: 120000,
