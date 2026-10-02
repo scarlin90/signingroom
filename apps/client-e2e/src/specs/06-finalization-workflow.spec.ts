@@ -200,3 +200,394 @@ test.describe('Threshold Finalization and Broadcast', () => {
     await Promise.all([coordCtx.close(), guestCtx.close()]);
   });
 });
+
+test.describe('Cryptographic Protocol Scenarios', () => {
+
+  test('Scenario A: 2-of-3 Tapscript (multi_a via p2tr_ms) Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario A: 2-of-3 Tapscript (multi_a via p2tr_ms)/unsigned.txt', 'signet');
+    
+    // --- Verification: Cryptographic & Protocol Badging ---
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText('TAPROOT').first()).toBeVisible();
+    
+    // STRICT NEGATIVE ASSERTIONS: This scenario should NOT have RBF or Timelocks
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario A: 2-of-3 Tapscript (multi_a via p2tr_ms)/signer1.txt');
+    await expect(guestRoom.signedCountBadge).toContainText('1 Signed');
+
+    await coordRoom.uploadSignature('scenarios/Scenario A: 2-of-3 Tapscript (multi_a via p2tr_ms)/signer2.txt');
+    await expect(coordRoom.signedCountBadge).toContainText('2 Signed');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await expect(coordRoom.broadcastButton).toBeVisible();
+
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario B: Keypath Spend (Single Sig) Verification and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario B: Keypath Spend (Single Sig)/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText('TAPROOT').first()).toBeVisible();
+
+    // STRICT NEGATIVE ASSERTIONS
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.uploadSignature('scenarios/Scenario B: Keypath Spend (Single Sig)/signer1.txt');
+    
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await coordCtx.close();
+  });
+
+  test('Scenario C: Multi-Leaf Tree (Branching paths) Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario C: Multi-Leaf Tree (Branching paths)/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText('TAPROOT').first()).toBeVisible();
+
+    // STRICT NEGATIVE ASSERTIONS
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario C: Multi-Leaf Tree (Branching paths)/signer1.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario C: Multi-Leaf Tree (Branching paths)/signer2.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario D: Decaying Threshold (Active 2-of-3 fallback path) Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario D: Decaying Threshold (Active 2-of-3 fallback path)/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText('TAPROOT').first()).toBeVisible();
+
+    // STRICT NEGATIVE ASSERTIONS
+    // branching for its fallback and does not include an explicit OP_CSV constraint.
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario D: Decaying Threshold (Active 2-of-3 fallback path)/signer1.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario D: Decaying Threshold (Active 2-of-3 fallback path)/signer3.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario E: 3-of-5 Tapscript Multisig (Institutional Quorum) Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guest1Ctx, page: guest1Page } = await createSecurePage(browser);
+    const { ctx: guest2Ctx, page: guest2Page } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario E: 3-of-5 Tapscript Multisig (Institutional Quorum)/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText('TAPROOT').first()).toBeVisible();
+
+    // STRICT NEGATIVE ASSERTIONS
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guest1Room = await joinRoomFromLink(guest1Page, sharedLink);
+    const guest2Room = await joinRoomFromLink(guest2Page, sharedLink);
+
+    await guest1Room.uploadSignature('scenarios/Scenario E: 3-of-5 Tapscript Multisig (Institutional Quorum)/signer4.txt');
+    await guest2Room.uploadSignature('scenarios/Scenario E: 3-of-5 Tapscript Multisig (Institutional Quorum)/signer5.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario E: 3-of-5 Tapscript Multisig (Institutional Quorum)/signer1.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guest1Ctx.close(), guest2Ctx.close()]);
+  });
+
+  test('Scenario F: Absolute Timelock via CLTV Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario F: Absolute Timelock via CLTV/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeVisible();
+    await expect(coordPage.getByText(/Block Height: 900,000/i)).toBeVisible();
+
+    await coordRoom.uploadSignature('scenarios/Scenario F: Absolute Timelock via CLTV/signer1.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await coordCtx.close();
+  });
+
+  test('Scenario G: Keypath (MuSig2) + Scriptpath (Recovery) Combined Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario G: Keypath (MuSig2) + Scriptpath (Recovery) Combined/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText('TAPROOT').first()).toBeVisible();
+
+    // STRICT NEGATIVE ASSERTIONS
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario G: Keypath (MuSig2) + Scriptpath (Recovery) Combined/signer1_recovery.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario G: Keypath (MuSig2) + Scriptpath (Recovery) Combined/signer2_recovery.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario H: Relative Timelock (CSV) Multisig Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario H: Relative Timelock (CSV) Multisig/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    
+    await expect(coordPage.getByText('RBF').first()).toBeVisible();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+
+    // STRICT ASSERTIONS: Relative CSV
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeVisible();
+    await expect(coordPage.getByText(/144 Blocks/i)).toBeVisible();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario H: Relative Timelock (CSV) Multisig/signer1.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario H: Relative Timelock (CSV) Multisig/signer2.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario I: Native SegWit (P2WSH) 2-of-3 Multisig Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario I: Native SegWit (P2WSH) 2-of-3 Multisig/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText(/SEGWIT/i).first()).toBeVisible();
+
+    // STRICT NEGATIVE ASSERTIONS
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario I: Native SegWit (P2WSH) 2-of-3 Multisig/signer1.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario I: Native SegWit (P2WSH) 2-of-3 Multisig/signer3.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario J: Legacy P2SH (Non-Segwit) 2-of-3 Multisig Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario J: Legacy P2SH (Non-Segwit) 2-of-3 Multisig/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText(/LEGACY|P2SH/i).first()).toBeVisible();
+
+    // STRICT NEGATIVE ASSERTIONS
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario J: Legacy P2SH (Non-Segwit) 2-of-3 Multisig/signer1_legacy.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario J: Legacy P2SH (Non-Segwit) 2-of-3 Multisig/signer2_legacy.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario K: Mixed Inputs (Taproot + Native Segwit + Relative Timelock) Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario K: Mixed Inputs (Taproot + Native Segwit + Relative Timelock)/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText('TAPROOT').first()).toBeVisible();
+    await expect(coordPage.getByText(/SEGWIT/i).first()).toBeVisible();
+
+    await expect(coordPage.getByText('RBF').first()).toBeVisible();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeVisible();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario K: Mixed Inputs (Taproot + Native Segwit + Relative Timelock)/signer1_both_inputs.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario K: Mixed Inputs (Taproot + Native Segwit + Relative Timelock)/signer2_input_1_only.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario L: Replace-By-Fee (RBF) Opt-In Aggregation and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario L: Replace-By-Fee (RBF) Opt-In/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    
+    // STRICT ASSERTIONS: RBF should be active, others hidden
+    await expect(coordPage.getByText('RBF').first()).toBeVisible();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario L: Replace-By-Fee (RBF) Opt-In/signer1.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario L: Replace-By-Fee (RBF) Opt-In/signer2.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+
+  test('Scenario M: Institutional Change Output Verification and Finalization', async ({ browser }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: guestCtx, page: guestPage } = await createSecurePage(browser);
+
+    const coordRoom = await launchRoomFromFixture(coordPage, 'scenarios/Scenario M: Institutional Change Output Verification/unsigned.txt', 'signet');
+    
+    await coordRoom.switchTab('Inputs');
+    
+    // STRICT NEGATIVE ASSERTIONS
+    await expect(coordPage.getByText('RBF').first()).toBeHidden();
+    await expect(coordPage.getByText('Absolute Timelock Active')).toBeHidden();
+    await expect(coordPage.getByText('Relative Timelock (CSV) Active')).toBeHidden();
+
+    await coordRoom.switchTab('Outputs');
+    await expect(coordPage.getByRole('button', { name: /Outputs \(\d+\)/i })).toBeVisible();
+    await expect(coordRoom.verifyAllOutputsButton).toBeVisible();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const guestRoom = await joinRoomFromLink(guestPage, sharedLink);
+
+    await guestRoom.uploadSignature('scenarios/Scenario M: Institutional Change Output Verification/signer1.txt');
+    await coordRoom.uploadSignature('scenarios/Scenario M: Institutional Change Output Verification/signer3.txt');
+
+    await expect(coordRoom.finalizeButton).toBeVisible();
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await Promise.all([coordCtx.close(), guestCtx.close()]);
+  });
+});

@@ -29,6 +29,7 @@ export class RoomAuditor {
       'TXID',
       'Total Amount (BTC)',
       'Fee Rate (sats/vB)',
+      'RBF Enabled',
       'Inputs',
       'Outputs',
       'Signers',
@@ -56,6 +57,7 @@ export class RoomAuditor {
       state.finalTxId || 'Pending',
       (tx.amount / 100000000).toFixed(8),
       tx.feeRate,
+      tx.isRbfEnabled ? 'Yes' : 'No',
       tx.inputsList?.length || 0,
       tx.outputs?.length || 0,
       `"${signersList}"`,
@@ -263,21 +265,29 @@ export class RoomAuditor {
       doc.text(String(txId), 20, y);
       y += 8;
 
-      // Add a clickable link hint
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(8);
-      doc.setTextColor(100);
-      const explorerUrl =
+      // Explorer Link Header (Matching Section Style)
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(50);
+      doc.text('Explorer Verification Link:', 20, y);
+      y += 5;
+
+      const networkSubpath = 
         state.network === 'testnet'
-          ? 'mempool.space/testnet/tx/'
+          ? 'testnet/'
           : state.network === 'signet'
-            ? 'mempool.space/signet/tx/'
-            : 'mempool.space/tx/';
-      doc.text(`View on Explorer: ${explorerUrl}${txId.slice(0, 8)}...`, 20, y);
-      y += 10;
+            ? 'signet/'
+            : '';
+      const fullExplorerUrl = `https://mempool.space/${networkSubpath}tx/${txId}`;
+
+      doc.setFontSize(8);
+      doc.setFont('courier', 'normal');
+      doc.setTextColor(brandColor[0], brandColor[1], brandColor[2]);
+      
+      doc.textWithLink(fullExplorerUrl, 20, y, { url: fullExplorerUrl });
+      y += 12;
     }
 
-    // Partial Hex (Visual Check)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(50);
@@ -296,6 +306,48 @@ export class RoomAuditor {
     doc.text(partialHexDisplay, 20, y, { maxWidth: 170 });
     doc.setFont('helvetica', 'normal');
     y += 15;
+
+    // =========================================================
+    // SECTION 2.5: TEMPORAL CONSTRAINTS (TIMELOCKS)
+    // =========================================================
+    const lockTime = tx?.lockTime || 0;
+    const hasRelative = tx?.hasRelativeTimelock || false;
+    const relativeVal = tx?.relativeTimelockValue;
+
+    if (lockTime > 0 || hasRelative) {
+      checkPageBreak(30);
+      doc.setFontSize(14);
+      doc.setTextColor(0);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Temporal Constraints (Timelocks)', 20, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(50);
+
+      if (lockTime > 0) {
+        const isTimestamp = lockTime >= 500000000;
+        const lockDesc = isTimestamp 
+          ? `Timestamp: ${new Date(lockTime * 1000).toUTCString()}` 
+          : `Block Height: ${lockTime.toLocaleString()}`;
+        
+        doc.text(`Absolute Timelock (CLTV): ${lockDesc}`, 20, y);
+        y += 6;
+      }
+
+      if (hasRelative && relativeVal) {
+        doc.text(`Relative Timelock (CSV): ${relativeVal} delay active`, 20, y);
+        y += 6;
+      }
+
+      y += 6;
+      // Separator Line
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.5);
+      doc.line(20, y, 190, y);
+      y += 10;
+    }
 
     // =========================================================
     // SECTION 3: SIGNER ACTIVITY
@@ -451,36 +503,38 @@ export class RoomAuditor {
       y += 6;
     } else {
       inputs.forEach((inpt, i) => {
-        checkPageBreak(25);
+        checkPageBreak(30);
         const isWhitelisted = whitelist.includes(inpt.address);
         const amount = (inpt.amount / 100000000).toFixed(8);
-
         const label = state.addressLabels?.[inpt.address];
 
-        if (label) {
-          doc.setFontSize(9);
-          doc.setTextColor(0);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${i + 1}. ${label}`, 20, y);
-          y += 6;
+        const scriptTypeMap: Record<string, string> = {
+          P2TR: 'Taproot',
+          P2WSH: 'SegWit',
+          P2WPKH: 'SegWit',
+          P2SH: 'Nested-Segwit',
+          P2PKH: 'Legacy',
+        };
+        const readableType = scriptTypeMap[inpt.scriptType] || inpt.scriptType;
+        const rbfTag = inpt.isRbfEnabled ? ' • RBF Enabled' : '';
 
-          doc.setFontSize(8);
-          doc.setTextColor(50);
-          doc.setFont('courier', 'normal');
-          doc.text(inpt.address, 25, y);
-          y += 6;
-        } else {
-          doc.setFontSize(8);
-          doc.setTextColor(50);
-          doc.setFont('courier', 'normal');
-          doc.text(`${i + 1}. ${inpt.address}`, 20, y);
-          y += 5;
-        }
+        doc.setFontSize(9);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
+        const headerTitle = label ? `${i + 1}. ${label} (${readableType}${rbfTag})` : `${i + 1}. ${readableType}${rbfTag}`;
+        doc.text(headerTitle, 20, y);
+        y += 5;
+
+        doc.setFontSize(8);
+        doc.setTextColor(50);
+        doc.setFont('courier', 'normal');
+        doc.text(inpt.address, 20, y);
+        y += 6;
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(0);
-        doc.text(`${amount} BTC`, 25, y);
+        doc.text(`${amount} BTC`, 20, y);
 
         if (whitelist.length === 0) {
           doc.setTextColor(100);
@@ -493,7 +547,7 @@ export class RoomAuditor {
           doc.text('UNVERIFIED', 150, y);
         }
 
-        y += 10;
+        y += 12;
       });
     }
     y += 10;
@@ -522,36 +576,40 @@ export class RoomAuditor {
       y += 6;
     } else {
       outputs.forEach((out, i) => {
-        checkPageBreak(25);
+        checkPageBreak(30);
         const isWhitelisted = whitelist.includes(out.address);
         const amount = (out.amount / 100000000).toFixed(8);
-
         const label = state.addressLabels?.[out.address];
 
-        if (label) {
-          doc.setFontSize(9);
-          doc.setTextColor(0);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${i + 1}. ${label}`, 20, y);
-          y += 6;
+        const scriptTypeMap: Record<string, string> = {
+          P2TR: 'Taproot',
+          P2WSH: 'SegWit',
+          P2WPKH: 'SegWit',
+          P2SH: 'Nested-Segwit',
+          P2PKH: 'Legacy',
+        };
+        const readableType = scriptTypeMap[out.scriptType] || out.scriptType;
 
-          doc.setFontSize(8);
-          doc.setTextColor(50);
-          doc.setFont('courier', 'normal');
-          doc.text(out.address, 25, y);
-          y += 6;
-        } else {
-          doc.setFontSize(8);
-          doc.setTextColor(50);
-          doc.setFont('courier', 'normal');
-          doc.text(`${i + 1}. ${out.address}`, 20, y);
-          y += 5;
-        }
+        // Line 1: Index & Script Type (or User Label if assigned)
+        doc.setFontSize(9);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
+        const headerTitle = label ? `${i + 1}. ${label} (${readableType})` : `${i + 1}. ${readableType}`;
+        doc.text(headerTitle, 20, y);
+        y += 5;
 
+        // Line 2: Monospace Address
+        doc.setFontSize(8);
+        doc.setTextColor(50);
+        doc.setFont('courier', 'normal');
+        doc.text(out.address, 20, y);
+        y += 6;
+
+        // Line 3: Amount & Verification Status
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(0);
-        doc.text(`${amount} BTC`, 25, y);
+        doc.text(`${amount} BTC`, 20, y);
 
         if (whitelist.length === 0) {
           doc.setTextColor(100);
@@ -567,7 +625,7 @@ export class RoomAuditor {
           doc.text('UNVERIFIED', 150, y);
         }
 
-        y += 10;
+        y += 12;
       });
 
       doc.setDrawColor(200);
