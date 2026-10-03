@@ -23,23 +23,26 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install Dependencies
-        run: |
-          npm ci --legacy-peer-deps
-          cd apps/worker && npm install --legacy-peer-deps
+      - name: Install Root Dependencies
+        run: npm ci --legacy-peer-deps
 
-      - name: Generate Software Bill of Materials (SBOM)
+      - name: Generate Client Software Bill of Materials (SBOM)
         run: |
           set -euxo pipefail
-          
-          # Generate Client SBOM
           npx @cyclonedx/cyclonedx-npm \
             --package-lock-only \
             --output-format JSON \
             --output-file client-sbom.json \
             --ignore-npm-errors || true
 
-          # Generate Worker SBOM
+      - name: Install Worker Dependencies
+        run: |
+          cd apps/worker
+          npm install --legacy-peer-deps
+
+      - name: Generate Worker Software Bill of Materials (SBOM)
+        run: |
+          set -euxo pipefail
           cd apps/worker
           npx @cyclonedx/cyclonedx-npm \
             --package-lock-only \
@@ -48,6 +51,8 @@ jobs:
             --ignore-npm-errors || true
           cd ..
 
+      - name: Verify SBOM Generation
+        run: |
           if [ ! -s client-sbom.json ] || [ ! -s worker-sbom.json ]; then
             echo "ERROR: One or more SBOM files were not created or are empty"
             exit 1
