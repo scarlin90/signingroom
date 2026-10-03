@@ -59,7 +59,9 @@ jobs:
           node-version: '24'
 
       - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
+        run: |
+          npm ci --legacy-peer-deps
+          cd apps/worker && npm install --legacy-peer-deps
 
       - name: Generate Software Bill of Materials (SBOM)
         run: npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-${{ inputs.target_env }}.json --ignore-npm-errors
