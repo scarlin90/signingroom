@@ -315,16 +315,48 @@ describe('RoomComponent - Setup & Lifecycle', () => {
   });
 
   describe('Computed Properties & Getters', () => {
+    describe('Timelock Signals', () => {
+      it('should default to 0, false, and null when txDetails is null', () => {
+        mockSocketService.txDetails.set(null);
+        
+        expect(component.absoluteTimelock()).toBe(0);
+        expect(component.hasRelativeTimelock()).toBe(false);
+        expect(component.relativeTimelockValue()).toBeNull();
+      });
+
+      it('should correctly derive timelock values from txDetails', () => {
+        mockSocketService.txDetails.set({
+          lockTime: 840000,
+          hasRelativeTimelock: true,
+          relativeTimelockValue: '144 Blocks',
+        });
+        
+        expect(component.absoluteTimelock()).toBe(840000);
+        expect(component.hasRelativeTimelock()).toBe(true);
+        expect(component.relativeTimelockValue()).toBe('144 Blocks');
+      });
+
+      it('should correctly handle partial txDetails payloads without timelocks', () => {
+        mockSocketService.txDetails.set({
+          amount: 50000,
+        });
+        
+        expect(component.absoluteTimelock()).toBe(0);
+        expect(component.hasRelativeTimelock()).toBe(false);
+        expect(component.relativeTimelockValue()).toBeNull();
+      });
+    });
+
     describe('filteredInputs & filteredOutputs', () => {
       beforeEach(() => {
         mockSocketService.txDetails.set({
           inputsList: [
-            { address: 'bc1qabc123', amount: 1000, txId: 'tx1', vout: 0 },
-            { address: '3J98t1WpEZ73', amount: 2000, txId: 'tx2', vout: 1 },
+            { address: 'bc1qabc123', amount: 1000, txId: 'tx1', vout: 0, scriptType: 'P2TR' },
+            { address: '3J98t1WpEZ73', amount: 2000, txId: 'tx2', vout: 1, scriptType: 'P2SH' },
           ],
           outputs: [
-            { address: 'bc1qxyz890', amount: 500, isChange: false },
-            { address: 'bc1qchange', amount: 2500, isChange: true },
+            { address: 'bc1qxyz890', amount: 500, isChange: false, scriptType: 'P2WPKH' },
+            { address: 'bc1qchange', amount: 2500, isChange: true, scriptType: 'P2WSH' },
           ],
         });
 
@@ -383,7 +415,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       it('should correctly filter inputs based on search query when address labels are empty', () => {
         mockSocketService.txDetails.set({
-          inputsList: [{ address: 'bc1q-match' }, { address: '3abc-no-match' }],
+          inputsList: [{ address: 'bc1q-match', scriptType: 'P2WPKH' }, { address: '3abc-no-match', scriptType: 'P2SH' }],
         } as any);
         mockSocketService.roomState.set({ addressLabels: {} });
 
@@ -470,10 +502,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('isSaved should return true if a local label exists in address book', () => {
         expect(component.isSaved('fingerprintB')).toBe(true);
         expect(component.isSaved('fingerprintA')).toBe(false); 
-      });
-
-      it('getAddressLabel should return the mapping from state', () => {
-        expect(component.getAddressLabel('bc1qtrusted')).toBe('Vault');
       });
 
       it('getAddressLabel should return the mapping from state', () => {
@@ -1473,7 +1501,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       mockSocketService.isCoordinator.mockReturnValue(true);
       component.blurStates.set({ 'transaction-details': false } as any);
 
-      const fourItems = [{}, {}, {}, {}];
+      const fourItems = [
+        { address: 'addr1', scriptType: 'P2TR' }, 
+        { address: 'addr2', scriptType: 'P2TR' }, 
+        { address: 'addr3', scriptType: 'P2TR' }, 
+        { address: 'addr4', scriptType: 'P2TR' }
+      ];
       mockSocketService.txDetails.set({ inputsList: fourItems, outputs: fourItems });
 
       component.viewMode.set('inputs');
@@ -2586,6 +2619,56 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       expect(doCopySpy).toHaveBeenCalledWith('http://localhost/room#key', component.fullLinkCopied);
       expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('share-link-full');
+    });
+  });
+
+  describe('getScriptTypeInfo', () => {
+    it('should correctly map P2TR to Taproot label and tooltip', () => {
+      const result = component.getScriptTypeInfo('P2TR');
+      expect(result).toEqual({
+        label: 'Taproot',
+        tooltip: 'Pay-to-Taproot (P2TR)',
+      });
+    });
+
+    it('should correctly map P2WSH to SegWit label and tooltip', () => {
+      const result = component.getScriptTypeInfo('P2WSH');
+      expect(result).toEqual({
+        label: 'SegWit',
+        tooltip: 'Native SegWit (P2WSH)',
+      });
+    });
+
+    it('should correctly map P2WPKH to SegWit label and tooltip', () => {
+      const result = component.getScriptTypeInfo('P2WPKH');
+      expect(result).toEqual({
+        label: 'SegWit',
+        tooltip: 'Native SegWit (P2WPKH)',
+      });
+    });
+
+    it('should correctly map P2SH to Nested-Segwit label and tooltip', () => {
+      const result = component.getScriptTypeInfo('P2SH');
+      expect(result).toEqual({
+        label: 'Nested-Segwit',
+        tooltip: 'Pay-to-Script-Hash / Nested SegWit (P2SH)',
+      });
+    });
+
+    it('should correctly map P2PKH to Legacy label and tooltip', () => {
+      const result = component.getScriptTypeInfo('P2PKH');
+      expect(result).toEqual({
+        label: 'Legacy',
+        tooltip: 'Pay-to-Public-Key-Hash (Legacy)',
+      });
+    });
+
+    it('should provide fallback Unknown mapping for unrecognized script types', () => {
+      const result = component.getScriptTypeInfo('CUSTOM_SCRIPT');
+      expect(result).toEqual({
+        label: 'Unknown',
+        tooltip: 'Standard Script (CUSTOM_SCRIPT)',
+      });
     });
   });
 });

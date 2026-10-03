@@ -59,7 +59,9 @@ jobs:
           node-version: '24'
 
       - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
+        run: |
+          npm ci --legacy-peer-deps
+          cd apps/worker && npm install --legacy-peer-deps
 
       - name: Generate Software Bill of Materials (SBOM)
         run: npx @cyclonedx/cyclonedx-npm --package-lock-only --output-format JSON --output-file sbom-${{ inputs.target_env }}.json --ignore-npm-errors
@@ -120,14 +122,23 @@ jobs:
       - name: Sign Worker Docker Image
         run: cosign sign --yes ghcr.io/${{ github.repository }}/worker@${{ steps.push_worker.outputs.digest }}
 
-      - name: Scan Worker Container for CVEs
+      - name: Scan Worker Container for CVEs (Block on CRITICAL)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}-${{ github.sha }}'
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Generate Worker Trivy SARIF Report
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        if: always()
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/worker:${{ inputs.docker_tag }}-${{ github.sha }}'
           format: 'sarif'
           output: 'trivy-worker.sarif'
-          severity: 'CRITICAL'
-          exit-code: '1'
+          exit-code: '0'
           ignore-unfixed: true
 
       - name: Upload Worker Trivy SARIF to GitHub UI
@@ -155,14 +166,23 @@ jobs:
       - name: Sign Client Docker Image
         run: cosign sign --yes ghcr.io/${{ github.repository }}/client@${{ steps.push_client.outputs.digest }}
 
-      - name: Scan Client Container for CVEs
+      - name: Scan Client Container for CVEs (Block on CRITICAL)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}'
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Generate Client Trivy SARIF Report
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        if: always()
         with:
           image-ref: 'ghcr.io/${{ github.repository }}/client:${{ inputs.docker_tag }}-${{ github.sha }}'
           format: 'sarif'
           output: 'trivy-client.sarif'
-          severity: 'CRITICAL'
-          exit-code: '1'
+          exit-code: '0'
           ignore-unfixed: true
 
       - name: Upload Client Trivy SARIF to GitHub UI
