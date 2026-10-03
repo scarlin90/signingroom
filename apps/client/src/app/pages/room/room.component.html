@@ -1472,62 +1472,107 @@
         [class.opacity-20]="isExpired() || socket.isClosed()" 
         [class.pointer-events-none]="isExpired() || socket.isClosed()">
     
-    <div class="lg:col-span-2 space-y-6">
-        
-        <div id="card-tx-proposal" class="bg-brand-card border border-brand-card-border rounded-xl p-6 relative overflow-hidden">
+        <div class="lg:col-span-2 space-y-6">
+            
+            <div id="card-tx-proposal" class="bg-brand-card border border-brand-card-border rounded-xl p-6 relative overflow-hidden">
 
-            <div class="absolute top-10 right-0 p-4 opacity-10 pointer-events-none">
-                <img [src]="configService.config().logoUrl" class="w-24 h-24 object-contain" alt="Brand Watermark" />
-            </div>
-        
-            <div class="flex justify-between items-center mb-4 relative z-20">
-                <h2 class="text-lg font-semibold text-brand-text flex items-center gap-2">
-                    Transaction Proposal
-                </h2>
-                
-                <button id="btn-reveal-proposal"
-                    (click)="togglePrivacyBlur('transaction-proposal')" 
-                    class="p-2 rounded-lg hover:bg-brand-card-border/50 transition-colors flex items-center gap-2 cursor-pointer"
-                    [class.text-amber-500]="!blurStates()['transaction-proposal']"
-                    [class.text-brand-text-muted]="blurStates()['transaction-proposal']"
-                    [title]="blurStates()['transaction-proposal'] ? 'Reveal Proposal' : 'Hide Proposal'">
-                    @if (blurStates()['transaction-proposal']) {
-                        <svg lucideEyeOff class="w-5 h-5"></svg>
-                    } @else {
-                        <svg lucideEye class="w-5 h-5"></svg>
-                    }
-                </button>
-            </div>
-
-            <div class="transition-all duration-300 relative z-10"
-                    [class.blur-md]="blurStates()['transaction-proposal']"
-                    [class.opacity-30]="blurStates()['transaction-proposal']"
-                    [class.select-none]="blurStates()['transaction-proposal']"
-                    [class.pointer-events-none]="blurStates()['transaction-proposal']">
-                
-                <div class="flex justify-between items-end">
-                    <div>
-                        <div class="text-4xl font-bold text-brand-text mb-1">{{ (socket.txDetails()?.amount || 0) / 100000000 | number:'1.8-8' }} <span class="text-brand-text-muted text-xl">BTC</span></div>
-                        <div class="text-brand-accent text-sm font-mono font-medium">
-                            {{ socket.txDetails()?.amount || 0 | number }} sats
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-brand-text-muted text-sm">Network Fee</div>
-                        <div class="text-brand-text font-mono">{{ socket.txDetails()?.feeRate ?? '--' }} sats/vB</div>
-                    </div>
+                <div class="absolute top-10 right-0 p-4 opacity-10 pointer-events-none">
+                    <img [src]="configService.config().logoUrl" class="w-24 h-24 object-contain" alt="Brand Watermark" />
                 </div>
-            </div>
-
-            @if (blurStates()['transaction-proposal']) {
-                <div class="absolute inset-0 flex items-center justify-center z-10">
-                    <button (click)="togglePrivacyBlur('transaction-proposal')" class="bg-brand-card-border/90 text-brand-text hover:bg-brand-card-border px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-brand-card-border shadow-xl backdrop-blur-sm mt-8 transition-colors cursor-pointer">
-                        <svg lucideEyeOff class="w-3.5 h-3.5"></svg>
-                        Hidden for Privacy
+            
+                <div class="flex justify-between items-center mb-4 relative z-20">
+                    <h2 class="text-lg font-semibold text-brand-text flex items-center gap-2">
+                        Transaction Proposal
+                    </h2>
+                    
+                    <button id="btn-reveal-proposal"
+                        (click)="togglePrivacyBlur('transaction-proposal')" 
+                        class="p-2 rounded-lg hover:bg-brand-card-border/50 transition-colors flex items-center gap-2 cursor-pointer"
+                        [class.text-amber-500]="!blurStates()['transaction-proposal']"
+                        [class.text-brand-text-muted]="blurStates()['transaction-proposal']"
+                        [title]="blurStates()['transaction-proposal'] ? 'Reveal Proposal' : 'Hide Proposal'">
+                        @if (blurStates()['transaction-proposal']) {
+                            <svg lucideEyeOff class="w-5 h-5"></svg>
+                        } @else {
+                            <svg lucideEye class="w-5 h-5"></svg>
+                        }
                     </button>
                 </div>
-            }
-        </div>
+
+                <div class="transition-all duration-300 relative z-10"
+                        [class.blur-md]="blurStates()['transaction-proposal']"
+                        [class.opacity-30]="blurStates()['transaction-proposal']"
+                        [class.select-none]="blurStates()['transaction-proposal']"
+                        [class.pointer-events-none]="blurStates()['transaction-proposal']">
+                    
+                    <div class="flex justify-between items-end">
+                        <div>
+                            <div class="text-4xl font-bold text-brand-text mb-1">{{ (socket.txDetails()?.amount || 0) / 100000000 | number:'1.8-8' }} <span class="text-brand-text-muted text-xl">BTC</span></div>
+                            <div class="text-brand-accent text-sm font-mono font-medium">
+                                {{ socket.txDetails()?.amount || 0 | number }} sats
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-brand-text-muted text-sm flex items-center justify-end gap-1.5">
+                                Network Fee
+                                @if (socket.txDetails()?.isRbfEnabled) {
+                                    <span class="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded cursor-help" title="Replace-By-Fee (RBF) Enabled: This transaction's fee can be bumped later if it gets stuck in the mempool.">
+                                        RBF
+                                    </span>
+                                }
+                            </div>
+                            <div class="text-brand-text font-mono">{{ socket.txDetails()?.feeRate ?? '--' }} sats/vB</div>
+                        </div>
+                    </div>
+
+                    <!-- TIMELOCK WARNINGS -->
+                    @if (absoluteTimelock() > 0 || hasRelativeTimelock()) {
+                    <div class="mt-6 flex flex-col gap-2">
+                        @if (absoluteTimelock() > 0) {
+                            <div id="warning-absolute-timelock" class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-3">
+                                <svg lucideClock class="w-5 h-5 text-amber-500 shrink-0"></svg>
+                                <div>
+                                    <p class="text-xs font-bold text-amber-500 uppercase tracking-wide">Absolute Timelock Active</p>
+                                    <p class="text-xs text-amber-200/80 leading-relaxed mt-0.5 mb-1">
+                                        This transaction contains a network constraint set to 
+                                        @if (absoluteTimelock() >= 500000000) {
+                                            <strong>Timestamp: {{ absoluteTimelock() * 1000 | date:'short' }}</strong>.
+                                        } @else {
+                                            <strong>Block Height: {{ absoluteTimelock() | number }}</strong>.
+                                        }
+                                    </p>
+                                    <p class="text-[10px] text-amber-500/60 font-medium">
+                                        If this matches the current block height, it is likely standard Anti-Fee Sniping protection applied by your wallet, and will broadcast immediately.
+                                    </p>
+                                </div>
+                            </div>
+                        }
+
+                        @if (hasRelativeTimelock()) {
+                            <div id="warning-relative-timelock" class="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-3">
+                                <svg lucideClock class="w-5 h-5 text-amber-500 shrink-0"></svg>
+                                <div>
+                                    <p class="text-xs font-bold text-amber-500 uppercase tracking-wide">Relative Timelock (CSV) Active</p>
+                                    <p class="text-xs text-amber-200/80 leading-relaxed mt-0.5">
+                                        One or more inputs are time-delayed. This transaction cannot confirm until <strong>{{ relativeTimelockValue() }}</strong> have passed since the original funds were received.
+                                    </p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    }
+                    <!-- END TIMELOCK WARNINGS -->
+                </div> 
+
+                @if (blurStates()['transaction-proposal']) {
+                    <div class="absolute inset-0 flex items-center justify-center z-10">
+                        <button (click)="togglePrivacyBlur('transaction-proposal')" class="bg-brand-card-border/90 text-brand-text hover:bg-brand-card-border px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-brand-card-border shadow-xl backdrop-blur-sm mt-8 transition-colors cursor-pointer">
+                            <svg lucideEyeOff class="w-3.5 h-3.5"></svg>
+                            Hidden for Privacy
+                        </button>
+                    </div>
+                }
+            </div>
 
         <div id="card-signer-actions" class="bg-brand-card border border-brand-card-border rounded-xl p-6 mb-6">
 
@@ -1779,6 +1824,30 @@
                                                     {{ getAddressLabel(input.address) || 'Input #' + $index }}
                                                 </span>
                                             }
+
+                                           <div id="badge-input-type-{{ $index }}" 
+                                                class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border transition-colors script-type-badge script-type-{{ input.scriptType.toLowerCase() }} cursor-help"
+                                                [title]="getScriptTypeInfo(input.scriptType).tooltip"
+                                                [class.bg-emerald-500_10]="input.scriptType === 'P2TR'"
+                                                [class.text-emerald-400]="input.scriptType === 'P2TR'"
+                                                [class.border-emerald-500_30]="input.scriptType === 'P2TR'"
+                                                [class.bg-purple-500_10]="input.scriptType === 'P2WSH' || input.scriptType === 'P2WPKH'"
+                                                [class.text-purple-400]="input.scriptType === 'P2WSH' || input.scriptType === 'P2WPKH'"
+                                                [class.border-purple-500_30]="input.scriptType === 'P2WSH' || input.scriptType === 'P2WPKH'"
+                                                [class.bg-amber-500_10]="input.scriptType === 'P2SH'"
+                                                [class.text-amber-400]="input.scriptType === 'P2SH'"
+                                                [class.border-amber-500_30]="input.scriptType === 'P2SH'"
+                                                [class.bg-slate-500_10]="input.scriptType === 'P2PKH' || input.scriptType === 'UNKNOWN'"
+                                                [class.text-slate-400]="input.scriptType === 'P2PKH' || input.scriptType === 'UNKNOWN'"
+                                                [class.border-slate-500_30]="input.scriptType === 'P2PKH' || input.scriptType === 'UNKNOWN'">
+                                                {{ getScriptTypeInfo(input.scriptType).label }}
+                                            </div>
+
+                                            @if (input.isRbfEnabled) {
+                                                <div id="badge-input-rbf-{{ $index }}" class="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded cursor-help" title="Replace-By-Fee (RBF) Enabled: This input permits mempool fee bumping.">
+                                                    RBF
+                                                </div>
+                                            }
                                         </div>
                                         
                                         <!-- Address Box -->
@@ -1880,6 +1949,24 @@
                                                 {{ getAddressLabel(out.address) || 'Output #' + $index }}
                                             </span>
                                         }
+
+                                        <div id="badge-output-type-{{ $index }}" 
+                                            class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border transition-colors script-type-badge script-type-{{ out.scriptType.toLowerCase() }} cursor-help"
+                                            [title]="getScriptTypeInfo(out.scriptType).tooltip"
+                                            [class.bg-emerald-500_10]="out.scriptType === 'P2TR'"
+                                            [class.text-emerald-400]="out.scriptType === 'P2TR'"
+                                            [class.border-emerald-500_30]="out.scriptType === 'P2TR'"
+                                            [class.bg-purple-500_10]="out.scriptType === 'P2WSH' || out.scriptType === 'P2WPKH'"
+                                            [class.text-purple-400]="out.scriptType === 'P2WSH' || out.scriptType === 'P2WPKH'"
+                                            [class.border-purple-500_30]="out.scriptType === 'P2WSH' || out.scriptType === 'P2WPKH'"
+                                            [class.bg-amber-500_10]="out.scriptType === 'P2SH'"
+                                            [class.text-amber-400]="out.scriptType === 'P2SH'"
+                                            [class.border-amber-500_30]="out.scriptType === 'P2SH'"
+                                            [class.bg-slate-500_10]="out.scriptType === 'P2PKH' || out.scriptType === 'UNKNOWN'"
+                                            [class.text-slate-400]="out.scriptType === 'P2PKH' || out.scriptType === 'UNKNOWN'"
+                                            [class.border-slate-500_30]="out.scriptType === 'P2PKH' || out.scriptType === 'UNKNOWN'">
+                                            {{ getScriptTypeInfo(out.scriptType).label }}
+                                        </div>
                                     </div>
                                     
                                     <!-- Address Box -->

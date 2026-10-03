@@ -17,7 +17,7 @@ FROM nginxinc/nginx-unprivileged:alpine-slim@sha256:021f32b23e2bfc8610ccdec499b7
 # Upstream Nginx hasn't rebuilt the Alpine image with the latest libssl3 yet.
 # We temporarily escalate to root to patch CVE-2026-14456, then drop privileges.
 USER root
-RUN apk update && apk upgrade --no-cache libssl3 libcrypto3
+RUN apk update && apk upgrade --no-cache libssl3 libcrypto3 pcre2
 USER nginx
 # -------------------------
 

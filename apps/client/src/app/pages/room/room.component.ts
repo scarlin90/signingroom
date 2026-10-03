@@ -208,6 +208,10 @@ export class RoomComponent implements OnInit, OnDestroy {
   });
 
   public finalHex = computed(() => this.socket.roomState()?.finalTxHex || null);
+  public absoluteTimelock = computed(() => this.socket.txDetails()?.lockTime || 0);
+  public hasRelativeTimelock = computed(() => this.socket.txDetails()?.hasRelativeTimelock || false);
+  public relativeTimelockValue = computed(() => this.socket.txDetails()?.relativeTimelockValue || null);
+
   public copied = signal(false);
   public showShareModal = signal(false);
   public secureLinkCopied = signal(false);
@@ -264,6 +268,19 @@ export class RoomComponent implements OnInit, OnDestroy {
   currentFrameIndex = signal<number>(0);
   fountainInterval: any;
   fountainSpeed = signal<number>(400);
+
+  formattedAbsoluteTimelock = computed(() => {
+    const lockTime = this.absoluteTimelock();
+    if (!lockTime) return '';
+    
+    // Bitcoin consensus: values >= 500,000,000 are Unix timestamps (seconds)
+    if (lockTime >= 500000000) {
+      return `Timestamp: ${new Date(lockTime * 1000).toLocaleString()}`;
+    }
+    
+    // Values < 500,000,000 are block heights
+    return `Block Height: ${lockTime.toLocaleString()}`;
+  });
 
   constructor(
     private route: ActivatedRoute,
@@ -1618,4 +1635,20 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.startFountainAnimation();
     }
   }
+
+  getScriptTypeInfo(scriptType: string): { label: string; tooltip: string } {
+  switch (scriptType) {
+    case 'P2TR':
+      return { label: 'Taproot', tooltip: 'Pay-to-Taproot (P2TR)' };
+    case 'P2WSH':
+    case 'P2WPKH':
+      return { label: 'SegWit', tooltip: `Native SegWit (${scriptType})` };
+    case 'P2SH':
+      return { label: 'Nested-Segwit', tooltip: 'Pay-to-Script-Hash / Nested SegWit (P2SH)' };
+    case 'P2PKH':
+      return { label: 'Legacy', tooltip: 'Pay-to-Public-Key-Hash (Legacy)' };
+    default:
+      return { label: 'Unknown', tooltip: `Standard Script (${scriptType})` };
+  }
+}
 }
