@@ -23,86 +23,67 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install Root Dependencies
+      - name: Install Dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Generate Client Software Bill of Materials (SBOM)
+      - name: Generate Software Bill of Materials (SBOM)
         run: |
           set -euxo pipefail
           npx @cyclonedx/cyclonedx-npm \
             --package-lock-only \
             --output-format JSON \
-            --output-file client-sbom.json \
+            --output-file release-sbom.json \
             --ignore-npm-errors || true
 
-      - name: Install Worker Dependencies
-        run: |
-          cd apps/worker
-          npm install --legacy-peer-deps
-
-      - name: Generate Worker Software Bill of Materials (SBOM)
-        run: |
-          set -euxo pipefail
-          cd apps/worker
-          npx @cyclonedx/cyclonedx-npm \
-            --package-lock-only \
-            --output-format JSON \
-            --output-file ../worker-sbom.json \
-            --ignore-npm-errors || true
-          cd ..
-
-      - name: Verify SBOM Generation
-        run: |
-          if [ ! -s client-sbom.json ] || [ ! -s worker-sbom.json ]; then
-            echo "ERROR: One or more SBOM files were not created or are empty"
+          if [ ! -s release-sbom.json ]; then
+            echo "ERROR: release-sbom.json was not created or is empty"
             exit 1
           fi
+          ls -l release-sbom.json
+          echo "SBOM size: $(wc -c < release-sbom.json) bytes"
 
-      - name: Upload unsigned SBOMs (debug)
+      - name: Upload unsigned SBOM (debug)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: sboms-unsigned-${{ github.event.release.tag_name }}
-          path: |
-            client-sbom.json
-            worker-sbom.json
-          retention-days: 90
+          name: release-sbom-unsigned-${{ github.event.release.tag_name }}
+          path: release-sbom.json
+          retention-days: 14
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: 'v3.1.1'
 
-      - name: Sign the SBOMs
+      - name: Sign the SBOM
         run: |
           set -euxo pipefail
+          test -s release-sbom.json
           cosign version
 
-          BUNDLE_CLIENT="${PWD}/client-sbom.json.sigstore.json"
-          BUNDLE_WORKER="${PWD}/worker-sbom.json.sigstore.json"
+          # .sigstore.json is recognized by OpenSSF Scorecard
+          BUNDLE="${PWD}/release-sbom.json.sigstore.json"
+          echo "Signing with --bundle=${BUNDLE}"
 
-          echo "Signing Client SBOM"
           cosign sign-blob \
-            --bundle "${BUNDLE_CLIENT}" \
+            --bundle "${BUNDLE}" \
             --yes \
-            client-sbom.json
+            release-sbom.json
 
-          echo "Signing Worker SBOM"
-          cosign sign-blob \
-            --bundle "${BUNDLE_WORKER}" \
-            --yes \
-            worker-sbom.json
+          test -s "${BUNDLE}"
+          ls -l "${BUNDLE}"
+          echo "Signed bundle written to ${BUNDLE}"
 
       - name: Upload Signed Artifacts to GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euxo pipefail
+          test -s release-sbom.json
+          test -s release-sbom.json.sigstore.json
 
           gh release upload "${{ github.event.release.tag_name }}" \
-            client-sbom.json \
-            client-sbom.json.sigstore.json \
-            worker-sbom.json \
-            worker-sbom.json.sigstore.json \
+            release-sbom.json \
+            release-sbom.json.sigstore.json \
             --clobber
 
           echo "Uploaded assets:"
