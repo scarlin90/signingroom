@@ -6,7 +6,6 @@ import { jsPDF } from 'jspdf';
 import { webcrypto } from 'node:crypto';
 
 describe('RoomAuditor', () => {
-  // 1. Setup mock environment for Crypto & jsPDF
   beforeAll(() => {
     if (typeof global !== 'undefined' && !global.crypto) {
       Object.defineProperty(global, 'crypto', {
@@ -24,6 +23,7 @@ describe('RoomAuditor', () => {
       setFontSize: vi.fn(),
       setTextColor: vi.fn(),
       text: vi.fn(),
+      textWithLink: vi.fn(),
       setDrawColor: vi.fn(),
       setLineWidth: vi.fn(),
       line: vi.fn(),
@@ -65,12 +65,16 @@ describe('RoomAuditor', () => {
     vBytes: 150,
     feeRate: 6.66,
     inputs: 1,
-    inputsList: [{ address: 'tb1qinput', amount: 50001000, txId: 'old-tx', vout: 0 }],
+    inputsList: [{ address: 'tb1qinput', amount: 50001000, txId: 'old-tx', vout: 0, scriptType: 'P2TR', isRbfEnabled: true }],
     outputs: [
-      { address: 'tb1qmockaddress', amount: 40000000, isChange: false }, // Whitelisted
-      { address: 'tb1qchange', amount: 10000000, isChange: true }, // Change
-      { address: 'tb1qbad', amount: 0, isChange: false }, // Unverified
+      { address: 'tb1qmockaddress', amount: 40000000, isChange: false, scriptType: 'P2TR' }, // Whitelisted
+      { address: 'tb1qchange', amount: 10000000, isChange: true, scriptType: 'P2WSH' }, // Change
+      { address: 'tb1qbad', amount: 0, isChange: false, scriptType: 'P2SH' }, // Unverified
     ],
+    lockTime: 900000,
+    hasRelativeTimelock: true,
+    relativeTimelockValue: '144 Blocks',
+    isRbfEnabled: true,
   };
 
   const mockSigners: SignerStatus[] = [
@@ -79,11 +83,12 @@ describe('RoomAuditor', () => {
   ];
 
   describe('CSV Generation & Export', () => {
-    it('should correctly format settlement data into a CSV string', () => {
+    it('should correctly format settlement data into a CSV string including RBF flag', () => {
       const csv = RoomAuditor.getSettlementCsvData(mockState, mockTx, mockSigners);
-      expect(csv).toContain('Date,Room ID,Network,TXID,Total Amount (BTC)');
+      expect(csv).toContain('Date,Room ID,Network,TXID,Total Amount (BTC),Fee Rate (sats/vB),RBF Enabled');
       expect(csv).toContain('room-123');
       expect(csv).toContain('0.50000000');
+      expect(csv).toContain('Yes'); // RBF Enabled
       expect(csv).toContain('aabbccdd(Signed)');
       expect(csv).toContain('eeff0011(Pending)');
       expect(csv).toContain('Alice [Coordinator] (sess-1)');
@@ -113,8 +118,8 @@ describe('RoomAuditor', () => {
       const edgeTx = { ...mockTx, inputsList: undefined, outputs: undefined } as any;
       const csv = RoomAuditor.getSettlementCsvData(edgeState, edgeTx, []);
 
-      expect(csv).toContain('Anonymous [Guest] (sess-3)'); // Hits L38 fallback
-      expect(csv).toContain('6.66,0,0,'); // Hits L47 and L48 fallback
+      expect(csv).toContain('Anonymous [Guest] (sess-3)'); 
+      expect(csv).toContain('6.66,Yes,0,0,'); 
     });
 
     it('should transform the chronological audit log into a flat CSV', () => {
@@ -131,8 +136,6 @@ describe('RoomAuditor', () => {
       };
       const csv = RoomAuditor.getAuditLogCsvData(emptyState as any);
 
-      // The implementation returns 'Timestamp,Event,User,Detail\n'
-      // splitting this on '\n' results in ['Timestamp,Event,User,Detail', '']
       expect(csv.split('\n').length).toBe(2);
     });
 
@@ -140,6 +143,60 @@ describe('RoomAuditor', () => {
       const uri = RoomAuditor.getEncodedCsvData(mockState, mockTx, mockSigners);
       expect(uri).toMatch(/^data:text\/csv;charset=utf-8,.+/);
       expect(uri).toContain('room-123');
+    });
+
+    it('should handle unknown/fallback script types gracefully in PDF generation', async () => {
+      const mockDoc = createMockDoc();
+      const unknownScriptTx = {
+        ...mockTx,
+        inputsList: [{ address: 'tb1qinput', amount: 50000000, txId: 'old-tx', vout: 0, scriptType: 'UNKNOWN_TYPE', isRbfEnabled: false }],
+        outputs: [{ address: 'tb1qmockaddress', amount: 40000000, isChange: false, scriptType: 'UNKNOWN_TYPE' }]
+      };
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, unknownScriptTx, mockSigners, null);
+      // Verifies that the default case in scriptTypeMap is hit (branch coverage)
+      expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('UNKNOWN_TYPE'), 20, expect.any(Number));
+    });
+
+    it('should generate audit PDF without whitelabel options or brand name fallback', async () => {
+      const mockDoc = createMockDoc();
+      const options = {
+        isWhitelabel: true,
+        brandName: undefined, // Triggers fallback to 'SigningRoom.io'
+      };
+
+      const { filename } = await RoomAuditor.generateAuditPdf(
+        mockDoc,
+        mockState,
+        mockTx,
+        mockSigners,
+        null,
+        options,
+      );
+
+      expect(filename).toContain('SigningRoom_Audit_');
+    });
+
+    it('should handle logo image embedding failure gracefully', async () => {
+      const mockDoc = createMockDoc();
+      const options = {
+        logoDataUrl: 'invalid-broken-base64',
+      };
+      // Force getImageProperties to throw an error to hit the catch block branch
+      vi.spyOn(mockDoc, 'getImageProperties').mockImplementationOnce(() => {
+        throw new Error('Invalid image');
+      });
+
+      const { doc } = await RoomAuditor.generateAuditPdf(
+        mockDoc,
+        mockState,
+        mockTx,
+        mockSigners,
+        null,
+        options,
+      );
+
+      expect(doc).toBeDefined();
     });
   });
 
@@ -165,6 +222,12 @@ describe('RoomAuditor', () => {
         20,
         expect.any(Number),
       );
+      // Verify temporal constraints section rendered
+      expect(doc.text).toHaveBeenCalledWith(
+        expect.stringContaining('Temporal Constraints (Timelocks)'),
+        20,
+        expect.any(Number),
+      );
       expect(filename).toMatch(/SigningRoom_Audit_.*_Room-room-123_Tx-txid-123.pdf/);
     });
 
@@ -172,11 +235,11 @@ describe('RoomAuditor', () => {
       const mockDoc = createMockDoc();
       const undefinedState: any = {
         ...mockState,
-        network: undefined, // Hits L126 ('bitcoin')
-        whitelist: undefined, // Hits L134 and L331([])
-        participants: undefined, // Hits L243 ({})
-        auditLog: undefined, // Hits L273([])
-        isLocked: true, // Hits L131 ('LOCKED (Secure)')
+        network: undefined, 
+        whitelist: undefined, 
+        participants: undefined, 
+        auditLog: undefined, 
+        isLocked: true, 
       };
 
       await RoomAuditor.generateAuditPdf(mockDoc, undefinedState, null, [], null);
@@ -201,45 +264,42 @@ describe('RoomAuditor', () => {
     it('should accurately color-code inputs and outputs based on whitelist and change status', async () => {
       const mockDoc = createMockDoc();
 
-      // Test 1: Hit "VERIFIED SOURCE" for Inputs (L397-398) by using a whitelisted address as an input
       const whitelistedInputTx = {
         ...mockTx,
-        inputsList: [{ address: 'tb1qmockaddress', amount: 50000000, txId: 'old-tx', vout: 0 }],
+        inputsList: [{ address: 'tb1qmockaddress', amount: 50000000, txId: 'old-tx', vout: 0, scriptType: 'P2TR', isRbfEnabled: false }],
       };
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, whitelistedInputTx, mockSigners, null);
       expect(mockDoc.text).toHaveBeenCalledWith('VERIFIED SOURCE', 150, expect.any(Number));
 
-      // Test 2: Hit "NO WHITELIST" branches
       const emptyWhitelistState = { ...mockState, whitelist: [] };
       await RoomAuditor.generateAuditPdf(mockDoc, emptyWhitelistState, mockTx, mockSigners, null);
       expect(mockDoc.text).toHaveBeenCalledWith('NO WHITELIST', 150, expect.any(Number));
 
-      // Test 3: Standard Output variations
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
       expect(mockDoc.text).toHaveBeenCalledWith('UNVERIFIED', 150, expect.any(Number));
       expect(mockDoc.text).toHaveBeenCalledWith('VERIFIED DESTINATION', 150, expect.any(Number));
       expect(mockDoc.text).toHaveBeenCalledWith('CHANGE (VERIFIED)', 150, expect.any(Number));
     });
 
-    it('should correctly format labeled inputs and outputs with precise X coordinate indentation', async () => {
+    it('should correctly format labeled inputs with script type headings and indented addresses', async () => {
       const mockDoc = createMockDoc();
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
 
-      // Check if labels are printed at X=20 as primary items
+      // Verify header title structure incorporating label and script type
       expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('1. Primary Vault'),
+        expect.stringContaining('1. Primary Vault (Taproot • RBF Enabled)'),
         20,
         expect.any(Number),
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('1. Corporate Treasury'),
+        expect.stringContaining('1. Corporate Treasury (Taproot)'),
         20,
         expect.any(Number),
       );
 
-      // Check if actual addresses are indented accurately underneath the labels at X=25
-      expect(mockDoc.text).toHaveBeenCalledWith('tb1qinput', 25, expect.any(Number));
-      expect(mockDoc.text).toHaveBeenCalledWith('tb1qmockaddress', 25, expect.any(Number));
+      // Verify actual addresses are printed cleanly underneath at X=20
+      expect(mockDoc.text).toHaveBeenCalledWith('tb1qinput', 20, expect.any(Number));
+      expect(mockDoc.text).toHaveBeenCalledWith('tb1qmockaddress', 20, expect.any(Number));
     });
 
     it('should wrap text for log details using splitTextToSize', async () => {
@@ -316,14 +376,15 @@ describe('RoomAuditor', () => {
       expect(mockDoc.text).toHaveBeenCalledWith('1. 99887766', 20, expect.any(Number));
     });
 
-    it('should correctly format explorer links across networks', async () => {
+    it('should correctly format full explorer links across networks', async () => {
       const mockDoc = createMockDoc();
 
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
-      expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('mempool.space/testnet/tx/txid-123'),
+      expect(mockDoc.textWithLink).toHaveBeenCalledWith(
+        expect.stringContaining('https://mempool.space/testnet/tx/txid-12345'),
         20,
         expect.any(Number),
+        expect.any(Object),
       );
 
       await RoomAuditor.generateAuditPdf(
@@ -333,10 +394,11 @@ describe('RoomAuditor', () => {
         mockSigners,
         null,
       );
-      expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('mempool.space/signet/tx/txid-123'),
+      expect(mockDoc.textWithLink).toHaveBeenCalledWith(
+        expect.stringContaining('https://mempool.space/signet/tx/txid-12345'),
         20,
         expect.any(Number),
+        expect.any(Object),
       );
 
       await RoomAuditor.generateAuditPdf(
@@ -346,10 +408,11 @@ describe('RoomAuditor', () => {
         mockSigners,
         null,
       );
-      expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('mempool.space/tx/txid-123'),
+      expect(mockDoc.textWithLink).toHaveBeenCalledWith(
+        expect.stringContaining('https://mempool.space/tx/txid-12345'),
         20,
         expect.any(Number),
+        expect.any(Object),
       );
     });
 
@@ -369,7 +432,7 @@ describe('RoomAuditor', () => {
       const options = {
         isWhitelabel: true,
         brandName: 'Acme Corp Vault',
-        brandColor: [220, 38, 38] as [number, number, number], // Deep Red
+        brandColor: [220, 38, 38] as [number, number, number], 
         logoDataUrl: 'data:image/png;base64,mockBase64DataString',
       };
 
@@ -382,13 +445,8 @@ describe('RoomAuditor', () => {
         options,
       );
 
-      // Verify custom text color was applied to the header
       expect(mockDoc.setTextColor).toHaveBeenCalledWith(220, 38, 38);
-
-      // Verify custom brand name was printed
       expect(mockDoc.text).toHaveBeenCalledWith('Acme Corp Vault', expect.any(Number), 20);
-
-      // Verify logo extraction and placement was called correctly
       expect(mockDoc.getImageProperties).toHaveBeenCalledWith(options.logoDataUrl);
       expect(mockDoc.addImage).toHaveBeenCalledWith(
         options.logoDataUrl,
@@ -398,8 +456,6 @@ describe('RoomAuditor', () => {
         expect.any(Number),
         12,
       );
-
-      // Verify the filename stripped spaces from the custom brand name
       expect(filename).toContain('AcmeCorpVault_Audit_');
     });
   });
@@ -418,7 +474,7 @@ describe('RoomAuditor', () => {
     it('should handle undefined details safely in calculateForensicAnchor', async () => {
       const edgeLog = [{ timestamp: 100, event: 'Test', user: 'Bob', detail: undefined }] as any;
       const anchor = await RoomAuditor.calculateForensicAnchor(edgeLog, 'mockHex');
-      expect(anchor.length).toBe(64); // Hits L497 fallback
+      expect(anchor.length).toBe(64); 
     });
 
     it('should verify a valid anchor successfully', async () => {
@@ -474,16 +530,13 @@ describe('RoomAuditor', () => {
 
   describe('Offline Integrity Verification', () => {
     it('should correctly parse exported CSVs, un-escape quotes, and verify the anchor offline', async () => {
-      // Setup an exported CSV string (with a header and escaped quotes)
       const mockCsv = `Timestamp,Event,User,Detail\n2026-09-18T12:00:00.000Z,"Signature Uploaded","Alice","Device ""Trezor"""`;
       const mockHex = '02000000000101';
       
-      // Mathematically derive what the exact Anchor should be
       const expectedString = '2026-09-18T12:00:00.000Z|Signature Uploaded|Alice|Device "Trezor"02000000000101';
       const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(expectedString));
       const expectedAnchor = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Test that the stateless parser correctly rebuilds the string and verifies it
       const result = await RoomAuditor.verifyOfflineIntegrity(mockCsv, mockHex, expectedAnchor);
       
       expect(result.isValid).toBe(true);
