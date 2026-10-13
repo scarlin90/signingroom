@@ -60,12 +60,13 @@ describe('RoomAuditor', () => {
   };
 
   const mockTx: TxDetails = {
+    txId: 'mock-tx-id',
     amount: 50000000, // 0.5 BTC
     fee: 1000,
     vBytes: 150,
     feeRate: 6.66,
     inputs: 1,
-    inputsList: [{ address: 'tb1qinput', amount: 50001000, txId: 'old-tx', vout: 0, scriptType: 'P2TR', isRbfEnabled: true }],
+    inputsList: [{ address: 'tb1qinput', amount: 50001000, txId: 'old-tx', vout: 0, scriptType: 'P2TR', sequence: 0, isRbfEnabled: true }],
     outputs: [
       { address: 'tb1qmockaddress', amount: 40000000, isChange: false, scriptType: 'P2TR' }, // Whitelisted
       { address: 'tb1qchange', amount: 10000000, isChange: true, scriptType: 'P2WSH' }, // Change
@@ -149,7 +150,7 @@ describe('RoomAuditor', () => {
       const mockDoc = createMockDoc();
       const unknownScriptTx = {
         ...mockTx,
-        inputsList: [{ address: 'tb1qinput', amount: 50000000, txId: 'old-tx', vout: 0, scriptType: 'UNKNOWN_TYPE', isRbfEnabled: false }],
+        inputsList: [{ address: 'tb1qinput', amount: 50000000, txId: 'old-tx', vout: 0, scriptType: 'UNKNOWN_TYPE', sequence: 0, isRbfEnabled: false }],
         outputs: [{ address: 'tb1qmockaddress', amount: 40000000, isChange: false, scriptType: 'UNKNOWN_TYPE' }]
       };
 
@@ -222,6 +223,10 @@ describe('RoomAuditor', () => {
         20,
         expect.any(Number),
       );
+      // Verify new Settlement Details are rendered
+      expect(doc.text).toHaveBeenCalledWith('Settlement Details:', 20, expect.any(Number));
+      expect(doc.text).toHaveBeenCalledWith(expect.stringContaining('Size: 150 vB'), 145, expect.any(Number));
+      
       // Verify temporal constraints section rendered
       expect(doc.text).toHaveBeenCalledWith(
         expect.stringContaining('Temporal Constraints (Timelocks)'),
@@ -266,7 +271,7 @@ describe('RoomAuditor', () => {
 
       const whitelistedInputTx = {
         ...mockTx,
-        inputsList: [{ address: 'tb1qmockaddress', amount: 50000000, txId: 'old-tx', vout: 0, scriptType: 'P2TR', isRbfEnabled: false }],
+        inputsList: [{ address: 'tb1qmockaddress', amount: 50000000, txId: 'old-tx', vout: 0, scriptType: 'P2TR', sequence: 0, isRbfEnabled: false }],
       };
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, whitelistedInputTx, mockSigners, null);
       expect(mockDoc.text).toHaveBeenCalledWith('VERIFIED SOURCE', 150, expect.any(Number));
@@ -281,7 +286,7 @@ describe('RoomAuditor', () => {
       expect(mockDoc.text).toHaveBeenCalledWith('CHANGE (VERIFIED)', 150, expect.any(Number));
     });
 
-    it('should correctly format labeled inputs with script type headings and indented addresses', async () => {
+    it('should correctly format labeled inputs with script type headings, vOut data, and indented addresses', async () => {
       const mockDoc = createMockDoc();
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
 
@@ -293,6 +298,13 @@ describe('RoomAuditor', () => {
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
         expect.stringContaining('1. Corporate Treasury (Taproot)'),
+        20,
+        expect.any(Number),
+      );
+
+      // Verify NEW vOut details
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('vOut: old-tx:0'),
         20,
         expect.any(Number),
       );
@@ -320,11 +332,11 @@ describe('RoomAuditor', () => {
 
       expect(mockDoc.splitTextToSize).toHaveBeenCalledWith(
         'This detail is explicitly longer than thirty characters.',
-        65,
+        60, // <-- Updated from 65
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
         ['This detail is explicitly longer than thirty characters.'],
-        130,
+        145, // <-- Updated from 130
         expect.any(Number),
       );
     });
@@ -340,7 +352,7 @@ describe('RoomAuditor', () => {
 
       expect(mockDoc.text).toHaveBeenCalledWith(
         expect.stringContaining('System Event'),
-        55,
+        65, // <-- Updated from 55
         expect.any(Number),
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
