@@ -260,3 +260,6 @@ function toggleInputVisibility(inputId, btnElement) {
         eyeOffIcon.style.display = 'none';
     }
 }
+
+window.mountWidget = mountWidget;
+window.toggleInputVisibility = toggleInputVisibility;
