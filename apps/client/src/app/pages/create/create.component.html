@@ -413,7 +413,8 @@
                     {{ psbtFile()?.name || 'Handled via Optics' }}
                   </div>
                   <div class="text-brand-accent text-xs font-mono">
-                    {{ psbtAnalysis()?.outputCount }} Outputs detected
+                    {{ psbtAnalysis()?.inputCount }} {{ psbtAnalysis()?.inputCount === 1 ? 'Input' : 'Inputs' }}, 
+                    {{ psbtAnalysis()?.outputCount }} {{ psbtAnalysis()?.outputCount === 1 ? 'Output' : 'Outputs' }}
                   </div>
                 </div>
               </div>
@@ -425,24 +426,57 @@
             </div>
 
             <div class="grid grid-cols-3 gap-2 text-center">
-              <div class="bg-brand-card rounded p-2 border border-brand-card-border">
+              
+              <!-- Amount Card with Hover -->
+              <div class="relative group bg-brand-card rounded p-2 border border-brand-card-border cursor-help transition-colors hover:border-brand-accent/50">
                 <div class="text-[10px] text-brand-text-muted uppercase tracking-tight">Amount</div>
                 <div class="text-white text-xs font-bold">
                   {{ psbtAnalysis()?.amountBtc | number:'1.4-4' }} <span class="text-brand-text-muted">BTC</span>
                 </div>
+                
+                <!-- Amount Tooltip -->
+                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-brand-bg border border-brand-card-border rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-xl z-50 flex flex-col items-start gap-1">
+                  <div class="text-[10px] font-mono">
+                    <span class="text-white font-bold">{{ psbtAnalysis()?.amountBtc | number:'1.8-8' }}</span> 
+                    <span class="text-brand-text-muted"> BTC</span>
+                  </div>
+                  <div class="text-[10px] font-mono">
+                    <span class="text-brand-accent font-bold">{{ (psbtAnalysis()?.amountBtc || 0) * 100000000 | number }}</span> 
+                    <span class="text-brand-text-muted"> sats</span>
+                  </div>
+                </div>
               </div>
-              <div class="bg-brand-card rounded p-2 border border-brand-card-border">
+
+              <!-- Network Fee Card with Hover -->
+              <div class="relative group bg-brand-card rounded p-2 border border-brand-card-border cursor-help transition-colors hover:border-brand-accent/50">
                 <div class="text-[10px] text-brand-text-muted uppercase tracking-tight">Network Fee</div>
                 <div class="text-white text-xs font-bold">
                   {{ psbtAnalysis()?.networkFeeSat | number }} <span class="text-brand-text-muted">sats</span>
                 </div>
+                
+                <!-- Fee Tooltip -->
+                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-brand-bg border border-brand-card-border rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-xl z-50 flex flex-col items-start gap-1">
+                  <div class="text-[10px] font-mono">
+                    <span class="text-white font-bold">{{ psbtAnalysis()?.estimatedVBytes | number }}</span> 
+                    <span class="text-brand-text-muted"> vBytes</span>
+                  </div>
+                  <div class="text-[10px] font-mono">
+                    <span class="text-brand-accent font-bold">
+                      {{ ((psbtAnalysis()?.networkFeeSat || 0) / (psbtAnalysis()?.estimatedVBytes || 1)) | number:'1.1-2' }}
+                    </span> 
+                    <span class="text-brand-text-muted"> sats/vB</span>
+                  </div>
+                </div>
               </div>
+
+              <!-- Signers Card -->
               <div class="bg-brand-card rounded p-2 border border-brand-card-border">
                 <div class="text-[10px] text-brand-text-muted uppercase tracking-tight">Signers</div>
                 <div class="text-white text-xs font-bold">
                   {{ psbtAnalysis()?.signerCount }}
                 </div>
               </div>
+              
             </div>
           </div>
         }

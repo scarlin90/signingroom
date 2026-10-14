@@ -83,7 +83,7 @@ export class SocketService {
             this.decryptionError() !== null;
 
           if (this.status() === 'disconnected' && !hasTerminalError) {
-            this.connect(this.roomState()?.roomId || '', this.getRoomKey());
+            this.connect(this.roomState()?.roomId || '', this.getCurrentFragment());
           }
         }, 3000);
       }

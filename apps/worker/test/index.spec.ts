@@ -26,11 +26,15 @@ describe('Worker Router & Rate Limiter', () => {
         const response = await app.fetch(request, env as any, ctx);
         await waitOnExecutionContext(ctx);
 
-        const csp = response.headers.get('Content-Security-Policy');
+        // Assert the new headers introduced in the diff
+        expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+        expect(response.headers.get('Referrer-Policy')).toBe('no-referrer');
+        expect(response.headers.get('Strict-Transport-Security')).toBe('max-age=31536000; includeSubDomains; preload');
+        expect(response.headers.get('X-Frame-Options')).toBe('DENY');
 
-        expect(csp).toContain('frame-ancestors *;');
-        expect(csp).toContain("default-src 'self'");
-        expect(response.headers.get('X-XSS-Protection')).toBe('1; mode=block');
+        // Ensure the old headers are no longer present
+        expect(response.headers.get('Content-Security-Policy')).toBeNull();
+        expect(response.headers.get('X-XSS-Protection')).toBeNull();
     });
 
     it('should catch and log rate limiter errors gracefully', async () => {

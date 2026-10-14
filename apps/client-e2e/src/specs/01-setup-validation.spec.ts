@@ -44,7 +44,7 @@ test.describe('Create Room Validation', () => {
 
     // --- Verification: Confirm parser accuracy ---
     // Ensure the internal btc-signer logic correctly identified the transaction structure
-    await expect(createPage.page.getByText('1 Outputs', { exact: false })).toBeVisible();
+    await expect(createPage.page.getByText('1 Input, 1 Output', { exact: false })).toBeVisible();
     await expect(createPage.page.getByText('193 sats', { exact: false })).toBeVisible();
     
     // Verify that a valid parse enables the next stage of the workflow

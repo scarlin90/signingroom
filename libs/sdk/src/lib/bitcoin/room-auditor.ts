@@ -244,12 +244,33 @@ export class RoomAuditor {
     // =========================================================
     // SECTION 2: TRANSACTION DATA
     // =========================================================
-    checkPageBreak(40);
+    checkPageBreak(50);
     doc.setFontSize(14);
     doc.setTextColor(0);
     doc.setFont('helvetica', 'bold');
     doc.text('Transaction Data', 20, y);
     y += 8;
+
+    if (tx) {
+      doc.setFontSize(10);
+      doc.setTextColor(50);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Settlement Details:', 20, y);
+      y += 5;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(80);
+      
+      doc.text(`Amount: ${(tx.amount / 100000000).toFixed(8)} BTC`, 20, y);
+      doc.text(`Network Fee: ${tx.fee.toLocaleString()} sats`, 85, y);
+      doc.text(`Size: ${tx.vBytes.toLocaleString()} vB`, 145, y);
+      y += 6;
+      
+      doc.text(`Fee Rate: ${tx.feeRate.toFixed(2)} sats/vB`, 20, y);
+      doc.text(`Replace-By-Fee (RBF): ${tx.isRbfEnabled ? 'Enabled' : 'Disabled'}`, 85, y);
+      y += 10;
+    }
 
     const txId = state.finalTxId;
     if (txId) {
@@ -458,18 +479,18 @@ export class RoomAuditor {
 
         doc.setTextColor(0);
         doc.setFont('helvetica', 'bold');
-        doc.text(safeEvent, 55, y);
+        doc.text(safeEvent, 65, y);
 
         doc.setFont('helvetica', 'normal');
-        doc.text(safeUser, 100, y);
+        doc.text(safeUser, 115, y);
 
         if (log.detail) {
           doc.setTextColor(100);
           const detailStr = String(log.detail);
 
-          const wrappedText = doc.splitTextToSize(detailStr, 65);
+          const wrappedText = doc.splitTextToSize(detailStr, 60);
 
-          doc.text(wrappedText, 130, y);
+          doc.text(wrappedText, 145, y);
 
           y += (wrappedText.length - 1) * 4;
         }
@@ -526,8 +547,12 @@ export class RoomAuditor {
         y += 5;
 
         doc.setFontSize(8);
-        doc.setTextColor(50);
+        doc.setTextColor(100);
         doc.setFont('courier', 'normal');
+        doc.text(`vOut: ${inpt.txId}:${inpt.vout}`, 20, y);
+        y += 4;
+
+        doc.setTextColor(50);
         doc.text(inpt.address, 20, y);
         y += 6;
 
