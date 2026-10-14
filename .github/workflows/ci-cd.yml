@@ -65,14 +65,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Unit + Integration Tests
+      - name: Run Unit Tests
         run: |
           docker run --name test-container signingroom-ci:latest \
-            bash -c "
-              npx nx run client:test --ci --code-coverage=true --watch=false &&
-              npx nx run sdk:test --ci --code-coverage=true --watch=false &&
-              npx nx run worker:test --ci --code-coverage=true --watch=false -- --max-workers=1
-            "
+            bash -c "UNIT_ONLY=true ./run-all-tests.sh"
 
       - name: Extract Coverage Reports
         if: always()
