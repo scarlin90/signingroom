@@ -479,7 +479,7 @@ export class RoomAuditor {
 
         doc.setTextColor(0);
         doc.setFont('helvetica', 'bold');
-        doc.text(safeEvent, 55, y);
+        doc.text(safeEvent, 65, y);
 
         doc.setFont('helvetica', 'normal');
         doc.text(safeUser, 115, y);
