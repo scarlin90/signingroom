@@ -31,6 +31,14 @@
       },
       "configurations": {
         "production": {
+          "optimization": {
+            "scripts": true,
+            "styles": {
+              "minify": true,
+              "inlineCritical": false
+            },
+            "fonts": true
+          },
           "budgets": [
             {
               "type": "initial",
@@ -53,7 +61,14 @@
           "serviceWorker": "apps/client/ngsw-config.json"
         },
         "hosted-dev": {
-          "optimization": true,
+          "optimization": {
+            "scripts": true,
+            "styles": {
+              "minify": true,
+              "inlineCritical": false
+            },
+            "fonts": true
+          },
           "extractLicenses": false,
           "sourceMap": true,
           "outputHashing": "all",
@@ -68,7 +83,14 @@
           ]
         },
         "hosted-staging": {
-          "optimization": true,
+          "optimization": {
+            "scripts": true,
+            "styles": {
+              "minify": true,
+              "inlineCritical": false
+            },
+            "fonts": true
+          },
           "extractLicenses": false,
           "sourceMap": true,
           "outputHashing": "all",
@@ -81,7 +103,14 @@
           ]
         },
         "hosted-staging-branded": {
-          "optimization": true,
+          "optimization": {
+            "scripts": true,
+            "styles": {
+              "minify": true,
+              "inlineCritical": false
+            },
+            "fonts": true
+          },
           "extractLicenses": false,
           "sourceMap": true,
           "outputHashing": "all",

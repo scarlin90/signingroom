@@ -76,7 +76,11 @@ test.describe('Room Interface Verification', () => {
     // --- Verification: Proposal Financials ---
     await expect(roomPage.proposalContainer).toContainText('0.00100913 BTC');
     await expect(roomPage.proposalContainer).toContainText('100,913 sats');
-    await expect(roomPage.proposalContainer).toContainText('1.77 sats/vB');
+    
+    // Updated Fee Metrics using the advanced vBytes heuristic calculation
+    await expect(roomPage.proposalContainer).toContainText('193 sats');
+    await expect(roomPage.proposalContainer).toContainText('193 vB');
+    await expect(roomPage.proposalContainer).toContainText('1 sats/vB');
 
     // --- Verification: Cryptographic & Protocol Badging (Proposal) ---
     await expect(page.getByText(/Absolute Timelock Active/i).first()).toBeVisible();
@@ -93,7 +97,14 @@ test.describe('Room Interface Verification', () => {
     // --- Interaction: Reveal Details ---
     await roomPage.detailsHiddenBadge.click({ force: true });
     await roomPage.privacyModalRevealSection.click();
-    await expect(roomPage.detailsHiddenBadge).toBeHidden(); // Prevents the intercept error
+    await expect(roomPage.detailsHiddenBadge).toBeHidden();
+
+    const txDetailsCard = page.locator('#card-tx-details');
+
+    // --- Verification: Full TxID Generation & Visibility ---
+    await expect(txDetailsCard).toContainText('Transaction ID', { ignoreCase: true });
+    await expect(txDetailsCard).toContainText(/[a-f0-9]{64}/i); // Ensures full 64-char hex string is rendered
+    await expect(txDetailsCard.locator('button').filter({ hasText: 'Copy TxID' })).toBeVisible();
 
     // --- Verification: Outputs (Default View) ---
     const outputCard = roomPage.getOutputCard(0);
@@ -102,7 +113,7 @@ test.describe('Room Interface Verification', () => {
     const verificationBadge = outputCard.locator('.verification-badge');
     await expect(verificationBadge).toContainText('Unverified Output', { ignoreCase: true });
 
-    // 3. Check for the specific BTC amount
+    // Check for the specific BTC amount
     await expect(outputCard.getByText('0.00100913 BTC')).toBeVisible();
     await expect(outputCard).toContainText(
       'tb1qqn3pzlcmp8mudfhljtdwe7u6fhjhh3x2rr3njvlj35gx0kqmxxtqlqrzyc',
@@ -126,8 +137,10 @@ test.describe('Room Interface Verification', () => {
     await expect(inputCard.getByRole('button', { name: /Verify/i })).toBeVisible();
 
     // --- Verification: Cryptographic & Protocol Badging (Inputs) ---
-    // Validate script type and strictly assert that RBF is correctly identified as hidden
     await expect(inputCard.getByText(/SEGWIT/i)).toBeVisible();
+    
+    // Verify the new vOut indexing structure
+    await expect(inputCard.getByText(/vOut: \d+/i)).toBeVisible();
     await expect(inputCard.getByText('RBF')).toBeVisible();
 
     // --- Interaction: Re-blur Details ---

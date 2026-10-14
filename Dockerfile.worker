@@ -13,7 +13,7 @@ COPY apps/worker/package*.json ./apps/worker/
 RUN npm ci --legacy-peer-deps
 
 # Install worker-specific dependencies
-RUN cd apps/worker && npm install --legacy-peer-deps
+RUN cd apps/worker && npm ci --legacy-peer-deps
 
 COPY . .
 

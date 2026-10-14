@@ -7,6 +7,8 @@ import { bech32, bech32m } from '@scure/base';
  * Provides a human-readable summary of inputs, outputs, and network fees.
  */
 export interface TxDetails {
+  /** The unique transaction identifier (hash). */
+  txId: string;
   /** The total outbound volume of the transaction, expressed in satoshis (excluding fees). */
   amount: number;
   /** The total network fee calculated as the difference between total inputs and outputs. */
@@ -54,6 +56,8 @@ export interface PsbtAnalysis {
   amountBtc: number;
   /** The absolute network fee expected by the network, expressed in satoshis. */
   networkFeeSat: number;
+  /** The total count of input UTXOs resulting from this transaction. */
+  inputCount: number; 
   /** The total count of newly created UTXOs resulting from this transaction. */
   outputCount: number;
   /** The estimated virtual byte (vB) size of the transaction based on input and output types. */
@@ -527,7 +531,9 @@ export class PsbtUtils {
       for (let i = 0; i < tx.outputsLength; i++) {
         const out = tx.getOutput(i);
         totalOutput += out.amount ?? BigInt(0);
-        estimatedVBytes += 31;
+        // Calculate exact output script length
+        const scriptLen = out.script ? out.script.length : 22;
+        estimatedVBytes += 9 + scriptLen; // 8-byte value + 1-byte length prefix + script
       }
 
       let fee = BigInt(0);
@@ -548,6 +554,7 @@ export class PsbtUtils {
         signerCount: fingerprints.size || 1,
         amountBtc: Number(totalOutput) / 100000000,
         networkFeeSat: Number(fee),
+        inputCount: tx.inputsLength,
         outputCount: tx.outputsLength,
         estimatedVBytes: vBytes,
         detectedNetwork: networkScore > 0 ? 'testnet' : 'bitcoin',
@@ -650,7 +657,9 @@ export class PsbtUtils {
         const output = tx.getOutput(i);
         const amount = output.amount ?? BigInt(0);
         totalOutput += amount;
-        estimatedVBytes += 31;
+        
+        const scriptLen = output.script ? output.script.length : 22;
+        estimatedVBytes += 9 + scriptLen;
 
         const address = this.formatScriptAddress(output.script ?? new Uint8Array([]), network);
         let isChange = false;
@@ -712,6 +721,7 @@ export class PsbtUtils {
       }
 
       return {
+        txId: tx.id,
         amount: Number(totalOutput),
         fee: Number(fee),
         vBytes,
@@ -764,6 +774,7 @@ export class PsbtUtils {
 
   /**
    * Heuristically estimates the virtual byte (vB) size of a given transaction input.
+   * Handles key-path, classic multisig, and Taproot script-path (multi_a / CHECKSIGADD) dynamically.
    */
   private static estimateInputVBytes(
     input: ReturnType<Transaction['getInput']>
@@ -772,12 +783,68 @@ export class PsbtUtils {
       const { type } = getInputType(input);
 
       if (type === 'wpkh' || type.startsWith('wpkh')) return 68;
-      if (type === 'tr' || type.startsWith('tr')) return 58;
+      if (type === 'tr' || type.startsWith('tr')) {
+        // Pure key-path (no leaves) → 58 vB
+        if (!input.tapLeafScript || input.tapLeafScript.length === 0) {
+          return 58;
+        }
+        // Fall through to dynamic Taproot script-path calculation below
+      }
       if (type.includes('sh-wpkh')) return 91;
       if (type === 'pkh' || type === 'sh' || type.startsWith('sh-')) return 148;
-    } catch {
+    } catch {}
+
+    // Classic Multisig / P2WSH (witnessScript)
+    if (input.witnessScript && input.witnessScript.length > 0) {
+      const m = this.extractThresholdFromScript(input.witnessScript);
+      if (m > 0) {
+        // Base: 41 bytes + witness (dummy + M×~73 + script)
+        const witnessSize = 1 + (m * 73) + input.witnessScript.length;
+        return Math.ceil(41 + (witnessSize / 4));
+      }
+      return Math.ceil(41 + (input.witnessScript.length / 4));
     }
 
+    // Taproot script-path (tapLeafScript)
+    if (input.tapLeafScript && input.tapLeafScript.length > 0) {
+      let maxLeafVBytes = 0;
+
+      for (const leaf of input.tapLeafScript) {
+        // Correct structure from @scure/btc-signer:
+        // leaf = [ {version, internalKey, merklePath}, scriptWithVersion ]
+        const controlObj = (leaf as any)[0];
+        const scriptWithVersion = (leaf as any)[1] as Uint8Array | undefined;
+
+        if (!scriptWithVersion || scriptWithVersion.length < 2) continue;
+
+        const script = scriptWithVersion.slice(0, -1); // strip leaf version byte
+        const m = this.extractThresholdFromScript(script);
+
+        // Reconstruct real control-block length
+        // 1 byte (leaf version + parity) + 32 (internal key) + 32 × path length
+        const pathLen = controlObj?.merklePath?.length ?? 0;
+        const controlBlockLen = 1 + 32 + (pathLen * 32);
+
+        // Witness stack: M × 64-byte Schnorr sigs + script + control block
+        // + 1-byte compact-size length prefix per item
+        const sigBytes = (m > 0 ? m : 1) * 64;
+        const witnessSize =
+          sigBytes +
+          script.length +
+          controlBlockLen +
+          (m + 2); // length prefixes
+
+        const leafVBytes = Math.ceil(41 + witnessSize / 4);
+        if (leafVBytes > maxLeafVBytes) maxLeafVBytes = leafVBytes;
+      }
+
+      if (maxLeafVBytes > 0) return maxLeafVBytes;
+      return 110; // safe fallback
+    }
+
+
+
+    // Final fallbacks
     if (input.witnessUtxo) {
       return input.redeemScript ? 91 : 68;
     }

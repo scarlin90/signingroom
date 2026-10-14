@@ -2249,6 +2249,64 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
   });
 
+  describe('RoomComponent - copyTxId', () => {
+    it('should exit early and not call clipboard if txId is empty', () => {
+      component.copyTxId('');
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    });
+
+    it('should log the action and emitDataCopied event when a txId is copied', async () => {
+      const mockTxId = '4111958cc9501cec306e4d0260a7be15fa4fc07245e85a028de15d31fd5d54b2';
+      const expectedShortTxId = '4111958c...';
+
+      const logActionSpy = vi.spyOn(component.socket, 'logAction');
+      const emitDataCopiedSpy = vi.spyOn(component['dispatcher'], 'emitDataCopied');
+
+      vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+
+      component.copyTxId(mockTxId);
+      
+      await new Promise(process.nextTick);
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(mockTxId);
+      expect(logActionSpy).toHaveBeenCalledWith('TxID Copied', expectedShortTxId);
+      expect(emitDataCopiedSpy).toHaveBeenCalledWith('tx-id');
+    });
+
+    it('should copy txId, update signal, and clear it after exactly 2 seconds', async () => {
+      vi.useFakeTimers();
+      const mockTxId = 'mock-tx-id';
+      vi.spyOn(component.socket, 'logAction');
+      vi.spyOn(component['dispatcher'], 'emitDataCopied');
+
+      component.copyTxId(mockTxId);
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(mockTxId);
+
+      await Promise.resolve(); 
+
+      expect(component.copiedTxId()).toBe(true);
+
+      vi.advanceTimersByTime(1999);
+      expect(component.copiedTxId()).toBe(true);
+
+      vi.advanceTimersByTime(1);
+
+      expect(component.copiedTxId()).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('should safely handle and log errors if clipboard write fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('Clipboard denied'));
+
+      component.copyTxId('mock-tx-id');
+      await new Promise(process.nextTick);
+
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to copy TxID: ', expect.any(Error));
+    });
+  });
+
   describe('Missing Branch Coverage Fixes', () => {
     it('should handle SSR gracefully (isPlatformBrowser = false)', () => {
       (component as any).platformId = 'server';

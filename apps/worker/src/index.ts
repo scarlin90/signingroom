@@ -130,25 +130,11 @@ app.use(
 );
 
 app.use('/*', async (c, next) => {
-	// Security Headers
-	c.header(
-		'Content-Security-Policy',
-		"default-src 'self'; " +
-			"script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; " +
-			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-			"font-src 'self' https://fonts.gstatic.com; " +
-			"connect-src 'self' wss: https:; " +
-			"img-src 'self' data:; " +
-			"object-src 'none'; " +
-			"base-uri 'self'; " +
-			"form-action 'self';" +
-			'frame-ancestors *;',
-	);
-
-	c.header('X-Content-Type-Options', 'nosniff');
-	c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
-	c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-	c.header('X-XSS-Protection', '1; mode=block');
+	// Transport / API security headers only
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('Referrer-Policy', 'no-referrer');
+    c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    c.header('X-Frame-Options', 'DENY');
 
 	// --- RATE LIMITING (THE BOUNCER) ---
 	const ip = c.req.header('CF-Connecting-IP') || 'unknown';
@@ -172,7 +158,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
 	return c.json({
 		status: 'healthy',
-		version: '3.5.0',
+		version: '3.6.0',
 		timestamp: Date.now(),
 	});
 });
