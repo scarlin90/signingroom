@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 jobs:
-  run-tests:
+  run-unit-tests:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -65,18 +65,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Tests
-        run: docker run --name test-container signingroom-ci:latest
+      - name: Run Unit + Integration Tests
+        run: |
+          docker run --name test-container signingroom-ci:latest \
+            bash -c "
+              npx nx run client:test --ci --code-coverage=true --watch=false &&
+              npx nx run sdk:test --ci --code-coverage=true --watch=false &&
+              npx nx run worker:test --ci --code-coverage=true --watch=false -- --max-workers=1
+            "
 
       - name: Extract Coverage Reports
         if: always()
         run: |
           docker cp test-container:/app/coverage/apps/worker/coverage-summary.json ./worker-summary.json || true
           docker cp test-container:/app/coverage/apps/worker/coverage-final.json ./worker-final.json || true
-
           docker cp test-container:/app/coverage/apps/client/coverage-summary.json ./client-summary.json || true
           docker cp test-container:/app/coverage/apps/client/coverage-final.json ./client-final.json || true
-
           docker cp test-container:/app/coverage/libs/sdk/coverage-summary.json ./sdk-summary.json || true
           docker cp test-container:/app/coverage/libs/sdk/coverage-final.json ./sdk-final.json || true
 
@@ -108,8 +112,49 @@ jobs:
         if: always()
         run: docker rm -f test-container || true
 
+  run-e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        spec:
+          - 01-setup-validation.spec.ts
+          - 02-room-interface.spec.ts
+          - 03-room-management.spec.ts
+          - 04-signing-workflow.spec.ts
+          - 05-opsec-and-sessions.spec.ts
+          - 06-finalization-workflow.spec.ts
+          - 07-advanced-workflows.spec.ts
+          - 08-edge-cases.spec.ts
+          - 09-web-component-integration.spec.ts
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build Test Image (with Cache)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.test
+          load: true
+          tags: signingroom-ci:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run E2E – ${{ matrix.spec }}
+        run: |
+          docker run --name test-e2e-${{ strategy.job-index }} signingroom-ci:latest \
+            bash -c "E2E_SPECS=src/specs/${{ matrix.spec }} ./run-all-tests.sh"
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f test-e2e-${{ strategy.job-index }} || true
+
   deploy-dev:
-    needs: [run-tests]
+    needs: [run-unit-tests, run-e2e]
     if: (github.event_name == 'push' && github.ref_name == 'development') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'development')
     permissions:
       actions: write
@@ -129,7 +174,7 @@ jobs:
     secrets: inherit
 
   deploy-staging:
-    needs: [run-tests]
+    needs: [run-unit-tests, run-e2e]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     permissions:
       actions: write
@@ -149,7 +194,7 @@ jobs:
     secrets: inherit
 
   deploy-staging-branded:
-    needs: [run-tests]
+    needs: [run-unit-tests, run-e2e]
     if: (github.event_name == 'push' && github.ref_name == 'staging') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     permissions:
       actions: write
@@ -169,7 +214,7 @@ jobs:
     secrets: inherit
 
   deploy-prod:
-    needs: [run-tests]
+    needs: [run-unit-tests, run-e2e]
     if: (github.event_name == 'push' && github.ref_name == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'main')
     permissions:
       actions: write

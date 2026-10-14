@@ -24,7 +24,11 @@ echo "------------------------------------------------------"
 echo "🚀 RUNNING END-TO-END TESTS (PLAYWRIGHT)"
 echo "------------------------------------------------------"
 
-npx nx e2e client-e2e
+# Allow running a specific file or pattern from CI / local
+SPECS=${E2E_SPECS:-"src/specs"}
+
+echo "Running Playwright specs: $SPECS"
+npx nx e2e client-e2e -- --project=chromium $SPECS
 
 echo ""
 echo "✅ All test suites passed requirements."
