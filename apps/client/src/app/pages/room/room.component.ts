@@ -263,6 +263,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   isFountainRevealed = signal<boolean>(false);
   showScannerModal = signal<boolean>(false);
   copiedAddress = signal<string | null>(null);
+  copiedTxId = signal<boolean>(false);
   exportFormat = signal<'ur' | 'bbqr'>('ur');
   activeFountainFrames: string[] = [];
   currentFrameIndex = signal<number>(0);
@@ -759,6 +760,31 @@ export class RoomComponent implements OnInit, OnDestroy {
       })
       .catch((err) => {
         console.error('Failed to copy address: ', err);
+      });
+  }
+
+  copyTxId(txId: string) {
+    if (!txId) return;
+
+    navigator.clipboard
+      .writeText(txId)
+      .then(() => {
+        this.copiedTxId.set(true);
+
+        const shortTxId = `${txId.slice(0, 8)}...`;
+        
+        this.socket.logAction('TxID Copied', shortTxId); 
+        
+        this.dispatcher.emitDataCopied('tx-id' as any);
+
+        setTimeout(() => {
+          if (this.copiedTxId()) {
+            this.copiedTxId.set(false);
+          }
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy TxID: ', err);
       });
   }
 

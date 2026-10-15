@@ -30,6 +30,36 @@
       content="Stop emailing PSBT files. Coordinate multisig teams instantly with end-to-end encryption." />
     <meta property="twitter:image" content="/assets/preview-card.jpg" />
 
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'none';
+        script-src 'self' 'wasm-unsafe-eval';
+        style-src 'self' 'unsafe-inline';
+        font-src 'self';
+        img-src 'self' data: blob:;
+        media-src 'self' blob:;
+        connect-src 
+          'self' 
+          wss://*.signingroom.io 
+          https://*.signingroom.io
+          http://localhost:* 
+          https://localhost:* 
+          ws://localhost:* 
+          wss://localhost:* 
+          http://127.0.0.1:* 
+          https://127.0.0.1:* 
+          ws://127.0.0.1:* 
+          wss://127.0.0.1:*;
+        frame-src 'self' https://*.signingroom.io http://localhost:* https://localhost:*;
+        manifest-src 'self';
+        base-uri 'self';
+        form-action 'none';
+        object-src 'none';
+      " />
+
+    <meta name="referrer" content="no-referrer" />
+
     <meta name="theme-color" content="#020617" />
 
     <script src="/assets/env.js"></script>
@@ -45,31 +75,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="apple-touch-startup-image" href="icons/apple-launch-1242x2688.png" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&amp;display=swap"
-      rel="stylesheet" />
-
-    <style type="text/tailwindcss">
-      @theme {
-        --font-sans: 'Inter', sans-serif;
-        --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
-        @keyframes fade-in-up {
-          0% {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      }
-      body {
-        @apply bg-brand-bg text-brand-text font-sans selection:bg-brand-accent/30;
-      }
-    </style>
     <link rel="stylesheet" href="/brand/theme.css" />
     <base href="/" />
   </head>

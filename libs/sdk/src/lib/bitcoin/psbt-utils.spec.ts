@@ -172,8 +172,9 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     expect(fingerprint).toBe('deadbeef');
   });
 
-  it('should parse comprehensive transaction details successfully and calculate dynamic vBytes', () => {
+  it('should parse comprehensive transaction details successfully, extract txId, and calculate dynamic vBytes', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 1,
       get fee() { return BigInt(10000); },
@@ -197,6 +198,7 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     const details = PsbtUtils.parseTxDetails(validPsbtBase64, 'testnet');
 
     expect(details).not.toBeNull();
+    expect(details?.txId).toBe('mocked-tx-id');
     expect(details?.amount).toBe(90000);
     expect(details?.fee).toBe(10000);
     expect(details?.vBytes).toBe(109); 
@@ -205,7 +207,7 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     expect(details?.outputs[0].isChange).toBe(true);
   });
 
-  it('should perform network analysis and size estimation on the PSBT derivation paths', () => {
+  it('should perform network analysis and extract input/output counts on the PSBT', () => {
     const mockTx = {
       inputsLength: 1,
       outputsLength: 1,
@@ -230,10 +232,13 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     expect(analysis?.networkFeeSat).toBe(10000);
     expect(analysis?.detectedNetwork).toBe('testnet');
     expect(analysis?.estimatedVBytes).toBe(109); 
+    expect(analysis?.inputCount).toBe(1);
+    expect(analysis?.outputCount).toBe(1);
   });
 
   it('should correctly estimate sizes and extract values for legacy P2PKH inputs', () => {
     const mockTx = {
+        id: 'mocked-tx-id',
         inputsLength: 1,
         outputsLength: 1,
         get fee() { throw new Error(); }, // Force fallback fee math
@@ -252,6 +257,7 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     expect(analysis?.networkFeeSat).toBe(10000); 
 
     const details = PsbtUtils.parseTxDetails(validPsbtBase64);
+    expect(details?.txId).toBe('mocked-tx-id');
     expect(details?.vBytes).toBe(189);
     expect(details?.feeRate).toBe(52.91); 
     expect(details?.inputsList[0].amount).toBe(50000);
@@ -301,6 +307,7 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
 
   it('should correctly evaluate Absolute Timelocks (lockTime) in parseTxDetails', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 0,
       lockTime: 840000,
@@ -318,6 +325,7 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
 
   it('should correctly evaluate Relative Timelocks (BIP 68 / sequence mask) in parseTxDetails', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 2,
       outputsLength: 0,
       get fee() { return BigInt(1000); },
@@ -529,6 +537,7 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
 
   it('should default sequence to 0xffffffff and hasRelativeTimelock to false if undefined in parseTxDetails', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 0,
       get fee() { return BigInt(1000); },
@@ -598,6 +607,7 @@ describe('PsbtUtils - Edge Cases & Error Handling', () => {
 
   it('should handle nonWitnessUtxo parsing failures gracefully in parseTxDetails', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 1,
       get fee() { throw new Error(); },
@@ -618,6 +628,7 @@ describe('PsbtUtils - Edge Cases & Error Handling', () => {
 
   it('should fallback to empty strings if txid is missing from the input', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 0,
       get fee() { return BigInt(1000); },
@@ -701,6 +712,7 @@ describe('PsbtUtils - Edge Cases & Error Handling', () => {
 
   it('should safely fallback to estimated vBytes if the library returns an invalid 0 vsize', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 0,
       outputsLength: 0,
       get fee() { return BigInt(1000); },
@@ -717,6 +729,7 @@ describe('PsbtUtils - Edge Cases & Error Handling', () => {
 
   it('should trigger catch block in parseTxDetails if vsize throws', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 1,
       get fee() { return BigInt(500); },
@@ -732,6 +745,7 @@ describe('PsbtUtils - Edge Cases & Error Handling', () => {
 
   it('should clamp negative fee calculations to 0n in parseTxDetails if totalOutput exceeds totalInput', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 1,
       get fee() { throw new Error('Force fallback'); },
@@ -762,6 +776,7 @@ describe('PsbtUtils - Edge Cases & Error Handling', () => {
 
   it('should safely handle legacy outputs missing an amount during getPrevOut', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 0,
       get fee() { return BigInt(1000); },
@@ -780,6 +795,7 @@ describe('PsbtUtils - Edge Cases & Error Handling', () => {
 
   it('should correctly fallback to 91 vBytes for nested segwit heuristics', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 1,
       outputsLength: 0,
       get fee() { return BigInt(1000); },
@@ -798,6 +814,7 @@ describe('PsbtUtils - Edge Cases & Error Handling', () => {
 
   it('should correctly identify non-change outputs when derivation path is short or missing index 1', () => {
     const mockTx = {
+      id: 'mocked-tx-id',
       inputsLength: 0,
       outputsLength: 2,
       get fee() { return BigInt(1000); },
@@ -868,47 +885,87 @@ describe('PsbtUtils - Input VByte Estimation Branches', () => {
     expect((PsbtUtils as any).estimateInputVBytes({ _mockInputType: 'wpkh' })).toBe(68);
   });
 
+  it('should fallback to 58 vBytes for Taproot pure key-path inputs', () => {
+    expect((PsbtUtils as any).estimateInputVBytes({ _mockInputType: 'tr', tapLeafScript: [] })).toBe(58);
+  });
+
+  it('should dynamically calculate vBytes for P2WSH / Classic Multisig with witnessScript', () => {
+    const mockInput = {
+      _mockInputType: 'unknown', 
+      witnessScript: new Uint8Array([0x52, 0x21, 0xae]), // OP_2 ... OP_CHECKMULTISIG (threshold 2)
+    };
+    
+    const vBytes = (PsbtUtils as any).estimateInputVBytes(mockInput);
+    // M = 2
+    // witnessSize = 1 + (2 * 73) + 3 = 150
+    // ceil(41 + 150/4) = ceil(41 + 37.5) = 79
+    expect(vBytes).toBe(79);
+  });
+
+  it('should dynamically calculate vBytes for Taproot script-path (tapLeafScript)', () => {
+    const mockInput = {
+      _mockInputType: 'unknown',
+      tapLeafScript: [
+        [
+          { merklePath: [new Uint8Array(32)] }, // control block obj (pathLen = 1)
+          new Uint8Array([0xac, 0xc0]) // script + version (OP_CHECKSIG, version 0xc0) -> M=1
+        ]
+      ]
+    };
+    
+    const vBytes = (PsbtUtils as any).estimateInputVBytes(mockInput);
+    // Script is [0xac] (length 1) -> M = 1
+    // Path length = 1
+    // Control block len = 1 + 32 + (1 * 32) = 65
+    // Sig bytes = 1 * 64 = 64
+    // Witness size = 64 (sigs) + 1 (script) + 65 (control block) + 3 (prefixes for M+2) = 133
+    // ceil(41 + 133/4) = ceil(41 + 33.25) = 75
+    expect(vBytes).toBe(75);
+  });
+
   describe('PsbtUtils - Script Types & RBF Signaling', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should correctly flag RBF enabled inputs based on sequence numbers', () => {
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 1,
+        outputsLength: 0,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn().mockReturnValue({ sequence: 0xf0000000 }), // Less than 0xfffffffe triggers RBF
+        getOutput: vi.fn(),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A');
+      expect(details?.inputsList[0].isRbfEnabled).toBe(true);
+      expect(details?.isRbfEnabled).toBe(true);
+    });
+
+    it('should parse and assign standard script types to inputs and outputs', () => {
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 1,
+        outputsLength: 1,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn().mockReturnValue({
+          tapInternalKey: new Uint8Array([1]),
+          witnessUtxo: { amount: BigInt(50000), script: new Uint8Array([0x51, 0x20]) }
+        }),
+        getOutput: vi.fn().mockReturnValue({
+          amount: BigInt(40000),
+          script: hex.decode('512089abcdefabaabcdeffedcbaabaabcdefaba1234589abcdefabaabcdeffedcbaa') // P2TR script
+        }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A', 'bitcoin');
+      expect(details?.inputsList[0].scriptType).toBe('P2TR');
+      expect(details?.outputs[0].scriptType).toBe('P2TR');
+    });
   });
-
-  it('should correctly flag RBF enabled inputs based on sequence numbers', () => {
-    const mockTx = {
-      inputsLength: 1,
-      outputsLength: 0,
-      get fee() { return BigInt(1000); },
-      get vsize() { return 100; },
-      getInput: vi.fn().mockReturnValue({ sequence: 0xf0000000 }), // Less than 0xfffffffe triggers RBF
-      getOutput: vi.fn(),
-    };
-    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
-
-    const details = PsbtUtils.parseTxDetails('cHNidP8A');
-    expect(details?.inputsList[0].isRbfEnabled).toBe(true);
-    expect(details?.isRbfEnabled).toBe(true);
-  });
-
-  it('should parse and assign standard script types to inputs and outputs', () => {
-    const mockTx = {
-      inputsLength: 1,
-      outputsLength: 1,
-      get fee() { return BigInt(1000); },
-      get vsize() { return 100; },
-      getInput: vi.fn().mockReturnValue({
-        tapInternalKey: new Uint8Array([1]),
-        witnessUtxo: { amount: BigInt(50000), script: new Uint8Array([0x51, 0x20]) }
-      }),
-      getOutput: vi.fn().mockReturnValue({
-        amount: BigInt(40000),
-        script: hex.decode('512089abcdefabaabcdeffedcbaabaabcdefaba1234589abcdefabaabcdeffedcbaa') // P2TR script
-      }),
-    };
-    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
-
-    const details = PsbtUtils.parseTxDetails('cHNidP8A', 'bitcoin');
-    expect(details?.inputsList[0].scriptType).toBe('P2TR');
-    expect(details?.outputs[0].scriptType).toBe('P2TR');
-  });
-});
 });
