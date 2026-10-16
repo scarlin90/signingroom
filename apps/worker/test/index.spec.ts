@@ -26,13 +26,11 @@ describe('Worker Router & Rate Limiter', () => {
         const response = await app.fetch(request, env as any, ctx);
         await waitOnExecutionContext(ctx);
 
-        // Assert the new headers introduced in the diff
         expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
         expect(response.headers.get('Referrer-Policy')).toBe('no-referrer');
         expect(response.headers.get('Strict-Transport-Security')).toBe('max-age=31536000; includeSubDomains; preload');
         expect(response.headers.get('X-Frame-Options')).toBe('DENY');
 
-        // Ensure the old headers are no longer present
         expect(response.headers.get('Content-Security-Policy')).toBeNull();
         expect(response.headers.get('X-XSS-Protection')).toBeNull();
     });
@@ -65,7 +63,10 @@ describe('Worker Router & Rate Limiter', () => {
     it('should respect environment variable overrides for limits', async () => {
         const request = new Request('http://localhost/api/room', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                Origin: 'https://signingroom.io',
+            },
             body: JSON.stringify({ roomId: TEST_ROOM_ID, encryptedPsbt: 'abcd' }),
         });
 
@@ -105,7 +106,10 @@ describe('Worker Router & Rate Limiter', () => {
     it('should return 413 if encryptedPsbt exceeds MAX_PAYLOAD_SIZE_BYTES on POST /api/room', async () => {
         const request = new Request('http://localhost/api/room', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                Origin: 'https://signingroom.io',
+            },
             body: JSON.stringify({
                 roomId: TEST_ROOM_ID,
                 encryptedPsbt: 'a'.repeat(2 * 1024 * 1024 + 10),
@@ -133,6 +137,237 @@ describe('Worker Router & Rate Limiter', () => {
         await waitOnExecutionContext(ctx);
 
         expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    });
+});
+
+describe('Origin Validation & Domain Lockdown (isOriginAllowed branches)', () => {
+    const prodEnv = {
+        ...env,
+        ENVIRONMENT: 'production',
+        ALLOWED_ORIGIN: 'signingroom.io',
+    };
+
+    it('should allow production root domain and valid subdomains', async () => {
+        const origins = [
+            'https://signingroom.io',
+            'https://dev.signingroom.io',
+            'https://staging.signingroom.io',
+            'https://staging-branded.signingroom.io',
+            'https://api.signingroom.io',
+        ];
+
+        for (const origin of origins) {
+            const req = new Request('http://localhost/api/health', {
+                method: 'OPTIONS',
+                headers: { Origin: origin, 'Access-Control-Request-Method': 'GET' },
+            });
+            const ctx = createExecutionContext();
+            const res = await app.fetch(req, prodEnv as any, ctx);
+            await waitOnExecutionContext(ctx);
+
+            expect(res.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+        }
+    });
+
+    it('should reject unencrypted HTTP origins in production', async () => {
+        const req = new Request('http://localhost/api/health', {
+            method: 'OPTIONS',
+            headers: { Origin: 'http://signingroom.io', 'Access-Control-Request-Method': 'GET' },
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, prodEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    });
+
+    it('should block suffix domain impersonation attempts', async () => {
+        const maliciousOrigins = [
+            'https://evil-signingroom.io',
+            'https://fakesigningroom.io',
+            'https://signingroom.io.attacker.com',
+            'https://attacker-signingroom.io',
+        ];
+
+        for (const origin of maliciousOrigins) {
+            const req = new Request('http://localhost/api/health', {
+                method: 'OPTIONS',
+                headers: { Origin: origin, 'Access-Control-Request-Method': 'GET' },
+            });
+            const ctx = createExecutionContext();
+            const res = await app.fetch(req, prodEnv as any, ctx);
+            await waitOnExecutionContext(ctx);
+
+            expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+        }
+    });
+
+    it('should allow exact match against ALLOWED_ORIGIN even if non-standard or port-based', async () => {
+        const customEnv = {
+            ...env,
+            ENVIRONMENT: 'production',
+            ALLOWED_ORIGIN: 'http://127.0.0.1:4200',
+        };
+
+        const req = new Request('http://localhost/api/health', {
+            method: 'OPTIONS',
+            headers: { Origin: 'http://127.0.0.1:4200', 'Access-Control-Request-Method': 'GET' },
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, customEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://127.0.0.1:4200');
+    });
+
+    it('should permit localhost and 127.0.0.1 on arbitrary ports in development mode', async () => {
+        const devEnv = {
+            ...env,
+            ENVIRONMENT: 'development',
+        };
+
+        const testOrigins = ['http://localhost:3000', 'http://127.0.0.1:5173', 'http://localhost:8787'];
+
+        for (const origin of testOrigins) {
+            const req = new Request('http://localhost/api/health', {
+                method: 'OPTIONS',
+                headers: { Origin: origin, 'Access-Control-Request-Method': 'GET' },
+            });
+            const ctx = createExecutionContext();
+            const res = await app.fetch(req, devEnv as any, ctx);
+            await waitOnExecutionContext(ctx);
+
+            expect(res.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+        }
+    });
+
+    it('should cleanly handle malformed unparseable URLs in the catch block', async () => {
+        const req = new Request('http://localhost/api/health', {
+            method: 'OPTIONS',
+            headers: { Origin: '://invalid-uri', 'Access-Control-Request-Method': 'GET' },
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, prodEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    });
+
+    it('should support ALLOW_HEADLESS_ACCESS for self-hosted server-to-server calls', async () => {
+        const headlessEnv = {
+            ...env,
+            ENVIRONMENT: 'production',
+            ALLOWED_ORIGIN: 'my-relay.com',
+            ALLOW_HEADLESS_ACCESS: 'true',
+        };
+
+        // POST /api/room with no Origin or Referer (Node CLI / Backend Daemon)
+        const req = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomId: 'headless-room', expectedPass: 'pass123', adminToken: 'admin123' }),
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, headlessEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        expect(res.status).toBe(200);
+    });
+
+    it('should block headless requests in production when ALLOW_HEADLESS_ACCESS is disabled or unset', async () => {
+        const strictProdEnv = {
+            ...env,
+            ENVIRONMENT: 'production',
+            ALLOWED_ORIGIN: 'signingroom.io',
+            ALLOW_HEADLESS_ACCESS: 'false',
+        };
+
+        const req = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomId: 'headless-room', expectedPass: 'pass123', adminToken: 'admin123' }),
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, strictProdEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        expect(res.status).toBe(401);
+        const data = (await res.json()) as any;
+        expect(data.error).toBe('Unauthorized: First-party origin required.');
+    });
+});
+
+describe('Gated API Endpoints: POST /api/room & GET /api/room/:id/websocket', () => {
+    const prodEnv = {
+        ...env,
+        ENVIRONMENT: 'production',
+        ALLOWED_ORIGIN: 'signingroom.io',
+    };
+
+    it('should reject POST /api/room if origin is unauthorized', async () => {
+        const req = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Origin: 'https://unauthorized-wallet.com',
+            },
+            body: JSON.stringify({ roomId: 'unauth-room' }),
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, prodEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        expect(res.status).toBe(401);
+        const data = (await res.json()) as any;
+        expect(data.error).toBe('Unauthorized: First-party origin required.');
+    });
+
+    it('should authorize POST /api/room when a valid first-party Referer is supplied', async () => {
+        const req = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Referer: 'https://staging.signingroom.io/dashboard/create',
+            },
+            body: JSON.stringify({ roomId: 'referer-auth-room', expectedPass: '123', adminToken: 'secret' }),
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, prodEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(data.roomId).toBe('referer-auth-room');
+    });
+
+    it('should reject GET /api/room/:id/websocket with 403 on cross-origin WebSocket hijack attempt', async () => {
+        const req = new Request('http://localhost/api/room/test-room/websocket', {
+            headers: {
+                Upgrade: 'websocket',
+                Origin: 'https://thirdparty-dapp.com',
+            },
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, prodEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        expect(res.status).toBe(403);
+        expect(await res.text()).toBe('Cross-Origin WebSocket Access Forbidden');
+    });
+
+    it('should permit GET /api/room/:id/websocket when origin is verified', async () => {
+        const req = new Request('http://localhost/api/room/test-room/websocket', {
+            headers: {
+                Upgrade: 'websocket',
+                Origin: 'https://signingroom.io',
+            },
+        });
+        const ctx = createExecutionContext();
+        const res = await app.fetch(req, prodEnv as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        // Origin check passed, DO handles the handshake
+        expect(res.status).not.toBe(403);
     });
 });
 
@@ -216,10 +451,13 @@ describe('SigningRoom Durable Object', () => {
         }
     }
 
-    it('should initialize a room via POST /api/room', async () => {
+    it('should initialize a room via POST /api/room with first-party origin', async () => {
         const request = new Request('http://localhost/api/room', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                Origin: 'https://signingroom.io',
+            },
             body: JSON.stringify({
                 roomId: TEST_ROOM_ID,
                 expectedPass: 'pass123',
@@ -287,6 +525,47 @@ describe('SigningRoom Durable Object', () => {
         }
     });
 
+    it('should ignore LOG_ACTION if encryptedLogBlob exceeds 10,000 characters', async () => {
+        await initRoom();
+        const { client, received } = await createWebSocketClient();
+
+        try {
+            const massiveBlob = 'a'.repeat(10001);
+            client.send(
+                JSON.stringify({ 
+                    type: 'LOG_ACTION', 
+                    encryptedLogBlob: massiveBlob 
+                }),
+            );
+
+            await new Promise((r) => setTimeout(r, 100));
+
+            expect(received.some((m) => m.type === 'LOG_UPDATE')).toBe(false);
+        } finally {
+            await cleanupClient(client);
+        }
+    });
+
+    it('should ignore LOG_ACTION if encryptedLogBlob is not a string', async () => {
+        await initRoom();
+        const { client, received } = await createWebSocketClient();
+
+        try {
+            client.send(
+                JSON.stringify({ 
+                    type: 'LOG_ACTION', 
+                    encryptedLogBlob: { invalid: 'object' } 
+                }),
+            );
+
+            await new Promise((r) => setTimeout(r, 100));
+
+            expect(received.some((m) => m.type === 'LOG_UPDATE')).toBe(false);
+        } finally {
+            await cleanupClient(client);
+        }
+    });
+
     it('should authorize a room reset if the correct admin token is provided', async () => {
         await initRoom({ adminToken: 'admin-secret' });
         
@@ -318,7 +597,10 @@ describe('SigningRoom Durable Object', () => {
         await app.fetch(
             new Request('http://localhost/api/room', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    Origin: 'https://signingroom.io',
+                },
                 body: JSON.stringify({ roomId: TEST_ROOM_ID, adminToken: 'admin-secret' }),
             }),
             env as any,
@@ -327,7 +609,10 @@ describe('SigningRoom Durable Object', () => {
 
         const request = new Request('http://localhost/api/room', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                Origin: 'https://signingroom.io',
+            },
             body: JSON.stringify({ roomId: TEST_ROOM_ID, adminToken: 'wrong-token' }),
         });
 
@@ -336,7 +621,7 @@ describe('SigningRoom Durable Object', () => {
         await waitOnExecutionContext(ctx);
 
         expect(response.status).toBe(401);
-        const data = await response.json() as any;
+        const data = (await response.json()) as any;
         expect(data.error).toBe('Unauthorized: Invalid Admin Token for Reset');
     });
 
@@ -411,6 +696,43 @@ describe('SigningRoom Durable Object', () => {
         } finally {
             await cleanupClient(client);
         }
+    });
+
+    it('should prune only expired trackers when exceeding MAX_IP_TRACKERS and preserve active lockouts', async () => {
+        await initRoom();
+        
+        await runInDurableObject(roomStub, async (instance: any) => {
+            instance.env = { ...instance.env, MAX_IP_TRACKERS: '5' };
+            const now = Date.now();
+
+            // 3 expired entries
+            instance.ipAuthFailures.set('192.168.1.1', { count: 5, lockedUntil: now - 10000 });
+            instance.ipAuthFailures.set('192.168.1.2', { count: 5, lockedUntil: now - 5000 });
+            instance.ipAuthFailures.set('192.168.1.3', { count: 5, lockedUntil: now - 1000 });
+
+            // 2 active lockouts
+            instance.ipAuthFailures.set('192.168.1.100', { count: 5, lockedUntil: now + 60000 });
+            instance.ipAuthFailures.set('192.168.1.101', { count: 5, lockedUntil: now + 120000 });
+
+            expect(instance.ipAuthFailures.size).toBe(5);
+
+            const mockSocket = { send: vi.fn(), close: vi.fn() };
+            instance.sessions.set(mockSocket, { id: 'test-session', role: 'guest', ip: '10.0.0.99' });
+
+            await instance.handleMessage(
+                { data: JSON.stringify({ type: 'AUTH', token: 'wrong-password' }) } as any,
+                mockSocket,
+            );
+
+            // Expired records purged, active records kept, and new IP added
+            expect(instance.ipAuthFailures.has('192.168.1.1')).toBe(false);
+            expect(instance.ipAuthFailures.has('192.168.1.2')).toBe(false);
+            expect(instance.ipAuthFailures.has('192.168.1.3')).toBe(false);
+            expect(instance.ipAuthFailures.has('192.168.1.100')).toBe(true);
+            expect(instance.ipAuthFailures.has('192.168.1.101')).toBe(true);
+            expect(instance.ipAuthFailures.has('10.0.0.99')).toBe(true);
+            expect(instance.ipAuthFailures.size).toBe(3);
+        });
     });
 
     it('should update signer labels (admin only)', async () => {
@@ -579,7 +901,7 @@ describe('SigningRoom Durable Object', () => {
                 }),
             );
 
-            await new Promise((r) => setTimeout(r, 100)); // Wait for processing
+            await new Promise((r) => setTimeout(r, 100));
 
             expect(received.some((m) => m.type === 'NEW_PARTIAL_DATA')).toBe(false);
         } finally {
@@ -938,33 +1260,29 @@ describe('SigningRoom Durable Object', () => {
             const { client, received } = await createWebSocketClient();
 
             try {
-                // Verify non-admins are rejected
                 client.send(
                     JSON.stringify({
                         type: 'REGISTER_ROLE',
                         tokenHash: 'hash',
                         canUpload: true,
-                        policyBlob: 'encrypted-blob'
+                        policyBlob: 'encrypted-blob',
                     }),
                 );
                 await vi.waitFor(() => expect(received.some((m) => m.type === 'ERROR' && m.message === 'Unauthorized')).toBe(true));
 
-                // Auth as Admin
                 client.send(JSON.stringify({ type: 'AUTH', token: 'admin-secret' }));
                 await vi.waitFor(() => expect(received.some((m) => m.type === 'ROLE_UPDATE')).toBe(true));
 
-                // Register successfully
                 client.send(
                     JSON.stringify({
                         type: 'REGISTER_ROLE',
                         tokenHash: 'hashed-token-123',
                         canUpload: true,
-                        policyBlob: 'encrypted-blob'
+                        policyBlob: 'encrypted-blob',
                     }),
                 );
                 await vi.waitFor(() => expect(received.some((m) => m.type === 'ROLE_REGISTERED_SUCCESS')).toBe(true));
 
-                // Hit the 50 limit guard
                 await runInDurableObject(roomStub, async (instance: any) => {
                     instance.roomState.roleTokens = {};
                     for (let i = 0; i < 50; i++) instance.roomState.roleTokens[`hash${i}`] = { canUpload: true, policyBlob: 'blob' };
@@ -975,7 +1293,7 @@ describe('SigningRoom Durable Object', () => {
                         type: 'REGISTER_ROLE',
                         tokenHash: 'hashed-token-51',
                         canUpload: true,
-                        policyBlob: 'encrypted-blob'
+                        policyBlob: 'encrypted-blob',
                     }),
                 );
                 await vi.waitFor(() =>
@@ -1001,17 +1319,14 @@ describe('SigningRoom Durable Object', () => {
 
             const { client, received } = await createWebSocketClient();
             try {
-                // Invalid Token
                 client.send(JSON.stringify({ type: 'AUTH_ROLE', token: 'wrong-token' }));
                 await vi.waitFor(() => expect(received.some((m) => m.type === 'ERROR' && m.message.includes('Invalid or revoked'))).toBe(true));
 
-                // Valid Token
                 client.send(JSON.stringify({ type: 'AUTH_ROLE', token: rawToken }));
                 await vi.waitFor(() =>
                     expect(received.some((m) => m.type === 'CONSTRAINT_UPDATE' && m.policyBlob === 'mock-policy-blob')).toBe(true),
                 );
 
-                // Exception branch - Node TextEncoder coerces objects to "[object Object]" so it just fails auth.
                 client.send(JSON.stringify({ type: 'AUTH_ROLE', token: { unexpected: 'object' } }));
                 await vi.waitFor(() => expect(received.some((m) => m.type === 'ERROR' && m.message === 'Invalid or revoked role token')).toBe(true));
             } finally {
@@ -1034,7 +1349,6 @@ describe('SigningRoom Durable Object', () => {
 
             const { client, received } = await createWebSocketClient();
             try {
-                // Try to upload without ANY token (Downgrade protection)
                 client.send(JSON.stringify({ type: 'UPLOAD_PARTIAL', data: {} }));
                 await vi.waitFor(() =>
                     expect(received.some((m) => m.type === 'ERROR_POLICY_VIOLATION' && m.message.includes('A valid role token is required'))).toBe(
@@ -1042,13 +1356,11 @@ describe('SigningRoom Durable Object', () => {
                     ),
                 );
 
-                // Authenticate using the restricted token
                 client.send(JSON.stringify({ type: 'AUTH_ROLE', token: rawToken }));
                 await vi.waitFor(() => expect(received.some((m) => m.type === 'CONSTRAINT_UPDATE' && m.policyBlob === 'restricted-policy-blob')).toBe(true));
 
                 const currentMsgCount = received.length;
 
-                // Try to upload again (Blocked by token constraints)
                 client.send(JSON.stringify({ type: 'UPLOAD_PARTIAL', data: {} }));
                 await vi.waitFor(() =>
                     expect(
@@ -1064,7 +1376,6 @@ describe('SigningRoom Durable Object', () => {
     });
 
     describe('Deep Edge Cases and Catch Blocks', () => {
-
         it('should track msgsInWindow, reset on expiry, and ignore rapid spammers', async () => {
             vi.useFakeTimers();
             await initRoom();
@@ -1077,23 +1388,17 @@ describe('SigningRoom Durable Object', () => {
                     id: '123', role: 'guest', msgsInWindow: 0, lastMsgTime: Date.now(), ip: '1.1.1.1' 
                 });
                 
-                // First message
                 await instance.handleMessage({ data: JSON.stringify({ type: 'PING' }) } as any, mockSocket);
                 expect(instance.sessions.get(mockSocket).msgsInWindow).toBe(1);
 
-                // Second message immediately (rapid)
                 await instance.handleMessage({ data: JSON.stringify({ type: 'PING' }) } as any, mockSocket);
                 expect(instance.sessions.get(mockSocket).msgsInWindow).toBe(2);
 
-                // Third message immediately -> Exceeds MAX_MSGS_PER_WINDOW of 1.
-                // The worker increments it to 3, but returns early.
                 await instance.handleMessage({ data: JSON.stringify({ type: 'PING' }) } as any, mockSocket);
                 expect(instance.sessions.get(mockSocket).msgsInWindow).toBe(3); 
                 
-                // Now advance time past RATE_LIMIT_WINDOW
                 vi.advanceTimersByTime(150);
                 
-                // Fourth message -> Should reset msgsInWindow to 1
                 await instance.handleMessage({ data: JSON.stringify({ type: 'PING' }) } as any, mockSocket);
                 expect(instance.sessions.get(mockSocket).msgsInWindow).toBe(1);
             });
@@ -1107,7 +1412,7 @@ describe('SigningRoom Durable Object', () => {
                 instance.env = { ...instance.env, MAX_AUDIT_LOG_LENGTH: '2' };
                 instance.roomState.auditLog = [
                     { serverTimestamp: 1, sessionId: 'a', role: 'guest', blob: 'log1' },
-                    { serverTimestamp: 2, sessionId: 'b', role: 'guest', blob: 'log2' }
+                    { serverTimestamp: 2, sessionId: 'b', role: 'guest', blob: 'log2' },
                 ];
                 
                 await instance.log('log3');
@@ -1123,7 +1428,7 @@ describe('SigningRoom Durable Object', () => {
             await runInDurableObject(roomStub, async (instance: any) => {
                 const mockBrokenSocket = {
                     send: vi.fn().mockImplementation(() => { throw new Error('Broken pipe'); }),
-                    close: vi.fn()
+                    close: vi.fn(),
                 };
                 instance.sessions.set(mockBrokenSocket, { id: '123', role: 'guest' });
                 
@@ -1137,7 +1442,7 @@ describe('SigningRoom Durable Object', () => {
             await runInDurableObject(roomStub, async (instance: any) => {
                 const mockBrokenSocket = {
                     send: vi.fn(),
-                    close: vi.fn().mockImplementation(() => { throw new Error('Close fail'); })
+                    close: vi.fn().mockImplementation(() => { throw new Error('Close fail'); }),
                 };
                 instance.sessions.set(mockBrokenSocket, { id: '123', role: 'guest' });
                 
@@ -1169,13 +1474,12 @@ describe('SigningRoom Durable Object', () => {
             await runInDurableObject(roomStub, async (instance: any) => {
                 const mockOldSocket = {
                     send: vi.fn(),
-                    close: vi.fn().mockImplementation(() => { throw new Error('Already closed'); })
+                    close: vi.fn().mockImplementation(() => { throw new Error('Already closed'); }),
                 };
                 const mockNewSocket = { send: vi.fn(), close: vi.fn(), accept: vi.fn(), addEventListener: vi.fn() };
 
                 instance.sessions.set(mockOldSocket, { id: 'ABCD', role: 'guest' });
 
-                // Pass ABCD (4 characters) so it matches the Regex
                 await instance.handleSession(mockNewSocket as any, '1.1.1.1', 'ABCD');
 
                 expect(instance.sessions.has(mockOldSocket)).toBe(false);
@@ -1210,48 +1514,23 @@ describe('SigningRoom Durable Object', () => {
                 const mockSocket = { send: vi.fn(), close: vi.fn() };
                 instance.sessions.set(mockSocket, { id: '123', role: 'guest', msgsInWindow: 0, lastMsgTime: Date.now() });
                 
-                // 1. Invalid payload coerces to string, but fails hash match
                 await instance.handleMessage({ 
-                    data: JSON.stringify({ type: 'AUTH_ROLE', token: { bad: 'type' } }) 
+                    data: JSON.stringify({ type: 'AUTH_ROLE', token: { bad: 'type' } }), 
                 } as any, mockSocket);
                 
                 expect(mockSocket.send).toHaveBeenCalledWith(
-                    JSON.stringify({ type: 'ERROR', message: 'Invalid or revoked role token' })
+                    JSON.stringify({ type: 'ERROR', message: 'Invalid or revoked role token' }),
                 );
 
-                // 2. Force an actual exception inside the block to hit the catch
                 const digestSpy = vi.spyOn(crypto.subtle, 'digest').mockRejectedValueOnce(new Error('Crypto failure'));
                 await instance.handleMessage({ 
-                    data: JSON.stringify({ type: 'AUTH_ROLE', token: 'valid-token' }) 
+                    data: JSON.stringify({ type: 'AUTH_ROLE', token: 'valid-token' }), 
                 } as any, mockSocket);
 
                 expect(mockSocket.send).toHaveBeenCalledWith(
-                    JSON.stringify({ type: 'ERROR', message: 'Failed to authenticate role' })
+                    JSON.stringify({ type: 'ERROR', message: 'Failed to authenticate role' }),
                 );
                 digestSpy.mockRestore();
-            });
-        });
-
-        it('should clear the ipAuthFailures map if it exceeds MAX_IP_TRACKERS to prevent memory exhaustion', async () => {
-            await initRoom();
-            
-            await runInDurableObject(roomStub, async (instance: any) => {
-                const maxTrackers = 1000;
-                
-                for (let i = 0; i < maxTrackers; i++) {
-                    instance.ipAuthFailures.set(`192.168.0.${i}`, { count: 1, lockedUntil: 0 });
-                }
-
-                const mockSocket = { send: vi.fn(), close: vi.fn() };
-                instance.sessions.set(mockSocket, { id: 'test-session', role: 'guest', ip: '10.0.0.1' });
-
-                await instance.handleMessage(
-                    { data: JSON.stringify({ type: 'AUTH', token: 'wrong-password' }) } as any,
-                    mockSocket
-                );
-
-                expect(instance.ipAuthFailures.size).toBe(1);
-                expect(instance.ipAuthFailures.has('10.0.0.1')).toBe(true);
             });
         });
 
@@ -1287,34 +1566,6 @@ describe('SigningRoom Durable Object', () => {
                 await instance.handleClose(mockSocket as any);
                 expect(instance.sessions.has(mockSocket)).toBe(false);
             });
-        });
-
-        it('should allow production CORS origin signingroom.io', async () => {
-            const req = new Request('http://localhost/api/health', {
-                method: 'OPTIONS',
-                headers: { Origin: 'https://app.signingroom.io', 'Access-Control-Request-Method': 'GET' },
-            });
-            const ctx = createExecutionContext();
-
-            const prodEnv = { ...env, ALLOWED_ORIGIN: 'signingroom.io' };
-            const res = await app.fetch(req, prodEnv as any, ctx);
-            await waitOnExecutionContext(ctx);
-
-            expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://app.signingroom.io');
-        });
-
-        it('should allow localhost CORS origin in development', async () => {
-            const req = new Request('http://localhost/api/health', {
-                method: 'OPTIONS',
-                headers: { Origin: 'http://localhost:4200', 'Access-Control-Request-Method': 'GET' },
-            });
-            const ctx = createExecutionContext();
-
-            const devEnv = { ...env, ENVIRONMENT: 'development' };
-            const res = await app.fetch(req, devEnv as any, ctx);
-            await waitOnExecutionContext(ctx);
-
-            expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:4200');
         });
     });
 

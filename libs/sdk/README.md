@@ -28,6 +28,23 @@ This repository provides a complete, runnable TypeScript project that demonstrat
 
 ---
 
+## Relay Requirements & Headless Access (Self-Hosting)
+
+The Signing Room coordinator relay enforces strict origin checks at the edge to prevent Cross-Origin WebSocket Hijacking, unauthorized iFraming, and automated infrastructure abuse.
+
+When connecting the SDK to a hosted relay Worker (e.g., `https://api.my-relay.com`), the relay's environment variables must be configured to accommodate your architecture:
+
+| Environment Variable | Required Setting | Description |
+| --- | --- | --- |
+| `ALLOWED_ORIGIN` | `"my-relay.com"` | The root domain or exact origin permitted to access the coordinator. Automatically authorizes subdomains (e.g., `app.my-relay.com`) and enforces HTTPS in production. |
+| `ALLOW_HEADLESS_ACCESS` | `"true"` | **Required for Node.js / CLI integrations against remote relays.** Because Node.js runtimes do not emit browser `Origin` headers, self-hosted relays must set this to `"true"` to allow backend daemons, bots, and CI/CD runners to communicate with the API and WebSockets. |
+| `ENVIRONMENT` | `"development"` or `"production"` | When set to `"development"`, headless calls and `localhost`/`127.0.0.1` origins on any port are permitted automatically without additional configuration. |
+
+> **Public Coordinator Note (`signingroom.io`):**
+> The official public deployment at `api.signingroom.io` enforces `ALLOW_HEADLESS_ACCESS="false"` to protect public compute resources. Programmatic SDK scripts (such as Node.js daemons or automated runners) must target a self-hosted relay instance with `ALLOW_HEADLESS_ACCESS="true"` enabled or run locally with `ENVIRONMENT="development"`.
+
+---
+
 # Quick Start & Core API
 
 The SDK is built around the `SigningRoomClient`.
@@ -48,6 +65,7 @@ To start a new signing ceremony, instantiate the client and provide an unsigned 
 ```javascript
 import { SigningRoomClient } from '@signing-room/sdk';
 
+// Target a local development relay or your self-hosted instance
 const API_URL = 'http://localhost:8787';
 const UNSIGNED_PSBT = 'cHNidP8BA...'; // Your base64 PSBT
 
@@ -192,7 +210,7 @@ await coordinator.toggleLock(true);
 
 ## 6. Event-Driven Monitoring & Uploading Signatures
 
-The SDK exposes an RxJS event bus, making it incredibly easy to build reactive UIs or trigger automated alarms when certain conditions are met.
+The SDK exposes an RxJS event bus, making it easy to build reactive UIs or trigger automated alarms when certain conditions are met.
 
 ```javascript
 import { filter, take } from 'rxjs';
@@ -228,7 +246,7 @@ await guest.uploadSignature(ALICE_SIGNED_PSBT, fingerprint);
 
 ## 7. Automated Finalization & Forensic Auditing
 
-When the PSBT signature threshold is met, the SDK emits a `THRESHOLD_MET` event. The Coordinator can use this to instantly finalize the transaction and extract cryptographic audit proofs.
+When the PSBT signature threshold is met, the SDK emits a `THRESHOLD_MET` event. The Coordinator can use this to finalize the transaction and extract cryptographic audit proofs.
 
 ```javascript
 coordinator
@@ -309,9 +327,9 @@ await recoveryClient.claimCoordinator(session.encryptedAdminToken);
 
 ## 🏢 Enterprise & Commercial Licensing
 
-[SigningRoom.io](https://signingroom.io/) is fully open-source under the **AGPLv3 License**.
+[SigningRoom.io](https://signingroom.io/) is open-source under the **AGPLv3 License**.
 
-* **Community Use**: If you modify the code and host it publicly, you must open-source your changes.
+* **Community Use**: If you modify the code and host it publicly, you must open-source your changes under AGPL-3.0.
 * **Commercial Use**: Institutions requiring a Commercial License (AGPL Waiver) to integrate this technology into proprietary, closed-source infrastructure (e.g., internal banking systems, custodial platforms) must contact [Stateless Research Ltd](https://statelessresearch.com/).
 
 ### 🔗 Contact Stateless Research for Licensing

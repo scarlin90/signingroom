@@ -20,6 +20,7 @@ interface Env {
 	MAX_PAYLOAD_SIZE_BYTES?: string;
 	MAX_CONNECTIONS?: string;
 	RATE_LIMIT_WINDOW?: string;
+	ALLOW_HEADLESS_ACCESS?: string;
 	MAX_MSGS_PER_WINDOW?: string;
 	MAX_CONNECTIONS_PER_IP?: string;
 	MAX_AUDIT_LOG_LENGTH?: string;
@@ -92,37 +93,53 @@ interface SessionData {
 // HONO APP & MIDDLEWARE
 // =============================================================================
 
+function isOriginAllowed(
+    originOrReferer: string | null | undefined,
+    c: { env: Env; req: { header: (name: string) => string | undefined } },
+): boolean {
+    const isDev = c.env.ENVIRONMENT === 'development';
+    const allowHeadless = c.env.ALLOW_HEADLESS_ACCESS === 'true';
+
+    if (!originOrReferer) {
+        return isDev || allowHeadless;
+    }
+
+    if (c.env.ALLOWED_ORIGIN && originOrReferer === c.env.ALLOWED_ORIGIN) {
+        return true;
+    }
+
+    try {
+        const parsed = new URL(originOrReferer);
+        const hostname = parsed.hostname.toLowerCase();
+
+        if (isDev && (hostname === 'localhost' || hostname === '127.0.0.1')) {
+            return true;
+        }
+
+        const rawConfig = c.env.ALLOWED_ORIGIN || 'signingroom.io';
+        const baseDomain = rawConfig
+            .replace(/^https?:\/\//i, '')
+            .replace(/:\d+$/, '')
+            .replace(/\/.*$/, '')
+            .toLowerCase();
+
+        if (!isDev && parsed.protocol !== 'https:') {
+            return false;
+        }
+
+        return hostname === baseDomain || hostname.endsWith(`.${baseDomain}`);
+    } catch {
+        return false;
+    }
+}
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.use(
     '/*',
     cors({
-        origin: (origin, c) => {
-            if (origin === c.env.ALLOWED_ORIGIN) {
-                return origin;
-            }
-
-            const rawOrigin = c.env.ALLOWED_ORIGIN || 'signingroom.io';
-            const baseDomain = rawOrigin.replace(/^https?:\/\//, '');
-
-            const exactMatchHttps = `https://${baseDomain}`;
-            const subDomainMatch = `.${baseDomain}`;
-            const isOfficialDomain = origin === exactMatchHttps || origin.endsWith(subDomainMatch);
-
-            if (isOfficialDomain) {
-                return origin;
-            }
-
-            if (c.env.ENVIRONMENT === 'development') {
-                const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-                if (isLocalhost) {
-                    return origin;
-                }
-            }
-
-            return null;
-        },
-        allowHeaders: ['Upgrade', 'Content-Type', 'Authorization', 'X-Requested-With'],
+        origin: (origin, c) => (isOriginAllowed(origin, c) ? origin : null),
+        allowHeaders: ['Upgrade', 'Content-Type', 'X-Requested-With'],
         allowMethods: ['GET', 'POST', 'OPTIONS'],
         maxAge: 86400,
         credentials: true,
@@ -139,7 +156,7 @@ app.use('/*', async (c, next) => {
 	// --- RATE LIMITING (THE BOUNCER) ---
 	const ip = c.req.header('CF-Connecting-IP') || 'unknown';
 
-	if (c.env.ENVIRONMENT === 'production' && ip !== 'unknown') {
+	if (ip !== 'unknown') {
 		try {
 			// use the global Cloudflare counter
 			const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
@@ -167,42 +184,56 @@ app.get('/api/health', (c) => {
 // API ROUTES: ROOM MANAGEMENT
 // =============================================================================
 
+// Gated Room Creation
 app.post('/api/room', async (c) => {
-	const body = await c.req.json();
-	const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens } = body;
+    const origin = c.req.header('Origin');
+    const referer = c.req.header('Referer');
 
-	if (encryptedPsbt && encryptedPsbt.length > getConfig(c.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
-		return c.json({ error: 'Payload too large. Max 500KB.' }, 413);
-	}
+    const isFirstParty = isOriginAllowed(origin, c) || isOriginAllowed(referer, c);
 
-	const id = c.env.SIGNING_ROOM.idFromName(roomId);
-	const room = c.env.SIGNING_ROOM.get(id);
+    if (!isFirstParty) {
+        return c.json({ error: 'Unauthorized: First-party origin required.' }, 401);
+    }
 
-	// Initialize the Durable Object
-	const initRes = await room.fetch(
-		new Request('http://internal/init', {
-			method: 'POST',
-			body: JSON.stringify({ roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, roleTokens }),
-		}),
-	);
+    const body = await c.req.json();
+    const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens } = body;
 
-	// Forward rejection if the reset is unauthorized
-	if (!initRes.ok) {
+    if (encryptedPsbt && encryptedPsbt.length > getConfig(c.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
+        return c.json({ error: 'Payload too large. Max allowed size exceeded.' }, 413);
+    }
+
+    const id = c.env.SIGNING_ROOM.idFromName(roomId);
+    const room = c.env.SIGNING_ROOM.get(id);
+
+    const initRes = await room.fetch(
+        new Request('http://internal/init', {
+            method: 'POST',
+            body: JSON.stringify({ roomId, expectedPass, encryptedPsbt, adminToken, network, protocolVersion, roleTokens }),
+        }),
+    );
+
+    if (!initRes.ok) {
         return c.json({ error: await initRes.text() }, initRes.status as any);
     }
 
-	await initRes.text();
+    await initRes.text();
 
-	return c.json({ roomId, socketUrl: `/api/room/${roomId}/websocket` });
+    return c.json({ roomId, socketUrl: `/api/room/${roomId}/websocket` });
 });
 
-// WebSocket Upgrade Handler
+// Gated WebSocket Handshake
 app.get('/api/room/:id/websocket', async (c) => {
-	const roomId = c.req.param('id');
-	const id = c.env.SIGNING_ROOM.idFromName(roomId);
-	const room = c.env.SIGNING_ROOM.get(id);
-	return room.fetch(c.req.raw);
-});
+    const origin = c.req.header('Origin');
+
+    if (!isOriginAllowed(origin, c)) {
+        return new Response('Cross-Origin WebSocket Access Forbidden', { status: 403 });
+    }
+
+    const roomId = c.req.param('id');
+    const id = c.env.SIGNING_ROOM.idFromName(roomId);
+    const room = c.env.SIGNING_ROOM.get(id);
+    return room.fetch(c.req.raw);
+})
 
 export default app;
 
@@ -571,8 +602,13 @@ export class SigningRoom implements DurableObject {
                     }
 
                     if (this.ipAuthFailures.size >= getConfig(this.env, 'MAX_IP_TRACKERS')) {
-                        this.ipAuthFailures.clear(); 
-                    }
+						const now = Date.now();
+						for (const [trackedIp, data] of this.ipAuthFailures.entries()) {
+							if (now > data.lockedUntil) {
+								this.ipAuthFailures.delete(trackedIp);
+							}
+						}
+					}
                     this.ipAuthFailures.set(ip, penalty);
                     return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Admin Token' }));
                 }
@@ -689,8 +725,9 @@ export class SigningRoom implements DurableObject {
 
 			// Action Logging
 			if (msg.type === 'LOG_ACTION') {
-				await this.log(msg.encryptedLogBlob, session)
-				this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
+				if (typeof msg.encryptedLogBlob === 'string' && msg.encryptedLogBlob.length <= 10000) {
+					await this.log(msg.encryptedLogBlob, session);
+				}
 			}
 
 			// PSBT Chunk Upload
