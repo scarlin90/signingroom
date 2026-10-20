@@ -1,0 +1,14 @@
+{
+  "whitelabel": false,
+  "useTradeMark": true,
+  "brandName": "Signing Room®",
+  "brandSuffix": ".io",
+  "tagline": "The secure coordination layer for Bitcoin multisig ceremonies.",
+  "subTagline": "Multi-Signature Consensus",
+  "logoUrl": "/brand/logo.svg",
+  "defaultRoomName": "Signing Room",
+  "brandColorHex": "#10b981",
+  "hideFooter": false,
+  "hideNetworkBadges": false,
+  "licenseToken": "srl_JlKue_YZd9rYueMg4Cwyog0zcxd0-HAsEAQobG06-1AM63JA5jtEJyvyqFGlM9YcsXG0cJJwa9_o2pvliftb1_RThwwBAQIAAAAAAAAAAAAAAaFYcchwDnNpZ25pbmdyb29tLmlvFlN0YXRlbGVzcyBSZXNlYXJjaCBMdGQIMTY5OTA1MTUAHzEyOCBDaXR5IFJvYWQsIExvbmRvbiwgRUMxViAyTlg"
+}

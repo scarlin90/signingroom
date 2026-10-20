@@ -167,6 +167,15 @@
         },
         "branded": {
           "buildTarget": "client:build:branded"
+        },
+        "hosted-dev": {
+          "buildTarget": "client:build:hosted-dev"
+        },
+        "hosted-staging": {
+          "buildTarget": "client:build:hosted-staging"
+        },
+        "hosted-staging-branded": {
+          "buildTarget": "client:build:hosted-staging-branded"
         }
       }
     },

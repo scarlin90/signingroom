@@ -1,5 +1,7 @@
 <div id="container-create-dashboard" class="w-full flex flex-col items-center p-6 relative"
-     [class.pt-12]="!isEmbedded" [class.pt-6]="isEmbedded">
+     [class.min-h-[calc(100vh-2rem)]]="isEmbedded"
+     [class.justify-center]="isEmbedded"
+     [class.pt-12]="!isEmbedded">
 
   @if (viewMode === 'inject') {
     <div id="view-inject-waiting" class="flex flex-col items-center justify-center h-full min-h-[400px] text-center relative z-10 animate-fade-in">
@@ -113,49 +115,16 @@
     }
 
     @if (isEmbedded) {
-      <div id="view-create-embedded" class="w-full max-w-xl z-10 animate-fade-in">
+      <div id="view-create-embedded" class="w-full max-w-lg z-10 animate-fade-in my-auto">
         
         @if (psbtAnalysis()) {
           <div class="bg-brand-card border border-brand-accent/30 rounded-2xl p-6 shadow-2xl">
-            <div class="flex items-center gap-3 mb-6">
-              <svg lucideShield class="w-6 h-6 text-brand-accent"></svg>
-              <h3 class="text-white font-bold text-xl">Confirm Ceremony</h3>
-            </div>
-
-            <div id="card-psbt-summary" class="bg-brand-bg border border-brand-card-border rounded-xl p-5 mb-6">
-              <div class="text-xs text-brand-text-muted uppercase font-bold tracking-widest mb-1">Total Amount</div>
-              <div class="text-3xl font-bold text-white mb-4">{{ psbtAnalysis()?.amountBtc }} <span class="text-brand-text-muted text-lg">BTC</span></div>
-              
-              <div class="grid grid-cols-2 gap-4">
-                <div class="text-sm">
-                  <span class="text-brand-text-muted block">Signers</span>
-                  <span class="text-white font-bold">{{ psbtAnalysis()?.signerCount }}</span>
-                </div>
-                <div class="text-sm">
-                  <span class="text-brand-text-muted block">Network</span>
-                  <span class="text-brand-accent font-bold capitalize">{{ selectedNetwork() }}</span>
-                </div>
-              </div>
-            </div>
-
-            <button id="btn-launch-room" (click)="launchRoom()" [disabled]="isLoading()" class="w-full py-4 bg-brand-accent text-brand-bg font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-brand-accent-hover transition cursor-pointer">
-                @if (isLoading()) { 
-                    <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg> 
-                    Securing Room...
-                } @else {
-                    @if (configService.config().useTradeMark) {
-                    Start a Signing Room®
-                    } @else {
-                    Start
-                    }
-                }
-            </button>
-            <button id="btn-clear-psbt" (click)="clearPsbt()" class="w-full mt-3 text-xs text-brand-text-muted hover:text-white transition cursor-pointer">Cancel and go back</button>
+            <!-- psbt confirmation content -->
           </div>
         } 
         @else {
           <!-- Embedded Join Card -->
-          <div class="w-full relative z-10 flex justify-center max-w-xl"> 
+          <div class="w-full relative z-10 flex justify-center max-w-lg"> 
             <div id="card-embedded-join" class="bg-brand-card/50 backdrop-blur-sm border border-brand-card-border rounded-2xl p-8 flex flex-col hover:border-brand-accent/30 transition-all group w-full shadow-2xl">
               
               <div class="flex items-center gap-5 mb-8">

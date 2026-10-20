@@ -400,7 +400,6 @@ export class SocketService {
   }
 
   async logAction(action: string, detail: string) {
-    console.log('=== logAction CALLED ===', action, detail);
     await this.sdk.logParticipantAction(action, detail);
   }
 

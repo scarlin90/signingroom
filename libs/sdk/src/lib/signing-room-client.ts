@@ -7,6 +7,9 @@ import { AuditLogOptions, RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils, TxDetails } from './bitcoin/psbt-utils';
 import { Observable, firstValueFrom } from 'rxjs';
 import { jsPDF } from 'jspdf';
+import { LicenseEngine, STATELESS_RESEARCH_PUBKEY } from './licensing/verifier';
+import { VerifiedLicense, LicenseAuditReport } from './licensing/types';
+import { LicenseCodec, base64UrlToBytes } from './licensing/codec';
 
 /**
  * Configuration schema for initializing the SigningRoom SDK client.
@@ -16,12 +19,16 @@ export interface SigningRoomConfig {
   apiUrl: string;
   /** Optional version tag to ensure compatibility with backend protocol updates. */
   protocolVersion?: string;
+  /** Optional signed Ed25519 binary license token. If omitted or invalid, defaults to Community Edition. */
+  licenseToken?: string;
+
+  host?: string;
 }
 
 /**
  * The primary entry point for the SigningRoom SDK.
  * Facilitates room orchestration, cryptographic key management, relay coordination,
- * and automated state synchronization across the collaborative lifecycle.
+ * automated state synchronization, and tamper-evident license enforcement.
  */
 export class SigningRoomClient {
   public readonly engine: EncryptionEngine;
@@ -30,6 +37,9 @@ export class SigningRoomClient {
 
   private apiUrl: string;
   private protocolVersion: string;
+  private licenseToken?: string;
+  private host?: string;
+  private _license: VerifiedLicense | null = null;
   private _sessionId: string | null = null;
   private _role: 'admin' | 'guest' = 'guest';
   private _encryptionKey: string | null = null;
@@ -38,11 +48,13 @@ export class SigningRoomClient {
 
   /**
    * Initializes a new SigningRoom client.
-   * @param config - The API configuration and optional protocol versioning.
+   * @param config - The API configuration, license token, and optional protocol versioning.
    */
   constructor(config: SigningRoomConfig) {
     this.apiUrl = config.apiUrl.replace(/\/$/, '');
     this.protocolVersion = config.protocolVersion || '1.0.0';
+    this.licenseToken = config.licenseToken;
+    this.host = config.host;
 
     this.engine = new EncryptionEngine();
     this.relay = new RelayClient(this.engine);
@@ -84,6 +96,68 @@ export class SigningRoomClient {
   }
 
   /**
+   * Explicitly resolves and cryptographically validates the license token against the active domain.
+   * Called during application bootstrap or lazily executed before room creation/joining.
+   */
+  public async init(): Promise<VerifiedLicense> {
+    return await this.ensureLicense();
+  }
+
+  /**
+   * Internal lazy resolver to guarantee verified licensing state before any network operation.
+   */
+  private async ensureLicense(): Promise<VerifiedLicense> {
+    if (this._license) {
+      return this._license;
+    }
+
+    const host =
+      this.host ??
+      (typeof window !== 'undefined' ? window.location.host : 'localhost');
+
+    this._license = await LicenseEngine.resolve(this.licenseToken, host);
+    return this._license;
+  }
+
+  /**
+   * Retrieves the active license status. Falls back to room-level server-attested tier
+   * if connecting as a guest without a local license token.
+   */
+  public get license(): VerifiedLicense | null {
+    if (this._license && this._license.tier !== 'COMMUNITY') {
+      return this._license;
+    }
+
+    const state = this.getRoomState();
+    if (state && (state as any).tier) {
+      const roomTier = (state as any).tier;
+      return {
+        tier: roomTier,
+        isValid: roomTier !== 'COMMUNITY',
+        payload: {
+          tier: roomTier,
+          licensee: (state as any).licensee || 'Signing Room Community Edition',
+          domain: '*',
+          issuedAt: 0,
+          expiresAt: 0,
+          features: {
+            whiteLabel: roomTier !== 'COMMUNITY',
+            auditWatermarkRemoved: roomTier !== 'COMMUNITY',
+          },
+        },
+        rawToken: '',
+      };
+    }
+
+    return this._license;
+  }
+
+  public setLicenseToken(token: string) {
+    this.licenseToken = token;
+    this._license = null;
+  }
+
+  /**
    * Retrieves the current role token actively authenticating this session.
    */
   public get currentRoleToken(): string | null {
@@ -106,7 +180,7 @@ export class SigningRoomClient {
 
   /**
    * Subscribes to specific room events triggered by network operations.
-   * * @param eventType - The specific event type to listen to (e.g., 'SIGNATURE_RECEIVED')
+   * @param eventType - The specific event type to listen to (e.g., 'SIGNATURE_RECEIVED')
    * @returns An RxJS Observable yielding the target events.
    */
   public onEvent(eventType: RoomEventType): Observable<RoomEvent> {
@@ -122,7 +196,7 @@ export class SigningRoomClient {
 
   /**
    * Orchestrates the creation of a new collaborative cryptographic room.
-   * Strictly enforces Capability-based RBAC roles by generating a mandatory default role token.
+   * Passes the optional signed Ed25519 license token to the server for edge attestation.
    * @param psbtBase64 - The initial, unsigned PSBT string.
    * @param network - The target Bitcoin network (mainnet, testnet, or signet).
    * @param roomName - The display name for the room.
@@ -133,12 +207,21 @@ export class SigningRoomClient {
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName = 'Untitled Room',
   ) {
+    await this.ensureLicense();
+
     const payload = await RoomFactory.prepareCreationPayload(
       this.engine, psbtBase64, network, roomName, this.protocolVersion,
     );
 
     this._encryptionKey = payload.localData.encryptionKey;
-    const httpBody: any = { ...payload.httpPayload };
+    const httpBody: any = { 
+      ...payload.httpPayload,
+    };
+
+    const tokenToSend = this.licenseToken || this._license?.rawToken;
+    if (tokenToSend && tokenToSend.startsWith('srl_')) {
+      httpBody.licenseToken = tokenToSend;
+    }
 
     const roleToken = crypto.randomUUID().replace(/-/g, '');
     const constraints: RoleConstraints = {
@@ -181,6 +264,7 @@ export class SigningRoomClient {
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName = 'Untitled Room',
   ) {
+    await this.ensureLicense();
     const { payload, defaultRoleToken } = await this.createRoom(psbtBase64, network, roomName);
 
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
@@ -237,6 +321,8 @@ export class SigningRoomClient {
     encryptionKeyOrFragment: string,
     explicitRoleToken?: string,
   ) {
+    await this.ensureLicense();
+
     let fbek = encryptionKeyOrFragment;
     let roleToken = explicitRoleToken || null;
 
@@ -325,7 +411,8 @@ export class SigningRoomClient {
     this._sessionId = sessionId;
   }
 
-  /** * Updates the display name of the room.
+  /**
+   * Updates the display name of the room.
    * @param name - The new room name.
    */
   public async setRoomName(name: string) {
@@ -334,7 +421,8 @@ export class SigningRoomClient {
     await confirmation;
   }
 
-  /** * Toggles the room's locked status to restrict participant access.
+  /**
+   * Toggles the room's locked status to restrict participant access.
    * @param isLocked - Boolean toggle for room lock.
    */
   public async toggleLock(isLocked: boolean) {
@@ -343,7 +431,8 @@ export class SigningRoomClient {
     await confirmation;
   }
 
-  /** * Uploads a partial signature to the room for the specified hardware wallet.
+  /**
+   * Uploads a partial signature to the room for the specified hardware wallet.
    * @param psbtBase64 - The partial PSBT payload.
    * @param fingerprint - The hardware device's master key fingerprint.
    */
@@ -353,7 +442,8 @@ export class SigningRoomClient {
     await confirmation;
   }
 
-  /** * Records a secure audit trail event for the current room state.
+  /**
+   * Records a secure audit trail event for the current room state.
    * @param action - Human-readable label of the action.
    * @param detail - Supplementary information about the action.
    * @param overrideRole - Optional role override for audit reporting.
@@ -365,7 +455,8 @@ export class SigningRoomClient {
     this.relay.send('LOG_ACTION', { encryptedLogBlob: blob });
   }
 
-  /** * Updates the display name for the current participant session.
+  /**
+   * Updates the display name for the current participant session.
    * @param name - The new display name.
    */
   public async setDisplayName(name: string) {
@@ -386,7 +477,8 @@ export class SigningRoomClient {
     await confirmation;
   }
 
-  /** * Assigns a human-readable label to a hardware device fingerprint.
+  /**
+   * Assigns a human-readable label to a hardware device fingerprint.
    * @param fingerprint - The master key fingerprint.
    * @param label - The label to apply.
    */
@@ -396,7 +488,8 @@ export class SigningRoomClient {
     await confirmation;
   }
 
-  /** * Closes the room session, ejecting all participants and wiping temporary relay state.
+  /**
+   * Closes the room session, ejecting all participants and wiping temporary relay state.
    * Only the Coordinator can execute this.
    */
   public async closeRoom() {
@@ -405,7 +498,8 @@ export class SigningRoomClient {
     await confirmation;
   }
 
-  /** * Generates a CSV-formatted export of the current audit trail.
+  /**
+   * Generates a CSV-formatted export of the current audit trail.
    * @returns A CSV string containing the room's event history.
    */
   public getAuditLogCsv(): string {
@@ -432,10 +526,21 @@ export class SigningRoomClient {
 
     if (!state) throw new Error('No state available for audit report.');
 
-    return await RoomAuditor.generateAuditPdf(new jsPDF(), state, tx, signers, finalHex, options);
+    return await RoomAuditor.generateAuditPdf(
+      new jsPDF(), 
+      state, 
+      tx, 
+      signers, 
+      finalHex, 
+      {
+        ...options,
+        license: this.license,
+      }
+    );
   }
 
-  /** * Updates the whitelist allowlist. Handles both single addresses and batches,
+  /**
+   * Updates the whitelist allowlist. Handles both single addresses and batches,
    * automatically formatting the audit log appropriately.
    * @param addresses - Array of addresses to add or remove.
    * @param remove - Toggle to either add (false) or remove (true) addresses.
@@ -453,7 +558,6 @@ export class SigningRoomClient {
       newList = Array.from(new Set([...currentList, ...addresses]));
     }
 
-    // Prevent unnecessary network calls if the list didn't actually change
     if (currentList.length === newList.length) return;
 
     let detail = '';
@@ -498,14 +602,16 @@ export class SigningRoomClient {
     return result;
   }
 
-  /** * Returns the finalized transaction hex if the threshold has been reached.
+  /**
+   * Returns the finalized transaction hex if the threshold has been reached.
    */
   public getFinalTransactionHex(): string | null {
     const state = this.store.getState();
     return state?.finalTxHex || null;
   }
 
-  /** * Gracefully closes the connection to the relay server.
+  /**
+   * Gracefully closes the connection to the relay server.
    */
   public disconnect() {
     this.relay.gracefullyDisconnect(null);
@@ -551,7 +657,8 @@ export class SigningRoomClient {
     return Math.max(0, remaining);
   }
 
-  /** * Returns full parsed transaction details (Inputs, Outputs, Fees).
+  /**
+   * Returns full parsed transaction details (Inputs, Outputs, Fees).
    */
   public getTransactionDetails() {
     const state = this.getRoomState();
@@ -574,7 +681,8 @@ export class SigningRoomClient {
     return this.getTransactionDetails()?.fee || 0;
   }
 
-  /** * Returns a list of all required hardware fingerprints for this transaction,
+  /**
+   * Returns a list of all required hardware fingerprints for this transaction,
    * and a boolean indicating if their signature has been provided yet.
    */
   public getSignersStatus(state: RoomState | null): any[] {
@@ -600,7 +708,8 @@ export class SigningRoomClient {
     return PsbtUtils.getFingerprintFromPsbt(signedPsbtBase64);
   }
 
-  /** * Internal helper to wait for a specific server response event before resolving.
+  /**
+   * Internal helper to wait for a specific server response event before resolving.
    * @param eventType - The event key to listen for.
    */
   private waitForEvent(eventType: any): Promise<void> {
@@ -703,14 +812,14 @@ export class SigningRoomClient {
   }): Promise<string> {
     if (!this._encryptionKey) throw new Error('Encryption key required to generate role links.');
 
-      const roleToken = crypto.randomUUID().replace(/-/g, '');
-      const tokenId = roleToken.substring(0, 8);
-      const payload: RoleConstraints = { tokenId, ...flags };
-      
-      const policyBlob = await this.engine.encrypt(JSON.stringify(payload), this._encryptionKey);
-      const tokenHash = await this.engine.sha256(roleToken);
+    const roleToken = crypto.randomUUID().replace(/-/g, '');
+    const tokenId = roleToken.substring(0, 8);
+    const payload: RoleConstraints = { tokenId, ...flags };
+    
+    const policyBlob = await this.engine.encrypt(JSON.stringify(payload), this._encryptionKey);
+    const tokenHash = await this.engine.sha256(roleToken);
 
-      const confirmation = new Promise<void>((resolve, reject) => {
+    const confirmation = new Promise<void>((resolve, reject) => {
       const sub1 = this.relay.events.on('ROLE_REGISTERED_SUCCESS' as any).subscribe(() => {
         cleanup();
         resolve();
@@ -728,9 +837,9 @@ export class SigningRoomClient {
     });
 
     this.relay.send('REGISTER_ROLE', { 
-        tokenHash, 
-        canUpload: flags.canUploadSignature,
-        policyBlob 
+      tokenHash, 
+      canUpload: flags.canUploadSignature,
+      policyBlob 
     });
 
     await confirmation;
@@ -803,7 +912,6 @@ export class SigningRoomClient {
     const buffer = await file.arrayBuffer();
     const bytes = new Uint8Array(buffer);
 
-    // Logic currently in your RoomComponent
     const isBinary =
       bytes[0] === 0x70 &&
       bytes[1] === 0x73 &&
@@ -848,5 +956,162 @@ export class SigningRoomClient {
     expectedAnchor: string,
   ): Promise<{ anchor: string; isValid: boolean }> {
     return await RoomAuditor.verifyOfflineIntegrity(auditLogCsv, finalTxHex, expectedAnchor);
+  }
+
+  /**
+   * Helper utility to extract an embedded license token from a CSV audit log.
+   * @param auditLogCsv - The CSV string exported from a room.
+   */
+  public static extractLicenseTokenFromCsv(auditLogCsv: string): string | null {
+    return RoomAuditor.extractLicenseTokenFromCsv(auditLogCsv);
+  }
+
+  /**
+   * Cryptographically verifies an audit trail's license token offline.
+   * Enables auditors to independently assert licensing validity and institutional provenance.
+   * 
+   * @param token - The raw 'srl_...' token string extracted from the audit record header.
+   * @param ceremonyTimestamp - Optional timestamp of the ceremony to verify validity at time of signing.
+   */
+  public static async verifyAuditLicense(
+    token: string, 
+    ceremonyTimestamp?: number
+  ): Promise<LicenseAuditReport> {
+    if (!token || !token.startsWith('srl_')) {
+      return {
+        isValid: false,
+        tier: 'COMMUNITY',
+        licensee: 'Uncertified Community Deployment',
+        domain: '*',
+        issuedAt: null,
+        expiresAt: null,
+        isExpired: false,
+        tamperEvidentError: 'Missing or malformed license token.',
+      };
+    }
+
+    const unpacked = LicenseCodec.unpack(token);
+    if (!unpacked) {
+      return {
+        isValid: false,
+        tier: 'COMMUNITY',
+        licensee: 'Invalid Token',
+        domain: '*',
+        issuedAt: null,
+        expiresAt: null,
+        isExpired: false,
+        tamperEvidentError: 'Token binary structure corrupted.',
+      };
+    }
+
+    const isChecksumValid = await LicenseCodec.verifyChecksum(unpacked.checksum, unpacked.payloadBytes);
+    if (!isChecksumValid) {
+      return {
+        isValid: false,
+        tier: 'COMMUNITY',
+        licensee: unpacked.payload.licensee,
+        domain: unpacked.payload.domain,
+        issuedAt: new Date(unpacked.payload.issuedAt),
+        expiresAt: unpacked.payload.expiresAt ? new Date(unpacked.payload.expiresAt) : null,
+        isExpired: false,
+        tamperEvidentError: 'Checksum mismatch: Token payload has been modified.',
+      };
+    }
+
+    // Verify Ed25519 signature against Stateless Research public key
+    const cryptoApi = typeof window !== 'undefined' ? window.crypto : (globalThis as any).crypto;
+    const keyBytes = base64UrlToBytes(STATELESS_RESEARCH_PUBKEY);
+    const pubKey = await cryptoApi.subtle.importKey(
+      'spki',
+      keyBytes,
+      { name: 'Ed25519' },
+      false,
+      ['verify'],
+    );
+
+    const isSignatureValid = await cryptoApi.subtle.verify(
+      'Ed25519',
+      pubKey,
+      unpacked.signature,
+      unpacked.payloadBytes,
+    );
+
+    if (!isSignatureValid) {
+      return {
+        isValid: false,
+        tier: 'COMMUNITY',
+        licensee: unpacked.payload.licensee,
+        domain: unpacked.payload.domain,
+        issuedAt: new Date(unpacked.payload.issuedAt),
+        expiresAt: unpacked.payload.expiresAt ? new Date(unpacked.payload.expiresAt) : null,
+        isExpired: false,
+        tamperEvidentError: 'Cryptographic signature invalid. Not minted by Stateless Research Ltd.',
+      };
+    }
+
+    const checkTime = ceremonyTimestamp || Date.now();
+    const isExpired = unpacked.payload.expiresAt !== 0 && checkTime > unpacked.payload.expiresAt;
+
+    return {
+      isValid: !isExpired,
+      tier: unpacked.payload.tier,
+      licensee: unpacked.payload.licensee,
+      domain: unpacked.payload.domain,
+      issuedAt: new Date(unpacked.payload.issuedAt),
+      expiresAt: unpacked.payload.expiresAt ? new Date(unpacked.payload.expiresAt) : null,
+      isExpired,
+      tamperEvidentError: isExpired ? `Token was expired at execution time (${new Date(checkTime).toISOString()}).` : undefined,
+    };
+  }
+
+  /**
+   * Convenience method to extract and cryptographically verify the license 
+   * directly from a raw CSV audit log string in a single step.
+   * 
+   * @param auditLogCsv - The raw CSV string exported from a room.
+   * @param ceremonyTimestamp - Optional timestamp to verify validity at time of signing.
+   */
+  public static async verifyLicenseFromCsv(
+    auditLogCsv: string, 
+    ceremonyTimestamp?: number
+  ): Promise<LicenseAuditReport> {
+    const token = this.extractLicenseTokenFromCsv(auditLogCsv);
+    
+    if (!token) {
+      return {
+        isValid: false,
+        tier: 'COMMUNITY',
+        licensee: 'Uncertified Community Deployment',
+        domain: '*',
+        issuedAt: null,
+        expiresAt: null,
+        isExpired: false,
+        tamperEvidentError: 'No License-Token header found in the provided CSV.',
+      };
+    }
+
+    return await this.verifyAuditLicense(token, ceremonyTimestamp);
+  }
+
+  /**
+   * Synchronously decodes a license token to inspect its contents 
+   * without performing cryptographic signature validation.
+   * 
+   * @param token - The raw 'srl_...' token string.
+   */
+  public static inspectLicenseToken(token: string): Partial<LicenseAuditReport> | null {
+    if (!token || !token.startsWith('srl_')) return null;
+
+    const unpacked = LicenseCodec.unpack(token);
+    if (!unpacked) return null;
+
+    return {
+      tier: unpacked.payload.tier,
+      licensee: unpacked.payload.licensee,
+      domain: unpacked.payload.domain,
+      issuedAt: new Date(unpacked.payload.issuedAt),
+      expiresAt: unpacked.payload.expiresAt ? new Date(unpacked.payload.expiresAt) : null,
+      isExpired: unpacked.payload.expiresAt !== 0 && Date.now() > unpacked.payload.expiresAt,
+    };
   }
 }

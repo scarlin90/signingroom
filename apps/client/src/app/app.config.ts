@@ -1,6 +1,8 @@
 import {
   provideAppInitializer,
   inject,
+  Injector,
+  runInInjectionContext,
   ApplicationConfig,
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
@@ -11,14 +13,10 @@ import { appRoutes } from './app.routes';
 import { provideHttpClient } from '@angular/common/http';
 import { provideServiceWorker } from '@angular/service-worker';
 import { ConfigService } from './services/config/config.service';
-
-export function initializeApp(configService: ConfigService) {
-  return () => configService.loadConfig();
-}
+import { EditionService } from './services/edition/edition.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    //provideClientHydration(withEventReplay()),
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(appRoutes),
@@ -27,10 +25,16 @@ export const appConfig: ApplicationConfig = {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',
     }),
-    provideAppInitializer(() => {
+    provideAppInitializer(async () => {
       const configService = inject(ConfigService);
+      const injector = inject(Injector);
 
-      return configService.loadConfig();
+      await configService.loadConfig();
+
+      const editionService = runInInjectionContext(injector, () => inject(EditionService));
+      await editionService.init();
+
+      configService.setWhitelabelAllowed(editionService.isWhiteLabelAllowed());
     }),
   ],
 };
