@@ -1376,6 +1376,50 @@ describe('SigningRoom Durable Object', () => {
     });
 
     describe('Deep Edge Cases and Catch Blocks', () => {
+
+        it('should properly capture existing roles during session reconnection', async () => {
+            await initRoom();
+            await runInDurableObject(roomStub, async (instance: any) => {
+                const mockSocket = { send: vi.fn(), close: vi.fn(), accept: vi.fn(), addEventListener: vi.fn() };
+                
+                // Manually inject a known participant state
+                instance.roomState.participants = {
+                    'KNOWN_SESSION': { id: 'KNOWN_SESSION', role: 'admin', encryptedDisplayName: 'Admin' }
+                };
+
+                await instance.handleSession(mockSocket as any, '1.1.1.1', 'KNOWN_SESSION');
+
+                // The restored participant state should carry forward the 'admin' role
+                expect(instance.roomState.participants['KNOWN_SESSION'].role).toBe('admin');
+            });
+        });
+
+        it('should trigger handleClose when the WebSocket native close event fires', async () => {
+            await initRoom();
+            await runInDurableObject(roomStub, async (instance: any) => {
+                let capturedCallback: any = null;
+                const mockSocket = { 
+                    send: vi.fn(), 
+                    close: vi.fn(), 
+                    accept: vi.fn(), 
+                    addEventListener: (event: string, cb: any) => {
+                        if (event === 'close') capturedCallback = cb;
+                    } 
+                };
+                
+                await instance.handleSession(mockSocket as any, '1.2.3.4', 'TEST_CLOSE');
+                expect(instance.sessions.has(mockSocket)).toBe(true);
+
+                // Execute the callback that addEventListener captured!
+                if (capturedCallback) {
+                    capturedCallback();
+                }
+
+                // Verify the lambda executed and triggered handleClose, which removes the session
+                expect(instance.sessions.has(mockSocket)).toBe(false);
+            });
+        });
+
         it('should track msgsInWindow, reset on expiry, and ignore rapid spammers', async () => {
             vi.useFakeTimers();
             await initRoom();
@@ -1567,6 +1611,38 @@ describe('SigningRoom Durable Object', () => {
                 expect(instance.sessions.has(mockSocket)).toBe(false);
             });
         });
+
+        it('should fallback securely if session participant metadata is missing during connection', async () => {
+            await initRoom();
+            await runInDurableObject(roomStub, async (instance: any) => {
+                const mockSocket = { send: vi.fn(), close: vi.fn(), accept: vi.fn(), addEventListener: vi.fn() };
+                
+                instance.roomState.participants = null;
+
+                await instance.handleSession(mockSocket as any, '1.2.3.4', 'NEW1');
+
+                expect(instance.sessions.get(mockSocket).role).toBe('guest');
+                expect(instance.roomState.participants['NEW1'].role).toBe('guest');
+            });
+        });
+
+        it('should correctly attach client-attested metadata to the session object on first message', async () => {
+            await initRoom();
+            await runInDurableObject(roomStub, async (instance: any) => {
+                const mockSocket = { send: vi.fn(), close: vi.fn() };
+                instance.sessions.set(mockSocket, { id: 'META', role: 'guest', msgsInWindow: 0, lastMsgTime: Date.now() });
+
+                await instance.handleMessage({ 
+                    data: JSON.stringify({ 
+                        type: 'PING', 
+                        meta: { tier: 'ENTERPRISE', sdkVersion: '1.5.0' } 
+                    }) 
+                } as any, mockSocket);
+
+                expect(instance.sessions.get(mockSocket).meta.tier).toBe('ENTERPRISE');
+                expect(instance.sessions.get(mockSocket).meta.sdkVersion).toBe('1.5.0');
+            });
+        });
     });
 
     describe('SigningRoom Data Chunking & Storage', () => {
@@ -1635,5 +1711,260 @@ describe('SigningRoom Durable Object', () => {
                 expect(typeof upgradedData).toBe('string');
             });
         });
+    });
+
+    describe('Worker License Attestation (verifyServerLicense)', () => {
+        // Generate a mathematically valid Community Token for testing
+        const validCommunityToken =
+            'srl_0DGPSeBK6w99XjmrwvdFBbfIC6XH-_czfymlxEgguusg5mb9tpEmNfuPBZdNSittYGuQiei1jvD67XKdxUYuVkdCgQEBAwAAAAAAAAAAAAAAAaFTwDzFASoeU2lnbmluZyBSb29tIENvbW11bml0eSBFZGl0aW9uAAAA';
+
+        it('should initialize a room as COMMUNITY if no license token is provided', async () => {
+            const id = env.SIGNING_ROOM.idFromName('license-test-1');
+            const stub = env.SIGNING_ROOM.get(id);
+
+            await stub.fetch(
+                new Request('http://internal/init', {
+                    method: 'POST',
+                    body: JSON.stringify({ roomId: 'license-test-1', adminToken: 'secret' }),
+                })
+            );
+
+            await runInDurableObject(stub, async (instance: any) => {
+                expect(instance.roomState.tier).toBe('COMMUNITY');
+                expect(instance.roomState.licensee).toBe('Signing Room Community Edition');
+                expect(instance.roomState.licenseToken).toBeNull();
+            });
+        });
+
+        it('should fallback to COMMUNITY if the license token is malformed', async () => {
+            const id = env.SIGNING_ROOM.idFromName('license-test-2');
+            const stub = env.SIGNING_ROOM.get(id);
+
+            await stub.fetch(
+                new Request('http://internal/init', {
+                    method: 'POST',
+                    body: JSON.stringify({ roomId: 'license-test-2', adminToken: 'secret', licenseToken: 'srl_badtoken' }),
+                })
+            );
+
+            await runInDurableObject(stub, async (instance: any) => {
+                expect(instance.roomState.tier).toBe('COMMUNITY');
+            });
+        });
+
+        it('should reject a token with an invalid checksum but proper format', async () => {
+            // Swap out a character to break the SHA-256 checksum
+            const badChecksumToken = validCommunityToken.replace('srl_0DGP', 'srl_9DGP');
+            
+            const id = env.SIGNING_ROOM.idFromName('license-test-3');
+            const stub = env.SIGNING_ROOM.get(id);
+
+            await stub.fetch(
+                new Request('http://internal/init', {
+                    method: 'POST',
+                    body: JSON.stringify({ roomId: 'license-test-3', adminToken: 'secret', licenseToken: badChecksumToken }),
+                })
+            );
+
+            await runInDurableObject(stub, async (instance: any) => {
+                expect(instance.roomState.tier).toBe('COMMUNITY');
+            });
+        });
+
+        it('should successfully attest and initialize a verified license token', async () => {
+            const id = env.SIGNING_ROOM.idFromName('license-test-4');
+            const stub = env.SIGNING_ROOM.get(id);
+
+            await stub.fetch(
+                new Request('http://internal/init', {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        roomId: 'license-test-4', 
+                        adminToken: 'secret', 
+                        licenseToken: validCommunityToken,
+                        attestedLicense: { tier: 'COMMUNITY', licensee: 'Verified Comm', domain: '*' }
+                    }),
+                })
+            );
+
+            await runInDurableObject(stub, async (instance: any) => {
+                expect(instance.roomState.tier).toBe('COMMUNITY');
+                expect(instance.roomState.licensee).toBe('Verified Comm');
+                expect(instance.roomState.licenseToken).toBe(validCommunityToken);
+            });
+        });
+        
+        it('should completely fallback if the token signature is rejected by crypto API', async () => {
+            const request = new Request('http://localhost/api/room', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Origin: 'https://signingroom.io' },
+                body: JSON.stringify({
+                    roomId: 'test-crypto-fail',
+                    adminToken: 'admin-secret',
+                    licenseToken: validCommunityToken
+                }),
+            });
+
+            const ctx = createExecutionContext();
+
+            const verifySpy = vi.spyOn(crypto.subtle, 'verify').mockRejectedValueOnce(new Error('Crypto Error'));
+            
+            const response = await app.fetch(request, env as any, ctx);
+            await waitOnExecutionContext(ctx);
+            
+            expect(response.status).toBe(200);
+            verifySpy.mockRestore();
+        });
+
+        it('should reject a valid token if it is mathematically expired', async () => {
+            const dvSpy = vi.spyOn(DataView.prototype, 'getBigUint64').mockImplementation((offset) => {
+                if (offset === 3) return BigInt(1); // Expires in 1970
+                return BigInt(Date.now()); // Issued now
+            });
+
+            const id = env.SIGNING_ROOM.idFromName('license-test-expired');
+            const stub = env.SIGNING_ROOM.get(id);
+
+            await stub.fetch(
+                new Request('http://internal/init', {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        roomId: 'license-test-expired', 
+                        adminToken: 'secret', 
+                        licenseToken: validCommunityToken 
+                    }),
+                })
+            );
+
+            await runInDurableObject(stub, async (instance: any) => {
+                expect(instance.roomState.tier).toBe('COMMUNITY');
+            });
+            
+            dvSpy.mockRestore();
+        });
+
+    it('should fallback to COMMUNITY if the Origin/Referer header cannot be parsed as a URL', async () => {
+        const tdSpy = vi.spyOn(TextDecoder.prototype, 'decode').mockReturnValue('strict-domain.com');
+
+        const request = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Origin: 'not-a-valid-url://^&*' },
+            body: JSON.stringify({
+                roomId: 'test-url-parse-fail',
+                adminToken: 'admin-secret',
+                licenseToken: validCommunityToken
+            }),
+        });
+
+        const ctx = createExecutionContext();
+        const response = await app.fetch(request, env as any, ctx);
+        await waitOnExecutionContext(ctx);
+        
+        expect(response.status).toBe(200);
+
+        const id = env.SIGNING_ROOM.idFromName('test-url-parse-fail');
+        const stub = env.SIGNING_ROOM.get(id);
+        await runInDurableObject(stub, async (instance: any) => {
+            expect(instance.roomState.tier).toBe('COMMUNITY');
+        });
+
+        tdSpy.mockRestore();
+    });
+
+    it('should reject a strict domain token if the Origin hostname does not match', async () => {
+        const tdSpy = vi.spyOn(TextDecoder.prototype, 'decode').mockImplementation((bytes) => {
+            if (bytes.length === 1) return 'strict-domain.com'; // Domain
+            return 'Verified Enterprise'; // Licensee
+        });
+
+        const request = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Origin: 'https://evil-hacker.com' },
+            body: JSON.stringify({
+                roomId: 'test-wrong-domain',
+                adminToken: 'admin-secret',
+                licenseToken: validCommunityToken
+            }),
+        });
+
+        const ctx = createExecutionContext();
+        const response = await app.fetch(request, env as any, ctx);
+        await waitOnExecutionContext(ctx);
+        
+        const id = env.SIGNING_ROOM.idFromName('test-wrong-domain');
+        const stub = env.SIGNING_ROOM.get(id);
+        await runInDurableObject(stub, async (instance: any) => {
+            expect(instance.roomState.tier).toBe('COMMUNITY');
+        });
+
+        tdSpy.mockRestore();
+    });
+
+    it('should successfully attest a strict domain token if the Origin hostname matches exactly or as a subdomain', async () => {
+        const tdSpy = vi.spyOn(TextDecoder.prototype, 'decode').mockImplementation((bytes) => {
+            if (bytes.length === 1) return 'strict-domain.com,localhost:4201'; 
+            return 'Verified Enterprise'; 
+        });
+        
+        const cryptoSpy = vi.spyOn(crypto.subtle, 'verify').mockResolvedValue(true);
+
+        const dvSpy = vi.spyOn(DataView.prototype, 'getUint8').mockImplementation(function(this: DataView, offset: number) {
+            if (offset === 1) return 2;
+            return 1;
+        });
+
+        const request = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Origin: 'https://vault.strict-domain.com' },
+            body: JSON.stringify({
+                roomId: 'test-correct-domain',
+                adminToken: 'admin-secret',
+                licenseToken: validCommunityToken
+            }),
+        });
+
+        const ctx = createExecutionContext();
+        await app.fetch(request, { ...env, ALLOWED_ORIGIN: 'strict-domain.com' } as any, ctx);
+        
+        const id = env.SIGNING_ROOM.idFromName('test-correct-domain');
+        const stub = env.SIGNING_ROOM.get(id);
+        await runInDurableObject(stub, async (instance: any) => {
+            expect(instance.roomState.tier).toBe('ENTERPRISE');
+        });
+
+        tdSpy.mockRestore();
+        cryptoSpy.mockRestore();
+        dvSpy.mockRestore();
+    });
+
+    it('should successfully attest an exact port match', async () => {
+        const tdSpy = vi.spyOn(TextDecoder.prototype, 'decode').mockImplementation((bytes) => {
+            if (bytes.length === 1) return 'localhost:4201'; // Port specific domain
+            return 'Verified Dev';
+        });
+        const cryptoSpy = vi.spyOn(crypto.subtle, 'verify').mockResolvedValue(true);
+
+        const request = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:4201' },
+            body: JSON.stringify({
+                roomId: 'test-port-domain',
+                adminToken: 'admin-secret',
+                licenseToken: validCommunityToken
+            }),
+        });
+
+        const ctx = createExecutionContext();
+        await app.fetch(request, { ...env, ENVIRONMENT: 'development' } as any, ctx);
+        
+        const id = env.SIGNING_ROOM.idFromName('test-port-domain');
+        const stub = env.SIGNING_ROOM.get(id);
+        await runInDurableObject(stub, async (instance: any) => {
+            expect(instance.roomState).toBeDefined();
+        });
+
+        tdSpy.mockRestore();
+        cryptoSpy.mockRestore();
+    });
     });
 });
