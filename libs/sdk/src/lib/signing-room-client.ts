@@ -52,7 +52,7 @@ export class SigningRoomClient {
    */
   constructor(config: SigningRoomConfig) {
     this.apiUrl = config.apiUrl.replace(/\/$/, '');
-    this.protocolVersion = config.protocolVersion || '1.0.0';
+    this.protocolVersion = config.protocolVersion || '2.0.0';
     this.licenseToken = config.licenseToken;
     this.host = config.host;
 

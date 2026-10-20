@@ -288,7 +288,8 @@ export class RoomAuditor {
 
     const isNodeValid = license?.isValid || isCommunity;
     const statusText = isNodeValid ? 'VALID' : 'INVALID';
-    let expiryStr = 'Perpetual';
+    
+    let expiryStr = isCommunity ? 'Community Edition' : 'Perpetual';
     
     const expiresAt = license?.payload?.expiresAt;
     if (expiresAt && expiresAt > 0) {

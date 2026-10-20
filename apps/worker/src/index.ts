@@ -388,7 +388,7 @@ export class SigningRoom implements DurableObject {
                 participants: {},
                 isLocked: false,
                 network: network || 'bitcoin',
-                protocolVersion: protocolVersion || '1.0.0',
+                protocolVersion: protocolVersion || '2.0.0',
                 roomName: encryptedRoomName || 'Untitled Room',
                 roleTokens: roleTokens || {},
                 strictRoles: roleTokens !== undefined && Object.keys(roleTokens).length > 0,
@@ -423,8 +423,8 @@ export class SigningRoom implements DurableObject {
             }
         }
 
-        const clientVersion = url.searchParams.get('v') || '1.0.0';
-        const roomVersion = this.roomState?.protocolVersion || '1.0.0';
+        const clientVersion = url.searchParams.get('v') || '2.0.0';
+        const roomVersion = this.roomState?.protocolVersion || '2.0.0';
 
         const clientMajor = clientVersion.split('.')[0];
         const roomMajor = roomVersion.split('.')[0];
