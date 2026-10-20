@@ -5,6 +5,8 @@ import { RoomAuditor } from './bitcoin/room-auditor';
 import { PsbtUtils } from './bitcoin/psbt-utils';
 import { jsPDF } from 'jspdf';
 import { RoomState } from './relay/room-state-store';
+import { LicenseCodec } from './licensing/codec';
+import { LicenseEngine } from './licensing/verifier';
 
 // --- MOCKS ---
 vi.mock('./relay/room-factory', () => ({
@@ -22,6 +24,7 @@ vi.mock('./bitcoin/room-auditor', () => ({
     calculateForensicAnchor: vi.fn(),
     getIntegrityReport: vi.fn(),
     verifyOfflineIntegrity: vi.fn(),
+    extractLicenseTokenFromCsv: vi.fn(),
   },
 }));
 
@@ -40,6 +43,21 @@ vi.mock('jspdf', () => ({
   jsPDF: vi.fn(function () {
     return {};
   }),
+}));
+
+vi.mock('./licensing/codec', () => ({
+  LicenseCodec: {
+    unpack: vi.fn(),
+    verifyChecksum: vi.fn(),
+  },
+  base64UrlToBytes: vi.fn().mockReturnValue(new Uint8Array(32)),
+}));
+
+vi.mock('./licensing/verifier', () => ({
+  LicenseEngine: {
+    resolve: vi.fn(),
+  },
+  STATELESS_RESEARCH_PUBKEY: 'MCowBQYDK2VwAyEAVHmMGOonAgglS98rsyHOycwc7acID4LBUXTE/b41TCY=',
 }));
 
 describe('SigningRoomClient', () => {
@@ -69,10 +87,10 @@ describe('SigningRoomClient', () => {
       expect(client.userContext).toBe('Guest (Unknown)');
     });
 
-    it('should fall back to 1.0.0 if no protocol version is provided', () => {
+    it('should fall back to 2.0.0 if no protocol version is provided', () => {
       const defaultClient = new SigningRoomClient({ apiUrl: 'https://api.test.com' });
       // @ts-ignore
-      expect(defaultClient.protocolVersion).toBe('1.0.0');
+      expect(defaultClient.protocolVersion).toBe('2.0.0');
     });
 
     it('should capture session IDs and handle role upgrades automatically', async () => {
@@ -101,6 +119,57 @@ describe('SigningRoomClient', () => {
     });
   });
 
+  describe('Licensing & Initialization', () => {
+    it('should explicitly resolve license using LicenseEngine', async () => {
+      const mockLicense = { tier: 'ENTERPRISE', isValid: true } as any;
+      const resolveSpy = vi.mocked(LicenseEngine.resolve).mockResolvedValue(mockLicense);
+      
+      client.setLicenseToken('srl_test_token');
+      const license = await client.init();
+      
+      expect(license).toEqual(mockLicense);
+      expect(resolveSpy).toHaveBeenCalled();
+    });
+
+    it('should return cached license if available', () => {
+      // @ts-ignore
+      client._license = { tier: 'ENTERPRISE', isValid: true } as any;
+      expect(client.license).toEqual({ tier: 'ENTERPRISE', isValid: true });
+    });
+
+    it('should fallback to room state tier if guest connects without a local license', () => {
+      client.store.set({ tier: 'ENTERPRISE', licensee: 'Acme Corp' } as any);
+      
+      const license = client.license;
+      expect(license?.tier).toBe('ENTERPRISE');
+      expect(license?.isValid).toBe(true);
+      expect(license?.payload.licensee).toBe('Acme Corp');
+    });
+
+    it('should handle undefined state tier safely and return null', () => {
+      client.store.set(null);
+      // @ts-ignore
+      client._license = null;
+      expect(client.license).toBeNull();
+    });
+
+    it('should allow setting a new license token', () => {
+      client.setLicenseToken('srl_new');
+      // @ts-ignore
+      expect(client.licenseToken).toBe('srl_new');
+      // @ts-ignore
+      expect(client._license).toBeNull();
+    });
+  });
+
+  describe('Event Routing', () => {
+    it('should route onEvent correctly', () => {
+      const onSpy = vi.spyOn(client.relay.events, 'on');
+      client.onEvent('ROOM_CONNECTED');
+      expect(onSpy).toHaveBeenCalledWith('ROOM_CONNECTED');
+    });
+  });
+
   describe('Room Orchestration & Network Actions', () => {
     const mockPayload = {
       localData: { roomId: 'room-1', encryptionKey: 'key', adminSecret: 'secret' },
@@ -109,6 +178,25 @@ describe('SigningRoomClient', () => {
 
     beforeEach(() => {
       vi.mocked(RoomFactory.prepareCreationPayload).mockResolvedValue(mockPayload as any);
+    });
+
+    it('should handle role authentication timeouts gracefully when joining a room', async () => {
+      const joinSpy = vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
+        client.relay.events.dispatch('ROOM_CONNECTED');
+        client.relay.events.dispatch('SESSION_CONNECTED', 'sid-old');
+        client.relay.events.dispatch('STATE_SYNC_DECRYPTED');
+      });
+
+      const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
+
+      const joinPromise = client.joinRoom('room-id', '#existing-key:custom-role');
+
+      await vi.advanceTimersByTimeAsync(5100);
+
+      await joinPromise;
+
+      expect(joinSpy).toHaveBeenCalled();
+      expect(logSpy).toHaveBeenCalledWith('User Joined', 'Allowed: Unknown (Error/Revoked)');
     });
 
     it('should successfully create a room and store keys including the default role token', async () => {
@@ -754,4 +842,112 @@ describe('SigningRoomClient', () => {
     });
   });
 
+  describe('Offline License Verification (Static Tools)', () => {
+    
+    beforeEach(() => {
+      vi.stubGlobal('crypto', {
+        subtle: {
+          importKey: vi.fn().mockResolvedValue({}),
+          verify: vi.fn(),
+        },
+      });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('verifyAuditLicense should reject missing or improperly prefixed tokens', async () => {
+      const res = await SigningRoomClient.verifyAuditLicense('bad_token');
+      expect(res.isValid).toBe(false);
+      expect(res.tamperEvidentError).toContain('Missing or malformed');
+    });
+
+    it('verifyAuditLicense should reject corrupt binary structures', async () => {
+      vi.mocked(LicenseCodec.unpack).mockReturnValueOnce(null);
+      const res = await SigningRoomClient.verifyAuditLicense('srl_bad');
+      expect(res.isValid).toBe(false);
+      expect(res.tamperEvidentError).toContain('Token binary structure corrupted');
+    });
+
+    it('verifyAuditLicense should reject modified payload bytes (checksum mismatch)', async () => {
+      vi.mocked(LicenseCodec.unpack).mockReturnValueOnce({ payload: {} } as any);
+      vi.mocked(LicenseCodec.verifyChecksum).mockResolvedValueOnce(false);
+      
+      const res = await SigningRoomClient.verifyAuditLicense('srl_test');
+      expect(res.isValid).toBe(false);
+      expect(res.tamperEvidentError).toContain('Checksum mismatch');
+    });
+
+    it('verifyAuditLicense should reject forged signatures', async () => {
+      vi.mocked(LicenseCodec.unpack).mockReturnValueOnce({ payload: {} } as any);
+      vi.mocked(LicenseCodec.verifyChecksum).mockResolvedValueOnce(true);
+
+      vi.mocked((globalThis as any).crypto.subtle.verify).mockResolvedValueOnce(false);
+      
+      const res = await SigningRoomClient.verifyAuditLicense('srl_test');
+      expect(res.isValid).toBe(false);
+      expect(res.tamperEvidentError).toContain('Cryptographic signature invalid');
+    });
+
+    it('verifyAuditLicense should evaluate expiration strictly', async () => {
+      vi.mocked(LicenseCodec.unpack).mockReturnValueOnce({ 
+        payload: { expiresAt: 1000 } // Expired in 1970
+      } as any);
+      vi.mocked(LicenseCodec.verifyChecksum).mockResolvedValueOnce(true);
+      vi.mocked((globalThis as any).crypto.subtle.verify).mockResolvedValueOnce(true);
+      
+      const res = await SigningRoomClient.verifyAuditLicense('srl_test');
+      expect(res.isValid).toBe(false);
+      expect(res.isExpired).toBe(true);
+      expect(res.tamperEvidentError).toContain('Token was expired');
+    });
+
+    it('verifyAuditLicense should accept perfectly valid, signed tokens', async () => {
+      vi.mocked(LicenseCodec.unpack).mockReturnValueOnce({ 
+        payload: { tier: 'ENTERPRISE', expiresAt: 0 }
+      } as any);
+      vi.mocked(LicenseCodec.verifyChecksum).mockResolvedValueOnce(true);
+      vi.mocked((globalThis as any).crypto.subtle.verify).mockResolvedValueOnce(true);
+      
+      const res = await SigningRoomClient.verifyAuditLicense('srl_test');
+      expect(res.isValid).toBe(true);
+      expect(res.tier).toBe('ENTERPRISE');
+    });
+
+    it('verifyLicenseFromCsv should automatically extract and verify', async () => {
+      const mockCsv = `# License-Token: srl_123`;
+      
+      vi.mocked(RoomAuditor.extractLicenseTokenFromCsv).mockReturnValueOnce('srl_123');
+      
+      vi.mocked(LicenseCodec.unpack).mockReturnValueOnce({ payload: {} } as any);
+      vi.mocked(LicenseCodec.verifyChecksum).mockResolvedValueOnce(true);
+      vi.mocked((globalThis as any).crypto.subtle.verify).mockResolvedValueOnce(true);
+
+      const res = await SigningRoomClient.verifyLicenseFromCsv(mockCsv);
+      expect(res.isValid).toBe(true);
+    });
+
+    it('verifyLicenseFromCsv should reject if no token is found', async () => {
+      vi.mocked(RoomAuditor.extractLicenseTokenFromCsv).mockReturnValueOnce(null);
+      const res = await SigningRoomClient.verifyLicenseFromCsv(`Timestamp,Event`);
+      expect(res.isValid).toBe(false);
+      expect(res.tamperEvidentError).toContain('No License-Token header found');
+    });
+
+    it('inspectLicenseToken should decode without signature verification', () => {
+      vi.mocked(LicenseCodec.unpack).mockReturnValueOnce({ 
+        payload: { tier: 'ENTERPRISE', expiresAt: 0 } 
+      } as any);
+      
+      const res = SigningRoomClient.inspectLicenseToken('srl_test');
+      expect(res?.tier).toBe('ENTERPRISE');
+      
+      // Test fail cases
+      expect(SigningRoomClient.inspectLicenseToken('bad')).toBeNull();
+      
+      vi.mocked(LicenseCodec.unpack).mockReturnValueOnce(null);
+      expect(SigningRoomClient.inspectLicenseToken('srl_bad')).toBeNull();
+    });
+  });
 });

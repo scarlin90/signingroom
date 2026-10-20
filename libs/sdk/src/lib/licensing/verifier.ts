@@ -16,12 +16,21 @@ export class LicenseEngine {
   static async resolve(candidateToken: string | undefined | null, host?: string): Promise<VerifiedLicense> {
     let effectiveHost = host;
     if (typeof window !== 'undefined' && window.location?.host) {
-      if (!effectiveHost || (!effectiveHost.includes(':') && window.location.port)) {
+      if (!effectiveHost) {
         effectiveHost = window.location.host;
+      } else if (!effectiveHost.includes(':') && window.location.port) {
+        effectiveHost = `${effectiveHost}:${window.location.port}`;
       }
     }
 
     const normalizedHost = (effectiveHost || '').toLowerCase();
+
+    if (
+      this.cachedLicense && 
+      this.cachedLicense.rawToken === (candidateToken || DEFAULT_COMMUNITY_TOKEN)
+    ) {
+      return this.cachedLicense;
+    }
 
     if (candidateToken) {
       const verified = await this.verifyToken(candidateToken, normalizedHost);
