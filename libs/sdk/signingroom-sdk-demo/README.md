@@ -12,6 +12,13 @@ This demo orchestrates a complete 3-of-5 multisig signing ceremony lifecycle:
 
 ---
 
+## Migration Guide (v1 to v2)
+
+This release introduces the `v2.0.0` protocol and the new Enterprise licensing engine. 
+
+* **Breaking Protocol Change:** The relay protocol has been strictly bumped. Older `v1.x` SDK clients will be actively rejected by `v4.0.0` relays with an `ERROR_VERSION_MISMATCH` event.
+* **Constructor Update:** The `SigningRoomClient` constructor now accepts `licenseToken` and `host` parameters to support cryptographic license attestation and dynamic whitelabeling for Enterprise nodes
+
 ## Prerequisites
 
 Spin up the local Signing Room stack (Worker + Nginx Reverse Proxy + Web Clients) from the project root:
