@@ -8,6 +8,21 @@ import { VerifiedLicense, ProductTier } from '@signing-room/sdk';
 
 const DISMISS_STORAGE_KEY = 'signingroom_license_warning_dismissed_until';
 
+const mockLocalStorage = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => { store[key] = value.toString(); },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { store = {}; }
+  };
+})();
+
+vi.stubGlobal('localStorage', mockLocalStorage);
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', { value: mockLocalStorage, writable: true });
+}
+
 function makeLicense(overrides: Partial<VerifiedLicense> = {}): VerifiedLicense {
   return {
     isValid: true,
@@ -47,8 +62,8 @@ describe('EditionService', () => {
       setWhitelabelAllowed: vi.fn(),
     };
 
-
-    window.localStorage.removeItem(DISMISS_STORAGE_KEY);
+    // Clean mock storage between tests
+    mockLocalStorage.clear();
 
     TestBed.configureTestingModule({
       providers: [
@@ -62,7 +77,7 @@ describe('EditionService', () => {
   });
 
   afterEach(() => {
-    window.localStorage.removeItem(DISMISS_STORAGE_KEY);
+    mockLocalStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -258,13 +273,13 @@ describe('EditionService', () => {
     expect(service.isDismissed()).toBe(true);
     expect(service.showExpirationBanner()).toBe(false);
 
-    const stored = localStorage.getItem(DISMISS_STORAGE_KEY);
+    const stored = window.localStorage.getItem(DISMISS_STORAGE_KEY);
     expect(stored).toBeTruthy();
     expect(parseInt(stored!, 10)).toBeGreaterThan(Date.now());
   });
 
   it('checkIfDismissed returns true when a future dismiss timestamp exists', () => {
-    localStorage.setItem(DISMISS_STORAGE_KEY, (Date.now() + 60_000).toString());
+    window.localStorage.setItem(DISMISS_STORAGE_KEY, (Date.now() + 60_000).toString());
 
     // Re-create so the private check runs in the constructor
     TestBed.resetTestingModule();
@@ -281,7 +296,7 @@ describe('EditionService', () => {
   });
 
   it('checkIfDismissed returns false when stored timestamp is in the past', () => {
-    localStorage.setItem(DISMISS_STORAGE_KEY, (Date.now() - 1000).toString());
+    window.localStorage.setItem(DISMISS_STORAGE_KEY, (Date.now() - 1000).toString());
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -297,7 +312,7 @@ describe('EditionService', () => {
   });
 
   it('checkIfDismissed returns false for non-numeric stored value', () => {
-    localStorage.setItem(DISMISS_STORAGE_KEY, 'not-a-number');
+    window.localStorage.setItem(DISMISS_STORAGE_KEY, 'not-a-number');
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
