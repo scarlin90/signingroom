@@ -25,6 +25,8 @@ services:
       - API_PUBLIC_URL=http://localhost:8080
     depends_on:
       - worker
+    volumes:
+      - ./apps/client/public/brand/config.json:/usr/share/nginx/html/brand/public-good-config.json:ro
 
   client-branded:
     build:
@@ -41,6 +43,6 @@ services:
     depends_on:
       - worker
     volumes:
-      - ./apps/client/public/brand/branded-config.json:/usr/share/nginx/html/brand/config.json:ro
+      - ./apps/client/public/brand/branded-config.json:/usr/share/nginx/html/brand/public-good-config.json:ro
       - ./apps/client/public/brand/branded-theme.css:/usr/share/nginx/html/brand/theme.css:ro
-      - ./apps/client/public/brand/branded-logo.svg:/usr/share/nginx/html/brand/branded-logo.svg:ro
+      - ./apps/client/public/brand/branded-logo.svg:/usr/share/nginx/html/brand/logo.svg:ro
