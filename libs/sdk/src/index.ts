@@ -7,3 +7,6 @@ export * from './lib/relay/room-state-store';
 export * from './lib/bitcoin/psbt-utils';
 export * from './lib/bitcoin/room-auditor';
 export * from './lib/events/room-event-bus';
+export * from './lib/licensing/types';
+export * from './lib/licensing/codec';
+export * from './lib/licensing/verifier';

@@ -41,16 +41,19 @@ export class SigningRoomElement extends HTMLElement {
         const roomId = this.getAttribute('room-id');
         const key = this.getAttribute('decryption-key');
         const view = this.getAttribute('view');
-        
         const hideHeader = this.getAttribute('hide-header') === 'true';
+        const licenseToken = this.getAttribute('license-token');
         
         const hostOrigin = encodeURIComponent(window.location.origin);
         
         let src = `${this.targetOrigin}/create?embedded=true&network=${network}&host=${hostOrigin}&hideHeader=${hideHeader}`;
         
         if (view) src += `&view=${view}`;
+        if (licenseToken) src += `&licenseToken=${encodeURIComponent(licenseToken)}`;
+
         if (roomId) {
             src = `${this.targetOrigin}/room/${roomId}?embedded=true&host=${hostOrigin}&hideHeader=${hideHeader}`;
+            if (licenseToken) src += `&licenseToken=${encodeURIComponent(licenseToken)}`;
             if (key) src += `#${key}`;
         }
         
@@ -85,7 +88,6 @@ export class SigningRoomElement extends HTMLElement {
         const { type, action, payload } = event.data || {};
         
         if (type === 'SIGNING_ROOM_EVENT' && action) {
-            
             if (action === 'WIDGET_READY') {
                 this._isReady = true;
                 if (this._queuedPsbt) {

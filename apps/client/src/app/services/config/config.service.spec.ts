@@ -47,12 +47,13 @@ describe('ConfigService', () => {
 
       mockHttpClient.get.mockReturnValue(of(mockApiResponse));
 
+      service.setWhitelabelAllowed(true);
       await service.loadConfig();
 
       expect(mockHttpClient.get).toHaveBeenCalledTimes(1);
       const requestedUrl = mockHttpClient.get.mock.calls[0][0];
       expect(requestedUrl).toContain(environment.configUrl);
-      expect(requestedUrl).toMatch(/\?t=\d+/); // Matches ?t=1690000000000
+      expect(requestedUrl).toMatch(/\?t=\d+/);
 
       expect(service.settings.brandName).toBe('Test Brand Corp');
       expect(service.settings.logoUrl).toBe('/test-logo.png');
@@ -65,7 +66,7 @@ describe('ConfigService', () => {
 
       mockHttpClient.get.mockReturnValue(throwError(() => new Error('404 Not Found')));
 
-      (service as any)._config.set({ ...DEFAULT_BRANDING_CONFIG, brandName: 'Corrupted State' });
+      (service as any)._rawConfig.set({ ...DEFAULT_BRANDING_CONFIG, brandName: 'Corrupted State' });
 
       await service.loadConfig();
 

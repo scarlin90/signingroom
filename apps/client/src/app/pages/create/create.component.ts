@@ -127,6 +127,14 @@ export class CreateComponent implements OnInit {
     }
   }
 
+  get shouldHideHeader(): boolean {
+    if (typeof window !== 'undefined' && window.self !== window.top) {
+      return true;
+    }
+    const params = this.route.snapshot.queryParamMap;
+    return params.get('hideHeader') === 'true' || params.get('embedded') === 'true';
+  }
+
   ngOnInit() {
     this.viewMode = (this.route.snapshot.queryParamMap.get('view') as any) || 'default';
 
@@ -182,6 +190,7 @@ export class CreateComponent implements OnInit {
 
       this.router.navigate(['/room', createRoomPayload.localData.roomId], {
         fragment: fullFragment,
+        queryParamsHandling: 'preserve',
       });
     } catch (e) {
       console.error(e);
@@ -196,6 +205,7 @@ export class CreateComponent implements OnInit {
 
       this.router.navigate(['/room', this.manualRoomId.trim()], {
         fragment: cleanKey.trim(),
+        queryParamsHandling: 'preserve',
       });
     }
   }

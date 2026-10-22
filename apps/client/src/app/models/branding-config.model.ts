@@ -10,6 +10,7 @@ export interface BrandingConfig {
   defaultRoomName: string;
   hideFooter: boolean;
   hideNetworkBadges: boolean;
+  licenseToken?: string;
 }
 
 export const DEFAULT_BRANDING_CONFIG: BrandingConfig = {

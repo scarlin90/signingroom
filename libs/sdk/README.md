@@ -1,8 +1,5 @@
 # @signing-room/sdk
 
-[![npm version](https://img.shields.io/npm/v/@signing-room/sdk.svg)](https://www.npmjs.com/package/@signing-room/sdk)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-
 The official JavaScript/TypeScript SDK for **SigningRoom**.
 
 This SDK provides a robust, programmatic interface to create, manage, and participate in secure, ephemeral Bitcoin multi-signature ceremonies. It handles end-to-end encryption, Zero-knowledge RBAC (server-enforced upload limits; policy delivered encrypted), WebSocket relay coordination, automatic session resumption, and PSBT (Partially Signed Bitcoin Transaction) merging automatically.
@@ -28,6 +25,21 @@ This repository provides a complete, runnable TypeScript project that demonstrat
 
 ---
 
+## Relay Requirements & Headless Access (Self-Hosting)
+
+When connecting the SDK to a hosted relay Worker (e.g., `[https://api.my-relay.com](https://api.my-relay.com)`), the relay's environment variables must be configured to accommodate your architecture:
+
+| Environment Variable | Required Setting | Description |
+| --- | --- | --- |
+| `ALLOWED_ORIGIN` | `"my-relay.com"` | The root domain or exact origin permitted to access the coordinator. Automatically authorizes subdomains (e.g., `app.my-relay.com`) and enforces HTTPS in production. |
+| `ALLOW_HEADLESS_ACCESS` | `"true"` | **Required for Node.js / CLI integrations against remote relays.** Because Node.js runtimes do not emit browser `Origin` headers, self-hosted relays must set this to `"true"` to allow backend daemons, bots, and CI/CD runners to communicate with the API and WebSockets. |
+| `ENVIRONMENT` | `"development"` or `"production"` | When set to `"development"`, headless calls and `localhost`/`127.0.0.1` origins on any port are permitted automatically without additional configuration. |
+
+> ** Note:**
+> The official public deployment at `api.signingroom.io` enforces `ALLOW_HEADLESS_ACCESS="false"`. Programmatic SDK scripts  must target a self-hosted relay instance with `ALLOW_HEADLESS_ACCESS="true"` enabled or run locally with `ENVIRONMENT="development"`.
+
+---
+
 # Quick Start & Core API
 
 The SDK is built around the `SigningRoomClient`.
@@ -45,14 +57,22 @@ Below is a complete lifecycle example demonstrating how to orchestrate a secure 
 
 To start a new signing ceremony, instantiate the client and provide an unsigned PSBT.
 
+*If operating an Enterprise or Custom White-label tier, inject your commercial license token here to securely attest infrastructure provenance.*
+
 ```javascript
 import { SigningRoomClient } from '@signing-room/sdk';
 
+// Target a local development relay or your self-hosted instance
 const API_URL = 'http://localhost:8787';
 const UNSIGNED_PSBT = 'cHNidP8BA...'; // Your base64 PSBT
 
+// Optional: Provide a commercial license token to authorize enterprise features
+const ENTERPRISE_TOKEN = 'srl_sbJbVsu3kGXet3...';
+
 const coordinator = new SigningRoomClient({
   apiUrl: API_URL,
+  licenseToken: ENTERPRISE_TOKEN, // Injects commercial license
+  host: 'api.my-relay.com'        // Target domain for cryptographic verification
 });
 
 // Create the room and automatically join as Coordinator
@@ -99,7 +119,7 @@ const auditorRole = await coordinator.generateAndRegisterRole({
 });
 
 // Easily generate ready-to-click share links for frontend UIs
-const UI_APP_URL = '[https://signingroom.io](https://signingroom.io)';
+const UI_APP_URL = 'https://signingroom.io';
 console.log(`Signer Link: ${coordinator.getRoomLink(UI_APP_URL, true, signerRole)}`);
 
 ```
@@ -192,7 +212,7 @@ await coordinator.toggleLock(true);
 
 ## 6. Event-Driven Monitoring & Uploading Signatures
 
-The SDK exposes an RxJS event bus, making it incredibly easy to build reactive UIs or trigger automated alarms when certain conditions are met.
+The SDK exposes an RxJS event bus, making it easy to build reactive UIs or trigger automated alarms when certain conditions are met.
 
 ```javascript
 import { filter, take } from 'rxjs';
@@ -228,7 +248,7 @@ await guest.uploadSignature(ALICE_SIGNED_PSBT, fingerprint);
 
 ## 7. Automated Finalization & Forensic Auditing
 
-When the PSBT signature threshold is met, the SDK emits a `THRESHOLD_MET` event. The Coordinator can use this to instantly finalize the transaction and extract cryptographic audit proofs.
+When the PSBT signature threshold is met, the SDK emits a `THRESHOLD_MET` event. The Coordinator can use this to finalize the transaction and extract cryptographic audit proofs.
 
 ```javascript
 coordinator
@@ -263,16 +283,19 @@ coordinator
 
 ---
 
-## 8. Independent Offline Auditing
+## 8. Independent Offline Auditing & License Verification
 
-A true Zero-Trust architecture means external auditors can independently verify the cryptographic math *after* the infrastructure is destroyed. The SDK provides a static method to verify the SHA-256 anchor (hash of event timeline + final tx hex) using nothing but the exported artifacts.
+A true Zero-Trust architecture means external auditors can independently verify the cryptographic math and software provenance *after* the infrastructure is destroyed. The SDK provides static methods to verify the transaction history and infrastructure licensing using nothing but the exported CSV file.
+
+### A. Verify Forensic Event Timeline Integrity
+
+Auditors can re-calculate the SHA-256 anchor offline to prove the exported event logs and finalized transaction hex match perfectly.
 
 ```javascript
 import { SigningRoomClient } from '@signing-room/sdk';
 
-// The auditor does NOT need to connect to a server or join a room.
-// They only need the raw strings exported during the ceremony.
-const exportedCsvString = `Timestamp,Event,User,Detail...`;
+// The auditor only needs the raw strings exported during the ceremony.
+const exportedCsvString = `# --- SIGNING ROOM FORENSIC AUDIT RECORD ---\n...`;
 const broadcastedHex = '02000000000101...';
 const publishedAnchor = 'a1b2c3d4e5f6...';
 
@@ -284,6 +307,31 @@ const offlineResult = await SigningRoomClient.verifyOfflineIntegrity(
 
 console.log(`Computed Anchor: ${offlineResult.anchor}`);
 console.log(`Cryptographic Match: ${offlineResult.isValid ? 'PASSED' : 'FAILED'}`);
+
+```
+
+### B. Verify Infrastructure Provenance (Enterprise License)
+
+Auditors can mathematically prove the origin of the software that executed the ceremony by verifying the Ed25519 commercial license signature embedded within the CSV header.
+
+```javascript
+// Extract the embedded license token from the CSV and verify its Ed25519 signature
+const licenseReport = await SigningRoomClient.verifyLicenseFromCsv(exportedCsvString);
+
+if (licenseReport.isValid) {
+  console.log(`Tier: ${licenseReport.tier}`);
+  console.log(`Licensee: ${licenseReport.licensee}`);
+  console.log(`Issued To: ${licenseReport.domain}`);
+} else {
+  console.log(`Verification Failed: ${licenseReport.tamperEvidentError}`);
+}
+
+// Alternatively, synchronously inspect a raw token string (useful for UI Dashboards)
+const rawToken = SigningRoomClient.extractLicenseTokenFromCsv(exportedCsvString);
+if (rawToken) {
+  const info = SigningRoomClient.inspectLicenseToken(rawToken);
+  console.log(`Optimistic Expiry Check: ${info.isExpired ? 'Expired' : 'Valid'}`);
+}
 
 ```
 
@@ -309,9 +357,9 @@ await recoveryClient.claimCoordinator(session.encryptedAdminToken);
 
 ## 🏢 Enterprise & Commercial Licensing
 
-[SigningRoom.io](https://signingroom.io/) is fully open-source under the **AGPLv3 License**.
+[SigningRoom.io](https://signingroom.io/) is open-source under the **AGPLv3 License**.
 
-* **Community Use**: If you modify the code and host it publicly, you must open-source your changes.
+* **Community Use**: If you modify the code and host it publicly, you must open-source your changes under AGPL-3.0.
 * **Commercial Use**: Institutions requiring a Commercial License (AGPL Waiver) to integrate this technology into proprietary, closed-source infrastructure (e.g., internal banking systems, custodial platforms) must contact [Stateless Research Ltd](https://statelessresearch.com/).
 
 ### 🔗 Contact Stateless Research for Licensing
@@ -319,5 +367,3 @@ await recoveryClient.claimCoordinator(session.encryptedAdminToken);
 Distributed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
 If you modify this code and run it over a network, you must release your source code. See `LICENSE` for more information.
-
-```

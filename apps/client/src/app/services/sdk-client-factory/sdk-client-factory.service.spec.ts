@@ -32,10 +32,11 @@ describe('SDKClientFactoryService', () => {
       service.create();
 
       expect(SigningRoomClient).toHaveBeenCalledTimes(1);
-      expect(SigningRoomClient).toHaveBeenCalledWith({
+      expect(SigningRoomClient).toHaveBeenCalledWith(expect.objectContaining({
         apiUrl: environment.apiUrl,
         protocolVersion: PROTOCOL_VERSION,
-      });
+        host: expect.any(String), // Host dynamically injects based on the runner
+      }));
     });
 
     it('should override the apiUrl when provided in the config', () => {
@@ -44,10 +45,10 @@ describe('SDKClientFactoryService', () => {
       service.create({ apiUrl: customApiUrl });
 
       expect(SigningRoomClient).toHaveBeenCalledTimes(1);
-      expect(SigningRoomClient).toHaveBeenCalledWith({
+      expect(SigningRoomClient).toHaveBeenCalledWith(expect.objectContaining({
         apiUrl: customApiUrl,
-        protocolVersion: PROTOCOL_VERSION, // Should fallback to default
-      });
+        protocolVersion: PROTOCOL_VERSION,
+      }));
     });
 
     it('should override the protocolVersion when provided in the config', () => {
@@ -56,10 +57,10 @@ describe('SDKClientFactoryService', () => {
       service.create({ protocolVersion: customVersion });
 
       expect(SigningRoomClient).toHaveBeenCalledTimes(1);
-      expect(SigningRoomClient).toHaveBeenCalledWith({
-        apiUrl: environment.apiUrl, // Should fallback to default
+      expect(SigningRoomClient).toHaveBeenCalledWith(expect.objectContaining({
+        apiUrl: environment.apiUrl, 
         protocolVersion: customVersion,
-      });
+      }));
     });
 
     it('should override both apiUrl and protocolVersion when both are provided', () => {
@@ -71,7 +72,10 @@ describe('SDKClientFactoryService', () => {
       service.create(customConfig);
 
       expect(SigningRoomClient).toHaveBeenCalledTimes(1);
-      expect(SigningRoomClient).toHaveBeenCalledWith(customConfig);
+      expect(SigningRoomClient).toHaveBeenCalledWith(expect.objectContaining({
+        apiUrl: customConfig.apiUrl,
+        protocolVersion: customConfig.protocolVersion,
+      }));
     });
   });
 });

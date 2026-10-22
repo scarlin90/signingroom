@@ -9,5 +9,6 @@
   "logoUrl": "/brand/branded-logo.svg",
   "defaultRoomName": "Treasury Vault Room",
   "hideFooter": true,
-  "hideNetworkBadges": true
+  "hideNetworkBadges": true,
+  "licenseToken": "srl_HzqNqR6x6vj5hFudrhAGexQrjlTTvARiiPoNl36gQUUH26kc_yZARFuwRSeUuGUjGPujUZ38w00aHvSB-b159IIe6AABAgMAAAAAAAAAAAAAAaFYcchwLXN0YWdpbmctYnJhbmRlZC5zaWduaW5ncm9vbS5pbyxsb2NhbGhvc3Q6NDIwMQ9ab3JvcyBGaW5hbmNpYWwIMTY5OTA1MTUAHzEyOCBDaXR5IFJvYWQsIExvbmRvbiwgRUMxViAyTlg"
 }
