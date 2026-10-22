@@ -3,4 +3,4 @@
   Referrer-Policy: no-referrer
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
   X-Frame-Options: SAMEORIGIN
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://*.signingroom.io https://*.signingroom.io; frame-src 'self' https://*.signingroom.io; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'self' https://*.signingroom.io; object-src 'none';
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://signingroom.io wss://signingroom.io https://*.signingroom.io wss://*.signingroom.io; frame-src 'self' https://signingroom.io https://*.signingroom.io; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'self' https://signingroom.io https://*.signingroom.io; object-src 'none';

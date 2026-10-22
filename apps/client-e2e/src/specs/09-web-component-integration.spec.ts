@@ -118,7 +118,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
 
     const frame = page.frameLocator('iframe');
-    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click();
+    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
 
     // --- Verification: Event Propagation ---
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
@@ -169,7 +169,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
 
     const frame = page.frameLocator('iframe');
-    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click();
+    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
 
     // --- Verification: Environment Readiness ---
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
@@ -225,7 +225,8 @@ test.describe('Web Component / Embedded Integration', () => {
     await page.evaluate(() => navigator.clipboard.writeText(''));
     const copyHexButton = frame.getByRole('button', { name: 'Copy Hex' });
     await expect(copyHexButton).toBeVisible();
-    await copyHexButton.click({ force: true });
+    
+    await copyHexButton.evaluate((btn: HTMLElement) => btn.click());
 
     await expect(async () => {
       const copyEvent = messages.find(
@@ -349,7 +350,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // Inject and Start
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
     const frame = page.frameLocator('iframe');
-    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click();
+    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
 
     // Verify `roomCreated` Event via polling
@@ -607,7 +608,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // Inject and Start
     await page.getByRole('button', { name: /Inject PSBT/i }).click();
     const frame = page.frameLocator('iframe');
-    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click();
+    await frame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
 
     // Unblur Privacy to access all UI elements

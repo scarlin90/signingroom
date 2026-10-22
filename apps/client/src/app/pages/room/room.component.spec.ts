@@ -9,7 +9,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SocketService } from '../../services/socket/socket.service';
 import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
-import * as confetti from 'canvas-confetti';
 import { EncryptionEngine } from '@signing-room/sdk';
 
 let mockSocketService: any;
@@ -865,9 +864,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     describe('Finalization & Broadcasting', () => {
-      beforeEach(() => {
-        vi.spyOn(component as any, 'triggerConfetti').mockImplementation(() => {});
-      });
 
       it('finalize should execute immediately if no unverified outputs exist', () => {
         mockSocketService.roomState.set({ whitelist: ['out1'] });
@@ -953,8 +949,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should call getAuditLogPdf when finalized in embedded mode', async () => {
       vi.spyOn(component, 'openConfirm');
 
-      const spyTriggerConfetti = vi.spyOn(component as any, 'triggerConfetti').mockImplementation(() => {});
-
       vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(true);
       mockSocketService.isCoordinator.mockReturnValue(true);
 
@@ -981,7 +975,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       expect(mockSocketService.getAuditLogPdf).toHaveBeenCalled();
       expect(mockDispatcher.emitTransactionFinalized).toHaveBeenCalled();
-      expect(spyTriggerConfetti).toHaveBeenCalledOnce();
     });
 
     it('finalize() should show confirm modal if unverified outputs exist', () => {

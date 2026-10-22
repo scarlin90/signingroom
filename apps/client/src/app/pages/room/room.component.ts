@@ -283,6 +283,14 @@ export class RoomComponent implements OnInit, OnDestroy {
     return `Block Height: ${lockTime.toLocaleString()}`;
   });
 
+  get shouldHideHeader(): boolean {
+    if (typeof window !== 'undefined' && window.self !== window.top) {
+      return true;
+    }
+    const params = this.route.snapshot.queryParamMap;
+    return params.get('hideHeader') === 'true' || params.get('embedded') === 'true';
+  }
+
   constructor(
     private route: ActivatedRoute,
     public socket: SocketService,
@@ -903,7 +911,6 @@ export class RoomComponent implements OnInit, OnDestroy {
             });
           }
 
-          this.triggerConfetti();
         }
       } catch (e) {
         console.error('Failed to finalize transaction', e);
@@ -1201,10 +1208,6 @@ export class RoomComponent implements OnInit, OnDestroy {
         this.isLowTime.set(diff < 120000);
       }
     }, 1000);
-  }
-
-  public triggerConfetti() {
-    import('canvas-confetti').then((c) => c.default());
   }
 
   copyHex() {

@@ -1,4 +1,9 @@
-import { Injectable, signal } from '@angular/core';
+/*
+ * Copyright (C) 2026 Stateless Research Ltd
+ * Licensed under the GNU Affero General Public License v3.0
+ */
+
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -8,23 +13,50 @@ import { BrandingConfig, DEFAULT_BRANDING_CONFIG } from '../../models/branding-c
   providedIn: 'root',
 })
 export class ConfigService {
-  private readonly _config = signal<BrandingConfig>(DEFAULT_BRANDING_CONFIG);
-  public readonly config = this._config.asReadonly();
+  private readonly http = inject(HttpClient);
 
-  constructor(private readonly http: HttpClient) {}
+  private readonly _rawConfig = signal<BrandingConfig>(DEFAULT_BRANDING_CONFIG);
+
+  private readonly _isWhitelabelAllowed = signal<boolean>(false);
+
+  public readonly config = computed<BrandingConfig>(() => {
+    const raw = this._rawConfig();
+    const isAllowed = this._isWhitelabelAllowed();
+
+    if (!isAllowed) {
+      return {
+        ...raw,
+        whitelabel: false,
+        useTradeMark: true,
+        brandName: 'Signing Room®',
+        brandSuffix: '.io',
+        logoUrl: '/brand/logo.svg',
+        hideFooter: false,
+      };
+    }
+
+    return {
+      ...raw,
+      whitelabel: true,
+    };
+  });
+
+  public setWhitelabelAllowed(allowed: boolean): void {
+    this._isWhitelabelAllowed.set(allowed);
+  }
 
   async loadConfig(): Promise<void> {
     try {
       const response = await firstValueFrom(
         this.http.get<Partial<BrandingConfig>>(`${environment.configUrl}?t=${Date.now()}`),
       );
-      this._config.set({ ...DEFAULT_BRANDING_CONFIG, ...response });
+      this._rawConfig.set({ ...DEFAULT_BRANDING_CONFIG, ...response });
     } catch {
-      this._config.set(DEFAULT_BRANDING_CONFIG);
+      this._rawConfig.set(DEFAULT_BRANDING_CONFIG);
     }
   }
 
   get settings(): BrandingConfig {
-    return this._config();
+    return this.config();
   }
 }

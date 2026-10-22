@@ -1,15 +1,6 @@
 /*
  * Copyright (C) 2026 Stateless Research Ltd
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
+ * Licensed under the GNU Affero General Public License v3.0
  */
 
 import { Component, ViewEncapsulation, inject, OnInit, Renderer2 } from '@angular/core';
@@ -17,6 +8,7 @@ import { CommonModule, DOCUMENT } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { ConfigService } from './services/config/config.service';
+import { EditionBannerComponent } from './components/edition-banner/edition-banner.component';
 import { Title, Meta } from '@angular/platform-browser';
 import {
   LucideShield,
@@ -33,6 +25,7 @@ import {
   imports: [
     CommonModule,
     RouterModule,
+    EditionBannerComponent,
     LucideShield,
     LucideZap,
     LucideKey,
@@ -41,7 +34,11 @@ import {
   ],
   encapsulation: ViewEncapsulation.None,
   template: `
+    <!-- Top Banner (Only shows when standalone) or Sticky Bottom Badge (When embedded) -->
+    <app-edition-banner />
+
     <div class="min-h-screen flex flex-col bg-brand-bg text-brand-text">
+      <!-- Top Nav: ONLY rendered when running as a standalone website -->
       @if (!isEmbedded) {
         <nav class="w-full border-b border-brand-card-border/60 backdrop-blur-md fixed top-0 z-50 bg-brand-bg/80">
           <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -62,7 +59,6 @@ import {
               
               <span class="text-xl font-bold tracking-tight text-brand-text">
                 {{ configService.config().brandName }}<span class="text-brand-accent">{{ configService.config().brandSuffix || '' }}</span>
-                
               </span>
             </div>
 
@@ -77,33 +73,12 @@ import {
         </nav>
       }
 
-      @if (isEmbedded && !hideHeader) {
-        <nav class="w-full border-b border-brand-card-border/60 backdrop-blur-md fixed top-0 z-50 bg-brand-bg/80">
-          <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-            
-            <div class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-              <img [src]="configService.config().logoUrl" [alt]="configService.config().brandName" class="w-7 h-7 object-contain" />
-              
-              <span class="text-xl font-bold tracking-tight text-brand-text">
-                  {{ configService.config().brandName }}<span class="text-brand-accent">{{ configService.config().brandSuffix || '' }}</span>
-              </span>
-            </div>
-
-            @if (!configService.config().hideNetworkBadges) {
-              <div class="hidden md:flex items-center gap-6 text-sm font-medium text-brand-text-muted">
-                 <span>Zero-Knowledge</span>
-                <span>Non-Custodial</span>
-                <span>Real-time</span>
-              </div>
-            }
-          </div>
-        </nav>
-      }
-
-      <div class="flex-grow" [ngClass]="{ 'pt-20': !isEmbedded || (isEmbedded && !hideHeader) }">
+      <!-- Main router content. Only pads top by 80px (pt-20) when the standalone nav is visible -->
+      <div class="flex-grow" [ngClass]="{ 'pt-20': !isEmbedded }">
         <router-outlet></router-outlet>
       </div>
 
+      <!-- Footer: ONLY rendered when running standalone -->
       @if (!isEmbedded && !configService.config().hideFooter) {
         <footer class="border-t border-brand-card-border bg-brand-bg py-12 mt-auto relative z-20">
           <div class="max-w-5xl mx-auto px-6">
@@ -121,7 +96,7 @@ import {
               </div>
 
               <div class="flex items-center gap-6">
-                <!-- The Donate Button -->
+                <!-- Donate Button -->
                 <button
                   onclick="document.getElementById('donate-modal').classList.remove('hidden')"
                   class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-card border border-brand-card-border hover:border-yellow-500/50 hover:bg-yellow-500/10 transition group text-xs font-medium text-brand-text-muted hover:text-yellow-400">
@@ -129,119 +104,57 @@ import {
                   <span>Donate</span>
                 </button>
 
-                <!-- The Modal / Popover Overlay -->
+                <!-- Donate Modal -->
                 <div id="donate-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
                   <div class="bg-brand-card border border-brand-card-border p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl relative">
-                    
-                    <!-- Close Button -->
                     <button 
                       onclick="document.getElementById('donate-modal').classList.add('hidden')"
                       class="absolute top-4 right-4 text-brand-text-muted hover:text-white transition">
                       ✕
                     </button>
-
                     <div class="text-center">
                       <h3 class="text-lg font-semibold text-white mb-2">Support {{ configService.config().brandName }}</h3>
                       <p class="text-sm text-brand-text-muted mb-6">Scan with any Lightning wallet</p>
-                      
-                      <!-- QR Code Image -->
                       <div class="bg-white p-2 rounded-xl inline-block mb-6 shadow-sm">
                         <img src="/assets/address.png" alt="Lightning QR Code" class="w-48 h-48 object-contain" />
                       </div>
-
-                      <!-- Lightning Address -->
                       <div class="mb-4">
                         <label class="block text-xs font-medium text-brand-text-muted mb-1 uppercase tracking-wider">Lightning Address</label>
                         <div class="bg-brand-bg text-brand-text px-3 py-2 rounded-lg text-sm font-mono select-all">
                           seancarlin@walletofsatoshi.com
                         </div>
                       </div>
-
-                      <!-- LNURL Fallback -->
                       <div>
                         <label class="block text-xs font-medium text-brand-text-muted mb-1 uppercase tracking-wider">LNURL</label>
                         <div class="bg-brand-bg text-brand-text-muted px-3 py-2 rounded-lg text-[10px] font-mono break-all select-all">
                           lnurl1dp68gurn8ghj7ampd3kx2ar0veekzar0wd5xjtnrdakj7tnhv4kxctttdehhwm30d3h82unvwqhhxetpde3kzunvd9hqmzg7zp
                         </div>
                       </div>
-                      
                     </div>
                   </div>
                 </div>
 
-                <a
-                  href="mailto:support@signingroom.io"
-                  class="text-brand-text-muted hover:text-white transition">
+                <a href="mailto:support@signingroom.io" class="text-brand-text-muted hover:text-white transition">
                   <svg lucideMail class="w-5 h-5"></svg>
                 </a>
-
-                <a
-                  href="https://github.com/scarlin90/SigningRoom"
-                  target="_blank"
-                  class="text-brand-text-muted hover:text-white transition">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="w-5 h-5">
-                    <path
-                      d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+                <a href="https://github.com/scarlin90/SigningRoom" target="_blank" class="text-brand-text-muted hover:text-white transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
                     <path d="M9 18c-4.51 2-5-2-7-2" />
                   </svg>
                 </a>
-
-                <a
-                  href="https://x.com/SigningRoom"
-                  target="_blank"
-                  class="text-brand-text-muted hover:text-white transition">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="w-5 h-5">
-                    <path
-                      d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+                <a href="https://x.com/SigningRoom" target="_blank" class="text-brand-text-muted hover:text-white transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                    <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
                   </svg>
                 </a>
-
-                <a
-                  href="https://www.youtube.com/@SigningRoom"
-                  target="_blank"
-                  class="text-brand-text-muted hover:text-white transition">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="w-5 h-5">
-                    <path
-                      d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
+                <a href="https://www.youtube.com/@SigningRoom" target="_blank" class="text-brand-text-muted hover:text-white transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                    <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
                     <path d="m10 15 5-3-5-3z" />
                   </svg>
                 </a>
-
-                <a
-                  href="https://njump.me/npub1a6tk6kcs2p40eumeu2mru4jwqssnhvc8xtupwlpc6l3gymjha03sek436a"
-                  target="_blank"
-                  class="text-brand-text-muted hover:text-white transition"
-                  title="Nostr">
+                <a href="https://njump.me/npub1a6tk6kcs2p40eumeu2mru4jwqssnhvc8xtupwlpc6l3gymjha03sek436a" target="_blank" class="text-brand-text-muted hover:text-white transition" title="Nostr">
                   <svg lucideGlobe class="w-5 h-5"></svg>
                 </a>
               </div>
@@ -250,38 +163,16 @@ import {
             <div class="border-t border-brand-card-border pt-8">
               <div class="bg-brand-card/30 p-4 rounded-xl border border-brand-card-border/50 mb-6">
                 <p class="text-[10px] text-brand-text-muted leading-relaxed text-justify font-mono">
-                  <strong>DISCLAIMER OF WARRANTY:</strong> This is free, open-source software
-                  released under the
-                  <a
-                    href="https://www.gnu.org/licenses/agpl-3.0.html"
-                    target="_blank"
-                    class="underline hover:text-white"
-                    >AGPLv3 License</a
-                  >. It is provided "as is", without warranty of any kind. <br /><br />
-                  <strong>NON-CUSTODIAL:</strong> {{ configService.config().brandName }} is a zero-knowledge coordination tool,
-                  not a wallet or financial institution. We do not have access to your private keys,
-                  funds, or unencrypted transaction data. All room data is ephemeral and permanently wiped upon closure or expiration. <br /><br />
-                  <strong>USER RESPONSIBILITY:</strong> You are solely responsible for verifying
-                  transaction details (addresses, amounts, fees) on your hardware device screen
-                  before signing. The developers assume no liability for lost funds or software
-                  errors.
+                  <strong>DISCLAIMER OF WARRANTY:</strong> This is free, open-source software released under the <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" class="underline hover:text-white">AGPLv3 License</a>. It is provided "as is", without warranty of any kind. <br /><br />
+                  <strong>NON-CUSTODIAL:</strong> {{ configService.config().brandName }} is a zero-knowledge coordination tool, not a wallet or financial institution. We do not have access to your private keys, funds, or unencrypted transaction data. All room data is ephemeral and permanently wiped upon closure or expiration. <br /><br />
+                  <strong>USER RESPONSIBILITY:</strong> You are solely responsible for verifying transaction details (addresses, amounts, fees) on your hardware device screen before signing. The developers assume no liability for lost funds or software errors.
                 </p>
               </div>
 
               <div class="flex flex-col items-center justify-center gap-4">
                 <div class="flex flex-col items-center gap-1 text-xs text-brand-text-muted">
                   <div class="flex flex-wrap justify-center items-center gap-x-4">
-                    <p>
-                      &copy; {{ currentYear }}
-                      <strong
-                        ><a
-                          href="https://statelessresearch.com"
-                          target="_blank"
-                          class="hover:text-brand-accent transition"
-                          >Stateless Research Ltd</a
-                        ></strong
-                      >
-                    </p>
+                    <p>&copy; {{ currentYear }} <strong><a href="https://statelessresearch.com" target="_blank" class="hover:text-brand-accent transition">Stateless Research Ltd</a></strong></p>
                     @if (configService.config().useTradeMark) {
                       <span class="hidden sm:inline">&bull;</span>
                       <p>Signing Room® is a registered trademark of Stateless Research Ltd.</p>
@@ -295,22 +186,12 @@ import {
                 </div>
 
                 <div class="flex items-center gap-4 opacity-70 hover:opacity-100 transition">
-                  <a
-                    href="/security.txt"
-                    target="_blank"
-                    class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-brand-text-muted hover:text-brand-accent transition group">
-                    <svg lucideShield class="w-3 h-3 group-hover:text-brand-accent transition"></svg>
-                    Warrant Canary
+                  <a href="/security.txt" target="_blank" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-brand-text-muted hover:text-brand-accent transition group">
+                    <svg lucideShield class="w-3 h-3 group-hover:text-brand-accent transition"></svg> Warrant Canary
                   </a>
-
                   <span class="text-brand-card-border text-[10px]">&bull;</span>
-
-                  <a
-                    href="/pgp-key.asc"
-                    target="_blank"
-                    class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-brand-text-muted hover:text-brand-accent transition group">
-                    <svg lucideKey class="w-3 h-3 group-hover:text-brand-accent transition"></svg>
-                    PGP Key
+                  <a href="/pgp-key.asc" target="_blank" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-brand-text-muted hover:text-brand-accent transition group">
+                    <svg lucideKey class="w-3 h-3 group-hover:text-brand-accent transition"></svg> PGP Key
                   </a>
                 </div>
               </div>
@@ -318,24 +199,11 @@ import {
           </div>
         </footer>
       }
-
-      @if (isEmbedded && !configService.config().hideFooter) {
-        <div class="w-full py-3 flex justify-center mt-auto pb-4">
-          <a
-            href="https://signingroom.io?utm_source=widget&utm_medium=embed"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="flex items-center gap-1.5 text-[11px] font-medium text-brand-text-muted hover:text-brand-accent transition-colors opacity-80 hover:opacity-100">
-            <svg lucideShield class="w-3.5 h-3.5"></svg>
-            Powered by Signing Room
-          </a>
-        </div>
-      }
+    </div>
   `,
 })
 export class App implements OnInit {
   isEmbedded = false;
-  hideHeader = false;
 
   readonly currentYear = new Date().getFullYear();
 
@@ -360,17 +228,14 @@ export class App implements OnInit {
     if (typeof window !== 'undefined') {
       this.isEmbedded = window !== window.parent || window !== window.top;
 
-      const urlParams = new URLSearchParams(window.location.search);
-      this.hideHeader = urlParams.get('hideHeader') === 'true';
-
       if (!window.isSecureContext) {
         document.body.innerHTML = `
-                <div style="background:#020617; color:#f43f5e; height:100vh; display:flex; flex-direction:column; items-center; justify-content:center; font-family:sans-serif; text-align:center; padding:20px;">
-                    <h1 style="margin-bottom:10px;">Security Error</h1>
-                    <p>SigningRoom requires a Secure Context (HTTPS).</p>
-                    <p style="color:#94a3b8; font-size:14px;">The Web Cryptography API is disabled in insecure environments.</p>
-                </div>
-            `;
+          <div style="background:#020617; color:#f43f5e; height:100vh; display:flex; flex-direction:column; items-center; justify-content:center; font-family:sans-serif; text-align:center; padding:20px;">
+            <h1 style="margin-bottom:10px;">Security Error</h1>
+            <p>SigningRoom requires a Secure Context (HTTPS).</p>
+            <p style="color:#94a3b8; font-size:14px;">The Web Cryptography API is disabled in insecure environments.</p>
+          </div>
+        `;
         throw new Error('Insecure Context - Crypto API disabled');
       }
     }
@@ -381,8 +246,7 @@ export class App implements OnInit {
     const brandFullName = config.brandName + (config.brandSuffix ? config.brandSuffix : '');
 
     const pageTitle = `${brandFullName} | ${config.tagline || 'Real-Time Multisig Coordinator'}`;
-    const pageDesc =
-      config.subTagline || 'The ephemeral, zero-knowledge Bitcoin multisig coordinator.';
+    const pageDesc = config.subTagline || 'The ephemeral, zero-knowledge Bitcoin multisig coordinator.';
 
     this.titleService.setTitle(pageTitle);
     this.metaService.updateTag({ name: 'description', content: pageDesc });
@@ -398,7 +262,6 @@ export class App implements OnInit {
     this.metaService.updateTag({ name: 'twitter:title', content: pageTitle });
     this.metaService.updateTag({ name: 'twitter:description', content: pageDesc });
 
-    // Inject Dynamic JSON-LD Structured Data Safely
     const schema = {
       '@context': 'https://schema.org',
       '@type': 'SoftwareApplication',
@@ -423,7 +286,6 @@ export class App implements OnInit {
     const script = this.renderer.createElement('script');
     this.renderer.setAttribute(script, 'type', 'application/ld+json');
     this.renderer.setProperty(script, 'text', JSON.stringify(schema));
-
     this.renderer.appendChild(this.document.head, script);
   }
 }
