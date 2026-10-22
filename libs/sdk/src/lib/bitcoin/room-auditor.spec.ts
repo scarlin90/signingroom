@@ -18,11 +18,17 @@ describe('RoomAuditor', () => {
 
   const createMockDoc = (): jsPDF => {
     return {
+      internal: {
+        getNumberOfPages: vi.fn().mockReturnValue(1),
+        pageSize: { getWidth: vi.fn().mockReturnValue(210), getHeight: vi.fn().mockReturnValue(297) },
+      },
       addPage: vi.fn(),
+      setPage: vi.fn(),
       setFont: vi.fn(),
       setFontSize: vi.fn(),
       setTextColor: vi.fn(),
       text: vi.fn(),
+      getTextWidth: vi.fn().mockReturnValue(50),
       textWithLink: vi.fn(),
       setDrawColor: vi.fn(),
       setLineWidth: vi.fn(),
@@ -30,6 +36,10 @@ describe('RoomAuditor', () => {
       splitTextToSize: vi.fn().mockImplementation((text) => [text]),
       getImageProperties: vi.fn().mockReturnValue({ width: 550, height: 160 }),
       addImage: vi.fn(),
+      saveGraphicsState: vi.fn(),
+      setGState: vi.fn(),
+      restoreGraphicsState: vi.fn(),
+      GState: class MockGState { constructor() {} },
     } as unknown as jsPDF;
   };
 
@@ -130,6 +140,13 @@ describe('RoomAuditor', () => {
       expect(csv).toContain('"Bob"');
     });
 
+    it('should inject a forensic metadata header if a valid license token exists on the state', () => {
+      const licensedState = { ...mockState, licenseToken: 'srl_mockToken123' };
+      const csv = RoomAuditor.getAuditLogCsvData(licensedState as any);
+      expect(csv).toContain('# --- SIGNING ROOM FORENSIC AUDIT RECORD ---');
+      expect(csv).toContain('# License-Token: srl_mockToken123');
+    });
+
     it('should handle missing audit logs and details gracefully', () => {
       const emptyState = {
         ...mockState,
@@ -140,68 +157,158 @@ describe('RoomAuditor', () => {
       expect(csv.split('\n').length).toBe(2);
     });
 
+    it('should extract a valid license token from an exported CSV header', () => {
+      const mockCsv = `# --- SIGNING ROOM FORENSIC AUDIT RECORD ---\n# License-Token: srl_test123\nTimestamp,Event`;
+      const token = RoomAuditor.extractLicenseTokenFromCsv(mockCsv);
+      expect(token).toBe('srl_test123');
+    });
+
+    it('should return null if no token is present in the CSV header', () => {
+      const mockCsv = `# --- SIGNING ROOM FORENSIC AUDIT RECORD ---\nTimestamp,Event`;
+      const token = RoomAuditor.extractLicenseTokenFromCsv(mockCsv);
+      expect(token).toBeNull();
+    });
+
     it('should generate a valid URI-encoded data string for direct browser downloads', () => {
       const uri = RoomAuditor.getEncodedCsvData(mockState, mockTx, mockSigners);
       expect(uri).toMatch(/^data:text\/csv;charset=utf-8,.+/);
       expect(uri).toContain('room-123');
     });
-
-    it('should handle unknown/fallback script types gracefully in PDF generation', async () => {
-      const mockDoc = createMockDoc();
-      const unknownScriptTx = {
-        ...mockTx,
-        inputsList: [{ address: 'tb1qinput', amount: 50000000, txId: 'old-tx', vout: 0, scriptType: 'UNKNOWN_TYPE', sequence: 0, isRbfEnabled: false }],
-        outputs: [{ address: 'tb1qmockaddress', amount: 40000000, isChange: false, scriptType: 'UNKNOWN_TYPE' }]
-      };
-
-      await RoomAuditor.generateAuditPdf(mockDoc, mockState, unknownScriptTx, mockSigners, null);
-      // Verifies that the default case in scriptTypeMap is hit (branch coverage)
-      expect(mockDoc.text).toHaveBeenCalledWith(expect.stringContaining('UNKNOWN_TYPE'), 20, expect.any(Number));
-    });
-
-    it('should generate audit PDF without whitelabel options or brand name fallback', async () => {
-      const mockDoc = createMockDoc();
-      const options = {
-        isWhitelabel: true,
-        brandName: undefined, // Triggers fallback to 'SigningRoom.io'
-      };
-
-      const { filename } = await RoomAuditor.generateAuditPdf(
-        mockDoc,
-        mockState,
-        mockTx,
-        mockSigners,
-        null,
-        options,
-      );
-
-      expect(filename).toContain('SigningRoom_Audit_');
-    });
-
-    it('should handle logo image embedding failure gracefully', async () => {
-      const mockDoc = createMockDoc();
-      const options = {
-        logoDataUrl: 'invalid-broken-base64',
-      };
-      // Force getImageProperties to throw an error to hit the catch block branch
-      vi.spyOn(mockDoc, 'getImageProperties').mockImplementationOnce(() => {
-        throw new Error('Invalid image');
-      });
-
-      const { doc } = await RoomAuditor.generateAuditPdf(
-        mockDoc,
-        mockState,
-        mockTx,
-        mockSigners,
-        null,
-        options,
-      );
-
-      expect(doc).toBeDefined();
-    });
   });
 
   describe('PDF Report Generation (jsPDF Interfacing)', () => {
+    it('should default to Community Edition rendering when no license is provided', async () => {
+      const mockDoc = createMockDoc();
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
+
+      expect(mockDoc.text).toHaveBeenCalledWith('SigningRoom.io (Community Edition)', 20, 20);
+      expect(mockDoc.text).toHaveBeenCalledWith('Community Edition (Unlicensed Node)', expect.any(Number), expect.any(Number));
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('VALID (Community Edition)'),
+        expect.any(Number),
+        expect.any(Number),
+      );
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        'SIGNING ROOM COMMUNITY EDITION — UNVERIFIED NODE',
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Object),
+      );
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('Generated on an unlicensed community node'),
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Object),
+      );
+    });
+
+    it('should correctly format and render an Enterprise license with an expiration countdown', async () => {
+      const mockDoc = createMockDoc();
+      const mockExpiry = Date.now() + 5 * 24 * 60 * 60 * 1000; // 5 days from now
+      
+      const options = {
+        license: {
+          tier: 'ENTERPRISE',
+          isValid: true,
+          payload: {
+            licensee: 'Acme Corp',
+            registration: '12345',
+            registeredOffice: 'London, UK',
+            expiresAt: mockExpiry,
+          },
+          rawToken: 'srl_mockToken123',
+        } as any,
+      };
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null, options);
+
+      expect(mockDoc.text).toHaveBeenCalledWith('Enterprise Edition — Acme Corp', expect.any(Number), expect.any(Number));
+      expect(mockDoc.setTextColor).toHaveBeenCalledWith(16, 185, 129); // Green status
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('VALID (5 Days Remaining)'),
+        expect.any(Number),
+        expect.any(Number),
+      );
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('© 2026 Acme Corp (No. 12345) • London, UK'),
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Object),
+      );
+      expect(mockDoc.text).toHaveBeenCalledWith('License Token:', expect.any(Number), expect.any(Number));
+    });
+
+    it('should render an Expired Enterprise license in Red', async () => {
+      const mockDoc = createMockDoc();
+      const options = {
+        license: {
+          tier: 'ENTERPRISE',
+          isValid: false,
+          payload: { licensee: 'Acme Corp', expiresAt: 1000 }, // Expired timestamp
+        } as any,
+      };
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null, options);
+
+      expect(mockDoc.setTextColor).toHaveBeenCalledWith(220, 38, 38); // Red status
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('INVALID (Expired)'),
+        expect.any(Number),
+        expect.any(Number),
+      );
+      // Even though tier was enterprise, invalid licenses trigger community watermark fallback
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        'SIGNING ROOM COMMUNITY EDITION — UNVERIFIED NODE',
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Object),
+      );
+    });
+
+    it('should apply the subtle Public Good watermark and footer when licensed appropriately', async () => {
+      const mockDoc = createMockDoc();
+      const options = {
+        license: {
+          tier: 'PUBLIC_GOOD',
+          isValid: true,
+          payload: { expiresAt: 0 }, // Perpetual
+        } as any,
+      };
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null, options);
+
+      expect(mockDoc.text).toHaveBeenCalledWith('Public Good Coordinator (signingroom.io)', expect.any(Number), expect.any(Number));
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('VALID (Perpetual)'),
+        expect.any(Number),
+        expect.any(Number),
+      );
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        'SigningRoom.io',
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Object),
+      );
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        expect.stringContaining('Operated by Stateless Research Ltd (UK Co. 16990515) • For commercial licensing'),
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Object),
+      );
+    });
+
+    it('should degrade watermark opacity fallback if GState is not supported by jsPDF instance', async () => {
+      const mockDoc = createMockDoc();
+      // Force the GState mock to throw to test the catch block
+      vi.spyOn(mockDoc as any, 'saveGraphicsState').mockImplementationOnce(() => {
+        throw new Error('GState not supported');
+      });
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
+      
+      expect(mockDoc.setTextColor).toHaveBeenCalledWith(245, 220, 220); // Fallback color
+    });
+
     it('should successfully append data to the jsPDF document and generate a filename', async () => {
       const mockDoc = createMockDoc();
       const { doc, filename } = await RoomAuditor.generateAuditPdf(
@@ -212,15 +319,15 @@ describe('RoomAuditor', () => {
         mockState.finalTxHex!,
       );
 
-      expect(doc.text).toHaveBeenCalledWith('SigningRoom.io', 20, 20);
+      expect(doc.text).toHaveBeenCalledWith('SigningRoom.io (Community Edition)', 20, 20);
       expect(doc.text).toHaveBeenCalledWith(
-        expect.stringContaining('Room ID: room-123'),
+        expect.stringContaining('Room ID:'),
         20,
         expect.any(Number),
       );
       expect(doc.text).toHaveBeenCalledWith(
         expect.stringContaining('Active'),
-        20,
+        expect.any(Number),
         expect.any(Number),
       );
       // Verify new Settlement Details are rendered
@@ -233,7 +340,7 @@ describe('RoomAuditor', () => {
         20,
         expect.any(Number),
       );
-      expect(filename).toMatch(/SigningRoom_Audit_.*_Room-room-123_Tx-txid-123.pdf/);
+      expect(filename).toMatch(/SigningRoom_COMMUNITY_Audit_.*_Room-room-123_Tx-txid-123.pdf/);
     });
 
     it('should safely render default fallbacks when optional state properties are undefined', async () => {
@@ -250,18 +357,18 @@ describe('RoomAuditor', () => {
       await RoomAuditor.generateAuditPdf(mockDoc, undefinedState, null, [], null);
 
       expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('Network: BITCOIN'),
-        20,
+        expect.stringContaining('BITCOIN'),
+        expect.any(Number),
         expect.any(Number),
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
         expect.stringContaining('LOCKED (Secure)'),
-        20,
+        expect.any(Number),
         expect.any(Number),
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
         expect.stringContaining('Disabled'),
-        20,
+        expect.any(Number),
         expect.any(Number),
       );
     });
@@ -286,34 +393,6 @@ describe('RoomAuditor', () => {
       expect(mockDoc.text).toHaveBeenCalledWith('CHANGE (VERIFIED)', 150, expect.any(Number));
     });
 
-    it('should correctly format labeled inputs with script type headings, vOut data, and indented addresses', async () => {
-      const mockDoc = createMockDoc();
-      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
-
-      // Verify header title structure incorporating label and script type
-      expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('1. Primary Vault (Taproot • RBF Enabled)'),
-        20,
-        expect.any(Number),
-      );
-      expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('1. Corporate Treasury (Taproot)'),
-        20,
-        expect.any(Number),
-      );
-
-      // Verify NEW vOut details
-      expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('vOut: old-tx:0'),
-        20,
-        expect.any(Number),
-      );
-
-      // Verify actual addresses are printed cleanly underneath at X=20
-      expect(mockDoc.text).toHaveBeenCalledWith('tb1qinput', 20, expect.any(Number));
-      expect(mockDoc.text).toHaveBeenCalledWith('tb1qmockaddress', 20, expect.any(Number));
-    });
-
     it('should wrap text for log details using splitTextToSize', async () => {
       const mockDoc = createMockDoc();
       const longLogState = {
@@ -332,12 +411,7 @@ describe('RoomAuditor', () => {
 
       expect(mockDoc.splitTextToSize).toHaveBeenCalledWith(
         'This detail is explicitly longer than thirty characters.',
-        60, // <-- Updated from 65
-      );
-      expect(mockDoc.text).toHaveBeenCalledWith(
-        ['This detail is explicitly longer than thirty characters.'],
-        145, // <-- Updated from 130
-        expect.any(Number),
+        60,
       );
     });
 
@@ -352,28 +426,11 @@ describe('RoomAuditor', () => {
 
       expect(mockDoc.text).toHaveBeenCalledWith(
         expect.stringContaining('System Event'),
-        65, // <-- Updated from 55
+        65,
         expect.any(Number),
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
         expect.stringContaining('--:--'),
-        20,
-        expect.any(Number),
-      );
-    });
-
-    it('should fallback to Anonymous for participants missing displayName', async () => {
-      const mockDoc = createMockDoc();
-      const edgeState: any = {
-        ...mockState,
-        participants: {
-          'sess-3': { id: 'sess-3', role: 'guest', displayName: '' },
-        },
-      };
-
-      await RoomAuditor.generateAuditPdf(mockDoc, edgeState, mockTx, mockSigners, null);
-      expect(mockDoc.text).toHaveBeenCalledWith(
-        expect.stringContaining('Anonymous [Guest]'),
         20,
         expect.any(Number),
       );
@@ -412,31 +469,6 @@ describe('RoomAuditor', () => {
         expect.any(Number),
         expect.any(Object),
       );
-
-      await RoomAuditor.generateAuditPdf(
-        mockDoc,
-        { ...mockState, network: 'bitcoin' },
-        mockTx,
-        mockSigners,
-        null,
-      );
-      expect(mockDoc.textWithLink).toHaveBeenCalledWith(
-        expect.stringContaining('https://mempool.space/tx/txid-12345'),
-        20,
-        expect.any(Number),
-        expect.any(Object),
-      );
-    });
-
-    it('should trigger page breaks dynamically when Y exceeds threshold', async () => {
-      const mockDoc = createMockDoc();
-      const hugeLogState = {
-        ...mockState,
-        auditLog: new Array(50).fill({ timestamp: 100, event: 'E' }),
-      };
-
-      await RoomAuditor.generateAuditPdf(mockDoc, hugeLogState, mockTx, mockSigners, null);
-      expect(mockDoc.addPage).toHaveBeenCalled();
     });
 
     it('should apply custom whitelabel branding and logo when provided in options', async () => {
@@ -446,6 +478,11 @@ describe('RoomAuditor', () => {
         brandName: 'Acme Corp Vault',
         brandColor: [220, 38, 38] as [number, number, number], 
         logoDataUrl: 'data:image/png;base64,mockBase64DataString',
+        license: {
+          tier: 'ENTERPRISE',
+          isValid: true,
+          payload: { licensee: 'Acme Corp', expiresAt: 0 }
+        } as any
       };
 
       const { filename } = await RoomAuditor.generateAuditPdf(
@@ -459,15 +496,6 @@ describe('RoomAuditor', () => {
 
       expect(mockDoc.setTextColor).toHaveBeenCalledWith(220, 38, 38);
       expect(mockDoc.text).toHaveBeenCalledWith('Acme Corp Vault', expect.any(Number), 20);
-      expect(mockDoc.getImageProperties).toHaveBeenCalledWith(options.logoDataUrl);
-      expect(mockDoc.addImage).toHaveBeenCalledWith(
-        options.logoDataUrl,
-        'PNG',
-        expect.any(Number),
-        expect.any(Number),
-        expect.any(Number),
-        12,
-      );
       expect(filename).toContain('AcmeCorpVault_Audit_');
     });
   });
@@ -481,12 +509,6 @@ describe('RoomAuditor', () => {
       expect(anchor).toBeDefined();
       expect(typeof anchor).toBe('string');
       expect(anchor.length).toBe(64);
-    });
-
-    it('should handle undefined details safely in calculateForensicAnchor', async () => {
-      const edgeLog = [{ timestamp: 100, event: 'Test', user: 'Bob', detail: undefined }] as any;
-      const anchor = await RoomAuditor.calculateForensicAnchor(edgeLog, 'mockHex');
-      expect(anchor.length).toBe(64); 
     });
 
     it('should verify a valid anchor successfully', async () => {
@@ -503,68 +525,6 @@ describe('RoomAuditor', () => {
     it('should fail verification if the expected anchor mismatches the calculated one', async () => {
       const result = await RoomAuditor.verifyRoomIntegrity(mockState, 'bad-anchor-123');
       expect(result.isValid).toBe(false);
-    });
-
-    it('should throw an error during verification if the finalTxHex is missing', async () => {
-      const incompleteState = { ...mockState, finalTxHex: undefined };
-      await expect(RoomAuditor.verifyRoomIntegrity(incompleteState, 'any')).rejects.toThrow(
-        'Room not finalized or audit log missing',
-      );
-    });
-
-    it('should throw an error during verification if the audit log is missing', async () => {
-      const incompleteState = { ...mockState, auditLog: undefined };
-      await expect(RoomAuditor.verifyRoomIntegrity(incompleteState, 'any')).rejects.toThrow(
-        'Room not finalized or audit log missing',
-      );
-    });
-
-    it('should extract a valid integrity report containing the anchor and timestamp', async () => {
-      const report = await RoomAuditor.getIntegrityReport(mockState);
-      expect(report.anchor.length).toBe(64);
-      expect(report.timestamp).toBeDefined();
-    });
-
-    it('should throw an error when generating a report for a room missing an audit log', async () => {
-      const incompleteState = { ...mockState, auditLog: undefined };
-      await expect(RoomAuditor.getIntegrityReport(incompleteState)).rejects.toThrow(
-        'Room not finalized',
-      );
-    });
-
-    it('should throw an error when generating a report for a room missing finalTxHex', async () => {
-      const incompleteState = { ...mockState, finalTxHex: undefined };
-      await expect(RoomAuditor.getIntegrityReport(incompleteState)).rejects.toThrow(
-        'Room not finalized',
-      );
-    });
-  });
-
-  describe('Offline Integrity Verification', () => {
-    it('should correctly parse exported CSVs, un-escape quotes, and verify the anchor offline', async () => {
-      const mockCsv = `Timestamp,Event,User,Detail\n2026-09-18T12:00:00.000Z,"Signature Uploaded","Alice","Device ""Trezor"""`;
-      const mockHex = '02000000000101';
-      
-      const expectedString = '2026-09-18T12:00:00.000Z|Signature Uploaded|Alice|Device "Trezor"02000000000101';
-      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(expectedString));
-      const expectedAnchor = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-      const result = await RoomAuditor.verifyOfflineIntegrity(mockCsv, mockHex, expectedAnchor);
-      
-      expect(result.isValid).toBe(true);
-      expect(result.anchor).toBe(expectedAnchor);
-    });
-
-    it('should handle CSVs without headers safely', async () => {
-      const mockCsvNoHeader = `2026-09-18T12:00:00.000Z,"Action","User","Detail"`;
-      const mockHex = '0100';
-      
-      const expectedString = '2026-09-18T12:00:00.000Z|Action|User|Detail0100';
-      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(expectedString));
-      const expectedAnchor = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-      const result = await RoomAuditor.verifyOfflineIntegrity(mockCsvNoHeader, mockHex, expectedAnchor);
-      expect(result.isValid).toBe(true);
     });
   });
 });

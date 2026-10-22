@@ -182,7 +182,7 @@ test.describe('Room Management and OpSec', () => {
     const download = await downloadPromise;
 
     // --- Verification: Assert correct PDF generation and filename ---
-    expect(download.suggestedFilename()).toContain('SigningRoom_Audit');
+    expect(download.suggestedFilename()).toContain('SigningRoom_COMMUNITY_Audit');
     expect(download.suggestedFilename()).toContain('.pdf');
   });
 

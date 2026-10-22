@@ -58,3 +58,5 @@ stress-test.js
 .nx/migrate-runs
 vite.config.*.timestamp*
 *.exe
+
+tools

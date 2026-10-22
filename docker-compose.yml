@@ -5,12 +5,12 @@ services:
       dockerfile: Dockerfile.worker
     container_name: signingroom-worker
     command: ['serve', 'worker.capnp', '--verbose']
-    ports:
-      - '8787:8787'
+    expose:
+      - '8787'
     environment:
-      - ALLOWED_ORIGIN=http://localhost:4200
-      - API_PUBLIC_URL=http://localhost:8787
+      - ALLOWED_ORIGIN=http://localhost:8080
       - ENVIRONMENT=development
+      - ALLOW_HEADLESS_ACCESS=true
 
   client:
     build:
@@ -20,9 +20,9 @@ services:
         BUILD_ENV: development
     container_name: signingroom-client
     ports:
-      - '4200:8080'
+      - '8080:8080'
     environment:
-      - API_PUBLIC_URL=http://localhost:8787
+      - API_PUBLIC_URL=http://localhost:8080
     depends_on:
       - worker
 
@@ -36,11 +36,11 @@ services:
     ports:
       - '4201:8080'
     environment:
-      - API_PUBLIC_URL=http://localhost:8787
+      - API_PUBLIC_URL=http://localhost:4201
+      - LICENSE_TOKEN=srl_sbJbVsu3kGXet3_PxStFBrPAyfoVLNWZwk6anXUC_rIiDVQaE7JUduTCnn35iw3qjjzq6gTfA2PXpTr3vrHVjPf9cAYBAgMAAAAAAAAAAAAAAaFTY6rzDmxvY2FsaG9zdDo0MjAxG1pvcm9zIEZpbmFuY2lhbCAoTG9jYWwgRGV2KQgxNjk5MDUxNQAfMTI4IENpdHkgUm9hZCwgTG9uZG9uLCBFQzFWIDJOWA
     depends_on:
       - worker
     volumes:
-      # Mount the branded config and css into the container's assets folder as read-only (:ro)
-      - ./apps/client/public/brand/branded-config.json:/usr/share/nginx/html/brand/branded-config.json:ro
-      - ./apps/client/public/brand/branded-theme.css:/usr/share/nginx/html/brand/branded-theme.css:ro
+      - ./apps/client/public/brand/branded-config.json:/usr/share/nginx/html/brand/config.json:ro
+      - ./apps/client/public/brand/branded-theme.css:/usr/share/nginx/html/brand/theme.css:ro
       - ./apps/client/public/brand/branded-logo.svg:/usr/share/nginx/html/brand/branded-logo.svg:ro

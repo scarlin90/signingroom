@@ -263,6 +263,7 @@ describe('CreateComponent', () => {
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-123'], {
         fragment: 'key-abc:role-token-abc',
+        queryParamsHandling: 'preserve',
       });
       expect(component.isLoading()).toBe(false);
     });
@@ -271,7 +272,10 @@ describe('CreateComponent', () => {
       component.manualRoomId = 'room-999';
       component.manualKey = 'hash#secret-key';
       component.joinRoom();
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-999'], { fragment: 'secret-key' });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-999'], { 
+        fragment: 'secret-key',
+        queryParamsHandling: 'preserve',
+      });
     });
 
     it('should catch errors during launchRoom and stop loading', async () => {
@@ -286,7 +290,10 @@ describe('CreateComponent', () => {
       component.manualRoomId = 'room-123';
       component.manualKey = 'clean-secret';
       component.joinRoom();
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-123'], { fragment: 'clean-secret' });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/room', 'room-123'], { 
+        fragment: 'clean-secret',
+        queryParamsHandling: 'preserve',
+      });
     });
 
     it('should return early from joinRoom if manualRoomId or manualKey are missing', () => {
