@@ -47,8 +47,8 @@ describe('EditionService', () => {
       setWhitelabelAllowed: vi.fn(),
     };
 
-    // Clean localStorage between tests
-    localStorage.removeItem(DISMISS_STORAGE_KEY);
+
+    window.localStorage.removeItem(DISMISS_STORAGE_KEY);
 
     TestBed.configureTestingModule({
       providers: [
@@ -62,7 +62,7 @@ describe('EditionService', () => {
   });
 
   afterEach(() => {
-    localStorage.removeItem(DISMISS_STORAGE_KEY);
+    window.localStorage.removeItem(DISMISS_STORAGE_KEY);
     vi.restoreAllMocks();
   });
 

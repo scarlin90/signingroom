@@ -107,10 +107,12 @@ export class EditionService {
   }
 
   private checkIfDismissed(): boolean {
-    if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem(DISMISS_STORAGE_KEY);
+    if (typeof window === 'undefined' || !window.localStorage) return false;
+    
+    const stored = window.localStorage.getItem(DISMISS_STORAGE_KEY);
     if (!stored) return false;
+    
     const until = parseInt(stored, 10);
-    return !isNaN(until) && Date.now() < until;
-  }
+    return Date.now() < until;
+    }
 }
