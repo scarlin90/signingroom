@@ -83,6 +83,47 @@ describe('Worker Router & Rate Limiter', () => {
         expect(response.status).toBe(413);
     });
 
+    it('should reject payloads exceeding MAX_PAYLOAD_SIZE_BYTES before attempting to parse JSON (OOM Protection)', async () => {
+        // Create a massive string that is NOT valid JSON
+        const massiveInvalidJson = 'a'.repeat(2 * 1024 * 1024 + 10); 
+        
+        const request = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                Origin: 'https://signingroom.io',
+            },
+            body: massiveInvalidJson,
+        });
+        
+        const ctx = createExecutionContext();
+        const response = await app.fetch(request, env as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        // Returning 413 proves the raw string length check successfully intercepted it.
+        expect(response.status).toBe(413);
+        const data = (await response.json()) as any;
+        expect(data.error).toContain('Payload too large');
+    });
+
+    it('should cleanly handle malformed JSON payloads under the size limit', async () => {
+        const request = new Request('http://localhost/api/room', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                Origin: 'https://signingroom.io',
+            },
+            body: '{"roomId": "test", "brokenJson: true', // Missing closing quote and brace
+        });
+        
+        const ctx = createExecutionContext();
+        const response = await app.fetch(request, env as any, ctx);
+        await waitOnExecutionContext(ctx);
+
+        // Hono natively catches standard JSON.parse errors and returns 400 Bad Request
+        expect(response.status).toBe(400); 
+    });
+
     it('should return 429 when rate limit is exceeded', async () => {
         const request = new Request('http://localhost/api/health', {
             headers: { 'CF-Connecting-IP': '1.2.3.4' },

@@ -181,7 +181,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
     return c.json({
         status: 'healthy',
-        version: '4.0.0',
+        version: '4.0.1',
         timestamp: Date.now(),
     });
 });
@@ -201,12 +201,14 @@ app.post('/api/room', async (c) => {
         return c.json({ error: 'Unauthorized: First-party origin required.' }, 401);
     }
 
-    const body = await c.req.json();
-    const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens, licenseToken } = body;
+    const rawBody = await c.req.text();
 
-    if (encryptedPsbt && encryptedPsbt.length > getConfig(c.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
+    if (rawBody.length > getConfig(c.env, 'MAX_PAYLOAD_SIZE_BYTES')) {
         return c.json({ error: 'Payload too large. Max allowed size exceeded.' }, 413);
     }
+
+    const body = JSON.parse(rawBody);
+    const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens, licenseToken } = body;
 
     const attestedLicense = await verifyServerLicense(licenseToken, origin || referer);
 
