@@ -213,7 +213,7 @@ jobs:
           curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
             -A "GitHubActions-CI-HealthCheck" \
             -H "X-CI-Bypass: ${{ secrets.CI_BYPASS_TOKEN }}" \
-            ${{ inputs.base_url }} > /dev/null
+            "${{ inputs.base_url }}" > /dev/null
 
           if [ "${{ inputs.target_env }}" = "development" ]; then
             WORKER_HEALTH_URL="https://api-dev.signingroom.io/api/health"
