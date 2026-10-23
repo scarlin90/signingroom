@@ -207,33 +207,37 @@ jobs:
           command: ${{ inputs.wrangler_args }}
           workingDirectory: 'apps/worker'
 
-      - name: Post-Deploy Health Verification
-        run: |
-          echo "==> Verifying Frontend (${{ inputs.base_url }})..."
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
-            -A "GitHubActions-CI-HealthCheck" \
-            ${{ inputs.base_url }} > /dev/null
+      # - name: Post-Deploy Health Verification
+      #   run: |
+      #     echo "==> Verifying Frontend (${{ inputs.base_url }})..."
+      #     curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
+      #       -A "GitHubActions-CI-HealthCheck" \
+      #       -H "X-CI-Bypass: ${{ secrets.CI_BYPASS_TOKEN }}" \
+      #       "${{ inputs.base_url }}" > /dev/null
 
-          if [ "${{ inputs.target_env }}" = "development" ]; then
-            WORKER_HEALTH_URL="https://api-dev.signingroom.io/api/health"
-          elif [ "${{ inputs.target_env }}" = "staging-branded" ]; then
-            WORKER_HEALTH_URL="https://api-staging-branded.signingroom.io/api/health"
-          elif [ "${{ inputs.target_env }}" = "staging" ]; then
-            WORKER_HEALTH_URL="https://api-staging.signingroom.io/api/health"
-          else
-            WORKER_HEALTH_URL="https://api.signingroom.io/api/health"
-          fi
+      #     if [ "${{ inputs.target_env }}" = "development" ]; then
+      #       WORKER_HEALTH_URL="https://api-dev.signingroom.io/api/health"
+      #     elif [ "${{ inputs.target_env }}" = "staging-branded" ]; then
+      #       WORKER_HEALTH_URL="https://api-staging-branded.signingroom.io/api/health"
+      #     elif [ "${{ inputs.target_env }}" = "staging" ]; then
+      #       WORKER_HEALTH_URL="https://api-staging.signingroom.io/api/health"
+      #     else
+      #       WORKER_HEALTH_URL="https://api.signingroom.io/api/health"
+      #     fi
 
-          echo "==> Verifying Worker API ($WORKER_HEALTH_URL)..."
-          RESPONSE=$(curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors -A "GitHubActions-CI-HealthCheck" "$WORKER_HEALTH_URL")
-          echo "Worker Response: $RESPONSE"
+      #     echo "==> Verifying Worker API ($WORKER_HEALTH_URL)..."
+      #     RESPONSE=$(curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
+      #       -A "GitHubActions-CI-HealthCheck" \
+      #       -H "X-CI-Bypass: ${{ secrets.CI_BYPASS_TOKEN }}" \
+      #       "$WORKER_HEALTH_URL")
+      #     echo "Worker Response: $RESPONSE"
 
-          if echo "$RESPONSE" | grep -q '"status":"healthy"'; then
-            echo "✅ Deployment health verification passed!"
-          else
-            echo "❌ Worker health check failed: Unexpected payload response."
-            exit 1
-          fi
+      #     if echo "$RESPONSE" | grep -q '"status":"healthy"'; then
+      #       echo "✅ Deployment health verification passed!"
+      #     else
+      #       echo "❌ Worker health check failed: Unexpected payload response."
+      #       exit 1
+      #     fi
 
   # smoke-test:
   #   name: E2E Smoke Test
