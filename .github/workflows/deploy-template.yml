@@ -212,6 +212,7 @@ jobs:
           echo "==> Verifying Frontend (${{ inputs.base_url }})..."
           curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
             -A "GitHubActions-CI-HealthCheck" \
+            -H "X-CI-Bypass: ${{ secrets.CI_BYPASS_TOKEN }}" \
             ${{ inputs.base_url }} > /dev/null
 
           if [ "${{ inputs.target_env }}" = "development" ]; then
@@ -225,7 +226,10 @@ jobs:
           fi
 
           echo "==> Verifying Worker API ($WORKER_HEALTH_URL)..."
-          RESPONSE=$(curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors -A "GitHubActions-CI-HealthCheck" "$WORKER_HEALTH_URL")
+          RESPONSE=$(curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
+            -A "GitHubActions-CI-HealthCheck" \
+            -H "X-CI-Bypass: ${{ secrets.CI_BYPASS_TOKEN }}" \
+            "$WORKER_HEALTH_URL")
           echo "Worker Response: $RESPONSE"
 
           if echo "$RESPONSE" | grep -q '"status":"healthy"'; then
