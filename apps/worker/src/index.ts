@@ -207,7 +207,13 @@ app.post('/api/room', async (c) => {
         return c.json({ error: 'Payload too large. Max allowed size exceeded.' }, 413);
     }
 
-    const body = JSON.parse(rawBody);
+    let body;
+    try {
+        body = JSON.parse(rawBody);
+    } catch (e) {
+        return c.json({ error: 'Invalid JSON payload.' }, 400);
+    }
+
     const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens, licenseToken } = body;
 
     const attestedLicense = await verifyServerLicense(licenseToken, origin || referer);
