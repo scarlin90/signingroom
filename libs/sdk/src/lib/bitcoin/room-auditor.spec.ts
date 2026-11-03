@@ -439,10 +439,10 @@ describe('RoomAuditor', () => {
     it('should format unlabeled signers with their raw fingerprint', async () => {
       const mockDoc = createMockDoc();
       const unlabeledState = { ...mockState, signerLabels: {} };
-      const rawSigner = [{ fingerprint: '99887766', signed: false }];
+      const rawSigner = [{ fingerprint: '99887766', signed: false, derivationPaths: [] }];
 
       await RoomAuditor.generateAuditPdf(mockDoc, unlabeledState, mockTx, rawSigner, null);
-      expect(mockDoc.text).toHaveBeenCalledWith('1. 99887766', 20, expect.any(Number));
+      expect(mockDoc.text).toHaveBeenCalledWith('1. Fingerprint: 99887766', 20, expect.any(Number));
     });
 
     it('should correctly format full explorer links across networks', async () => {
@@ -498,6 +498,99 @@ describe('RoomAuditor', () => {
       expect(mockDoc.text).toHaveBeenCalledWith('Acme Corp Vault', expect.any(Number), 20);
       expect(filename).toContain('AcmeCorpVault_Audit_');
     });
+
+    it('should correctly format structured derivation path objects with fingerprints in inputs and outputs', async () => {
+      const mockDoc = createMockDoc();
+      const derivedTx = {
+        ...mockTx,
+        inputsList: [{
+          address: 'tb1qinput',
+          amount: 50001000,
+          txId: 'old-tx',
+          vout: 0,
+          scriptType: 'P2TR',
+          sequence: 0,
+          isRbfEnabled: false,
+          derivationPaths: [{ path: "m/86'/1'/0'/0/0", fingerprints: ['aabbccdd'] }]
+        }],
+        outputs: [{
+          address: 'tb1qmockaddress',
+          amount: 40000000,
+          isChange: false,
+          scriptType: 'P2TR',
+          derivationPaths: [{ path: "m/86'/1'/0'/1/0", fingerprints: ['aabbccdd', 'eeff0011'] }]
+        }]
+      };
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, derivedTx, mockSigners, null);
+      
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        "Derivation Path: m/86'/1'/0'/0/0 [Fingerprints: aabbccdd]", 
+        20, 
+        expect.any(Number)
+      );
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        "Derivation Path: m/86'/1'/0'/1/0 [Fingerprints: aabbccdd, eeff0011]", 
+        20, 
+        expect.any(Number)
+      );
+    });
+
+    it('should handle signer activity when derivation paths are missing or empty', async () => {
+      const mockDoc = createMockDoc();
+      const signersWithoutPaths: SignerStatus[] = [
+        { fingerprint: '11223344', signed: true, derivationPaths: [] },
+      ];
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, signersWithoutPaths, null);
+      expect(mockDoc.text).toHaveBeenCalledWith('Derivation path data unavailable', 25, expect.any(Number));
+    });
+
+    it('should format labeled signers with their custom label and fingerprint', async () => {
+      const mockDoc = createMockDoc();
+      const labeledState = { 
+        ...mockState, 
+        signerLabels: { 'eeff0011': 'Alice Hardware' } 
+      };
+      const signers: SignerStatus[] = [
+        { fingerprint: 'eeff0011', signed: true, derivationPaths: [] }
+      ];
+
+      await RoomAuditor.generateAuditPdf(mockDoc, labeledState, mockTx, signers, null);
+      expect(mockDoc.text).toHaveBeenCalledWith('1. Alice Hardware (Fingerprint: eeff0011)', 20, expect.any(Number));
+    });
+
+    it('should format input and output derivation paths without fingerprints safely when fingerprints array is empty', async () => {
+      const mockDoc = createMockDoc();
+      const derivedTx = {
+        ...mockTx,
+        inputsList: [{
+          address: 'tb1qinput',
+          amount: 50001000,
+          txId: 'old-tx',
+          vout: 0,
+          scriptType: 'P2TR',
+          sequence: 0,
+          isRbfEnabled: false,
+          derivationPaths: [{ path: "m/86'/1'/0'/0/0", fingerprints: [] }]
+        }],
+        outputs: [{
+          address: 'tb1qmockaddress',
+          amount: 40000000,
+          isChange: false,
+          scriptType: 'P2TR',
+          derivationPaths: [{ path: "m/86'/1'/0'/1/0", fingerprints: [] }]
+        }]
+      };
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, derivedTx, mockSigners, null);
+      
+      expect(mockDoc.text).toHaveBeenCalledWith(
+        "Derivation Path: m/86'/1'/0'/0/0 ", 
+        20, 
+        expect.any(Number)
+      );
+    });
   });
 
   describe('Cryptographic Integrity Anchoring', () => {
@@ -525,6 +618,48 @@ describe('RoomAuditor', () => {
     it('should fail verification if the expected anchor mismatches the calculated one', async () => {
       const result = await RoomAuditor.verifyRoomIntegrity(mockState, 'bad-anchor-123');
       expect(result.isValid).toBe(false);
+    });
+  });
+
+  describe('Offline Integrity & Token Extraction Edge Cases', () => {
+    it('should successfully verify offline integrity with a valid CSV string', async () => {
+      const mockTimestamp = mockState.auditLog![0].timestamp;
+      const isoTime = new Date(mockTimestamp).toISOString();
+      
+      const mockCsv = `# --- SIGNING ROOM FORENSIC AUDIT RECORD ---\nTimestamp,Event,User,Detail\n${isoTime},"Room Created","System","Init"`;
+      const finalHex = '01000000mockhex';
+      
+      const expectedAnchor = await RoomAuditor.calculateForensicAnchor(
+        [mockState.auditLog![0]],
+        finalHex
+      );
+
+      const result = await RoomAuditor.verifyOfflineIntegrity(mockCsv, finalHex, expectedAnchor);
+      expect(result.isValid).toBe(true);
+      expect(result.anchor).toBe(expectedAnchor);
+    });
+
+    it('should return invalid status during offline verification if the anchor mismatches', async () => {
+      const mockCsv = `# --- SIGNING ROOM FORENSIC AUDIT RECORD ---\nTimestamp,Event,User,Detail\n2023-01-01T00:00:00.000Z,Room Created,System,Init`;
+      const result = await RoomAuditor.verifyOfflineIntegrity(mockCsv, 'wronghex', 'badanchor');
+      expect(result.isValid).toBe(false);
+    });
+
+    it('should throw an error when attempting to get an integrity report or verify integrity on unfinalized rooms', async () => {
+      const unfinalizedState = { ...mockState, finalTxHex: undefined, auditLog: undefined };
+
+      await expect(RoomAuditor.verifyRoomIntegrity(unfinalizedState as any, 'anchor')).rejects.toThrow(
+        'Room not finalized or audit log missing'
+      );
+
+      await expect(RoomAuditor.getIntegrityReport(unfinalizedState as any)).rejects.toThrow(
+        'Room not finalized'
+      );
+    });
+
+    it('should return null when extracting a license token from an empty or null CSV string', () => {
+      expect(RoomAuditor.extractLicenseTokenFromCsv('')).toBeNull();
+      expect(RoomAuditor.extractLicenseTokenFromCsv(null as any)).toBeNull();
     });
   });
 });

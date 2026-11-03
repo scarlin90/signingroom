@@ -477,15 +477,42 @@ export class RoomAuditor {
       y += 6;
     } else {
       signers.forEach((s, i) => {
-        checkPageBreak(10);
+        checkPageBreak(15);
         const status = s.signed ? 'SIGNED' : 'PENDING';
         const label = state.signerLabels?.[s.fingerprint];
-        const displayName = label ? `${label} (${s.fingerprint})` : s.fingerprint;
+        
+        const displayName = label 
+          ? `${label} (Fingerprint: ${s.fingerprint})` 
+          : `Fingerprint: ${s.fingerprint}`;
 
-        doc.setTextColor(50);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0);
         doc.text(`${i + 1}. ${displayName}`, 20, y);
-        doc.text(status, 150, y);
-        y += 6;
+        
+        doc.setTextColor(s.signed ? 16 : 220, s.signed ? 185 : 38, s.signed ? 129 : 38);
+        doc.text(status, 170, y, { align: 'right' });
+        y += 5;
+
+        if (s.derivationPaths && s.derivationPaths.length > 0) {
+          s.derivationPaths.forEach((pathSummary) => {
+            checkPageBreak(10);
+            doc.setFont('courier', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            
+            const pathString = `Derivation Path: ${pathSummary.derivationPath} (${pathSummary.spendType})`;
+            doc.text(pathString, 25, y);
+            y += 4;
+          });
+        } else {
+          doc.setFontSize(8);
+          doc.setTextColor(150);
+          doc.text('Derivation path data unavailable', 25, y);
+          y += 4;
+        }
+        
+        doc.setFontSize(10);
+        y += 4;
       });
     }
     y += 10;
@@ -606,10 +633,10 @@ export class RoomAuditor {
       doc.setFontSize(9);
       doc.setTextColor(150);
       doc.text('No input data parsed.', 20, y);
-      y += 6;
+      y += 16;
     } else {
       inputs.forEach((inpt, i) => {
-        checkPageBreak(30);
+        checkPageBreak(35);
         const isWhitelisted = whitelist.includes(inpt.address);
         const amount = (inpt.amount / 100000000).toFixed(8);
         const label = state.addressLabels?.[inpt.address];
@@ -637,6 +664,17 @@ export class RoomAuditor {
         doc.text(`vOut: ${inpt.txId}:${inpt.vout}`, 20, y);
         y += 4;
 
+        if (inpt.derivationPaths && inpt.derivationPaths.length > 0) {
+          inpt.derivationPaths.forEach((pathObj: any) => {
+            const formattedFingerprints = pathObj.fingerprints?.length 
+              ? `[Fingerprints: ${pathObj.fingerprints.join(', ')}]` 
+              : '';
+            const pathString = `Derivation Path: ${pathObj.path} ${formattedFingerprints}`;
+            doc.text(pathString, 20, y);
+            y += 4;
+          });
+        }
+
         doc.setTextColor(50);
         doc.text(inpt.address, 20, y);
         y += 6;
@@ -659,8 +697,17 @@ export class RoomAuditor {
 
         y += 12;
       });
+
+      doc.setDrawColor(200);
+      doc.line(20, y, 190, y);
+      y += 8;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Total Inputs: ${inputs.length}`, 20, y);
+      y += 15;
     }
-    y += 10;
 
     // =========================================================
     // SECTION 7: OUTPUT VERIFICATION
@@ -686,7 +733,7 @@ export class RoomAuditor {
       y += 6;
     } else {
       outputs.forEach((out, i) => {
-        checkPageBreak(30);
+        checkPageBreak(35);
         const isWhitelisted = whitelist.includes(out.address);
         const amount = (out.amount / 100000000).toFixed(8);
         const label = state.addressLabels?.[out.address];
@@ -706,6 +753,20 @@ export class RoomAuditor {
         const headerTitle = label ? `${i + 1}. ${label} (${readableType})` : `${i + 1}. ${readableType}`;
         doc.text(headerTitle, 20, y);
         y += 5;
+
+        if (out.derivationPaths && out.derivationPaths.length > 0) {
+          doc.setFontSize(8);
+          doc.setTextColor(100);
+          doc.setFont('courier', 'normal');
+          out.derivationPaths.forEach((pathObj: any) => {
+            const formattedFingerprints = pathObj.fingerprints?.length 
+              ? `[Fingerprints: ${pathObj.fingerprints.join(', ')}]` 
+              : '';
+            const pathString = `Derivation Path: ${pathObj.path} ${formattedFingerprints}`;
+            doc.text(pathString, 20, y);
+            y += 4;
+          });
+        }
 
         doc.setFontSize(8);
         doc.setTextColor(50);

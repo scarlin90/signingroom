@@ -2,6 +2,12 @@ import { Transaction, getInputType, NETWORK, TEST_NETWORK, Address } from '@scur
 import { base64, hex } from '@scure/base';
 import { bech32, bech32m } from '@scure/base';
 
+
+export interface TxDerivationInfo {
+    path: string;
+    fingerprints: string[];
+}
+
 /**
  * Granular breakdown of a transaction's structural payload.
  * Provides a human-readable summary of inputs, outputs, and network fees.
@@ -26,11 +32,26 @@ export interface TxDetails {
   /** human-readable string of the strictest relative lock(s) */
   relativeTimelockValue: string | null;
   /** Detailed mapping of every consumed input, including origin txId and satoshi value. */
-  inputsList: { address: string; amount: number; txId: string; vout: number; sequence: number, isRbfEnabled:boolean, scriptType: string; }[];
+  inputsList: { address: string; amount: number; txId: string; vout: number; sequence: number, isRbfEnabled:boolean, scriptType: string; derivationPaths: TxDerivationInfo[]; }[];
   /** Detailed mapping of every created output, indicating destination addresses and change routing. */
-  outputs: { address: string; amount: number; isChange: boolean, scriptType: string; }[];
+  outputs: { address: string; amount: number; isChange: boolean, scriptType: string; derivationPaths: TxDerivationInfo[]; }[];
   /** If any input has Replace-By-Fee (BIP-125) enabled for transaction*/
   isRbfEnabled: boolean;
+}
+
+/**
+ * Cryptographic key origin and derivation metadata for a specific public key.
+ * Corresponds to BIP-32 derivation maps embedded in PSBT inputs and outputs.
+ */
+export interface DerivationPathSummary {
+  /** Master key fingerprint (8 hex characters) of the root physical hardware device. */
+  masterFingerprint: string;
+  /** Full hex-encoded public key associated with this derivation step. */
+  pubkey: string;
+  /** Canonical BIP-32 derivation path string (e.g., "m/48'/1'/0'/2/0"). */
+  derivationPath: string;
+  /** High-level script spend type categorizing how this key path participates in unlocking funds. */
+  spendType: 'Legacy' | 'SegWit' | 'Taproot Key Path' | 'Tapscript Leaf';
 }
 
 /**
@@ -41,6 +62,8 @@ export interface SignerStatus {
   fingerprint: string;
   /** Indicates whether a valid partial signature exists from this participant. */
   signed: boolean;
+  /** Unique derivation paths and spend types authorized or required by this participant. */
+  derivationPaths: DerivationPathSummary[];
 }
 
 /**
@@ -264,60 +287,78 @@ export class PsbtUtils {
    * @param psbtBase64 - The normalized Base64 PSBT payload.
    * @returns An array mapping participant fingerprints to their active signed status.
    */
-  static extractSigners(psbtBase64: string): SignerStatus[] {
+static extractSigners(psbtBase64: string): SignerStatus[] {
     try {
       const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
-      const signersMap = new Map<string, boolean>();
+      const signersMap = new Map<string, { signed: boolean; paths: Map<string, DerivationPathSummary> }>();
 
       for (let i = 0; i < tx.inputsLength; i++) {
         const input = tx.getInput(i);
 
-        // Helper to evaluate signatures for a given pubkey and fingerprint
-        const processDerivation = (pubkey: Uint8Array, fp: any) => {
+        const processDerivation = (pubkey: Uint8Array, fp: any, pathArray: number[], spendType: DerivationPathSummary['spendType']) => {
           if (fp == null) return;
           const fpHex = fp.toString(16).padStart(8, '0');
+          const pubkeyHex = hex.encode(pubkey);
           let isSigned = false;
 
-          // Check Legacy ECDSA
+          // Legacy / Segwit
           if (input.partialSig) {
             isSigned = input.partialSig.some((p) => this.areKeysEqual(p[0], pubkey));
           }
-          
-          // Check Tapscript Schnorr (Leaf Spend)
+          // Tapscript Schnorr
           if (!isSigned && input.tapScriptSig) {
             isSigned = input.tapScriptSig.some((p: any) => {
               const pKey = p.pubkey || (p[0] && p[0].pubKey);
               return pKey ? this.areKeysEqual(pKey, pubkey) : false;
             });
           }
-          
-          // Check Taproot Keypath (ONLY mark true if the derivation matches the internal key)
+          // Taproot Keypath
           if (!isSigned && input.tapKeySig && input.tapInternalKey) {
-            if (this.areKeysEqual(input.tapInternalKey, pubkey)) {
-              isSigned = true;
-            }
+            if (this.areKeysEqual(input.tapInternalKey, pubkey)) isSigned = true;
           }
 
-          const current = signersMap.get(fpHex) || false;
-          signersMap.set(fpHex, current || isSigned);
+          if (!signersMap.has(fpHex)) {
+            signersMap.set(fpHex, { signed: false, paths: new Map() });
+          }
+          
+          const current = signersMap.get(fpHex)!;
+          current.signed = current.signed || isSigned;
+          
+          const uniqueOriginKey = `${pubkeyHex}-${spendType}`;
+          
+          if (!current.paths.has(uniqueOriginKey)) {
+            current.paths.set(uniqueOriginKey, {
+              masterFingerprint: fpHex,
+              pubkey: pubkeyHex,
+              derivationPath: this.formatDerivationPath(pathArray),
+              spendType
+            });
+          }
         };
 
-        // Process Legacy SegWit Derivations
         if (input.bip32Derivation) {
+          const type = input.witnessScript ? 'SegWit' : 'Legacy';
           for (const [pubkey, meta] of input.bip32Derivation) {
-            processDerivation(pubkey, meta?.fingerprint);
+            processDerivation(pubkey, meta?.fingerprint, meta?.path || [], type);
           }
         }
 
-        // Process Taproot Derivations
         if (input.tapBip32Derivation) {
-          for (const [pubkey, meta] of input.tapBip32Derivation) {
-            const derInfo = (meta as any).der || meta;
-            processDerivation(pubkey, derInfo?.fingerprint ?? derInfo?.masterFingerprint);
+        for (const [pubkey, meta] of input.tapBip32Derivation) {
+          const derInfo = (meta as any).der || meta;
+          const leafHashes = (meta as any).hashes || [];
+          const type = leafHashes.length > 0 ? 'Tapscript Leaf' : 'Taproot Key Path';
+            
+            processDerivation(pubkey, derInfo?.fingerprint ?? derInfo?.masterFingerprint, derInfo?.path || [], type);
           }
         }
       }
-      return Array.from(signersMap.entries()).map(([fp, signed]) => ({ fingerprint: fp, signed }));
+
+      return Array.from(signersMap.entries()).map(([fp, data]) => ({
+        fingerprint: fp,
+        signed: data.signed,
+        derivationPaths: Array.from(data.paths.values())
+      }));
     } catch (e) {
       return [];
     }
@@ -650,7 +691,40 @@ export class PsbtUtils {
         }
 
         estimatedVBytes += this.estimateInputVBytes(input);
-        inputsList.push({ address, amount: Number(amount), txId, vout, sequence, isRbfEnabled: sequence < 0xfffffffe, scriptType });
+
+        const pathMap = new Map<string, string[]>();
+        
+        const addPath = (fp: string, path: string) => {
+            if (!pathMap.has(path)) pathMap.set(path, []);
+            if (!pathMap.get(path)!.includes(fp)) pathMap.get(path)!.push(fp);
+        };
+
+        if (input.bip32Derivation) {
+          for (const [, meta] of input.bip32Derivation) {
+            if (meta.fingerprint != null) {
+              const fp = meta.fingerprint.toString(16).padStart(8, '0');
+              const pathStr = this.formatDerivationPath(meta.path || []);
+              addPath(fp, pathStr);
+            }
+          }
+        }
+        if (input.tapBip32Derivation) {
+          for (const [, meta] of input.tapBip32Derivation) {
+            const derInfo = (meta as any).der || meta;
+            const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
+            if (fp != null) {
+              const fpHex = fp.toString(16).padStart(8, '0');
+              const pathStr = this.formatDerivationPath(derInfo?.path || []);
+              addPath(fpHex, pathStr);
+            }
+          }
+        }
+        
+        const uniqueInputPaths = Array.from(pathMap.entries()).map(([pathStr, fps]) => {
+            return { path: pathStr, fingerprints: fps };
+        });
+
+        inputsList.push({ address, amount: Number(amount), txId, vout, sequence, isRbfEnabled: sequence < 0xfffffffe, scriptType, derivationPaths: uniqueInputPaths });
       }
 
       for (let i = 0; i < tx.outputsLength; i++) {
@@ -675,23 +749,47 @@ export class PsbtUtils {
           scriptType = 'P2PKH';
         }
 
-        // Check Legacy & SegWit Outputs
+        const outPathMap = new Map<string, string[]>();
+        
+        const addOutPath = (fp: string, path: string) => {
+            if (!outPathMap.has(path)) outPathMap.set(path, []);
+            if (!outPathMap.get(path)!.includes(fp)) outPathMap.get(path)!.push(fp);
+        };
+
         if (output.bip32Derivation) {
+            for (const [, meta] of output.bip32Derivation) {
+                if (meta.fingerprint != null) {
+                    const fp = meta.fingerprint.toString(16).padStart(8, '0');
+                    const pathStr = this.formatDerivationPath(meta.path || []);
+                    addOutPath(fp, pathStr);
+                }
+            }
             isChange = output.bip32Derivation.some(([_, meta]) => {
                 const path = meta.path || [];
                 return path.length >= 2 && (path[path.length - 2] === (2147483648 + 1) || path[path.length - 2] === 1);
             });
         }
-
-        // Check Taproot Outputs
         if (output.tapBip32Derivation) {
+            for (const [, meta] of output.tapBip32Derivation) {
+                const derInfo = (meta as any).der || meta;
+                const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
+                if (fp != null) {
+                    const fpHex = fp.toString(16).padStart(8, '0');
+                    const pathStr = this.formatDerivationPath(derInfo?.path || []);
+                    addOutPath(fpHex, pathStr);
+                }
+            }
             isChange = output.tapBip32Derivation.some(([_, meta]) => {
                 const path = meta.der?.path || [];
                 return path.length >= 2 && (path[path.length - 2] === (2147483648 + 1) || path[path.length - 2] === 1);
             });
         }
+        
+        const uniqueOutputPaths = Array.from(outPathMap.entries()).map(([pathStr, fps]) => {
+            return { path: pathStr, fingerprints: fps };
+        });
 
-        outputs.push({ address, amount: Number(amount), isChange, scriptType });
+        outputs.push({ address, amount: Number(amount), isChange, scriptType, derivationPaths: uniqueOutputPaths });
       }
 
       outputs.sort((a, b) => Number(b.isChange) - Number(a.isChange));
@@ -850,5 +948,15 @@ export class PsbtUtils {
     }
     if (input.nonWitnessUtxo) return 148;
     return 68;
+  }
+
+  private static formatDerivationPath(pathIndices: number[]): string {
+    if (!pathIndices || pathIndices.length === 0) return 'Unknown';
+    const path = pathIndices.map(index => {
+      const isHardened = (index & 0x80000000) !== 0;
+      const value = index & 0x7FFFFFFF;
+      return isHardened ? `${value}'` : `${value}`;
+    });
+    return `m/${path.join('/')}`;
   }
 }
