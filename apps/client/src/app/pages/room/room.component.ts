@@ -1685,6 +1685,18 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Splits an address into the prefix (first 4), body, and checksum (last 6).
+   */
+  splitAddress(address: string): { prefix: string; body: string; checksum: string } {
+    if (!address || address.length < 14) return { prefix: '', body: address, checksum: '' };
+    return {
+      prefix: address.slice(0, 4),
+      body: address.slice(4, -6),
+      checksum: address.slice(-6)
+    };
+  }
+
   openPathModal(title: string, paths: TxDerivationInfo[]) {
     this.inspectingPathsTitle.set(title);
     this.inspectingPathsList.set(paths || []);

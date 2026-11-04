@@ -6,6 +6,7 @@ import { bech32, bech32m } from '@scure/base';
 export interface TxDerivationInfo {
     path: string;
     fingerprints: string[];
+    type?: string;
 }
 
 /**
@@ -692,11 +693,11 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
 
         estimatedVBytes += this.estimateInputVBytes(input);
 
-        const pathMap = new Map<string, string[]>();
+        const pathMap = new Map<string, { fps: string[], type?: string }>();
         
-        const addPath = (fp: string, path: string) => {
-            if (!pathMap.has(path)) pathMap.set(path, []);
-            if (!pathMap.get(path)!.includes(fp)) pathMap.get(path)!.push(fp);
+        const addPath = (fp: string, path: string, type?: string) => {
+            if (!pathMap.has(path)) pathMap.set(path, { fps: [], type });
+            if (!pathMap.get(path)!.fps.includes(fp)) pathMap.get(path)!.fps.push(fp);
         };
 
         if (input.bip32Derivation) {
@@ -704,24 +705,27 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
             if (meta.fingerprint != null) {
               const fp = meta.fingerprint.toString(16).padStart(8, '0');
               const pathStr = this.formatDerivationPath(meta.path || []);
-              addPath(fp, pathStr);
+              addPath(fp, pathStr, input.witnessScript ? 'SegWit' : 'Legacy');
             }
           }
         }
         if (input.tapBip32Derivation) {
           for (const [, meta] of input.tapBip32Derivation) {
             const derInfo = (meta as any).der || meta;
+            const leafHashes = (meta as any).hashes || [];
+            const tapType = leafHashes.length > 0 ? 'Tapscript Leaf' : 'Taproot Key Path';
+            
             const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
             if (fp != null) {
               const fpHex = fp.toString(16).padStart(8, '0');
               const pathStr = this.formatDerivationPath(derInfo?.path || []);
-              addPath(fpHex, pathStr);
+              addPath(fpHex, pathStr, tapType);
             }
           }
         }
         
-        const uniqueInputPaths = Array.from(pathMap.entries()).map(([pathStr, fps]) => {
-            return { path: pathStr, fingerprints: fps };
+        const uniqueInputPaths = Array.from(pathMap.entries()).map(([pathStr, data]) => {
+            return { path: pathStr, fingerprints: data.fps, type: data.type };
         });
 
         inputsList.push({ address, amount: Number(amount), txId, vout, sequence, isRbfEnabled: sequence < 0xfffffffe, scriptType, derivationPaths: uniqueInputPaths });
@@ -749,11 +753,11 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
           scriptType = 'P2PKH';
         }
 
-        const outPathMap = new Map<string, string[]>();
+        const outPathMap = new Map<string, { fps: string[], type?: string }>();
         
-        const addOutPath = (fp: string, path: string) => {
-            if (!outPathMap.has(path)) outPathMap.set(path, []);
-            if (!outPathMap.get(path)!.includes(fp)) outPathMap.get(path)!.push(fp);
+        const addOutPath = (fp: string, path: string, type?: string) => {
+            if (!outPathMap.has(path)) outPathMap.set(path, { fps: [], type });
+            if (!outPathMap.get(path)!.fps.includes(fp)) outPathMap.get(path)!.fps.push(fp);
         };
 
         if (output.bip32Derivation) {
@@ -761,7 +765,7 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
                 if (meta.fingerprint != null) {
                     const fp = meta.fingerprint.toString(16).padStart(8, '0');
                     const pathStr = this.formatDerivationPath(meta.path || []);
-                    addOutPath(fp, pathStr);
+                    addOutPath(fp, pathStr, output.witnessScript ? 'SegWit' : 'Legacy');
                 }
             }
             isChange = output.bip32Derivation.some(([_, meta]) => {
@@ -772,11 +776,14 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
         if (output.tapBip32Derivation) {
             for (const [, meta] of output.tapBip32Derivation) {
                 const derInfo = (meta as any).der || meta;
+                const leafHashes = (meta as any).hashes || [];
+                const tapType = leafHashes.length > 0 ? 'Tapscript Leaf' : 'Taproot Key Path';
+
                 const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
                 if (fp != null) {
                     const fpHex = fp.toString(16).padStart(8, '0');
                     const pathStr = this.formatDerivationPath(derInfo?.path || []);
-                    addOutPath(fpHex, pathStr);
+                    addOutPath(fpHex, pathStr, tapType);
                 }
             }
             isChange = output.tapBip32Derivation.some(([_, meta]) => {
@@ -785,8 +792,8 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
             });
         }
         
-        const uniqueOutputPaths = Array.from(outPathMap.entries()).map(([pathStr, fps]) => {
-            return { path: pathStr, fingerprints: fps };
+        const uniqueOutputPaths = Array.from(outPathMap.entries()).map(([pathStr, data]) => {
+            return { path: pathStr, fingerprints: data.fps, type: data.type };
         });
 
         outputs.push({ address, amount: Number(amount), isChange, scriptType, derivationPaths: uniqueOutputPaths });

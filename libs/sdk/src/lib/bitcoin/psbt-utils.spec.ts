@@ -603,10 +603,10 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     const details = PsbtUtils.parseTxDetails(validPsbtBase64, 'testnet');
 
     expect(details?.inputsList[0].derivationPaths).toEqual([
-      { path: "m/86'/1'/0/0/0", fingerprints: ['aabbccdd'] }
+      { path: "m/86'/1'/0/0/0", fingerprints: ['aabbccdd'], type: 'Legacy' }
     ]);
     expect(details?.outputs[0].derivationPaths).toEqual([
-      { path: "m/86'/1'/0/1/0", fingerprints: ['eeff0011'] }
+      { path: "m/86'/1'/0/1/0", fingerprints: ['eeff0011'], type: 'Legacy' }
     ]);
   });
 });
@@ -1249,6 +1249,81 @@ describe('PsbtUtils - Input VByte Estimation Branches', () => {
 
       const signers = PsbtUtils.extractSigners('cHNidP8A');
       expect(signers[0].derivationPaths[0].spendType).toBe('Tapscript Leaf');
+    });
+  });
+
+  describe('PsbtUtils - Derivation Path Spend Mechanics (Coverage)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should correctly classify input spend mechanics (Legacy vs SegWit, Taproot Key Path vs Tapscript Leaf)', () => {
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 2,
+        outputsLength: 0,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn()
+          .mockReturnValueOnce({
+            // Input 0: Legacy (has bip32Derivation but NO witnessScript)
+            witnessUtxo: { amount: BigInt(50000) },
+            bip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x11111111, path: [0] }]]
+          })
+          .mockReturnValueOnce({
+            // Input 1: Tapscript Leaf (has tapBip32Derivation WITH hashes array)
+            witnessUtxo: { amount: BigInt(50000) },
+            tapBip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x22222222, path: [0], hashes: [new Uint8Array(32)] }]]
+          }),
+        getOutput: vi.fn(),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A');
+      
+      expect(details?.inputsList[0].derivationPaths[0].type).toBe('Legacy');
+      expect(details?.inputsList[1].derivationPaths[0].type).toBe('Tapscript Leaf');
+    });
+
+    it('should correctly classify output spend mechanics across all four cryptographic formats', () => {
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 0,
+        outputsLength: 4,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn(),
+        getOutput: vi.fn()
+          .mockReturnValueOnce({
+            // Output 0: SegWit (has bip32Derivation AND witnessScript)
+            amount: BigInt(10000),
+            witnessScript: new Uint8Array([1]),
+            bip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x11111111, path: [0] }]]
+          })
+          .mockReturnValueOnce({
+            // Output 1: Legacy (has bip32Derivation but NO witnessScript)
+            amount: BigInt(10000),
+            bip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x22222222, path: [0] }]]
+          })
+          .mockReturnValueOnce({
+            // Output 2: Taproot Key Path (has tapBip32Derivation but NO hashes)
+            amount: BigInt(10000),
+            tapBip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x33333333, path: [0] }]]
+          })
+          .mockReturnValueOnce({
+            // Output 3: Tapscript Leaf (has tapBip32Derivation WITH hashes array)
+            amount: BigInt(10000),
+            tapBip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x44444444, path: [0], hashes: [new Uint8Array(32)] }]]
+          })
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A');
+      
+      expect(details?.outputs[0].derivationPaths[0].type).toBe('SegWit');
+      expect(details?.outputs[1].derivationPaths[0].type).toBe('Legacy');
+      expect(details?.outputs[2].derivationPaths[0].type).toBe('Taproot Key Path');
+      expect(details?.outputs[3].derivationPaths[0].type).toBe('Tapscript Leaf');
     });
   });
 });

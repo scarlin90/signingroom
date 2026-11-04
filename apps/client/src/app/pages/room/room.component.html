@@ -1908,8 +1908,8 @@
                                                 </span>
                                             }
 
-                                            <button (click)="openPathModal('Input #' + $index + (getAddressLabel(input.address) ? ' (' + getAddressLabel(input.address) + ')' : ''), input.derivationPaths)"
-                                                    class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border transition-colors script-type-badge script-type-{{ input.scriptType.toLowerCase() }} cursor-pointer hover:opacity-80 inline-flex items-center"
+                                            <div class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border script-type-badge script-type-{{ input.scriptType.toLowerCase() }} inline-flex items-center cursor-help"
+                                                    [title]="getScriptTypeInfo(input.scriptType).tooltip"
                                                     [class.bg-emerald-500_10]="input.scriptType === 'P2TR'"
                                                     [class.text-emerald-400]="input.scriptType === 'P2TR'"
                                                     [class.border-emerald-500_30]="input.scriptType === 'P2TR'"
@@ -1923,6 +1923,13 @@
                                                     [class.text-slate-400]="input.scriptType === 'P2PKH' || input.scriptType === 'UNKNOWN'"
                                                     [class.border-slate-500_30]="input.scriptType === 'P2PKH' || input.scriptType === 'UNKNOWN'">
                                                 {{ getScriptTypeInfo(input.scriptType).label }}
+                                            </div>
+
+                                            <!-- Paths Modal Trigger -->
+                                            <button (click)="openPathModal('Input #' + $index + (getAddressLabel(input.address) ? ' (' + getAddressLabel(input.address) + ')' : ''), input.derivationPaths)"
+                                                    class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-colors cursor-pointer inline-flex items-center"
+                                                    title="View BIP-32 Derivation Paths">
+                                                PATHS
                                             </button>
 
                                             <!-- vOut Badge -->
@@ -1941,9 +1948,13 @@
                                         
                                         <!-- Address Box -->
                                         <div class="flex items-center justify-between bg-brand-card border border-brand-card-border rounded-lg pl-3 pr-3 py-2 group">
-                                            <span class="font-mono text-xs text-brand-text-muted break-all mr-2"
-                                                  [class.select-all]="socket.currentConstraints()?.canViewDetails !== false">
-                                                {{ socket.currentConstraints()?.canViewDetails === false ? '••••••••••••••••••••••••••••••••••••••••' : input.address }}
+                                            <span class="font-mono text-[10px] sm:text-[11px] break-all mr-2 flex-1 leading-none"
+                                              [class.select-all]="socket.currentConstraints()?.canViewDetails !== false">
+                                                @if (socket.currentConstraints()?.canViewDetails === false) {
+                                                    <span class="text-brand-text-muted">••••••••••••••••••••••••••••••••••••••••</span>
+                                                } @else {
+                                                    <span class="text-brand-accent font-bold">{{ splitAddress(input.address).prefix }}</span><span class="text-brand-text-muted">{{ splitAddress(input.address).body }}</span><span class="text-brand-accent font-bold">{{ splitAddress(input.address).checksum }}</span>
+                                                }
                                             </span>
                                             
                                             <button (click)="socket.currentConstraints()?.canViewDetails === false ? null : copyAddress(input.address)" 
@@ -2039,9 +2050,9 @@
                                             </span>
                                         }
 
-                                        <!-- Script Type Button (Modal Trigger) -->
-                                        <button (click)="openPathModal((out.isChange ? 'Change Output #' : 'Output #') + $index + (getAddressLabel(out.address) ? ' (' + getAddressLabel(out.address) + ')' : ''), out.derivationPaths)"
-                                                class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border transition-colors script-type-badge script-type-{{ out.scriptType.toLowerCase() }} cursor-pointer hover:opacity-80 inline-flex items-center"
+                                        <!-- Script Type Badge -->
+                                        <div class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border script-type-badge script-type-{{ out.scriptType.toLowerCase() }} inline-flex items-center cursor-help"
+                                                [title]="getScriptTypeInfo(out.scriptType).tooltip"
                                                 [class.bg-emerald-500_10]="out.scriptType === 'P2TR'"
                                                 [class.text-emerald-400]="out.scriptType === 'P2TR'"
                                                 [class.border-emerald-500_30]="out.scriptType === 'P2TR'"
@@ -2055,14 +2066,25 @@
                                                 [class.text-slate-400]="out.scriptType === 'P2PKH' || out.scriptType === 'UNKNOWN'"
                                                 [class.border-slate-500_30]="out.scriptType === 'P2PKH' || out.scriptType === 'UNKNOWN'">
                                             {{ getScriptTypeInfo(out.scriptType).label }}
+                                        </div>
+
+                                        <!-- Paths Modal Trigger -->
+                                        <button (click)="openPathModal((out.isChange ? 'Change Output #' : 'Output #') + $index + (getAddressLabel(out.address) ? ' (' + getAddressLabel(out.address) + ')' : ''), out.derivationPaths)"
+                                                class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-colors cursor-pointer inline-flex items-center"
+                                                title="View BIP-32 Derivation Paths">
+                                            PATHS
                                         </button>
                                     </div>
                                     
                                     <!-- Address Box -->
                                     <div class="flex items-center justify-between bg-brand-card border border-brand-card-border rounded-lg pl-3 pr-3 py-2 group">
-                                        <span class="font-mono text-xs text-brand-text-muted break-all mr-2"
+                                        <span class="font-mono text-[10px] sm:text-[11px] break-all mr-2 flex-1 leading-none"
                                               [class.select-all]="socket.currentConstraints()?.canViewDetails !== false">
-                                            {{ socket.currentConstraints()?.canViewDetails === false ? '••••••••••••••••••••••••••••••••••••••••' : out.address }}
+                                            @if (socket.currentConstraints()?.canViewDetails === false) {
+                                                <span class="text-brand-text-muted">••••••••••••••••••••••••••••••••••••••••</span>
+                                            } @else {
+                                                <span class="text-brand-accent font-bold">{{ splitAddress(out.address).prefix }}</span><span class="text-brand-text-muted">{{ splitAddress(out.address).body }}</span><span class="text-brand-accent font-bold">{{ splitAddress(out.address).checksum }}</span>
+                                            }
                                         </span>
                                         
                                         <button (click)="socket.currentConstraints()?.canViewDetails === false ? null : copyAddress(out.address)" 
@@ -2194,7 +2216,7 @@
                                                 <span class="text-brand-text font-bold truncate">{{ label }}</span>
                                                 <svg lucideEdit2 class="w-3 h-3 text-brand-text-muted group-hover/label:text-brand-accent opacity-0 group-hover/label:opacity-100 transition shrink-0"></svg>
                                             } @else {
-                                                <span class="text-brand-accent/90 italic font-medium truncate">Add Label</span>
+                                                <span class="text-brand-accent/90 italic font-medium pr-1">Add Label</span>
                                                 <svg lucideTag class="w-3 h-3 text-brand-accent/50 group-hover/label:text-brand-accent shrink-0"></svg>
                                             }
                                         </button>
@@ -2222,34 +2244,6 @@
                                 }
                             </div>
                         </div>
-
-                        @if (signer.derivationPaths?.length) {
-                            <div class="mt-4 pt-3 border-t border-brand-card-border/50 flex flex-col gap-1.5">
-                                <span class="text-[9px] uppercase tracking-widest font-bold text-brand-text-muted">Derivation Paths</span>
-                                <div class="flex flex-col gap-1">
-                                    @for (origin of signer.derivationPaths; track $index) {
-                                        <div class="flex items-center gap-2 px-1.5 py-1">
-                                            <span class="px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider font-bold shrink-0"
-                                                [class.bg-emerald-500_10]="origin.spendType === 'Taproot Key Path' || origin.spendType === 'Tapscript Leaf'"
-                                                [class.text-emerald-400]="origin.spendType === 'Taproot Key Path' || origin.spendType === 'Tapscript Leaf'"
-                                                [class.border]="true"
-                                                [class.border-emerald-500_30]="origin.spendType === 'Taproot Key Path' || origin.spendType === 'Tapscript Leaf'"
-                                                [class.bg-purple-500_10]="origin.spendType === 'SegWit'"
-                                                [class.text-purple-400]="origin.spendType === 'SegWit'"
-                                                [class.border-purple-500_30]="origin.spendType === 'SegWit'"
-                                                [class.bg-slate-500_10]="origin.spendType === 'Legacy'"
-                                                [class.text-slate-400]="origin.spendType === 'Legacy'"
-                                                [class.border-slate-500_30]="origin.spendType === 'Legacy'">
-                                                {{ origin.spendType }}
-                                            </span>
-                                            <span class="text-[10px] font-mono text-brand-text-muted truncate" [title]="origin.derivationPath">
-                                                {{ origin.derivationPath }}
-                                            </span>
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-                        }
                     </div>
                 }
 

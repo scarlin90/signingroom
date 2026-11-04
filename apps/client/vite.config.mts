@@ -34,7 +34,7 @@ export default defineConfig(() => ({
       reportsDirectory: '../../coverage/apps/client',
       provider: 'istanbul',
       reporter: ['text', 'json', 'html', 'json-summary'],
-      thresholds: { lines: 85, functions: 80, branches: 75, statements: 85 },
+      thresholds: { lines: 90, functions: 85, branches: 76, statements: 90 },
       exclude: ['**/*.html'],
     },
     pool: 'threads',

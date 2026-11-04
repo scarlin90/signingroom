@@ -101,7 +101,7 @@ describe('RoomAuditor', () => {
       expect(csv).toContain('0.50000000');
       expect(csv).toContain('Yes'); // RBF Enabled
       expect(csv).toContain('aabbccdd(Signed)');
-      expect(csv).toContain('eeff0011(Pending)');
+      expect(csv).toContain('eeff0011(Unsigned)');
       expect(csv).toContain('Alice [Coordinator] (sess-1)');
       expect(csv).toContain('Signed & Ready');
     });
@@ -200,6 +200,21 @@ describe('RoomAuditor', () => {
         expect.any(Number),
         expect.any(Object),
       );
+    });
+
+    it('should dynamically split and highlight address prefixes and checksums in the PDF verification sections', async () => {
+      const mockDoc = createMockDoc();
+      const testTx = {
+        ...mockTx,
+        inputsList: [{ address: 'bc1qtestaddress123456', amount: 50000, txId: 'tx', vout: 0, scriptType: 'P2WPKH', sequence: 0, isRbfEnabled: false }],
+        outputs: []
+      };
+
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, testTx, mockSigners, null);
+    
+      expect(mockDoc.text).toHaveBeenCalledWith('bc1q', 20, expect.any(Number));
+      expect(mockDoc.text).toHaveBeenCalledWith('testaddress', 70, expect.any(Number));
+      expect(mockDoc.text).toHaveBeenCalledWith('123456', 120, expect.any(Number));
     });
 
     it('should correctly format and render an Enterprise license with an expiration countdown', async () => {
@@ -525,25 +540,15 @@ describe('RoomAuditor', () => {
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, derivedTx, mockSigners, null);
       
       expect(mockDoc.text).toHaveBeenCalledWith(
-        "Derivation Path: m/86'/1'/0'/0/0 [Fingerprints: aabbccdd]", 
+        ["Derivation Path: m/86'/1'/0'/0/0 [Fingerprints: aabbccdd]"], 
         20, 
         expect.any(Number)
       );
       expect(mockDoc.text).toHaveBeenCalledWith(
-        "Derivation Path: m/86'/1'/0'/1/0 [Fingerprints: aabbccdd, eeff0011]", 
+        ["Derivation Path: m/86'/1'/0'/1/0 [Fingerprints: aabbccdd, eeff0011]"], 
         20, 
         expect.any(Number)
       );
-    });
-
-    it('should handle signer activity when derivation paths are missing or empty', async () => {
-      const mockDoc = createMockDoc();
-      const signersWithoutPaths: SignerStatus[] = [
-        { fingerprint: '11223344', signed: true, derivationPaths: [] },
-      ];
-
-      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, signersWithoutPaths, null);
-      expect(mockDoc.text).toHaveBeenCalledWith('Derivation path data unavailable', 25, expect.any(Number));
     });
 
     it('should format labeled signers with their custom label and fingerprint', async () => {
@@ -586,7 +591,7 @@ describe('RoomAuditor', () => {
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, derivedTx, mockSigners, null);
       
       expect(mockDoc.text).toHaveBeenCalledWith(
-        "Derivation Path: m/86'/1'/0'/0/0 ", 
+        ["Derivation Path: m/86'/1'/0'/0/0 "], 
         20, 
         expect.any(Number)
       );

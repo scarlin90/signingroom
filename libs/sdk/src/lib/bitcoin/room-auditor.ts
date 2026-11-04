@@ -45,7 +45,7 @@ export class RoomAuditor {
     ];
 
     const signersList = signers
-      .map((s) => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`)
+      .map((s) => `${s.fingerprint}${s.signed ? '(Signed)' : '(Unsigned)'}`)
       .join('; ');
 
     const participantsObj = state.participants || {};
@@ -478,7 +478,7 @@ export class RoomAuditor {
     } else {
       signers.forEach((s, i) => {
         checkPageBreak(15);
-        const status = s.signed ? 'SIGNED' : 'PENDING';
+        const status = s.signed ? 'SIGNED' : 'UNSIGNED';
         const label = state.signerLabels?.[s.fingerprint];
         
         const displayName = label 
@@ -489,30 +489,9 @@ export class RoomAuditor {
         doc.setTextColor(0);
         doc.text(`${i + 1}. ${displayName}`, 20, y);
         
-        doc.setTextColor(s.signed ? 16 : 220, s.signed ? 185 : 38, s.signed ? 129 : 38);
+        doc.setTextColor(s.signed ? 16 : 150, s.signed ? 185 : 150, s.signed ? 129 : 150);
         doc.text(status, 170, y, { align: 'right' });
-        y += 5;
-
-        if (s.derivationPaths && s.derivationPaths.length > 0) {
-          s.derivationPaths.forEach((pathSummary) => {
-            checkPageBreak(10);
-            doc.setFont('courier', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(100);
-            
-            const pathString = `Derivation Path: ${pathSummary.derivationPath} (${pathSummary.spendType})`;
-            doc.text(pathString, 25, y);
-            y += 4;
-          });
-        } else {
-          doc.setFontSize(8);
-          doc.setTextColor(150);
-          doc.text('Derivation path data unavailable', 25, y);
-          y += 4;
-        }
-        
-        doc.setFontSize(10);
-        y += 4;
+        y += 8;
       });
     }
     y += 10;
@@ -669,14 +648,19 @@ export class RoomAuditor {
             const formattedFingerprints = pathObj.fingerprints?.length 
               ? `[Fingerprints: ${pathObj.fingerprints.join(', ')}]` 
               : '';
-            const pathString = `Derivation Path: ${pathObj.path} ${formattedFingerprints}`;
-            doc.text(pathString, 20, y);
-            y += 4;
+            
+            const typeLabel = pathObj.type ? ` (${pathObj.type})` : '';
+            const pathString = `Derivation Path: ${pathObj.path}${typeLabel} ${formattedFingerprints}`;
+            
+            const wrappedPath = doc.splitTextToSize(pathString, 170);
+            doc.text(wrappedPath, 20, y);
+            
+            y += (wrappedPath.length * 4);
           });
         }
 
         doc.setTextColor(50);
-        doc.text(inpt.address, 20, y);
+        this.printHighlightedAddress(doc, inpt.address, 20, y, brandColor);
         y += 6;
 
         doc.setFont('helvetica', 'bold');
@@ -762,16 +746,21 @@ export class RoomAuditor {
             const formattedFingerprints = pathObj.fingerprints?.length 
               ? `[Fingerprints: ${pathObj.fingerprints.join(', ')}]` 
               : '';
-            const pathString = `Derivation Path: ${pathObj.path} ${formattedFingerprints}`;
-            doc.text(pathString, 20, y);
-            y += 4;
+            
+            const typeLabel = pathObj.type ? ` (${pathObj.type})` : '';
+            const pathString = `Derivation Path: ${pathObj.path}${typeLabel} ${formattedFingerprints}`;
+            
+            const wrappedPath = doc.splitTextToSize(pathString, 170);
+            doc.text(wrappedPath, 20, y);
+            
+            y += (wrappedPath.length * 4);
           });
         }
 
         doc.setFontSize(8);
         doc.setTextColor(50);
         doc.setFont('courier', 'normal');
-        doc.text(out.address, 20, y);
+        this.printHighlightedAddress(doc, out.address, 20, y, brandColor);
         y += 6;
 
         doc.setFont('helvetica', 'bold');
@@ -1027,5 +1016,38 @@ export class RoomAuditor {
     // Search the CSV header block for the License-Token key
     const match = auditLogCsv.match(/^#\s*License-Token:\s*(srl_[A-Za-z0-9_-]+)/m);
     return match ? match[1] : null;
+  }
+
+  /**
+   * Prints an address with a highlighted prefix and checksum, matching the UI.
+   */
+  private static printHighlightedAddress(doc: any, address: string, startX: number, y: number, brandColor: [number, number, number]) {
+    if (!address || address.length < 14) {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(150, 150, 150);
+      doc.text(address, startX, y);
+      return;
+    }
+
+    const prefix = address.slice(0, 4);
+    const body = address.slice(4, -6);
+    const checksum = address.slice(-6);
+
+    // 1. Prefix (Colored & Bold)
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...brandColor);
+    doc.text(prefix, startX, y);
+    let currentX = startX + doc.getTextWidth(prefix);
+
+    // 2. Body (Grey & Normal)
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(150, 150, 150);
+    doc.text(body, currentX, y);
+    currentX += doc.getTextWidth(body);
+
+    // 3. Checksum (Colored & Bold)
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...brandColor);
+    doc.text(checksum, currentX, y);
   }
 }
