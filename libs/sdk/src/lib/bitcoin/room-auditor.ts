@@ -1033,19 +1033,18 @@ export class RoomAuditor {
     const body = address.slice(4, -6);
     const checksum = address.slice(-6);
 
-    // 1. Prefix (Colored & Bold)
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...brandColor);
     doc.text(prefix, startX, y);
-    let currentX = startX + doc.getTextWidth(prefix);
+    
+    let currentX = startX + doc.getTextWidth(prefix) + 0.5;
 
-    // 2. Body (Grey & Normal)
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(150, 150, 150);
     doc.text(body, currentX, y);
-    currentX += doc.getTextWidth(body);
+    
+    currentX += doc.getTextWidth(body) + 0.5;
 
-    // 3. Checksum (Colored & Bold)
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...brandColor);
     doc.text(checksum, currentX, y);

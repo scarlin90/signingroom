@@ -213,8 +213,10 @@ describe('RoomAuditor', () => {
       await RoomAuditor.generateAuditPdf(mockDoc, mockState, testTx, mockSigners, null);
     
       expect(mockDoc.text).toHaveBeenCalledWith('bc1q', 20, expect.any(Number));
-      expect(mockDoc.text).toHaveBeenCalledWith('testaddress', 70, expect.any(Number));
-      expect(mockDoc.text).toHaveBeenCalledWith('123456', 120, expect.any(Number));
+      
+      expect(mockDoc.text).toHaveBeenCalledWith('testaddress', 70.5, expect.any(Number));
+      
+      expect(mockDoc.text).toHaveBeenCalledWith('123456', 121, expect.any(Number));
     });
 
     it('should correctly format and render an Enterprise license with an expiration countdown', async () => {
