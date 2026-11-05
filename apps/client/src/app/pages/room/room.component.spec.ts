@@ -2829,19 +2829,23 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
   describe('Sessions Modal & Personal Name', () => {
     it('should open sessions modal, fetch name from localStorage, and emit modal view', () => {
-      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
-      component.roomId.set('room-123');
-      
-      // Mock localStorage
-      const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('Saved Auditor');
-
-      component.openSessionsModal();
-
-      expect(getItemSpy).toHaveBeenCalledWith('display_name_room-123');
-      expect(component.personalDisplayName()).toBe('Saved Auditor');
-      expect(component.showSessionsModal()).toBe(true);
-      expect(emitSpy).toHaveBeenCalledWith('Active Sessions');
+    const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
+    component.roomId.set('room-123');
+    
+    const getItemSpy = vi.fn().mockReturnValue('Saved Auditor');
+    Object.defineProperty(window, 'localStorage', {
+      value: { getItem: getItemSpy },
+      configurable: true,
+      writable: true,
     });
+
+    component.openSessionsModal();
+
+    expect(getItemSpy).toHaveBeenCalledWith('display_name_room-123');
+    expect(component.personalDisplayName()).toBe('Saved Auditor');
+    expect(component.showSessionsModal()).toBe(true);
+    expect(emitSpy).toHaveBeenCalledWith('Active Sessions');
+  });
 
     it('should save personal name, update socket, emit event, and close sessions modal', () => {
       const setDisplayNameSpy = vi.spyOn(component.socket, 'setDisplayName');
