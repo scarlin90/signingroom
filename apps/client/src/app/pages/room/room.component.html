@@ -1765,17 +1765,17 @@
 
             <div class="flex justify-between items-center mb-4 relative z-20">
                 <h2 class="text-lg font-semibold text-brand-text flex items-center gap-2">
-                Transaction Details
+                    Transaction Details
                 </h2>
                 
                 <button id="btn-reveal-details"
                     (click)="socket.currentConstraints()?.canViewDetails === false ? null : togglePrivacyBlur('transaction-details')" 
-                    class="p-2 rounded-lg transition-colors flex items-center gap-2"
+                    class="p-2 rounded-lg hover:bg-brand-card-border/50 transition-colors flex items-center gap-2"
                     [class.cursor-pointer]="socket.currentConstraints()?.canViewDetails !== false"
                     [class.cursor-not-allowed]="socket.currentConstraints()?.canViewDetails === false"
                     [class.text-amber-500]="!blurStates()['transaction-details'] && socket.currentConstraints()?.canViewDetails !== false"
                     [class.text-brand-text-muted]="blurStates()['transaction-details'] || socket.currentConstraints()?.canViewDetails === false"
-                    [title]="socket.currentConstraints()?.canViewDetails === false ? 'Your role restricts viewing details.' : 'Toggle Privacy'">
+                    [title]="socket.currentConstraints()?.canViewDetails === false ? 'Your role restricts viewing details.' : blurStates()['transaction-details'] ? 'Reveal Details' : 'Hide Details'">
                     
                     @if (socket.currentConstraints()?.canViewDetails === false) {
                         <svg lucideLock class="w-5 h-5 text-rose-500/50"></svg>
@@ -2161,12 +2161,12 @@
                 
                 <button id="btn-reveal-signers"
                     (click)="socket.currentConstraints()?.canViewSigners === false ? null : togglePrivacyBlur('signers')" 
-                    class="p-2 rounded-lg transition-colors flex items-center gap-2"
+                    class="p-2 rounded-lg hover:bg-brand-card-border/50 transition-colors flex items-center gap-2"
                     [class.cursor-pointer]="socket.currentConstraints()?.canViewSigners !== false"
                     [class.cursor-not-allowed]="socket.currentConstraints()?.canViewSigners === false"
                     [class.text-amber-500]="!blurStates().signers && socket.currentConstraints()?.canViewSigners !== false"
                     [class.text-brand-text-muted]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
-                    [title]="socket.currentConstraints()?.canViewSigners === false ? 'Your role restricts viewing signers.' : 'Toggle Privacy'">
+                    [title]="socket.currentConstraints()?.canViewSigners === false ? 'Your role restricts viewing signers.' : blurStates().signers ? 'Reveal Signers' : 'Hide Signers'">
                     
                     @if (socket.currentConstraints()?.canViewSigners === false) {
                         <svg lucideLock class="w-5 h-5 text-rose-500/50"></svg>
