@@ -1,5 +1,5 @@
 # Stage 1: Build & Bundle Worker
-FROM node:26-bookworm-slim@sha256:cd565714d4da3e84bfd341e31448f81d47c6362198f152345297c9c1154e6341 AS builder
+FROM node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS builder
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY . .
 RUN npx wrangler deploy --dry-run --outdir /app/dist --config apps/worker/wrangler.jsonc
 
 # Stage 2: Hardened Distroless
-FROM gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57b217585af0786db3845d1f0ec1a0dd182f
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:08476c244888bfb425bae1ae4dd7c17f093e972aab8426883d97f3c6f280f7c1
 
 WORKDIR /worker
 

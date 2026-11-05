@@ -284,7 +284,7 @@ test.describe('OpSec and 3-Way Session Sync', () => {
 
     // Verify Signer Identities are obscured and un-toggable
     await expect(guestPage.locator('#btn-reveal-signers')).toHaveClass(/cursor-not-allowed/);
-    await expect(guestPage.getByText('•••••••• (••••••••)').first()).toBeVisible();
+    await expect(guestPage.locator('.text-\\[10px\\].font-mono.text-brand-text.font-bold').first()).toHaveText('••••••••');
 
     await Promise.all([coordCtx.close(), guestCtx.close()]);
   });

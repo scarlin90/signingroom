@@ -70,7 +70,7 @@ import { UrService } from '../../services/ur/ur.service';
 import { base64, hex } from '@scure/base';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
-import { EncryptionEngine } from '@signing-room/sdk';
+import { EncryptionEngine, TxDerivationInfo } from '@signing-room/sdk';
 import { ConfigService } from '../../services/config/config.service';
 
 @Component({
@@ -166,6 +166,10 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   public inputSearchQuery = signal('');
   public outputSearchQuery = signal('');
+
+  public showPathModal = signal(false);
+  public inspectingPathsTitle = signal('');
+  public inspectingPathsList = signal<TxDerivationInfo[]>([]);
 
   public filteredInputs = computed(() => {
     const inputs = this.socket.txDetails()?.inputsList || [];
@@ -1666,18 +1670,43 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   getScriptTypeInfo(scriptType: string): { label: string; tooltip: string } {
-  switch (scriptType) {
-    case 'P2TR':
-      return { label: 'Taproot', tooltip: 'Pay-to-Taproot (P2TR)' };
-    case 'P2WSH':
-    case 'P2WPKH':
-      return { label: 'SegWit', tooltip: `Native SegWit (${scriptType})` };
-    case 'P2SH':
-      return { label: 'Nested-Segwit', tooltip: 'Pay-to-Script-Hash / Nested SegWit (P2SH)' };
-    case 'P2PKH':
-      return { label: 'Legacy', tooltip: 'Pay-to-Public-Key-Hash (Legacy)' };
-    default:
-      return { label: 'Unknown', tooltip: `Standard Script (${scriptType})` };
+    switch (scriptType) {
+      case 'P2TR':
+        return { label: 'Taproot', tooltip: 'Pay-to-Taproot (P2TR)' };
+      case 'P2WSH':
+      case 'P2WPKH':
+        return { label: 'SegWit', tooltip: `Native SegWit (${scriptType})` };
+      case 'P2SH':
+        return { label: 'Nested-Segwit', tooltip: 'Pay-to-Script-Hash / Nested SegWit (P2SH)' };
+      case 'P2PKH':
+        return { label: 'Legacy', tooltip: 'Pay-to-Public-Key-Hash (Legacy)' };
+      default:
+        return { label: 'Unknown', tooltip: `Standard Script (${scriptType})` };
+    }
   }
-}
+
+  /**
+   * Splits an address into the prefix (first 4), body, and checksum (last 6).
+   */
+  splitAddress(address: string): { prefix: string; body: string; checksum: string } {
+    if (!address || address.length < 14) return { prefix: '', body: address, checksum: '' };
+    return {
+      prefix: address.slice(0, 4),
+      body: address.slice(4, -6),
+      checksum: address.slice(-6)
+    };
+  }
+
+  openPathModal(title: string, paths: TxDerivationInfo[]) {
+    this.inspectingPathsTitle.set(title);
+    this.inspectingPathsList.set(paths || []);
+    this.showPathModal.set(true);
+    this.dispatcher.emitModalView('Inspect Derivation Paths');
+  }
+
+  closePathModal() {
+    this.showPathModal.set(false);
+    this.inspectingPathsTitle.set('');
+    this.inspectingPathsList.set([]);
+  }
 }

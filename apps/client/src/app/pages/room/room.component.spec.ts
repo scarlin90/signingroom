@@ -1545,7 +1545,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       expect(html).toContain('Hardware Wallet');
       expect(html).toContain('Add Label');
       expect(html).toContain('Signed');
-      expect(html).toContain('Waiting...');
+      expect(html).toContain('Waiting for Signatures');
     });
   });
 
@@ -2720,6 +2720,261 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         label: 'Unknown',
         tooltip: 'Standard Script (CUSTOM_SCRIPT)',
       });
+    });
+  });
+
+  describe('Path Modal Interactions', () => {
+    it('should open the path modal, set state, and emit a modal view event', () => {
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
+      const mockPaths = [
+        { path: "m/84'/0'/0'/0/0", fingerprints: ['aabbccdd'] }
+      ];
+
+      component.openPathModal('Input #0 (Vault)', mockPaths);
+
+      expect(component.inspectingPathsTitle()).toBe('Input #0 (Vault)');
+      expect(component.inspectingPathsList()).toEqual(mockPaths);
+      expect(component.showPathModal()).toBe(true);
+      expect(emitSpy).toHaveBeenCalledWith('Inspect Derivation Paths');
+    });
+
+    it('should fallback to an empty array if paths are undefined when opening modal', () => {
+      component.openPathModal('Empty Path', undefined as any);
+      
+      expect(component.inspectingPathsTitle()).toBe('Empty Path');
+      expect(component.inspectingPathsList()).toEqual([]);
+      expect(component.showPathModal()).toBe(true);
+    });
+
+    it('should close the path modal and reset the tracking signals', () => {
+      // Seed the state first
+      component.showPathModal.set(true);
+      component.inspectingPathsTitle.set('Old Title');
+      component.inspectingPathsList.set([{ path: "m/0", fingerprints: ['11223344'] }]);
+
+      component.closePathModal();
+
+      expect(component.showPathModal()).toBe(false);
+      expect(component.inspectingPathsTitle()).toBe('');
+      expect(component.inspectingPathsList()).toEqual([]);
+    });
+  });
+
+  describe('Signer Label Modal Interactions', () => {
+    it('should open label modal and populate with existing room state label', () => {
+      vi.spyOn(component.socket, 'roomState').mockReturnValue({ signerLabels: { 'aabbccdd': 'Alice' } } as any);
+      vi.spyOn(component.socket, 'getLocalLabel').mockReturnValue('Local Bob');
+
+      component.openLabelModal('aabbccdd');
+
+      expect(component.editingFingerprint()).toBe('aabbccdd');
+      expect(component.editingLabel()).toBe('Alice');
+      expect(component.saveToBook()).toBe(true);
+      expect(component.showLabelModal()).toBe(true);
+    });
+
+    it('should open label modal and fallback to local label if no room state label exists', () => {
+      vi.spyOn(component.socket, 'roomState').mockReturnValue({ signerLabels: {} } as any);
+      vi.spyOn(component.socket, 'getLocalLabel').mockReturnValue('Local Bob');
+
+      component.openLabelModal('eeff0011');
+
+      expect(component.editingFingerprint()).toBe('eeff0011');
+      expect(component.editingLabel()).toBe('Local Bob');
+      expect(component.showLabelModal()).toBe(true);
+    });
+
+    it('should save the label to the address book, emit events, and close the modal', () => {
+      const updateSpy = vi.spyOn(component.socket, 'updateSignerLabel');
+      const saveBookSpy = vi.spyOn(component.socket, 'saveToAddressBook');
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitParticipantLabelled');
+      const closeSpy = vi.spyOn(component, 'closeLabelModal');
+
+      component.editingFingerprint.set('aabbccdd');
+      component.editingLabel.set('  Hardware Wallet  ');
+      component.saveToBook.set(true);
+
+      component.saveLabel();
+
+      expect(updateSpy).toHaveBeenCalledWith('aabbccdd', 'Hardware Wallet');
+      expect(saveBookSpy).toHaveBeenCalledWith('aabbccdd', 'Hardware Wallet');
+      expect(emitSpy).toHaveBeenCalledWith('signer', 'Hardware Wallet', 'aabbccdd');
+      expect(closeSpy).toHaveBeenCalled();
+    });
+
+    it('should remove the label from the address book if saveToBook is false', () => {
+      const removeBookSpy = vi.spyOn(component.socket, 'removeFromAddressBook');
+      
+      component.editingFingerprint.set('aabbccdd');
+      component.editingLabel.set('Temp Label');
+      component.saveToBook.set(false);
+
+      component.saveLabel();
+
+      expect(removeBookSpy).toHaveBeenCalledWith('aabbccdd');
+    });
+
+    it('should close the label modal and clear editing state', () => {
+      component.showLabelModal.set(true);
+      component.editingFingerprint.set('aabbccdd');
+      component.editingLabel.set('Test');
+
+      component.closeLabelModal();
+
+      expect(component.showLabelModal()).toBe(false);
+      expect(component.editingFingerprint()).toBeNull();
+      expect(component.editingLabel()).toBe('');
+    });
+  });
+
+  describe('Sessions Modal & Personal Name', () => {
+    it('should open sessions modal, fetch name from localStorage, and emit modal view', () => {
+    const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
+    component.roomId.set('room-123');
+    
+    const getItemSpy = vi.fn().mockReturnValue('Saved Auditor');
+    Object.defineProperty(window, 'localStorage', {
+      value: { getItem: getItemSpy },
+      configurable: true,
+      writable: true,
+    });
+
+    component.openSessionsModal();
+
+    expect(getItemSpy).toHaveBeenCalledWith('display_name_room-123');
+    expect(component.personalDisplayName()).toBe('Saved Auditor');
+    expect(component.showSessionsModal()).toBe(true);
+    expect(emitSpy).toHaveBeenCalledWith('Active Sessions');
+  });
+
+    it('should save personal name, update socket, emit event, and close sessions modal', () => {
+      const setDisplayNameSpy = vi.spyOn(component.socket, 'setDisplayName');
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitParticipantLabelled');
+      
+      component.showSessionsModal.set(true);
+      component.personalDisplayName.set('  New Auditor Name  ');
+
+      component.savePersonalName();
+
+      expect(setDisplayNameSpy).toHaveBeenCalledWith('New Auditor Name');
+      expect(emitSpy).toHaveBeenCalledWith('self', 'New Auditor Name');
+      expect(component.showSessionsModal()).toBe(false);
+    });
+  });
+
+  describe('QR Modal Interactions', () => {
+    it('should close the QR modal and clear the data URL', () => {
+      component.showQrModal.set(true);
+      component.qrDataUrl.set('data:image/png;base64,mock');
+
+      component.closeQr();
+
+      expect(component.showQrModal()).toBe(false);
+      expect(component.qrDataUrl()).toBeNull();
+    });
+
+    it('should toggle QR reveal to true, emit state, and log action for a Full Key QR', () => {
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitQrStateChanged');
+      const logSpy = vi.spyOn(component.socket, 'logAction');
+
+      component.isQrRevealed.set(false);
+      component.qrIncludesKey.set(true);
+
+      component.toggleQrReveal();
+
+      expect(component.isQrRevealed()).toBe(true);
+      expect(emitSpy).toHaveBeenCalledWith(true, true);
+      expect(logSpy).toHaveBeenCalledWith('QR Code Revealed', 'Full (Link + Key) QR Code on screen');
+    });
+
+    it('should toggle QR reveal to false, emit state, and NOT log action', () => {
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitQrStateChanged');
+      const logSpy = vi.spyOn(component.socket, 'logAction');
+
+      component.isQrRevealed.set(true);
+      component.qrIncludesKey.set(false);
+
+      component.toggleQrReveal();
+
+      expect(component.isQrRevealed()).toBe(false);
+      expect(emitSpy).toHaveBeenCalledWith(false, false);
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Export Prompts & Info Modals', () => {
+    it('should prompt the Audit Log download modal and emit view', () => {
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
+      component.showAuditModal.set(false);
+
+      component.promptAuditLogDownload();
+
+      expect(component.showAuditModal()).toBe(true);
+      expect(emitSpy).toHaveBeenCalledWith('Download Audit Log');
+    });
+
+    it('should prompt the CSV download modal and emit view', () => {
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
+      component.showCsvModal.set(false);
+
+      component.promptCsvDownload();
+
+      expect(component.showCsvModal()).toBe(true);
+      expect(emitSpy).toHaveBeenCalledWith('Download CSV Data');
+    });
+
+    it('should open the Admin Modal and emit view', () => {
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
+      component.showAdminModal.set(false);
+
+      component.openAdminModal();
+
+      expect(component.showAdminModal()).toBe(true);
+      expect(emitSpy).toHaveBeenCalledWith('Backup Admin Token');
+    });
+
+    it('should close the Admin Modal', () => {
+      component.showAdminModal.set(true);
+      component.closeAdminModal();
+      expect(component.showAdminModal()).toBe(false);
+    });
+
+    it('should open the Room ID Modal and emit view', () => {
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
+      component.showRoomIdModal.set(false);
+
+      component.openRoomIdModal();
+
+      expect(component.showRoomIdModal()).toBe(true);
+      expect(emitSpy).toHaveBeenCalledWith('Room ID');
+    });
+  });
+
+  describe('Address Splitter Utility', () => {
+    it('should split a standard length address into prefix, body, and checksum', () => {
+      const address = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+      const result = component.splitAddress(address);
+      
+      expect(result.prefix).toBe('bc1q');
+      expect(result.checksum).toBe('hx0wlh');
+      expect(result.body).toBe('xy2kgdygjrsqtzq2n0yrf2493p83kkfj');
+    });
+
+    it('should return the full address in the body if it is too short', () => {
+      const shortAddress = 'bc1qshort'; // Less than 14 characters
+      const result = component.splitAddress(shortAddress);
+      
+      expect(result.prefix).toBe('');
+      expect(result.checksum).toBe('');
+      expect(result.body).toBe('bc1qshort');
+    });
+
+    it('should handle empty or null addresses safely', () => {
+      const result = component.splitAddress('');
+      
+      expect(result.prefix).toBe('');
+      expect(result.checksum).toBe('');
+      expect(result.body).toBe('');
     });
   });
 });

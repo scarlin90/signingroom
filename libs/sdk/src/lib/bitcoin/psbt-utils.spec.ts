@@ -571,6 +571,44 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     const analysis = PsbtUtils.analyze(validPsbtBase64);
     expect(analysis?.signerCount).toBe(1); 
   });
+
+  it('should parse input and output derivation paths into structured TxDerivationInfo objects', () => {
+    const mockTx = {
+      id: 'mocked-tx-id',
+      inputsLength: 1,
+      outputsLength: 1,
+      get fee() { return BigInt(1000); },
+      get vsize() { return 100; },
+      getInput: vi.fn().mockReturnValue({
+        txid: new Uint8Array(32).fill(1),
+        index: 0,
+        witnessUtxo: {
+          amount: BigInt(50000),
+          script: hex.decode('001489abcdefabaabcdeffedcbaabaabcdefaba12345'),
+        },
+        bip32Derivation: [
+          [new Uint8Array([1]), { fingerprint: 0xaabbccdd, path: [2147483648 + 86, 2147483648 + 1, 0, 0, 0] }]
+        ]
+      }),
+      getOutput: vi.fn().mockReturnValue({
+        amount: BigInt(40000),
+        script: hex.decode('001489abcdefabaabcdeffedcbaabaabcdefaba12345'),
+        bip32Derivation: [
+          [new Uint8Array([1]), { fingerprint: 0xeeff0011, path: [2147483648 + 86, 2147483648 + 1, 0, 1, 0] }]
+        ]
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const details = PsbtUtils.parseTxDetails(validPsbtBase64, 'testnet');
+
+    expect(details?.inputsList[0].derivationPaths).toEqual([
+      { path: "m/86'/1'/0/0/0", fingerprints: ['aabbccdd'], type: 'Legacy' }
+    ]);
+    expect(details?.outputs[0].derivationPaths).toEqual([
+      { path: "m/86'/1'/0/1/0", fingerprints: ['eeff0011'], type: 'Legacy' }
+    ]);
+  });
 });
 
 describe('PsbtUtils - Edge Cases & Error Handling', () => {
@@ -966,6 +1004,326 @@ describe('PsbtUtils - Input VByte Estimation Branches', () => {
       const details = PsbtUtils.parseTxDetails('cHNidP8A', 'bitcoin');
       expect(details?.inputsList[0].scriptType).toBe('P2TR');
       expect(details?.outputs[0].scriptType).toBe('P2TR');
+    });
+  });
+
+  describe('PsbtUtils - Additional Branch Coverage', () => {
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should handle empty or undefined path arrays gracefully in formatDerivationPath', () => {
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 1,
+        outputsLength: 0,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn().mockReturnValue({
+          bip32Derivation: [
+            [new Uint8Array([1]), { fingerprint: 0xaabbccdd, path: [] }] // Empty path array triggers branch
+          ]
+        }),
+        getOutput: vi.fn(),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A');
+      expect(details?.inputsList[0].derivationPaths[0].path).toBe('Unknown');
+    });
+
+    it('should cover script formatting fallback branches for unhandled script lengths and prefixes', () => {
+      // 22-byte witness v0 program with unrecognized version/length combination
+      const invalidWitnessScript = hex.decode('001589abcdefabaabcdeffed');
+      const address = PsbtUtils.formatScriptAddress(invalidWitnessScript, 'bitcoin');
+      expect(address).toBeDefined();
+
+      // Custom script type output mapping fallback
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 0,
+        outputsLength: 1,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn(),
+        getOutput: vi.fn().mockReturnValue({
+          amount: BigInt(40000),
+          script: hex.decode('6a03010203') // OP_RETURN format
+        }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A');
+      // Since hex outputs without bc1/3/2 prefixes fall through to P2PKH by design in the switch-case:
+      expect(details?.outputs[0].scriptType).toBe('P2PKH');
+    });
+
+    it('should format testnet/signet addresses with testnet hrp config', () => {
+      // SegWit v0 testnet script
+      const script = hex.decode('001489abcdefabaabcdeffedcbaabaabcdefaba12345');
+      const testnetAddr = PsbtUtils.formatScriptAddress(script, 'testnet');
+      const signetAddr = PsbtUtils.formatScriptAddress(script, 'signet');
+      
+      expect(testnetAddr.startsWith('tb1')).toBe(true);
+      expect(signetAddr.startsWith('tb1')).toBe(true);
+    });
+
+    it('should handle witness version out of standard range or unparseable script fallbacks', () => {
+      // Witness version versionByte >= 0x51 check
+      const taprootScript = hex.decode('512089abcdefabaabcdeffedcbaabaabcdefaba1234589abcdefabaabcdeffedcbaa');
+      const taprootAddr = PsbtUtils.formatScriptAddress(taprootScript, 'testnet');
+      expect(taprootAddr.startsWith('tb1p')).toBe(true);
+    });
+
+    it('should handle analysis branches when bip32Derivation lacks fingerprints or paths', () => {
+      const mockTx = {
+        inputsLength: 1,
+        outputsLength: 1,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 150; },
+        getInput: vi.fn().mockReturnValue({
+          witnessUtxo: { amount: BigInt(50000) },
+          bip32Derivation: [
+            [new Uint8Array([1]), { fingerprint: null, path: [0] }], // Null fingerprint, short path
+          ],
+          tapBip32Derivation: [
+            [new Uint8Array([1]), { der: { fingerprint: undefined, path: [0] } }] // Undefined fingerprint
+          ]
+        }),
+        getOutput: vi.fn().mockReturnValue({ amount: BigInt(40000) }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const analysis = PsbtUtils.analyze('cHNidP8A');
+      expect(analysis).not.toBeNull();
+      expect(analysis?.valid).toBe(true);
+    });
+
+    it('should correctly format hardened BIP-32 derivation path indices', () => {
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 1,
+        outputsLength: 0,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn().mockReturnValue({
+          bip32Derivation: [
+            [new Uint8Array([1]), { fingerprint: 0xaabbccdd, path: [0x80000000 | 48, 0x80000000 | 1] }] // Hardened indices
+          ]
+        }),
+        getOutput: vi.fn(),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A');
+      expect(details?.inputsList[0].derivationPaths[0].path).toBe("m/48'/1'");
+    });
+
+    it('should correctly evaluate mainnet coin type to decrease network score during analysis', () => {
+      const mockTx = {
+        inputsLength: 1,
+        outputsLength: 0,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 150; },
+        getInput: vi.fn().mockReturnValue({
+          witnessUtxo: { amount: BigInt(50000) },
+          bip32Derivation: [
+            [new Uint8Array([1]), { fingerprint: 0xaabbccdd, path: [0, 2147483648] }], // 2147483648 triggers networkScore--
+          ],
+        }),
+        getOutput: vi.fn().mockReturnValue({ amount: BigInt(40000) }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const analysis = PsbtUtils.analyze('cHNidP8A');
+      expect(analysis?.detectedNetwork).toBe('bitcoin');
+    });
+
+    it('should map primary fingerprint from pure Taproot Keypath signatures in getFingerprintFromPsbt', () => {
+      const pubkey = new Uint8Array([0x02, 0x01, 0x02]);
+      const mockTx = {
+        inputsLength: 1,
+        getInput: vi.fn().mockReturnValue({
+          tapKeySig: new Uint8Array([0xbb]),
+          tapInternalKey: pubkey,
+          tapBip32Derivation: [[pubkey, { fingerprint: 0xcafebabe }]],
+        }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const fingerprint = PsbtUtils.getFingerprintFromPsbt('cHNidP8A');
+      expect(fingerprint).toBe('cafebabe');
+    });
+
+    it('should fallback to direct meta object when der property is absent in tapBip32Derivation processing', () => {
+      const mockTx = {
+        inputsLength: 1,
+        outputsLength: 0,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn().mockReturnValue({
+          tapBip32Derivation: [
+            [new Uint8Array([1]), { fingerprint: 0x12345678, path: [0, 2147483648] }], 
+          ],
+        }),
+        getOutput: vi.fn(),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const analysis = PsbtUtils.analyze('cHNidP8A');
+      expect(analysis?.signerCount).toBe(1);
+    });
+
+    it('should return 0 in getThreshold when maxThreshold is 0 and unknownInputs > 0', () => {
+      const mockTx = {
+        inputsLength: 1,
+        getInput: vi.fn().mockReturnValue({
+          // An input with no recognizable multisig or tapscript structure (unknownInputs++), keeping maxThreshold at 0
+          witnessScript: undefined,
+          tapLeafScript: undefined,
+          tapBip32Derivation: undefined,
+        }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const threshold = PsbtUtils.getThreshold('cHNidP8A');
+      expect(threshold).toBe(0);
+    });
+
+    it('should evaluate threshold to 1 for pure Taproot key-path inputs without leaves', () => {
+      const mockTx = {
+        inputsLength: 1,
+        getInput: vi.fn().mockReturnValue({
+          tapLeafScript: undefined,
+          tapBip32Derivation: [[new Uint8Array([1]), { path: [0] }]], // Triggers pure key-path branch (inputThreshold = 1)
+        }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const threshold = PsbtUtils.getThreshold('cHNidP8A');
+      expect(threshold).toBe(1);
+    });
+
+    it('should fallback to masterFingerprint in getFingerprintFromPsbt when fingerprint property is missing', () => {
+      const pubkey = new Uint8Array([0x02, 0x01, 0x02]);
+      const mockTx = {
+        inputsLength: 1,
+        getInput: vi.fn().mockReturnValue({
+          tapKeySig: new Uint8Array([0xbb]),
+          tapInternalKey: pubkey,
+          tapBip32Derivation: [[pubkey, { masterFingerprint: 0x12345678 }]], // Triggers masterFingerprint fallback
+        }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const fingerprint = PsbtUtils.getFingerprintFromPsbt('cHNidP8A');
+      expect(fingerprint).toBe('12345678');
+    });
+
+    it('should handle missing pubkey property in tapScriptSig during extractSigners evaluation', () => {
+      const pubkey1 = new Uint8Array([0x02, 0x00]);
+      const mockTx = {
+        inputsLength: 1,
+        getInput: vi.fn().mockReturnValue({
+          tapScriptSig: [{}], // Missing pubkey property to test the ternary fallback (pKey ? ... : false)
+          tapBip32Derivation: [[pubkey1, { fingerprint: 0x99999999, path: [0] }]],
+        }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const signers = PsbtUtils.extractSigners('cHNidP8A');
+      expect(signers).toHaveLength(1);
+      expect(signers[0].signed).toBe(false);
+    });
+
+    it('should categorize Taproot derivation with hashes as Tapscript Leaf in extractSigners', () => {
+      const pubkey = new Uint8Array([0x02, 0x00]);
+      const mockTx = {
+        inputsLength: 1,
+        getInput: vi.fn().mockReturnValue({
+          tapBip32Derivation: [[pubkey, { fingerprint: 0x55555555, hashes: [new Uint8Array(32)], path: [0] }]],
+        }),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const signers = PsbtUtils.extractSigners('cHNidP8A');
+      expect(signers[0].derivationPaths[0].spendType).toBe('Tapscript Leaf');
+    });
+  });
+
+  describe('PsbtUtils - Derivation Path Spend Mechanics (Coverage)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should correctly classify input spend mechanics (Legacy vs SegWit, Taproot Key Path vs Tapscript Leaf)', () => {
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 2,
+        outputsLength: 0,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn()
+          .mockReturnValueOnce({
+            // Input 0: Legacy (has bip32Derivation but NO witnessScript)
+            witnessUtxo: { amount: BigInt(50000) },
+            bip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x11111111, path: [0] }]]
+          })
+          .mockReturnValueOnce({
+            // Input 1: Tapscript Leaf (has tapBip32Derivation WITH hashes array)
+            witnessUtxo: { amount: BigInt(50000) },
+            tapBip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x22222222, path: [0], hashes: [new Uint8Array(32)] }]]
+          }),
+        getOutput: vi.fn(),
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A');
+      
+      expect(details?.inputsList[0].derivationPaths[0].type).toBe('Legacy');
+      expect(details?.inputsList[1].derivationPaths[0].type).toBe('Tapscript Leaf');
+    });
+
+    it('should correctly classify output spend mechanics across all four cryptographic formats', () => {
+      const mockTx = {
+        id: 'mocked-tx-id',
+        inputsLength: 0,
+        outputsLength: 4,
+        get fee() { return BigInt(1000); },
+        get vsize() { return 100; },
+        getInput: vi.fn(),
+        getOutput: vi.fn()
+          .mockReturnValueOnce({
+            // Output 0: SegWit (has bip32Derivation AND witnessScript)
+            amount: BigInt(10000),
+            witnessScript: new Uint8Array([1]),
+            bip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x11111111, path: [0] }]]
+          })
+          .mockReturnValueOnce({
+            // Output 1: Legacy (has bip32Derivation but NO witnessScript)
+            amount: BigInt(10000),
+            bip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x22222222, path: [0] }]]
+          })
+          .mockReturnValueOnce({
+            // Output 2: Taproot Key Path (has tapBip32Derivation but NO hashes)
+            amount: BigInt(10000),
+            tapBip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x33333333, path: [0] }]]
+          })
+          .mockReturnValueOnce({
+            // Output 3: Tapscript Leaf (has tapBip32Derivation WITH hashes array)
+            amount: BigInt(10000),
+            tapBip32Derivation: [[new Uint8Array([1]), { fingerprint: 0x44444444, path: [0], hashes: [new Uint8Array(32)] }]]
+          })
+      };
+      vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+      const details = PsbtUtils.parseTxDetails('cHNidP8A');
+      
+      expect(details?.outputs[0].derivationPaths[0].type).toBe('SegWit');
+      expect(details?.outputs[1].derivationPaths[0].type).toBe('Legacy');
+      expect(details?.outputs[2].derivationPaths[0].type).toBe('Taproot Key Path');
+      expect(details?.outputs[3].derivationPaths[0].type).toBe('Tapscript Leaf');
     });
   });
 });

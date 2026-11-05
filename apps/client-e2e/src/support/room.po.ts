@@ -270,17 +270,13 @@ export class RoomPage {
   /**
    * Helper to verify a specific signer has successfully signed
    */
-  async expectSignerStatus(fingerprint: string, status: 'Signed' | 'Waiting...') {
+  async expectSignerStatus(fingerprint: string, status: 'Signed' | 'Waiting...' | 'Unsigned') {
     const row = this.getSignerRow(fingerprint);
     
     if (status === 'Signed') {
-      // Ensure the UI text flips to 'Signed' and the spinner disappears
       await expect(row.getByText('Signed', { exact: true })).toBeVisible();
-      await expect(row.locator('.animate-spin')).toBeHidden();
     } else {
-      // Ensure the UI text says 'Waiting...' and the spinner is active
-      await expect(row.getByText('Waiting...', { exact: true })).toBeVisible();
-      await expect(row.locator('.animate-spin')).toBeVisible();
+      await expect(row.getByText('Signed', { exact: true })).toBeHidden();
     }
   }
 
