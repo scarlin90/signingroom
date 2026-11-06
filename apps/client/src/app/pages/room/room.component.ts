@@ -1232,7 +1232,6 @@ export class RoomComponent implements OnInit, OnDestroy {
       ? this.socket.sdk.currentRoleToken 
       : undefined;
       
-      console.log('location', this.socket.getRoomLink(window.location.origin, true, token));
     return this.socket.getRoomLink(window.location.origin, true, token);
   }
 
