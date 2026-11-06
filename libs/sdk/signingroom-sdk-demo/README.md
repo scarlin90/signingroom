@@ -83,7 +83,7 @@ By default, the demo runs as an uncertified Community Edition node. To test comm
 const ENTERPRISE_TOKEN_EXAMPLE = 'srl_sbJbVsu3kGXet3...';
 
 const coordinatorClient = new SigningRoomClient({
-  apiUrl: 'http://localhost:8080/api',
+  apiUrl: 'http://localhost:8080',
   licenseToken: ENTERPRISE_TOKEN_EXAMPLE,
   host: 'localhost:4201', // Authorizes the branded node
 });

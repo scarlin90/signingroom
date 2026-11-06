@@ -18,8 +18,6 @@ import {
 import { SDKClientFactoryService } from '../sdk-client-factory/sdk-client-factory.service';
 import { Subject } from 'rxjs';
 
-export const PROTOCOL_VERSION = '1.1.0';
-
 @Injectable({ providedIn: 'root' })
 export class SocketService {
   public sdk: SigningRoomClient;
