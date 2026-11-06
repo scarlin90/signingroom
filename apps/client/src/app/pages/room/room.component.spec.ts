@@ -2113,12 +2113,13 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       const expectedLabel = 'Alice Hardware (fp-abc123)';
 
       vi.spyOn(component, 'getSignerLabel').mockReturnValue(expectedLabel);
-      vi.spyOn(component, 'getFullShareLink').mockReturnValue('https://example.com/room#key');
+      const linkSpy = vi.spyOn(component, 'getFullShareLink').mockReturnValue('https://example.com/room#key');
 
       component.nudgeSigner(fingerprint);
 
       await vi.advanceTimersByTimeAsync(150);
 
+      expect(linkSpy).toHaveBeenCalledWith(false);
       expect(clipboardSpy).toHaveBeenCalled();
       const copiedText = clipboardSpy.mock.calls[0][0];
       expect(copiedText).toContain('Signature needed from: Alice Hardware (fp-abc123)');
@@ -2143,11 +2144,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       const fingerprint = 'unknown-fp-xyz';
 
       vi.spyOn(component, 'getSignerLabel').mockReturnValue(fingerprint);
-      vi.spyOn(component, 'getFullShareLink').mockReturnValue('https://example.com/room#key');
+      const linkSpy = vi.spyOn(component, 'getFullShareLink').mockReturnValue('https://example.com/room#key');
 
       component.nudgeSigner(fingerprint);
       await vi.advanceTimersByTimeAsync(150);
 
+      expect(linkSpy).toHaveBeenCalledWith(false);
       expect(clipboardSpy).toHaveBeenCalled();
       const copiedText = clipboardSpy.mock.calls[0][0];
       expect(copiedText).toContain('Signature needed from: unknown-fp-xyz');
@@ -2165,6 +2167,37 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('isSaved should return false if label is not found in address book', () => {
       mockSocketService.getLocalLabel.mockReturnValue(null);
       expect(component.isSaved('fp-123')).toBe(false);
+    });
+  });
+
+  describe('getFullShareLink & QR Generation Logic', () => {
+    it('getFullShareLink should include the role token if requested and available', () => {
+      mockSocketService.sdk.currentRoleToken = 'mock-role-token';
+      mockSocketService.getRoomLink.mockReturnValue('http://localhost/room#fbek:mock-role-token');
+      
+      const result = component.getFullShareLink(true);
+      
+      expect(mockSocketService.getRoomLink).toHaveBeenCalledWith(window.location.origin, true, 'mock-role-token');
+      expect(result).toBe('http://localhost/room#fbek:mock-role-token');
+    });
+
+    it('getFullShareLink should exclude the role token if includeCurrentToken is false', () => {
+      mockSocketService.sdk.currentRoleToken = 'mock-role-token';
+      mockSocketService.getRoomLink.mockReturnValue('http://localhost/room#fbek');
+      
+      const result = component.getFullShareLink(false);
+      
+      expect(mockSocketService.getRoomLink).toHaveBeenCalledWith(window.location.origin, true, undefined);
+      expect(result).toBe('http://localhost/room#fbek');
+    });
+
+    it('generateQrData should request the full link with the active token when qrIncludesKey is true', async () => {
+      const linkSpy = vi.spyOn(component, 'getFullShareLink').mockReturnValue('http://localhost/room#fbek:token');
+      component.qrIncludesKey.set(true);
+      
+      await component['generateQrData']();
+      
+      expect(linkSpy).toHaveBeenCalledWith(true);
     });
   });
 

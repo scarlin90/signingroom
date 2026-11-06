@@ -1012,7 +1012,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   private async generateQrData() {
     try {
       const link = this.qrIncludesKey()
-        ? this.getFullShareLink()
+        ? this.getFullShareLink(true)
         : window.location.href.split('#')[0];
 
       const dataUrl = await QRCode.toDataURL(link, {
@@ -1227,13 +1227,18 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
   }
 
-  public getFullShareLink(): string {
-    return this.socket.getRoomLink(window.location.origin, true);
+  public getFullShareLink(includeCurrentToken: boolean = false): string {
+    const token = includeCurrentToken && this.socket.sdk.currentRoleToken 
+      ? this.socket.sdk.currentRoleToken 
+      : undefined;
+      
+      console.log('location', this.socket.getRoomLink(window.location.origin, true, token));
+    return this.socket.getRoomLink(window.location.origin, true, token);
   }
 
   nudgeSigner(fingerprint: string) {
     const label = this.getSignerLabel(fingerprint);
-    const msg = `Signature needed from: ${label}\n${this.getFullShareLink()}`;
+    const msg = `Signature needed from: ${label}\n${this.getFullShareLink(false)}`;
 
     navigator.clipboard.writeText(msg).then(() => {
       this.openAlert(
