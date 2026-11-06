@@ -12,7 +12,7 @@
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-21M-orange.svg)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256--GCM-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Mainnet_/_Testnet_/_Signet-green.svg)
-[![Last Audit](https://img.shields.io/badge/Last_Audit-13_October_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
+[![Last Metric Update](https://img.shields.io/badge/Last_Metric_Update-05_Novemeber_2026-blue.svg)](./site_metric_logs/MANIFEST.md)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/scarlin90/signingroom/badge)](https://scorecard.dev/viewer/?uri=github.com/scarlin90/signingroom)
 
 ### 📦 Official SDK Ecosystem
@@ -139,38 +139,12 @@ For the full system architecture (monorepo layout, component dependencies, and e
 
 **[Architecture Documentation](./docs/architecture.md)**
 
-## 🗺️ Roadmap (2026)
-
-We are actively seeking funding and grants to evolve SigningRoom from a standalone tool into ubiquitous Bitcoin multisig infrastructure.
-
-### Phase 1: The Core — ✅ Completed
-
-- [x] Launch `signingroom-core` on Mainnet, Testnet, and Signet (v1.0)
-- [x] Deploy censorship-resistant Progressive Web App (PWA)
-
-### Phase 2: Ubiquity — ✅ Completed
-
-- [x] BIP Draft submitted (Stateless Encrypted WebSocket Coordination for PSBTs)
-- [x] Web Component (`<signing-room>`) — drop-in HTML element
-- [x] Extended Web Component events for compliance and governance
-
-### Phase 3: 🔴 Active Grant Target (Q3 2026)
-
-- [x] TypeScript Client Library
-- [x] YouTube SDK walkthrough
-- [x] Docker images and setup
-- [x] Tapscript support
-- [ ] **Stealth Room** — Prototype OHTTP with WebTransport / QUIC and MASQUE
-- [ ] **Public API** — Well-documented API for automated agents and services
-
-**Status:** Phase 1 & 2 complete. Phase 3 (Stealth Room + Public API) is the current focus and primary grant target.
-
 ## 💰 Support Public Infrastructure
 
 SigningRoom is Free and Open Source Software (FOSS), maintained for the public good. If this tool helps you or your organization, please consider supporting its maintenance.
 
-- [OpenSats](https://opensats.org) — Application received initial rejection (Q1); feedback was to strengthen the BIP — actively drafting.
-- [Human Rights Foundation](https://hrf.org) — Bitcoin Development Fund (deferred to Q3 2026)
+- [OpenSats](https://opensats.org) — Application received initial rejection (Q1 2026); feedback was to create the BIP — actively drafting.
+- [Human Rights Foundation](https://hrf.org) — Bitcoin Development Fund (deferred to 2027)
 
 ### Donate via Lightning
 
@@ -199,7 +173,7 @@ cd signingroom
 docker compose up --build
 ```
 
-- Frontend: http://localhost:4200
+- Frontend: http://localhost:8080
 - Worker: http://localhost:8787
 
 Stop with `Ctrl+C` then `docker compose down`.

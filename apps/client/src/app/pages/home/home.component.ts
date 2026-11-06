@@ -412,7 +412,7 @@ import {
                 <div class="flex flex-wrap gap-3">
                     <a href="https://staging-branded.signingroom.io" target="_blank" class="px-5 py-2.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-medium text-sm transition flex items-center gap-2">
                         <!-- Small fallback SVG if branded-logo is missing in the unbranded environment -->
-                        <img src="brand/branded-logo.svg" alt="Zoros Financial" class="w-4 h-4 object-contain" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjJkM2VlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIgMTJoMjAiLz48cGF0aCBkPSJNMjIgNkgzIi8+PHBhdGggZD0iTTIgMThoMjAiLz48L3N2Zz4='">
+                        <img [src]="smallLogoSrc" alt="Zoros Financial" class="w-4 h-4 object-contain" (error)="handleSmallLogoError()">
                         Zoros Financial (Demo)
                     </a>
                     <a href="https://statelessresearch.com" target="_blank" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition border border-slate-700 flex items-center gap-2">
@@ -425,7 +425,7 @@ import {
                  <a href="https://staging-branded.signingroom.io" target="_blank" class="relative w-48 h-48 block group cursor-pointer">
                     <div class="absolute inset-0 bg-cyan-500/20 rounded-full blur-2xl animate-pulse group-hover:bg-cyan-500/40 transition-all duration-500"></div>
                     <div class="relative w-full h-full bg-slate-900 border border-slate-700 group-hover:border-cyan-500/50 rounded-xl flex flex-col items-center justify-center p-6 shadow-xl transition-all duration-300 transform group-hover:-translate-y-2">
-                         <img src="brand/branded-logo.svg" alt="Custom Branding" class="w-16 h-16 object-contain mb-4" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjJkM2VlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIgMTJoMjAiLz48cGF0aCBkPSJNMjIgNkgzIi8+PHBhdGggZD0iTTIgMThoMjAiLz48L3N2Zz4='">
+                         <img [src]="largeLogoSrc" alt="Custom Branding" class="w-16 h-16 object-contain mb-4" (error)="handleLargeLogoError()">
                          <div class="font-bold text-white text-lg tracking-tight leading-none mb-1">Zoros</div>
                          <div class="text-xs text-cyan-400 font-medium tracking-widest uppercase">Financial</div>
                     </div>
@@ -587,7 +587,20 @@ import {
   `,
 })
 export class HomeComponent implements OnInit {
+  smallLogoSrc = 'brand/branded-logo.svg';
+  largeLogoSrc = 'brand/branded-logo.svg';
+
+  fallbackSvg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjJkM2VlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIgMTJoMjAiLz48cGF0aCBkPSJNMjIgNkgzIi8+PHBhdGggZD0iTTIgMThoMjAiLz48L3N2Zz4=';
+
   ngOnInit() {}
+
+  handleSmallLogoError() {
+    this.smallLogoSrc = this.fallbackSvg;
+  }
+
+  handleLargeLogoError() {
+    this.largeLogoSrc = this.fallbackSvg;
+  }
 
   toggleFullscreen(element: HTMLElement) {
     if (!document.fullscreenElement) {

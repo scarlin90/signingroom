@@ -17,7 +17,7 @@ import { environment } from '../../../environments/environment';
 import { ConfigService } from '../config/config.service';
 import { SigningRoomClient } from '@signing-room/sdk';
 
-export const PROTOCOL_VERSION = '1.0.0';
+export const PROTOCOL_VERSION = '2.0.0';
 
 @Injectable({ providedIn: 'root' })
 export class SDKClientFactoryService {
