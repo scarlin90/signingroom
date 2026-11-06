@@ -3,7 +3,7 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Component, ViewEncapsulation, inject, OnInit, Renderer2 } from '@angular/core';
+import { Component, ViewEncapsulation, inject, OnInit, Renderer2, signal } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -98,41 +98,43 @@ import {
               <div class="flex items-center gap-6">
                 <!-- Donate Button -->
                 <button
-                  onclick="document.getElementById('donate-modal').classList.remove('hidden')"
+                  (click)="showDonateModal.set(true)"
                   class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-card border border-brand-card-border hover:border-yellow-500/50 hover:bg-yellow-500/10 transition group text-xs font-medium text-brand-text-muted hover:text-yellow-400">
                   <svg lucideZap class="w-3.5 h-3.5 text-yellow-500 group-hover:fill-yellow-500 transition"></svg>
                   <span>Donate</span>
                 </button>
 
                 <!-- Donate Modal -->
-                <div id="donate-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-                  <div class="bg-brand-card border border-brand-card-border p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl relative">
-                    <button 
-                      onclick="document.getElementById('donate-modal').classList.add('hidden')"
-                      class="absolute top-4 right-4 text-brand-text-muted hover:text-white transition">
-                      ✕
-                    </button>
-                    <div class="text-center">
-                      <h3 class="text-lg font-semibold text-white mb-2">Support {{ configService.config().brandName }}</h3>
-                      <p class="text-sm text-brand-text-muted mb-6">Scan with any Lightning wallet</p>
-                      <div class="bg-white p-2 rounded-xl inline-block mb-6 shadow-sm">
-                        <img src="/assets/address.png" alt="Lightning QR Code" class="w-48 h-48 object-contain" />
-                      </div>
-                      <div class="mb-4">
-                        <label class="block text-xs font-medium text-brand-text-muted mb-1 uppercase tracking-wider">Lightning Address</label>
-                        <div class="bg-brand-bg text-brand-text px-3 py-2 rounded-lg text-sm font-mono select-all">
-                          seancarlin@walletofsatoshi.com
+                @if (showDonateModal()) {
+                  <div id="donate-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div class="bg-brand-card border border-brand-card-border p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl relative">
+                      <button 
+                          (click)="showDonateModal.set(false)"
+                          class="absolute top-4 right-4 text-brand-text-muted hover:text-white transition cursor-pointer">
+                          ✕
+                      </button>
+                      <div class="text-center">
+                        <h3 class="text-lg font-semibold text-white mb-2">Support {{ configService.config().brandName }}</h3>
+                        <p class="text-sm text-brand-text-muted mb-6">Scan with any Lightning wallet</p>
+                        <div class="bg-white p-2 rounded-xl inline-block mb-6 shadow-sm">
+                          <img src="/assets/address.png" alt="Lightning QR Code" class="w-48 h-48 object-contain" />
                         </div>
-                      </div>
-                      <div>
-                        <label class="block text-xs font-medium text-brand-text-muted mb-1 uppercase tracking-wider">LNURL</label>
-                        <div class="bg-brand-bg text-brand-text-muted px-3 py-2 rounded-lg text-[10px] font-mono break-all select-all">
-                          lnurl1dp68gurn8ghj7ampd3kx2ar0veekzar0wd5xjtnrdakj7tnhv4kxctttdehhwm30d3h82unvwqhhxetpde3kzunvd9hqmzg7zp
+                        <div class="mb-4">
+                          <label class="block text-xs font-medium text-brand-text-muted mb-1 uppercase tracking-wider">Lightning Address</label>
+                          <div class="bg-brand-bg text-brand-text px-3 py-2 rounded-lg text-sm font-mono select-all">
+                            seancarlin@walletofsatoshi.com
+                          </div>
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium text-brand-text-muted mb-1 uppercase tracking-wider">LNURL</label>
+                          <div class="bg-brand-bg text-brand-text-muted px-3 py-2 rounded-lg text-[10px] font-mono break-all select-all">
+                            lnurl1dp68gurn8ghj7ampd3kx2ar0veekzar0wd5xjtnrdakj7tnhv4kxctttdehhwm30d3h82unvwqhhxetpde3kzunvd9hqmzg7zp
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                }
 
                 <a href="mailto:support@signingroom.io" class="text-brand-text-muted hover:text-white transition">
                   <svg lucideMail class="w-5 h-5"></svg>
@@ -204,6 +206,7 @@ import {
 })
 export class App implements OnInit {
   isEmbedded = false;
+  showDonateModal = signal(false);
 
   readonly currentYear = new Date().getFullYear();
 

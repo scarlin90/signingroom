@@ -45,7 +45,7 @@ export class RoomAuditor {
     ];
 
     const signersList = signers
-      .map((s) => `${s.fingerprint}${s.signed ? '(Signed)' : '(Pending)'}`)
+      .map((s) => `${s.fingerprint}${s.signed ? '(Signed)' : '(Unsigned)'}`)
       .join('; ');
 
     const participantsObj = state.participants || {};
@@ -477,15 +477,21 @@ export class RoomAuditor {
       y += 6;
     } else {
       signers.forEach((s, i) => {
-        checkPageBreak(10);
-        const status = s.signed ? 'SIGNED' : 'PENDING';
+        checkPageBreak(15);
+        const status = s.signed ? 'SIGNED' : 'UNSIGNED';
         const label = state.signerLabels?.[s.fingerprint];
-        const displayName = label ? `${label} (${s.fingerprint})` : s.fingerprint;
+        
+        const displayName = label 
+          ? `${label} (Fingerprint: ${s.fingerprint})` 
+          : `Fingerprint: ${s.fingerprint}`;
 
-        doc.setTextColor(50);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0);
         doc.text(`${i + 1}. ${displayName}`, 20, y);
-        doc.text(status, 150, y);
-        y += 6;
+        
+        doc.setTextColor(s.signed ? 16 : 150, s.signed ? 185 : 150, s.signed ? 129 : 150);
+        doc.text(status, 170, y, { align: 'right' });
+        y += 8;
       });
     }
     y += 10;
@@ -606,10 +612,10 @@ export class RoomAuditor {
       doc.setFontSize(9);
       doc.setTextColor(150);
       doc.text('No input data parsed.', 20, y);
-      y += 6;
+      y += 16;
     } else {
       inputs.forEach((inpt, i) => {
-        checkPageBreak(30);
+        checkPageBreak(35);
         const isWhitelisted = whitelist.includes(inpt.address);
         const amount = (inpt.amount / 100000000).toFixed(8);
         const label = state.addressLabels?.[inpt.address];
@@ -637,8 +643,24 @@ export class RoomAuditor {
         doc.text(`vOut: ${inpt.txId}:${inpt.vout}`, 20, y);
         y += 4;
 
+        if (inpt.derivationPaths && inpt.derivationPaths.length > 0) {
+          inpt.derivationPaths.forEach((pathObj: any) => {
+            const formattedFingerprints = pathObj.fingerprints?.length 
+              ? `[Fingerprints: ${pathObj.fingerprints.join(', ')}]` 
+              : '';
+            
+            const typeLabel = pathObj.type ? ` (${pathObj.type})` : '';
+            const pathString = `Derivation Path: ${pathObj.path}${typeLabel} ${formattedFingerprints}`;
+            
+            const wrappedPath = doc.splitTextToSize(pathString, 170);
+            doc.text(wrappedPath, 20, y);
+            
+            y += (wrappedPath.length * 4);
+          });
+        }
+
         doc.setTextColor(50);
-        doc.text(inpt.address, 20, y);
+        this.printHighlightedAddress(doc, inpt.address, 20, y, brandColor);
         y += 6;
 
         doc.setFont('helvetica', 'bold');
@@ -659,8 +681,17 @@ export class RoomAuditor {
 
         y += 12;
       });
+
+      doc.setDrawColor(200);
+      doc.line(20, y, 190, y);
+      y += 8;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Total Inputs: ${inputs.length}`, 20, y);
+      y += 15;
     }
-    y += 10;
 
     // =========================================================
     // SECTION 7: OUTPUT VERIFICATION
@@ -686,7 +717,7 @@ export class RoomAuditor {
       y += 6;
     } else {
       outputs.forEach((out, i) => {
-        checkPageBreak(30);
+        checkPageBreak(35);
         const isWhitelisted = whitelist.includes(out.address);
         const amount = (out.amount / 100000000).toFixed(8);
         const label = state.addressLabels?.[out.address];
@@ -707,10 +738,29 @@ export class RoomAuditor {
         doc.text(headerTitle, 20, y);
         y += 5;
 
+        if (out.derivationPaths && out.derivationPaths.length > 0) {
+          doc.setFontSize(8);
+          doc.setTextColor(100);
+          doc.setFont('courier', 'normal');
+          out.derivationPaths.forEach((pathObj: any) => {
+            const formattedFingerprints = pathObj.fingerprints?.length 
+              ? `[Fingerprints: ${pathObj.fingerprints.join(', ')}]` 
+              : '';
+            
+            const typeLabel = pathObj.type ? ` (${pathObj.type})` : '';
+            const pathString = `Derivation Path: ${pathObj.path}${typeLabel} ${formattedFingerprints}`;
+            
+            const wrappedPath = doc.splitTextToSize(pathString, 170);
+            doc.text(wrappedPath, 20, y);
+            
+            y += (wrappedPath.length * 4);
+          });
+        }
+
         doc.setFontSize(8);
         doc.setTextColor(50);
         doc.setFont('courier', 'normal');
-        doc.text(out.address, 20, y);
+        this.printHighlightedAddress(doc, out.address, 20, y, brandColor);
         y += 6;
 
         doc.setFont('helvetica', 'bold');
@@ -966,5 +1016,37 @@ export class RoomAuditor {
     // Search the CSV header block for the License-Token key
     const match = auditLogCsv.match(/^#\s*License-Token:\s*(srl_[A-Za-z0-9_-]+)/m);
     return match ? match[1] : null;
+  }
+
+  /**
+   * Prints an address with a highlighted prefix and checksum, matching the UI.
+   */
+  private static printHighlightedAddress(doc: any, address: string, startX: number, y: number, brandColor: [number, number, number]) {
+    if (!address || address.length < 14) {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(150, 150, 150);
+      doc.text(address, startX, y);
+      return;
+    }
+
+    const prefix = address.slice(0, 4);
+    const body = address.slice(4, -6);
+    const checksum = address.slice(-6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...brandColor);
+    doc.text(prefix, startX, y);
+    
+    let currentX = startX + doc.getTextWidth(prefix) + 0.5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(150, 150, 150);
+    doc.text(body, currentX, y);
+    
+    currentX += doc.getTextWidth(body) + 0.5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...brandColor);
+    doc.text(checksum, currentX, y);
   }
 }
