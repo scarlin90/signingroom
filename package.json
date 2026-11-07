@@ -54,7 +54,7 @@
     "@angular/ssr": "^22.0.0",
     "@cloudflare/vitest-pool-workers": "^0.23.0",
     "@cyclonedx/cyclonedx-npm": "^6.0.1",
-    "@eslint/js": "^9.8.0",
+    "@eslint/js": "^10.0.1",
     "@nx/angular": "^23.3.0",
     "@nx/devkit": "^23.3.0",
     "@nx/esbuild": "^23.3.0",
