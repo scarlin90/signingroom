@@ -1705,7 +1705,7 @@
                     </div>
 
                     <!-- Transition Cue Banner when Step 2 Begins -->
-                    @if (roundTransitionCue() && !isRound1) {
+                    @if (!isRound1 && !finalHex()) {
                         <div class="mt-3 p-2.5 rounded-lg bg-brand-accent/10 border border-brand-accent/30 flex items-center gap-2 text-xs text-brand-accent font-medium animate-in fade-in slide-in-from-top-2 duration-300">
                             <svg lucideCheckCircle class="w-4 h-4 shrink-0"></svg>
                             <span>All nonces aggregated! Proceed to Step 2: Export & sign.</span>
@@ -1800,18 +1800,18 @@
                     </div>
                 } 
                 
-                <!-- ROUND 2 OR STANDARD: GATHERING SIGNATURES (Restored Exact Original Constraints & Styling) -->
+                <!-- ROUND 2 OR STANDARD: GATHERING SIGNATURES -->
                 @else {
                     <!-- EXPORT TRANSACTION (Block 1) -->
-                    <div class="flex flex-col gap-2">
+                    <div class="flex flex-col gap-2" [class.opacity-50]="!!finalHex()">
                         <div class="text-xs text-brand-text-muted mb-1">1. Export Unsigned Transaction</div>
                         <div class="grid grid-cols-2 gap-2">
                             <button id="btn-export-show-qr" 
-                                    (click)="socket.currentConstraints()?.canExportPsbt === false ? null : openFountainModal()" 
+                                    (click)="socket.currentConstraints()?.canExportPsbt === false || finalHex() ? null : openFountainModal()" 
                                     class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                    [disabled]="socket.currentConstraints()?.canExportPsbt === false"
+                                    [disabled]="socket.currentConstraints()?.canExportPsbt === false || !!finalHex()"
                                     [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
-                                    [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                                    [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : finalHex() ? 'Transaction is already finalized.' : ''">
                                 @if (socket.currentConstraints()?.canExportPsbt === false) {
                                     <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
                                 } @else {
@@ -1820,11 +1820,11 @@
                                 Show QR
                             </button>
                             <button id="btn-export-download-file" 
-                                    (click)="socket.currentConstraints()?.canExportPsbt === false ? null : promptPsbtDownload()" 
+                                    (click)="socket.currentConstraints()?.canExportPsbt === false || finalHex() ? null : promptPsbtDownload()" 
                                     class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                    [disabled]="socket.currentConstraints()?.canExportPsbt === false"
+                                    [disabled]="socket.currentConstraints()?.canExportPsbt === false || !!finalHex()"
                                     [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text'"
-                                    [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                                    [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : finalHex() ? 'Transaction is already finalized.' : ''">
                                 @if (socket.currentConstraints()?.canExportPsbt === false) {
                                     <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
                                 } @else {
@@ -1836,17 +1836,17 @@
                     </div>
 
                     <!-- IMPORT TRANSACTION (Block 2) -->
-                    <div class="flex flex-col gap-2">
+                    <div class="flex flex-col gap-2" [class.opacity-50]="!!finalHex()">
                         <div class="text-xs text-brand-text-muted mb-1">
                             {{ socket.roomState()?.protocol === 'musig2' ? '2. Import Partial Signature' : '2. Import Signed Transaction' }}
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <button id="btn-import-scan-qr" 
                                     (click)="startScanner()" 
-                                    [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false" 
+                                    [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false || !!finalHex()" 
                                     class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
-                                    [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
+                                    [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : finalHex() ? 'Transaction is already finalized.' : ''">
                                 @if (socket.currentConstraints()?.canUploadSignature === false) {
                                     <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
                                 } @else {
@@ -1856,16 +1856,16 @@
                             </button>
                             <label id="btn-import-upload-file" 
                                    class="relative flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium"
-                                   [class.opacity-50]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
-                                   [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                                   [class.opacity-50]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false || !!finalHex()"
+                                   [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false || !!finalHex()"
                                    [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text group cursor-pointer'"
-                                   [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
+                                   [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : finalHex() ? 'Transaction is already finalized.' : ''">
                                 
                                 <input type="file" (change)="onFileSelected($event, 'signature')" accept=".psbt,.txt,.hex" 
                                        class="absolute inset-0 opacity-0 z-10" 
-                                       [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
-                                       [class.cursor-pointer]="!(isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false)"
-                                       [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false">
+                                       [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false || !!finalHex()"
+                                       [class.cursor-pointer]="!(isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false || !!finalHex())"
+                                       [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false || !!finalHex()">
                                 
                                 @if (socket.currentConstraints()?.canUploadSignature === false) {
                                     <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
@@ -2403,7 +2403,7 @@
                             </div>
 
                             <!-- Transition Cue Banner when Step 2 Begins -->
-                            @if (roundTransitionCue() && !isRound1) {
+                            @if (!isRound1 && !finalHex()) {
                                 <div class="mt-3 p-2.5 rounded-lg bg-brand-accent/10 border border-brand-accent/30 flex items-center gap-2 text-xs text-brand-accent font-medium animate-in fade-in slide-in-from-top-2 duration-300">
                                     <svg lucideCheckCircle class="w-4 h-4 shrink-0"></svg>
                                     <span>All nonces aggregated! Proceed to Step 2: Export & sign.</span>

@@ -70,7 +70,7 @@ import { UrService } from '../../services/ur/ur.service';
 import { base64, hex } from '@scure/base';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
-import { EncryptionEngine, TxDerivationInfo } from '@signing-room/sdk';
+import { EncryptionEngine, TxDerivationInfo, PsbtUtils } from '@signing-room/sdk';
 import { ConfigService } from '../../services/config/config.service';
 
 @Component({
@@ -158,9 +158,6 @@ export class RoomComponent implements OnInit, OnDestroy {
   public isQrRevealed = signal(false);
   public qrDataUrl = signal<string | null>(null);
   public qrIncludesKey = signal(false);
-  public showRound2Transition = signal(false);
-  private previousCeremonyPhase: string | null = null;
-  public roundTransitionCue = signal(false);
 
   public timeRemaining = signal('Loading...');
   public isExpired = signal(false);
@@ -409,19 +406,6 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.previousSessions = currentSessions;
     });
 
-    effect(() => {
-      const phase = this.socket.ceremonyPhase();
-      if (
-        (this.previousCeremonyPhase === 'GATHERING_NONCES' ||
-          this.previousCeremonyPhase === 'AGGREGATING_NONCES') &&
-        phase === 'GATHERING_SIGNATURES'
-      ) {
-        this.showRound2Transition.set(true);
-        setTimeout(() => this.showRound2Transition.set(false), 6000);
-      }
-      this.previousCeremonyPhase = phase;
-    });
-
     // --- SIGNATURE NETWORK TRACKER ---
     this.socket.networkSignatureReceived$.subscribe((data) => {
       const sessions = this.socket.activeSessions();
@@ -542,7 +526,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     const fileName = file.name.toLowerCase();
     if (!validExtensions.some((ext) => fileName.endsWith(ext))) {
       this.openAlert('Invalid File Type', 'Please upload a .psbt, .txt, or .hex file.');
-      event.target.value = ''; // Reset input
+      event.target.value = '';
       return;
     }
 
@@ -556,6 +540,12 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     try {
       const psbtContent = await this.socket.sdk.parsePsbtFile(file);
+
+      // Stop immediately if the PSBT fails phase/ceremony validation
+      if (!this.validateCeremonyPayload(psbtContent)) {
+        event.target.value = '';
+        return;
+      }
       
       if (type === 'nonce') {
         await this.socket.uploadNonce(psbtContent);
@@ -1687,6 +1677,11 @@ export class RoomComponent implements OnInit, OnDestroy {
       const psbtBytes = /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
       const normalizedBase64 = base64.encode(psbtBytes);
 
+      // Stop immediately if the scanned PSBT fails phase/ceremony validation
+      if (!this.validateCeremonyPayload(normalizedBase64)) {
+        return;
+      }
+
       const phase = this.socket.ceremonyPhase();
       
       if (phase === 'GATHERING_NONCES') {
@@ -1698,6 +1693,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       }
     } catch (e) {
       console.error('Failed to parse scanned PSBT data', e);
+      this.openAlert('Scan Error', 'Failed to decode scanned QR payload.');
     }
   }
 
@@ -1707,6 +1703,136 @@ export class RoomComponent implements OnInit, OnDestroy {
     if (this.isFountainRevealed() && this.showFountainModal()) {
       this.startFountainAnimation();
     }
+  }
+
+  /**
+   * Validates an imported PSBT against the active ceremony phase, transaction ID,
+   * and existing signer contributions before broadcasting to the room.
+   */
+  private validateCeremonyPayload(psbtBase64: string): boolean {
+    const state = this.socket.roomState();
+    const phase = this.socket.ceremonyPhase();
+    const isMuSig2 = state?.protocol === 'musig2';
+    const currentSigners = this.socket.signers();
+
+    const inspection = PsbtUtils.inspectCeremonyPayload(psbtBase64);
+
+    // Corrupt / Unparseable PSBT
+    if (!inspection.isValidPsbt) {
+      this.openAlert(
+        'Invalid PSBT Data',
+        'The uploaded payload could not be parsed as a valid Bitcoin PSBT.',
+      );
+      return false;
+    }
+
+    // Transaction Mismatch Check
+    const expectedTxId = this.socket.txDetails()?.txId;
+    if (expectedTxId && inspection.txId && expectedTxId !== inspection.txId) {
+      this.openAlert(
+        'Transaction Mismatch',
+        `This PSBT belongs to a different transaction (${inspection.txId.slice(0, 8)}...) and does not match this room (${expectedTxId.slice(0, 8)}...).`,
+      );
+      return false;
+    }
+
+    // Guard against uploading while Coordinator is mid-aggregation
+    if (phase === 'AGGREGATING_NONCES') {
+      this.openAlert(
+        'Aggregation in Progress',
+        'Please wait a moment while the Coordinator finishes aggregating Round 1 nonces.',
+      );
+      return false;
+    }
+
+    // ROUND 1 VALIDATION (MuSig2 Nonce Collection)
+    if (isMuSig2 && phase === 'GATHERING_NONCES') {
+      // User uploaded a signature during Step 1!
+      if (inspection.hasMuSig2PartialSig || inspection.hasStandardSig) {
+        this.openAlert(
+          'Wrong Ceremony Step (Step 1 of 2)',
+          'The room is currently in Step 1 (Collect Nonces), but this file contains a signature.\n\nPlease upload your Round 1 Public Nonce first.',
+        );
+        return false;
+      }
+
+      // User re-uploaded the blank setup file with no nonces
+      if (!inspection.hasMuSig2Nonce || inspection.nonceFingerprints.length === 0) {
+        this.openAlert(
+          'No Public Nonce Found',
+          'This PSBT does not contain any MuSig2 public nonces (0x1b). Please generate a public nonce on your signing device before uploading.',
+        );
+        return false;
+      }
+
+      // Duplicate nonce upload (signer already hasNonce in Round 1)
+      const newNonceSigners = inspection.nonceFingerprints.filter((fp: string) => {
+        const existing = currentSigners.find((s) => s.fingerprint === fp);
+        return existing && !existing.hasNonce;
+      });
+
+      if (newNonceSigners.length === 0) {
+        const fpLabels = inspection.nonceFingerprints
+          .map((fp: string) => this.getSignerLabel(fp))
+          .join(', ');
+        this.openAlert(
+          'Duplicate Nonce',
+          `Public nonce for ${fpLabels} has already been uploaded in Step 1.`,
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    // ROUND 2 (MuSig2) OR STANDARD SIGNING VALIDATION
+    if (isMuSig2) {
+      // User uploaded a Round 1 Nonce file during Step 2 (no partial signature present)
+      if (!inspection.hasMuSig2PartialSig) {
+        if (inspection.hasMuSig2Nonce) {
+          this.openAlert(
+            'Wrong Ceremony Step (Step 2 of 2)',
+            'This file only contains Round 1 public nonces and no partial signatures.\n\nThe room is now in Step 2 (Collect Signatures). Please export the aggregated transaction, sign it, and upload your partial signature.',
+          );
+        } else {
+          this.openAlert(
+            'No Partial Signature Found',
+            'This PSBT does not contain a MuSig2 partial signature (0x1c). Please sign the transaction on your device first.',
+          );
+        }
+        return false;
+      }
+    } else {
+      // Standard (non-MuSig2) room: ensure at least one signature is present
+      if (!inspection.hasStandardSig && !inspection.hasMuSig2PartialSig) {
+        this.openAlert(
+          'No Signature Found',
+          'This PSBT is unsigned. Please sign the transaction on your hardware wallet before uploading.',
+        );
+        return false;
+      }
+    }
+
+    // Duplicate signature upload (signer already signed)
+    if (inspection.signedFingerprints.length > 0) {
+      const newSignedSigners = inspection.signedFingerprints.filter((fp: string) => {
+        const existing = currentSigners.find((s) => s.fingerprint === fp);
+        return existing && !existing.signed;
+      });
+
+      if (newSignedSigners.length === 0) {
+        const fpLabels = inspection.signedFingerprints
+          .map((fp: string) => this.getSignerLabel(fp))
+          .join(', ');
+        this.openAlert(
+          'Duplicate Signature',
+          `Signature for ${fpLabels} has already been uploaded.`,
+        );
+        return false;
+      }
+    }
+
+    return true;
   }
 
   getScriptTypeInfo(scriptType: string): { label: string; tooltip: string } {

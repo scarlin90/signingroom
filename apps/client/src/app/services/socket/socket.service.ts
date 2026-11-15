@@ -212,23 +212,6 @@ export class SocketService {
       }
     });
 
-    this.relay.events.on('NEW_PARTIAL_DECRYPTED').subscribe((event) => {
-      const { decryptedPsbt, fingerprint, sessionId } = event.payload;
-
-      this.store.update((current) => {
-        if (!current) return null;
-        return {
-          ...current,
-          psbt: this.mergePsbts(current.psbt, decryptedPsbt),
-          signatures: [...current.signatures, decryptedPsbt],
-        };
-      });
-
-      if (fingerprint && sessionId) {
-        this.networkSignatureReceived$.next({ fingerprint, sessionId });
-      }
-    });
-
     this.relay.events.on('ROLE_UPDATE').subscribe((e) => {
       const newRole = e.payload;
       this.role.set(newRole);
@@ -524,8 +507,6 @@ export class SocketService {
     });
   }
 
-  // ---
-
   public async uploadSignature(psbtBase64: string) {
     const fingerprint = this.sdk.extractFingerprintFromSignature(psbtBase64);
     if (!fingerprint) throw new Error('Could not extract fingerprint from PSBT');
@@ -665,9 +646,6 @@ export class SocketService {
       const state = this.roomState();
       if (!state || !state.transientPsbt) return;
 
-      console.log('[Coordinator] Threshold met. Merging MuSig2 Nonces...');
-
-      // Give the UI a 1.8s beat so participants see 2/2 Nonces Ready and the "Aggregating..." transition
       await new Promise((resolve) => setTimeout(resolve, 1800));
 
       // Merge all uploaded nonces into the transient PSBT

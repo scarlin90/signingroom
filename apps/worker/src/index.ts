@@ -603,7 +603,7 @@ export class SigningRoom implements DurableObject {
                         );
                     }
 
-                    if (msg.type === 'UPLOAD_PARTIAL' && session.constraints.canUploadSignature === false) {
+                    if ((msg.type === 'UPLOAD_PARTIAL' || msg.type === 'UPLOAD_NONCE') && session.constraints.canUploadSignature === false) {
                         return webSocket.send(
                             JSON.stringify({
                                 type: 'ERROR_POLICY_VIOLATION',

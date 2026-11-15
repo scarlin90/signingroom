@@ -138,10 +138,15 @@ export class RelayClient {
    * @param msg - The raw parsed server frame payload object.
    */
   private async routeMessage(msg: any) {
-    if (!this.encryptionKey && (msg.encryptedPsbt || msg.type === 'NEW_PARTIAL_DATA')) {
-      this.events.dispatch('DECRYPTION_ERROR', 'Decryption Key Missing');
-      return;
-    }
+    if (!this.encryptionKey &&
+        (msg.encryptedPsbt ||
+          msg.transientPsbt ||
+          msg.type === 'NEW_PARTIAL_DATA' ||
+          msg.type === 'NEW_NONCE_DATA')
+      ) {
+        this.events.dispatch('DECRYPTION_ERROR', 'Decryption Key Missing');
+        return;
+      }
 
     switch (msg.type) {
       case 'SESSION_CONNECTED':
@@ -327,10 +332,12 @@ export class RelayClient {
       mergedPsbt = PsbtUtils.merge(mergedPsbt, sigData);
     }
 
-    if (mergedPsbt) {
-      await this.registerAllFingerprints(mergedPsbt);
+    // Use mergedPsbt (Round 2 / Standard) OR transientPsbt (MuSig2 Round 1) to populate blind maps
+    const targetPsbt = mergedPsbt || transientPsbt;
+    if (targetPsbt) {
+      await this.registerAllFingerprints(targetPsbt);
 
-      const txDetails = PsbtUtils.parseTxDetails(mergedPsbt, msg.network || 'bitcoin');
+      const txDetails = PsbtUtils.parseTxDetails(targetPsbt, msg.network || 'bitcoin');
       if (txDetails) {
         const allAddresses = [
           ...(txDetails.inputsList?.map((i: any) => i.address) || []),
@@ -427,27 +434,17 @@ export class RelayClient {
   }
 
   /**
-   * Decodes input scopes inside a PSBT map, extracting and caching hardware BIP32 source paths.
+   * Delegates PSBT signer extraction to PsbtUtils and caches blinded-to-real fingerprint mappings.
    * @param psbtData - Target unencrypted transaction base64 string.
    */
   private async registerAllFingerprints(psbtData: string) {
-    if (!this.encryptionKey) return;
-    try {
-      const bytes = PsbtUtils.decode(psbtData);
-      const tx = Transaction.fromPSBT(bytes);
-      for (let i = 0; i < tx.inputsLength; i++) {
-        const input = tx.getInput(i);
-        if (input.bip32Derivation) {
-          for (const [, meta] of input.bip32Derivation) {
-            const fp = meta.fingerprint.toString(16).padStart(8, '0');
-            const blinded = await this.crypto.blindData(fp, this.encryptionKey);
-            this.blindFingerprintMap.set(blinded, fp);
-            this.blindFingerprintMap.set(fp, fp);
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Relay: Failed to parse fingerprints');
+    if (!this.encryptionKey || !psbtData) return;
+    const signers = PsbtUtils.extractSigners(psbtData);
+    for (const signer of signers) {
+      const fp = signer.fingerprint;
+      const blinded = await this.crypto.blindData(fp, this.encryptionKey);
+      this.blindFingerprintMap.set(blinded, fp);
+      this.blindFingerprintMap.set(fp, fp);
     }
   }
 

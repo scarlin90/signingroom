@@ -1274,4 +1274,86 @@ export class PsbtUtils {
     }
     return extracted;
   }
+
+  /**
+   * Inspects an uploaded PSBT payload to validate phase-specific ceremony rules.
+   */
+  static inspectCeremonyPayload(psbtBase64: string): {
+    isValidPsbt: boolean;
+    txId: string | null;
+    hasMuSig2Nonce: boolean;
+    hasMuSig2PartialSig: boolean;
+    hasStandardSig: boolean;
+    nonceFingerprints: string[];
+    signedFingerprints: string[];
+  } {
+    try {
+      const tx = Transaction.fromPSBT(this.decode(psbtBase64), {
+        allowUnknownInputs: true,
+        allowUnknownOutputs: true,
+      });
+
+      let hasMuSig2Nonce = false;
+      let hasMuSig2PartialSig = false;
+      let hasStandardSig = false;
+
+      for (let i = 0; i < tx.inputsLength; i++) {
+        const input = tx.getInput(i) as any;
+
+        if (input.musig2PubNonce?.length > 0) hasMuSig2Nonce = true;
+        if (input.musig2PartialSig?.length > 0) hasMuSig2PartialSig = true;
+
+        if (input.unknown?.length > 0) {
+          for (const u of input.unknown) {
+            const keyBytes = u.key || u[0]?.key || (u[0] instanceof Uint8Array ? u[0] : null);
+            if (keyBytes?.length > 0) {
+              if (keyBytes[0] === 0x1b) hasMuSig2Nonce = true;
+              if (keyBytes[0] === 0x1c) hasMuSig2PartialSig = true;
+            }
+          }
+        }
+
+        if (
+          input.partialSig?.length > 0 ||
+          input.tapScriptSig?.length > 0 ||
+          !!input.tapKeySig ||
+          !!input.finalScriptWitness ||
+          !!input.finalScriptSig
+        ) {
+          hasStandardSig = true;
+        }
+      }
+
+      const signers = this.extractSigners(psbtBase64);
+      const nonceFingerprints = signers.filter((s) => s.hasNonce).map((s) => s.fingerprint);
+      const signedFingerprints = signers.filter((s) => s.signed).map((s) => s.fingerprint);
+
+      let txId: string | null = null;
+      try {
+        txId = tx.id;
+      } catch {
+        txId = this.parseTxDetails(psbtBase64)?.txId ?? null;
+      }
+
+      return {
+        isValidPsbt: true,
+        txId,
+        hasMuSig2Nonce,
+        hasMuSig2PartialSig,
+        hasStandardSig,
+        nonceFingerprints,
+        signedFingerprints,
+      };
+    } catch {
+      return {
+        isValidPsbt: false,
+        txId: null,
+        hasMuSig2Nonce: false,
+        hasMuSig2PartialSig: false,
+        hasStandardSig: false,
+        nonceFingerprints: [],
+        signedFingerprints: [],
+      };
+    }
+  }
 }
