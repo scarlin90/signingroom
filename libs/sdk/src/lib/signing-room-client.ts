@@ -234,8 +234,15 @@ export class SigningRoomClient {
   ) {
     await this.ensureLicense();
 
+    const resolvedProtocol = protocol || this.detectProtocol(psbtBase64);
+
     const payload = await RoomFactory.prepareCreationPayload(
-      this.engine, psbtBase64, network, roomName, this.protocolVersion, protocol
+      this.engine,
+      psbtBase64,
+      network,
+      roomName,
+      this.protocolVersion,
+      resolvedProtocol,
     );
 
     this._encryptionKey = payload.localData.encryptionKey;
@@ -477,6 +484,27 @@ export class SigningRoomClient {
     const confirmation = this.waitForEvent('AGGREGATE_PSBT_DECRYPTED');
     await this.relay.publishAggregatePsbt(aggregatePsbtBase64, this.userContext);
     await confirmation;
+  }
+
+  /**
+   * Merges all collected Round 1 public nonces into the room's transient setup PSBT
+   * and publishes the aggregated PSBT to transition the room into Round 2 (signing phase).
+   * Only the Coordinator can execute this.
+   * @returns The normalized Base64 aggregate PSBT published to the room.
+   */
+  public async aggregateMuSig2Nonces(): Promise<string> {
+    const state = this.getRoomState();
+    if (!state || !state.transientPsbt) {
+      throw new Error('Cannot aggregate nonces: No transient setup PSBT found in room state.');
+    }
+
+    let mergedNoncePsbt = state.transientPsbt;
+    for (const noncePsbt of state.nonces || []) {
+      mergedNoncePsbt = PsbtUtils.merge(mergedNoncePsbt, noncePsbt);
+    }
+
+    await this.publishAggregatePsbt(mergedNoncePsbt);
+    return mergedNoncePsbt;
   }
 
   /**
@@ -1176,5 +1204,21 @@ export class SigningRoomClient {
       expiresAt: unpacked.payload.expiresAt ? new Date(unpacked.payload.expiresAt) : null,
       isExpired: unpacked.payload.expiresAt !== 0 && Date.now() > unpacked.payload.expiresAt,
     };
+  }
+
+  /**
+   * Auto-detects whether a PSBT uses standard signing or BIP-373 MuSig2 fields (0x1a / 0x1b / 0x1c).
+   * @param psbtBase64 - The Base64 or Hex encoded PSBT string.
+   * @returns 'musig2' if BIP-373 MuSig2 fields are present, otherwise 'standard'.
+   */
+  public detectProtocol(psbtBase64: string): 'standard' | 'musig2' {
+    return PsbtUtils.detectProtocol(psbtBase64);
+  }
+
+  /**
+   * Static helper to auto-detect PSBT protocol without instantiating a client.
+   */
+  public static detectProtocol(psbtBase64: string): 'standard' | 'musig2' {
+    return PsbtUtils.detectProtocol(psbtBase64);
   }
 }

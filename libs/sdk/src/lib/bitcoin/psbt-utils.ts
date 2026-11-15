@@ -151,6 +151,8 @@ export class PsbtUtils {
    * @returns A new Base64 PSBT string containing the combined signatures, or the original base on failure.
    */
   static merge(base: string, next: string): string {
+    if (!base || !base.trim()) return next ? this.normalize(next) : '';
+    if (!next || !next.trim()) return this.normalize(base);
     try {
       const opts = { allowUnknownInputs: true, allowUnknownOutputs: true };
       const txBase = Transaction.fromPSBT(this.decode(base), opts);
@@ -659,7 +661,7 @@ export class PsbtUtils {
       for (let i = 0; i < tx.inputsLength; i++) {
         const prev = this.getPrevOut(tx.getInput(i));
         prevOutScripts.push(prev?.script ?? new Uint8Array());
-        prevOutAmounts.push(prev?.amount ?? 0n);
+        prevOutAmounts.push(prev?.amount ?? BigInt(0));
       }
 
       for (let i = 0; i < tx.inputsLength; i++) {
