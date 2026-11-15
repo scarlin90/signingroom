@@ -151,6 +151,20 @@ export class RelayClient {
         const syncData = await this.processStateSync(msg);
         if (syncData) this.events.dispatch('STATE_SYNC_DECRYPTED', syncData);
         break;
+      case 'NEW_NONCE_DATA':
+        const nonceData = await this.processNewPartial(msg);
+        if (nonceData) this.events.dispatch('NEW_NONCE_DECRYPTED' as any, nonceData);
+        break;
+      case 'AGGREGATE_PSBT_PUBLISHED':
+        if (msg.encryptedPsbt && this.encryptionKey) {
+            try {
+                const dec = await this.crypto.decrypt(msg.encryptedPsbt, this.encryptionKey);
+                this.events.dispatch('AGGREGATE_PSBT_DECRYPTED' as any, PsbtUtils.normalize(dec));
+            } catch (e) {
+                console.error('Relay: Failed to decrypt aggregate PSBT', e);
+            }
+        }
+        break;
       case 'NEW_PARTIAL_DATA':
         const partialData = await this.processNewPartial(msg);
         if (partialData) this.events.dispatch('NEW_PARTIAL_DECRYPTED', partialData);
@@ -262,16 +276,38 @@ export class RelayClient {
    */
   private async processStateSync(msg: any): Promise<any | null> {
     let masterPsbt = '';
-    try {
-      masterPsbt = msg.encryptedPsbt
-        ? await this.crypto.decrypt(msg.encryptedPsbt, this.encryptionKey!)
-        : msg.psbt || '';
-    } catch (e) {
-      this.events.dispatch('DECRYPTION_ERROR', 'Invalid decryption key provided.');
-      return null;
+    if (msg.encryptedPsbt) {
+        try {
+            masterPsbt = await this.crypto.decrypt(msg.encryptedPsbt, this.encryptionKey!);
+            masterPsbt = PsbtUtils.normalize(masterPsbt);
+        } catch (e) {
+            // Safe to ignore if null during Round 1 of MuSig2
+        }
     }
 
-    masterPsbt = PsbtUtils.normalize(masterPsbt);
+    let transientPsbt = '';
+    if (msg.transientPsbt) {
+        try {
+            transientPsbt = await this.crypto.decrypt(msg.transientPsbt, this.encryptionKey!);
+            transientPsbt = PsbtUtils.normalize(transientPsbt);
+        } catch (e) {
+            console.error('Relay: Failed to decrypt transient PSBT');
+        }
+    }
+
+    const decryptedNonces: string[] = [];
+    if (msg.nonces) {
+        for (const n of Object.values(msg.nonces)) {
+            try {
+                const encTarget = (n as any)?.encryptedData || n;
+                const dec = await this.crypto.decrypt(encTarget, this.encryptionKey!);
+                decryptedNonces.push(PsbtUtils.normalize(dec));
+            } catch (e) {
+                console.error('Relay: Failed to decrypt nonce');
+            }
+        }
+    }
+
     const decryptedHistory: string[] = [];
 
     if (msg.signatures?.length) {
@@ -352,7 +388,9 @@ export class RelayClient {
 
     return {
       ...msg,
-      psbt: mergedPsbt,
+      psbt: mergedPsbt, 
+      transientPsbt: transientPsbt,
+      nonces: decryptedNonces,
       signatures: decryptedHistory,
       signerLabels: Object.keys(decryptedLabels).length > 0 ? decryptedLabels : msg.signerLabels,
       addressLabels:
@@ -739,5 +777,46 @@ export class RelayClient {
       user,
     );
     this.send('TX_FINALIZED', { encryptedFinalTxHex, encryptedFinalTxId, encryptedLogBlob });
+  }
+
+  /**
+   * Prepares and uploads a MuSig2 public nonce payload to the server pipeline.
+   */
+  public async uploadNonce(noncePsbtBase64: string, fingerprint: string, user: string) {
+    if (!this.encryptionKey) return;
+    const blindedFingerprint = await this.crypto.blindData(fingerprint, this.encryptionKey);
+    const encryptedData = await this.crypto.encrypt(noncePsbtBase64, this.encryptionKey);
+    const encryptedLogBlob = await this.createSecureLogBlob(
+        'Public Nonce Uploaded',
+        `Signer: ${fingerprint}`,
+        user,
+    );
+
+    this.blindFingerprintMap.set(blindedFingerprint, fingerprint);
+    this.blindFingerprintMap.set(fingerprint, fingerprint);
+
+    this.send('UPLOAD_NONCE', {
+        fingerprint: blindedFingerprint,
+        data: { encryptedData },
+        encryptedLogBlob,
+    });
+  }
+
+  /**
+   * Coordinator exclusively publishes the finalized aggregate PSBT to begin Round 2.
+   */
+  public async publishAggregatePsbt(aggregatePsbtBase64: string, user: string) {
+    if (!this.encryptionKey) return;
+    const encryptedPsbt = await this.crypto.encrypt(aggregatePsbtBase64, this.encryptionKey);
+    const encryptedLogBlob = await this.createSecureLogBlob(
+        'Aggregate Nonce Broadcasted',
+        'Coordinator transitioning room to signing phase',
+        user,
+    );
+
+    this.send('PUBLISH_AGGREGATE_PSBT', {
+        encryptedPsbt,
+        encryptedLogBlob,
+    });
   }
 }

@@ -905,10 +905,10 @@
                 Ensure no cameras are observing your screen before revealing.
             </p>
 
-            @if (isFountainRevealed()) {
+            @if (isFountainRevealed() && activeFountainFrames.length > 1) {
                 <div class="w-full mt-6 bg-brand-bg p-4 rounded-xl border border-brand-card-border animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div class="flex justify-between items-center mb-2">
-                        <span class="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider">Frame Delay</span>
+                        <span class="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider">Frame Delay ({{ currentFrameIndex() + 1 }} / {{ activeFountainFrames.length }})</span>
                         <span class="text-xs font-mono text-brand-accent font-bold">{{ fountainSpeed() }}ms</span>
                     </div>
                     <input type="range" 
@@ -996,7 +996,7 @@
                 @if (urService.scanProgress() > 0) {
                     <div class="absolute bottom-0 left-0 right-0 bg-brand-card/95 backdrop-blur-sm p-3 border-t border-brand-accent/30 z-20">
                         <div class="flex justify-between text-xs text-brand-accent font-bold mb-2 tracking-wider">
-                            <span>RECONSTRUCTING SIGNATURE...</span>
+                            <span>{{ socket.ceremonyPhase() === 'GATHERING_NONCES' ? 'RECONSTRUCTING NONCE...' : 'RECONSTRUCTING SIGNATURE...' }}</span>
                             <span>{{ (urService.scanProgress() * 100).toFixed(0) }}%</span>
                         </div>
                         <div class="w-full bg-brand-bg rounded-full h-1.5 overflow-hidden">
@@ -1644,80 +1644,239 @@
 
             <h2 class="text-lg font-semibold text-brand-text flex items-center gap-2 mb-4">Signer Actions</h2>
 
+            <!-- MuSig2 2-Step Progress Indicator -->
+            @if (socket.roomState()?.protocol === 'musig2') {
+                @let phase = socket.ceremonyPhase();
+                @let isRound1 = phase === 'GATHERING_NONCES' || phase === 'AGGREGATING_NONCES';
+                @let isAggregating = phase === 'AGGREGATING_NONCES';
+
+                <div class="mb-5 pb-4 border-b border-brand-card-border/60">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-brand-accent flex items-center gap-1.5">
+                            @if (isAggregating) {
+                                <svg lucideLoader2 class="w-3.5 h-3.5 animate-spin"></svg>
+                                <span>Step 1 Complete · Aggregating Nonces...</span>
+                            } @else if (isRound1) {
+                                <span>Step 1 of 2 · Collect Nonces</span>
+                            } @else {
+                                <span>Step 2 of 2 · Collect Signatures</span>
+                            }
+                        </span>
+                        <span class="text-[10px] font-mono text-brand-text-muted transition-all duration-300"
+                              [class.blur-sm]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
+                              [class.select-none]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false">
+                            {{ isRound1 ? (socket.nonceCount() + '/' + socket.signerThreshold()) : (socket.signerCount() + '/' + socket.signerThreshold()) }}
+                        </span>
+                    </div>
+
+                    <div class="flex items-center">
+                        <!-- Step 1 Node -->
+                        <div class="w-4 h-4 rounded-full flex items-center justify-center border-2 border-brand-accent transition-all duration-500"
+                             [class.bg-brand-accent/20]="phase === 'GATHERING_NONCES'"
+                             [class.bg-brand-accent]="phase !== 'GATHERING_NONCES'">
+                            @if (phase === 'GATHERING_NONCES') {
+                                <div class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                            } @else {
+                                <svg lucideCheck class="w-2.5 h-2.5 text-brand-bg stroke-[3]"></svg>
+                            }
+                        </div>
+
+                        <!-- Animated Connector Line -->
+                        <div class="w-10 h-0.5 bg-brand-card-border overflow-hidden relative">
+                            <div class="h-full bg-brand-accent transition-all duration-1000 ease-in-out"
+                                 [class.w-0]="phase === 'GATHERING_NONCES'"
+                                 [class.w-full]="phase !== 'GATHERING_NONCES'"
+                                 [class.animate-pulse]="isAggregating"></div>
+                        </div>
+
+                        <!-- Step 2 Node -->
+                        <div class="w-4 h-4 rounded-full flex items-center justify-center border-2 transition-all duration-500"
+                             [class.border-brand-card-border]="isRound1"
+                             [class.bg-brand-bg]="isRound1"
+                             [class.border-brand-accent]="!isRound1"
+                             [class.bg-brand-accent/20]="!isRound1 && !finalHex()"
+                             [class.bg-brand-accent]="!isRound1 && finalHex()">
+                            @if (!isRound1 && !finalHex()) {
+                                <div class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                            } @else if (finalHex()) {
+                                <svg lucideCheck class="w-2.5 h-2.5 text-brand-bg stroke-[3]"></svg>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Transition Cue Banner when Step 2 Begins -->
+                    @if (roundTransitionCue() && !isRound1) {
+                        <div class="mt-3 p-2.5 rounded-lg bg-brand-accent/10 border border-brand-accent/30 flex items-center gap-2 text-xs text-brand-accent font-medium animate-in fade-in slide-in-from-top-2 duration-300">
+                            <svg lucideCheckCircle class="w-4 h-4 shrink-0"></svg>
+                            <span>All nonces aggregated! Proceed to Step 2: Export & sign.</span>
+                        </div>
+                    }
+                </div>
+            }
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                <!-- EXPORT TRANSACTION (Block 1) -->
-                <div class="flex flex-col gap-2">
-                    <div class="text-xs text-brand-text-muted mb-1">1. Export Unsigned Transaction</div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button id="btn-export-show-qr" 
-                                (click)="socket.currentConstraints()?.canExportPsbt === false ? null : openFountainModal()" 
-                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                [disabled]="socket.currentConstraints()?.canExportPsbt === false"
-                                [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
-                                [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
-                            @if (socket.currentConstraints()?.canExportPsbt === false) {
-                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
-                            } @else {
-                                <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
-                            }
-                            Show QR
-                        </button>
-                        <button id="btn-export-download-file" 
-                                (click)="socket.currentConstraints()?.canExportPsbt === false ? null : promptPsbtDownload()" 
-                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                [disabled]="socket.currentConstraints()?.canExportPsbt === false"
-                                [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text'"
-                                [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
-                            @if (socket.currentConstraints()?.canExportPsbt === false) {
-                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
-                            } @else {
-                                <svg lucideDownloadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
-                            }
-                            Download File
-                        </button>
+                <!-- ROUND 1: GATHERING NONCES (With Full Role Constraints & Lock Icons) -->
+                @if (socket.roomState()?.protocol === 'musig2' && (socket.ceremonyPhase() === 'GATHERING_NONCES' || socket.ceremonyPhase() === 'AGGREGATING_NONCES')) {
+                    
+                    <!-- EXPORT SETUP FILE (Block 1) -->
+                    <div class="flex flex-col gap-2">
+                        <div class="text-xs text-brand-text-muted mb-1">1. Export Setup File</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="btn-export-show-qr" 
+                                    (click)="socket.currentConstraints()?.canExportPsbt === false ? null : openFountainModal()" 
+                                    class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    [disabled]="socket.currentConstraints()?.canExportPsbt === false || socket.ceremonyPhase() === 'AGGREGATING_NONCES'"
+                                    [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
+                                    [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                                @if (socket.currentConstraints()?.canExportPsbt === false) {
+                                    <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                                } @else {
+                                    <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                                }
+                                Show QR
+                            </button>
+                            <button id="btn-export-download-file" 
+                                    (click)="socket.currentConstraints()?.canExportPsbt === false ? null : promptPsbtDownload()" 
+                                    class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    [disabled]="socket.currentConstraints()?.canExportPsbt === false || socket.ceremonyPhase() === 'AGGREGATING_NONCES'"
+                                    [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text'"
+                                    [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                                @if (socket.currentConstraints()?.canExportPsbt === false) {
+                                    <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                                } @else {
+                                    <svg lucideDownloadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                                }
+                                Download File
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <!-- IMPORT TRANSACTION (Block 2) -->
-                <div class="flex flex-col gap-2">
-                    <div class="text-xs text-brand-text-muted mb-1">2. Import Signed Transaction</div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button id="btn-import-scan-qr" 
-                                (click)="startScanner()" 
-                                [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false" 
-                                class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
-                                [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
-                            @if (socket.currentConstraints()?.canUploadSignature === false) {
-                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
-                            } @else {
-                                <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
-                            }
-                            Scan QR
-                        </button>
-                        <label id="btn-import-upload-file" 
-                               class="relative flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium"
-                               [class.opacity-50]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
-                               [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
-                               [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text group cursor-pointer'"
-                               [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
-                            
-                            <input type="file" (change)="onFileSelected($event)" accept=".psbt,.txt,.hex" 
-                                   class="absolute inset-0 opacity-0 z-10" 
-                                   [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
-                                   [class.cursor-pointer]="!(isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false)"
-                                   [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false">
-                            
-                            @if (socket.currentConstraints()?.canUploadSignature === false) {
-                                <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
-                            } @else {
-                                <svg lucideUploadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
-                            }
-                            Upload File
-                        </label>
+                    <!-- IMPORT PUBLIC NONCE (Block 2) -->
+                    <div class="flex flex-col gap-2">
+                        <div class="text-xs text-brand-text-muted mb-1">2. Import Public Nonce</div>
+                        
+                        @if (socket.ceremonyPhase() === 'AGGREGATING_NONCES') {
+                            <div class="flex items-center justify-center p-3 border border-brand-card-border rounded-lg bg-brand-bg text-brand-text-muted text-sm font-medium">
+                                <svg lucideLoader2 class="w-4 h-4 animate-spin mr-2"></svg> Coordinator Aggregating...
+                            </div>
+                        } @else {
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="btn-import-scan-qr" 
+                                        (click)="startScanner()" 
+                                        [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false" 
+                                        class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                        [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
+                                        [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts nonce uploads.' : ''">
+                                    @if (socket.currentConstraints()?.canUploadSignature === false) {
+                                        <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                                    } @else {
+                                        <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                                    }
+                                    Scan QR
+                                </button>
+                                <label id="btn-import-upload-file" 
+                                       class="relative flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium"
+                                       [class.opacity-50]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                                       [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                                       [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text group cursor-pointer'"
+                                       [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts nonce uploads.' : ''">
+                                    
+                                    <input type="file" (change)="onFileSelected($event, 'nonce')" accept=".psbt,.txt,.hex" 
+                                           class="absolute inset-0 opacity-0 z-10" 
+                                           [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                                           [class.cursor-pointer]="!(isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false)"
+                                           [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false">
+                                    
+                                    @if (socket.currentConstraints()?.canUploadSignature === false) {
+                                        <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                                    } @else {
+                                        <svg lucideUploadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                                    }
+                                    Upload Nonce
+                                </label>
+                            </div>
+                        }
                     </div>
-                </div>
+                } 
+                
+                <!-- ROUND 2 OR STANDARD: GATHERING SIGNATURES (Restored Exact Original Constraints & Styling) -->
+                @else {
+                    <!-- EXPORT TRANSACTION (Block 1) -->
+                    <div class="flex flex-col gap-2">
+                        <div class="text-xs text-brand-text-muted mb-1">1. Export Unsigned Transaction</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="btn-export-show-qr" 
+                                    (click)="socket.currentConstraints()?.canExportPsbt === false ? null : openFountainModal()" 
+                                    class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    [disabled]="socket.currentConstraints()?.canExportPsbt === false"
+                                    [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
+                                    [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                                @if (socket.currentConstraints()?.canExportPsbt === false) {
+                                    <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                                } @else {
+                                    <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                                }
+                                Show QR
+                            </button>
+                            <button id="btn-export-download-file" 
+                                    (click)="socket.currentConstraints()?.canExportPsbt === false ? null : promptPsbtDownload()" 
+                                    class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    [disabled]="socket.currentConstraints()?.canExportPsbt === false"
+                                    [class]="socket.currentConstraints()?.canExportPsbt === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text'"
+                                    [title]="socket.currentConstraints()?.canExportPsbt === false ? 'Your role restricts PSBT exports.' : ''">
+                                @if (socket.currentConstraints()?.canExportPsbt === false) {
+                                    <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                                } @else {
+                                    <svg lucideDownloadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                                }
+                                Download File
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- IMPORT TRANSACTION (Block 2) -->
+                    <div class="flex flex-col gap-2">
+                        <div class="text-xs text-brand-text-muted mb-1">
+                            {{ socket.roomState()?.protocol === 'musig2' ? '2. Import Partial Signature' : '2. Import Signed Transaction' }}
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="btn-import-scan-qr" 
+                                    (click)="startScanner()" 
+                                    [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false" 
+                                    class="flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-brand-accent/50 hover:bg-brand-accent/5 text-brand-text'"
+                                    [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
+                                @if (socket.currentConstraints()?.canUploadSignature === false) {
+                                    <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                                } @else {
+                                    <svg lucideQrCode class="mr-2 text-brand-text-muted group-hover:text-brand-accent transition-colors w-[18px] h-[18px]"></svg>
+                                }
+                                Scan QR
+                            </button>
+                            <label id="btn-import-upload-file" 
+                                   class="relative flex items-center justify-center p-3 border rounded-lg transition-all text-sm font-medium"
+                                   [class.opacity-50]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                                   [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                                   [class]="socket.currentConstraints()?.canUploadSignature === false ? 'bg-brand-card-border/30 text-brand-text-muted border-brand-card-border/50' : 'bg-brand-bg border-brand-card-border hover:border-purple-500/50 hover:bg-purple-500/5 text-brand-text group cursor-pointer'"
+                                   [title]="socket.currentConstraints()?.canUploadSignature === false ? 'Your role restricts signature uploads.' : ''">
+                                
+                                <input type="file" (change)="onFileSelected($event, 'signature')" accept=".psbt,.txt,.hex" 
+                                       class="absolute inset-0 opacity-0 z-10" 
+                                       [class.cursor-not-allowed]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false"
+                                       [class.cursor-pointer]="!(isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false)"
+                                       [disabled]="isScanningSigned() || socket.currentConstraints()?.canUploadSignature === false">
+                                
+                                @if (socket.currentConstraints()?.canUploadSignature === false) {
+                                    <svg lucideLock class="mr-2 text-brand-text-muted w-[18px] h-[18px]"></svg>
+                                } @else {
+                                    <svg lucideUploadCloud class="mr-2 text-brand-text-muted group-hover:text-purple-400 transition-colors w-[18px] h-[18px]"></svg>
+                                }
+                                Upload File
+                            </label>
+                        </div>
+                    </div>
+                }
 
             </div>
 
@@ -1729,7 +1888,7 @@
                         <div class="absolute top-6 left-1/2 -translate-x-1/2 z-20 bg-brand-bg/80 border border-brand-accent/20 backdrop-blur-md px-4 py-1.5 rounded-full whitespace-nowrap shadow-lg">
                             <span class="text-xs font-medium text-brand-accent uppercase tracking-widest flex items-center gap-2">
                                 <div class="w-2 h-2 rounded-full bg-brand-accent animate-pulse"></div>
-                                Scan Signature Sequence
+                                {{ socket.ceremonyPhase() === 'GATHERING_NONCES' ? 'Scan Nonce Sequence' : 'Scan Signature Sequence' }}
                             </span>
                         </div>
 
@@ -1745,7 +1904,7 @@
                     @if (urService.scanProgress() > 0) {
                         <div class="absolute bottom-0 left-0 right-0 bg-brand-card/95 backdrop-blur-sm p-3 border-t border-brand-card-border z-20">
                             <div class="flex justify-between text-xs text-brand-text-muted mb-2">
-                                <span>Ingesting Signature...</span>
+                                <span>{{ socket.ceremonyPhase() === 'GATHERING_NONCES' ? 'Ingesting Nonce...' : 'Ingesting Signature...' }}</span>
                                 <span>{{ (urService.scanProgress() * 100).toFixed(0) }}%</span>
                             </div>
                             <div class="w-full bg-brand-card-border rounded-full h-1.5 overflow-hidden">
@@ -2179,84 +2338,160 @@
             </div>
 
             <div class="relative flex-grow flex flex-col">
-            <div class="transition-all duration-300 flex-grow"
-                    [class.blur-md]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
-                    [class.opacity-30]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
-                    [class.select-none]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
-                    [class.pointer-events-none]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false">
-                
-                <div class="space-y-4 overflow-y-auto custom-scrollbar max-h-[880px] pr-2">
-                @for (signer of socket.signers(); track signer.fingerprint) {
-                    <div class="p-4 rounded-xl flex flex-col border transition-all relative"
-                            [class.bg-emerald-500/10]="signer.signed"
-                            [class.border-emerald-500/30]="signer.signed"
-                            [class.bg-brand-bg]="!signer.signed"
-                            [class.border-brand-card-border]="!signer.signed">
-                        
-                        <!-- Top Row: Identity & Status -->
-                        <div class="flex items-start justify-between z-10 gap-3">
-                            <div class="flex items-start gap-3 flex-1 min-w-0">
-                                <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-                                        [class.bg-emerald-500/20]="signer.signed"
-                                        [class.text-emerald-400]="signer.signed"
-                                        [class.bg-brand-card]="!signer.signed"
-                                        [class.text-brand-text-muted]="!signer.signed">
-                                    @if (signer.signed) {
-                                        <svg lucideCheckCircle class="w-5 h-5"></svg>
+                <div class="transition-all duration-300 flex-grow"
+                     [class.blur-md]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
+                     [class.opacity-30]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
+                     [class.select-none]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false"
+                     [class.pointer-events-none]="blurStates().signers || socket.currentConstraints()?.canViewSigners === false">
+                    
+                    <!-- MuSig2 2-Step Progress Indicator -->
+                    @if (socket.roomState()?.protocol === 'musig2') {
+                        @let phase = socket.ceremonyPhase();
+                        @let isRound1 = phase === 'GATHERING_NONCES' || phase === 'AGGREGATING_NONCES';
+                        @let isAggregating = phase === 'AGGREGATING_NONCES';
+
+                        <div class="mb-4 px-1">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-brand-accent flex items-center gap-1.5">
+                                    @if (isAggregating) {
+                                        <svg lucideLoader2 class="w-3.5 h-3.5 animate-spin"></svg>
+                                        <span>Step 1 Complete · Aggregating Nonces...</span>
+                                    } @else if (isRound1) {
+                                        <span>Step 1 of 2 · Collect Nonces</span>
                                     } @else {
-                                        <svg lucideUser class="w-5 h-5"></svg>
+                                        <span>Step 2 of 2 · Collect Signatures</span>
+                                    }
+                                </span>
+                                <span class="text-[10px] font-mono text-brand-text-muted">
+                                    {{ isRound1 ? (socket.nonceCount() + '/' + socket.signerThreshold()) : (socket.signerCount() + '/' + socket.signerThreshold()) }}
+                                </span>
+                            </div>
+
+                            <div class="flex items-center">
+                                <!-- Step 1 Node -->
+                                <div class="w-4 h-4 rounded-full flex items-center justify-center border-2 border-brand-accent transition-all duration-500"
+                                     [class.bg-brand-accent/20]="phase === 'GATHERING_NONCES'"
+                                     [class.bg-brand-accent]="phase !== 'GATHERING_NONCES'">
+                                    @if (phase === 'GATHERING_NONCES') {
+                                        <div class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                                    } @else {
+                                        <svg lucideCheck class="w-2.5 h-2.5 text-brand-bg stroke-[3]"></svg>
                                     }
                                 </div>
-                                
-                                <!-- Vertically Stacked Fingerprint & Label -->
-                                <div class="flex flex-col flex-1 min-w-0">
-                                    <div class="flex items-center gap-1.5 px-1.5 mb-0.5">
-                                        <span class="text-[9px] uppercase tracking-widest font-bold text-brand-text-muted">Fingerprint</span>
-                                        <span class="text-[10px] font-mono text-brand-text font-bold">
-                                            {{ socket.currentConstraints()?.canViewSigners === false ? '••••••••' : signer.fingerprint }}
-                                        </span>
-                                    </div>
 
-                                    @if (socket.isCoordinator()) {
-                                        <button id="btn-label-signer-{{ signer.fingerprint }}" (click)="openLabelModal(signer.fingerprint)" 
-                                                class="text-sm flex items-center gap-2 hover:bg-brand-card-border/50 px-1.5 py-0.5 rounded transition group/label text-left cursor-pointer w-fit max-w-full">
-                                            @if (getLabel(signer.fingerprint); as label) {
-                                                <span class="text-brand-text font-bold truncate">{{ label }}</span>
-                                                <svg lucideEdit2 class="w-3 h-3 text-brand-text-muted group-hover/label:text-brand-accent opacity-0 group-hover/label:opacity-100 transition shrink-0"></svg>
-                                            } @else {
-                                                <span class="text-brand-accent/90 italic font-medium pr-1">Add Label</span>
-                                                <svg lucideTag class="w-3 h-3 text-brand-accent/50 group-hover/label:text-brand-accent shrink-0"></svg>
-                                            }
-                                        </button>
-                                    } @else {
-                                        <div class="text-brand-text font-bold text-sm px-1.5 truncate">
-                                            {{ socket.currentConstraints()?.canViewSigners === false ? '••••••••' : (getLabel(signer.fingerprint) || 'Unlabeled Device') }}
-                                        </div>
+                                <!-- Animated Connector Line -->
+                                <div class="w-10 h-0.5 bg-brand-card-border overflow-hidden relative">
+                                    <div class="h-full bg-brand-accent transition-all duration-1000 ease-in-out"
+                                         [class.w-0]="phase === 'GATHERING_NONCES'"
+                                         [class.w-full]="phase !== 'GATHERING_NONCES'"
+                                         [class.animate-pulse]="isAggregating"></div>
+                                </div>
+
+                                <!-- Step 2 Node -->
+                                <div class="w-4 h-4 rounded-full flex items-center justify-center border-2 transition-all duration-500"
+                                     [class.border-brand-card-border]="isRound1"
+                                     [class.bg-brand-bg]="isRound1"
+                                     [class.border-brand-accent]="!isRound1"
+                                     [class.bg-brand-accent/20]="!isRound1 && !finalHex()"
+                                     [class.bg-brand-accent]="!isRound1 && finalHex()">
+                                    @if (!isRound1 && !finalHex()) {
+                                        <div class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                                    } @else if (finalHex()) {
+                                        <svg lucideCheck class="w-2.5 h-2.5 text-brand-bg stroke-[3]"></svg>
                                     }
                                 </div>
                             </div>
 
-                            <!-- Status & Nudge Action -->
-                            <div class="flex items-center gap-2 z-10 shrink-0 mt-2">
-                                @if (signer.signed) {
-                                    <div class="text-xs font-medium text-emerald-400">
-                                        Signed
-                                    </div>
-                                }
-                                @if (socket.isCoordinator() && !signer.signed) {
-                                    <button (click)="nudgeSigner(signer.fingerprint)" 
-                                            class="p-1 text-brand-text-muted hover:text-amber-400 transition cursor-pointer" 
-                                            title="Copy Nudge Message">
-                                        <svg lucideBell class="w-4 h-4"></svg>
-                                    </button>
-                                }
-                            </div>
+                            <!-- Transition Cue Banner when Step 2 Begins -->
+                            @if (roundTransitionCue() && !isRound1) {
+                                <div class="mt-3 p-2.5 rounded-lg bg-brand-accent/10 border border-brand-accent/30 flex items-center gap-2 text-xs text-brand-accent font-medium animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <svg lucideCheckCircle class="w-4 h-4 shrink-0"></svg>
+                                    <span>All nonces aggregated! Proceed to Step 2: Export & sign.</span>
+                                </div>
+                            }
                         </div>
-                    </div>
-                }
+                    }
 
-        @if (socket.signers().length === 0) { <div class="text-center p-4 text-brand-text-muted text-sm">Loading Signers...</div> }
-    </div>
+                    <div class="space-y-4 overflow-y-auto custom-scrollbar max-h-[880px] pr-2">
+                        @for (signer of socket.signers(); track signer.fingerprint) {
+                            @let showNonceDone = !signer.signed && signer.hasNonce && (socket.ceremonyPhase() === 'GATHERING_NONCES' || socket.ceremonyPhase() === 'AGGREGATING_NONCES');
+                            @let isStepComplete = signer.signed || showNonceDone;
+
+                            <div class="p-4 rounded-xl flex flex-col border transition-all relative"
+                                 [class.bg-emerald-500/10]="isStepComplete"
+                                 [class.border-emerald-500/30]="isStepComplete"
+                                 [class.bg-brand-bg]="!isStepComplete"
+                                 [class.border-brand-card-border]="!isStepComplete">
+                                
+                                <!-- Top Row: Identity & Status -->
+                                <div class="flex items-start justify-between z-10 gap-3">
+                                    <div class="flex items-start gap-3 flex-1 min-w-0">
+                                        <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                                             [class.bg-emerald-500/20]="isStepComplete"
+                                             [class.text-emerald-400]="isStepComplete"
+                                             [class.bg-brand-card]="!isStepComplete"
+                                             [class.text-brand-text-muted]="!isStepComplete">
+                                            @if (isStepComplete) {
+                                                <svg lucideCheckCircle class="w-5 h-5"></svg>
+                                            } @else {
+                                                <svg lucideUser class="w-5 h-5"></svg>
+                                            }
+                                        </div>
+                                        
+                                        <!-- Vertically Stacked Fingerprint & Label -->
+                                        <div class="flex flex-col flex-1 min-w-0">
+                                            <div class="flex items-center gap-1.5 px-1.5 mb-0.5">
+                                                <span class="text-[9px] uppercase tracking-widest font-bold text-brand-text-muted">Fingerprint</span>
+                                                <span class="text-[10px] font-mono text-brand-text font-bold">
+                                                    {{ socket.currentConstraints()?.canViewSigners === false ? '••••••••' : signer.fingerprint }}
+                                                </span>
+                                            </div>
+
+                                            @if (socket.isCoordinator()) {
+                                                <button id="btn-label-signer-{{ signer.fingerprint }}" (click)="openLabelModal(signer.fingerprint)" 
+                                                        class="text-sm flex items-center gap-2 hover:bg-brand-card-border/50 px-1.5 py-0.5 rounded transition group/label text-left cursor-pointer w-fit max-w-full">
+                                                    @if (getLabel(signer.fingerprint); as label) {
+                                                        <span class="text-brand-text font-bold truncate">{{ label }}</span>
+                                                        <svg lucideEdit2 class="w-3 h-3 text-brand-text-muted group-hover/label:text-brand-accent opacity-0 group-hover/label:opacity-100 transition shrink-0"></svg>
+                                                    } @else {
+                                                        <span class="text-brand-accent/90 italic font-medium pr-1">Add Label</span>
+                                                        <svg lucideTag class="w-3 h-3 text-brand-accent/50 group-hover/label:text-brand-accent shrink-0"></svg>
+                                                    }
+                                                </button>
+                                            } @else {
+                                                <div class="text-brand-text font-bold text-sm px-1.5 truncate">
+                                                    {{ socket.currentConstraints()?.canViewSigners === false ? '••••••••' : (getLabel(signer.fingerprint) || 'Unlabeled Device') }}
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <!-- Status & Nudge Action -->
+                                    <div class="flex items-center gap-2 z-10 shrink-0 mt-2">
+                                        @if (signer.signed) {
+                                            <div class="text-xs font-medium text-emerald-400">
+                                                Signed
+                                            </div>
+                                        } @else if (showNonceDone) {
+                                            <div class="text-xs font-medium text-emerald-400">
+                                                Nonce Ready
+                                            </div>
+                                        } @else if (socket.isCoordinator()) {
+                                            <button (click)="nudgeSigner(signer.fingerprint)" 
+                                                    class="p-1 text-brand-text-muted hover:text-amber-400 transition cursor-pointer" 
+                                                    title="Copy Nudge Message">
+                                                <svg lucideBell class="w-4 h-4"></svg>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @if (socket.signers().length === 0) {
+                            <div class="text-center p-4 text-brand-text-muted text-sm">Loading Signers...</div>
+                        }
+                    </div>
                 </div>
 
                 @if (blurStates().signers) {
@@ -2269,6 +2504,7 @@
                 }
             </div>
 
+            <!-- 3. Bottom Finalization Status -->
             <div id="card-finalization-status" class="mt-8 pt-6 border-t border-brand-card-border relative z-20">
                 @if (finalHex()) {
                     <div class="bg-brand-accent/10 border border-brand-accent/30 rounded-xl p-4 animate-fade-in-up">
@@ -2309,16 +2545,27 @@
                             <svg lucideShield class="w-4 h-4"></svg> 
                             Finalize Transaction ({{ socket.signerCount() }}/{{ socket.signerThreshold() }})
                         </button>
-                    } @else { <p class="text-xs text-center text-brand-text-muted">Only the Coordinator can finalize.</p> }
+                    } @else {
+                        <p class="text-xs text-center text-brand-text-muted">Only the Coordinator can finalize.</p>
+                    }
                 } @else if (socket.isCoordinator()) {
                     <button disabled class="w-full py-3.5 bg-brand-card-border text-brand-text-muted font-bold rounded-xl border border-brand-card-border cursor-not-allowed flex items-center justify-center gap-2">
                         <svg lucideLoader2 class="w-4 h-4 animate-spin"></svg> 
-                        <span>Waiting for Signatures ({{ socket.signerCount() }} / {{ socket.signerThreshold() }})</span>
+                        @if (socket.ceremonyPhase() === 'GATHERING_NONCES' || socket.ceremonyPhase() === 'AGGREGATING_NONCES') {
+                            <span>Waiting for Nonces ({{ socket.nonceCount() }} / {{ socket.signerThreshold() }})</span>
+                        } @else {
+                            <span>Waiting for Signatures ({{ socket.signerCount() }} / {{ socket.signerThreshold() }})</span>
+                        }
                     </button>
                 } @else {
                     <div class="text-center p-4">
-                        <p class="text-sm text-brand-text-muted font-medium mb-1">Waiting for Finalization</p>
-                        <p class="text-xs text-brand-text-muted mb-4">{{ Math.max(0, socket.signerThreshold() - (socket.signerCount() || 0)) }} more signatures required</p>
+                        @if (socket.ceremonyPhase() === 'GATHERING_NONCES' || socket.ceremonyPhase() === 'AGGREGATING_NONCES') {
+                            <p class="text-sm text-brand-text-muted font-medium mb-1">Round 1: Collect Nonces</p>
+                            <p class="text-xs text-brand-text-muted mb-4">{{ Math.max(0, socket.signerThreshold() - (socket.nonceCount() || 0)) }} more nonces required</p>
+                        } @else {
+                            <p class="text-sm text-brand-text-muted font-medium mb-1">Waiting for Finalization</p>
+                            <p class="text-xs text-brand-text-muted mb-4">{{ Math.max(0, socket.signerThreshold() - (socket.signerCount() || 0)) }} more signatures required</p>
+                        }
                         @if (!showClaimInput()) {
                             <button id="btn-claim-coordinator" (click)="showClaimInput.set(true)" class="text-xs text-brand-text-muted hover:text-brand-accent underline transition cursor-pointer">Have the Admin Key? Claim Coordinator Role</button>
                         } @else {

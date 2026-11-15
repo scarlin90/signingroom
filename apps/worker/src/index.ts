@@ -214,7 +214,7 @@ app.post('/api/room', async (c) => {
         return c.json({ error: 'Invalid JSON payload.' }, 400);
     }
 
-    const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens, licenseToken } = body;
+    const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens, licenseToken, protocol } = body;
 
     const attestedLicense = await verifyServerLicense(licenseToken, origin || referer);
 
@@ -234,6 +234,7 @@ app.post('/api/room', async (c) => {
                 roleTokens,
                 attestedLicense,
                 licenseToken,
+                protocol
             }),
         }),
     );
@@ -360,7 +361,8 @@ export class SigningRoom implements DurableObject {
                 encryptedRoomName, 
                 roleTokens, 
                 attestedLicense,
-                licenseToken
+                licenseToken,
+                protocol
             } = body;
             
             const now = Date.now();
@@ -384,10 +386,14 @@ export class SigningRoom implements DurableObject {
             this.roomState = {
                 roomId,
                 expectedPass,
-                encryptedPsbt,
-                adminToken: secureStoredHash,
+                protocol: protocol || 'standard',
+                // Route the initial PSBT based on the protocol
+                transientPsbt: protocol === 'musig2' ? encryptedPsbt : null,
+                encryptedPsbt: protocol === 'musig2' ? null : encryptedPsbt,
+                nonces: {},
                 signatures: {},
                 createdAt: now,
+                adminToken: secureStoredHash,
                 expiresAt: now + ttlSeconds * 1000,
                 auditLog: [],
                 signerLabels: {},
@@ -536,12 +542,13 @@ export class SigningRoom implements DurableObject {
 
         this.broadcastConnections();
 
-        const { adminToken, roleTokens, signatures, ...safeRoomState } = this.roomState;
+        const { adminToken, roleTokens, signatures, nonces, ...safeRoomState } = this.roomState;
 
         webSocket.send(JSON.stringify({ 
             type: 'STATE_SYNC', 
             ...safeRoomState, 
             signatures: Object.values(signatures || {}),
+            nonces: Object.values(nonces || {}),
             connectedCount: this.sessions.size,
         }));
 
@@ -762,6 +769,37 @@ export class SigningRoom implements DurableObject {
                 if (typeof msg.encryptedLogBlob === 'string' && msg.encryptedLogBlob.length <= 10000) {
                     await this.log(msg.encryptedLogBlob, session, msg.meta);
                 }
+            }
+
+            // MuSig2: PSBT Nonce Upload (Round 1)
+            if (msg.type === 'UPLOAD_NONCE') {
+                if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
+                
+                if (!this.roomState.nonces) this.roomState.nonces = {};
+                const nonces = this.roomState.nonces;
+                const isNewNonce = !nonces[msg.fingerprint];
+
+                if (isNewNonce && Object.keys(nonces).length >= getConfig(this.env, 'MAX_SIGNATURES')) {
+                    webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Nonce limit reached.' }));
+                    return;
+                }
+
+                nonces[msg.fingerprint] = msg.data.encryptedData;
+                await this.saveRoomState();
+
+                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                this.broadcast({ type: 'NEW_NONCE_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
+            }
+
+            // MuSig2: Coordinator Publishes Aggregate Base PSBT (Transitions to Round 2)
+            if (msg.type === 'PUBLISH_AGGREGATE_PSBT' && session?.role === 'admin') {
+                if (msg.encryptedPsbt && msg.encryptedPsbt.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
+
+                this.roomState.encryptedPsbt = msg.encryptedPsbt;
+                await this.saveRoomState();
+
+                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                this.broadcast({ type: 'AGGREGATE_PSBT_PUBLISHED', encryptedPsbt: msg.encryptedPsbt });
             }
 
             // PSBT Chunk Upload

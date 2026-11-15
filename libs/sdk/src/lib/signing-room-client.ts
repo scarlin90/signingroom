@@ -4,7 +4,7 @@ import { RoomStateStore, RoomState } from './relay/room-state-store';
 import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
 import { RoleConstraints, RoomEvent, RoomEventType } from './types/client-events';
 import { AuditLogOptions, RoomAuditor } from './bitcoin/room-auditor';
-import { PsbtUtils, TxDetails } from './bitcoin/psbt-utils';
+import { PsbtUtils, TxDetails, SignerStatus } from './bitcoin/psbt-utils';
 import { Observable, firstValueFrom } from 'rxjs';
 import { jsPDF } from 'jspdf';
 import { LicenseEngine, STATELESS_RESEARCH_PUBKEY } from './licensing/verifier';
@@ -90,6 +90,30 @@ export class SigningRoomClient {
         this.relay.events.dispatch('THRESHOLD_MET', {
           signaturesReceived: progress.signaturesReceived,
           threshold: threshold,
+        });
+      }
+    });
+
+    this.relay.events.on('NEW_NONCE_DECRYPTED' as any).subscribe((e) => {
+      const state = this.getRoomState();
+      const threshold = this.getThreshold(state);
+      const noncesReceived = state?.nonces?.length || 0;
+
+      this.relay.events.dispatch('NONCE_RECEIVED' as any, {
+        fingerprint: e.payload?.fingerprint,
+        noncesReceived,
+        threshold,
+      });
+
+      if (
+        state?.protocol === 'musig2' &&
+        (!state.psbt || state.psbt === '') &&
+        threshold > 0 &&
+        noncesReceived >= threshold
+      ) {
+        this.relay.events.dispatch('NONCE_THRESHOLD_MET' as any, {
+          noncesReceived,
+          threshold,
         });
       }
     });
@@ -206,11 +230,12 @@ export class SigningRoomClient {
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName = 'Untitled Room',
+    protocol?: string
   ) {
     await this.ensureLicense();
 
     const payload = await RoomFactory.prepareCreationPayload(
-      this.engine, psbtBase64, network, roomName, this.protocolVersion,
+      this.engine, psbtBase64, network, roomName, this.protocolVersion, protocol
     );
 
     this._encryptionKey = payload.localData.encryptionKey;
@@ -263,9 +288,10 @@ export class SigningRoomClient {
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName = 'Untitled Room',
+    protocol?: string
   ) {
     await this.ensureLicense();
-    const { payload, defaultRoleToken } = await this.createRoom(psbtBase64, network, roomName);
+    const { payload, defaultRoleToken } = await this.createRoom(psbtBase64, network, roomName, protocol);
 
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
     const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
@@ -428,6 +454,28 @@ export class SigningRoomClient {
   public async toggleLock(isLocked: boolean) {
     const confirmation = this.waitForEvent('LOCK_UPDATED');
     await this.relay.toggleLock(isLocked, this.userContext);
+    await confirmation;
+  }
+
+  /**
+   * Uploads a public nonce (Round 1) to the room for the specified hardware wallet.
+   * @param noncePsbtBase64 - The PSBT payload containing the 0x1b proprietary fields.
+   * @param fingerprint - The hardware device's master key fingerprint.
+   */
+  public async uploadNonce(noncePsbtBase64: string, fingerprint: string) {
+    const confirmation = this.waitForEvent('NEW_NONCE_DECRYPTED');
+    await this.relay.uploadNonce(noncePsbtBase64, fingerprint, this.userContext);
+    await confirmation;
+  }
+
+  /**
+   * Overwrites the room's Base PSBT with a newly aggregated transaction.
+   * Only the Coordinator can execute this to transition the room to Round 2.
+   * @param aggregatePsbtBase64 - The PSBT containing the aggregated 0x1b nonce.
+   */
+  public async publishAggregatePsbt(aggregatePsbtBase64: string) {
+    const confirmation = this.waitForEvent('AGGREGATE_PSBT_DECRYPTED');
+    await this.relay.publishAggregatePsbt(aggregatePsbtBase64, this.userContext);
     await confirmation;
   }
 
@@ -683,20 +731,35 @@ export class SigningRoomClient {
 
   /**
    * Returns a list of all required hardware fingerprints for this transaction,
-   * and a boolean indicating if their signature has been provided yet.
+   * and a boolean indicating if their signature or nonce has been provided yet.
    */
-  public getSignersStatus(state: RoomState | null): any[] {
-    if (!state || !state.psbt) return [];
-    return PsbtUtils.extractSigners(state.psbt);
+  public getSignersStatus(state: RoomState | null): SignerStatus[] {
+    if (!state) return [];
+    let targetPsbt = state.psbt || state.transientPsbt;
+    if (!targetPsbt) return [];
+
+    // During Round 1 of MuSig2, fold in uploaded nonces so extractSigners sees live status
+    if (!state.psbt && state.nonces && state.nonces.length > 0) {
+      for (const noncePsbt of state.nonces) {
+        targetPsbt = PsbtUtils.merge(targetPsbt, noncePsbt);
+      }
+    }
+
+    return PsbtUtils.extractSigners(targetPsbt);
   }
 
   public getTxDetails(state: RoomState | null): TxDetails | null {
-    return state?.psbt ? PsbtUtils.parseTxDetails(state.psbt, state.network) : null;
+    if (!state) return null;
+    const targetPsbt = state.psbt || state.transientPsbt;
+    return targetPsbt ? PsbtUtils.parseTxDetails(targetPsbt, state.network) : null;
   }
 
   public getThreshold(state: RoomState | null): number {
-    if (!state?.psbt) return 0;
-    const threshold = PsbtUtils.getThreshold(state.psbt);
+    if (!state) return 0;
+    const targetPsbt = state.psbt || state.transientPsbt;
+    if (!targetPsbt) return 0;
+    
+    const threshold = PsbtUtils.getThreshold(targetPsbt);
     return threshold > 0 ? threshold : this.getSignersStatus(state).length;
   }
 

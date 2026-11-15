@@ -158,6 +158,9 @@ export class RoomComponent implements OnInit, OnDestroy {
   public isQrRevealed = signal(false);
   public qrDataUrl = signal<string | null>(null);
   public qrIncludesKey = signal(false);
+  public showRound2Transition = signal(false);
+  private previousCeremonyPhase: string | null = null;
+  public roundTransitionCue = signal(false);
 
   public timeRemaining = signal('Loading...');
   public isExpired = signal(false);
@@ -406,6 +409,19 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.previousSessions = currentSessions;
     });
 
+    effect(() => {
+      const phase = this.socket.ceremonyPhase();
+      if (
+        (this.previousCeremonyPhase === 'GATHERING_NONCES' ||
+          this.previousCeremonyPhase === 'AGGREGATING_NONCES') &&
+        phase === 'GATHERING_SIGNATURES'
+      ) {
+        this.showRound2Transition.set(true);
+        setTimeout(() => this.showRound2Transition.set(false), 6000);
+      }
+      this.previousCeremonyPhase = phase;
+    });
+
     // --- SIGNATURE NETWORK TRACKER ---
     this.socket.networkSignatureReceived$.subscribe((data) => {
       const sessions = this.socket.activeSessions();
@@ -485,8 +501,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   get requiredSignatures(): number {
-    const psbt = this.socket.roomState()?.psbt;
-    return psbt ? this.socket.getThreshold(psbt) : 0;
+    return this.socket.signerThreshold();
   }
 
   get canFinalize(): boolean {
@@ -519,7 +534,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     return !!this.socket.getLocalLabel(fingerprint);
   }
 
-  async onFileSelected(event: any) {
+  async onFileSelected(event: any, type: 'signature' | 'nonce' = 'signature') {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -541,8 +556,15 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     try {
       const psbtContent = await this.socket.sdk.parsePsbtFile(file);
-      await this.socket.uploadSignature(psbtContent);
-      this.dispatcher.emitPsbtImported('upload');
+      
+      if (type === 'nonce') {
+        await this.socket.uploadNonce(psbtContent);
+        this.dispatcher.emitPsbtImported('upload-nonce' as any);
+      } else {
+        await this.socket.uploadSignature(psbtContent);
+        this.dispatcher.emitPsbtImported('upload');
+      }
+      
       event.target.value = '';
     } catch (e) {
       console.error(e);
@@ -564,14 +586,18 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   downloadUnsignedPsbt() {
     this.socket.logAction('PSBT Downloaded', 'Unsigned file exported');
-    const psbt = this.socket.roomState()?.psbt;
+    const state = this.socket.roomState();
+    const psbt = state?.psbt || state?.transientPsbt;
     if (!psbt) return;
+
+    const isRound1 = state?.protocol === 'musig2' && !state?.psbt;
+    const prefix = isRound1 ? 'musig2_setup' : 'unsigned_tx';
 
     const blob = new Blob([psbt], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `unsigned_tx_${this.roomId()?.slice(0, 8)}.psbt`;
+    a.download = `${prefix}_${this.roomId()?.slice(0, 8)}.psbt`;
     a.click();
     window.URL.revokeObjectURL(url);
 
@@ -1237,7 +1263,9 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   nudgeSigner(fingerprint: string) {
     const label = this.getSignerLabel(fingerprint);
-    const msg = `Signature needed from: ${label}\n${this.getFullShareLink(false)}`;
+    const isRound1 = this.socket.ceremonyPhase() === 'GATHERING_NONCES';
+    const actionNeeded = isRound1 ? 'Round 1 Public Nonce needed' : 'Signature needed';
+    const msg = `${actionNeeded} from: ${label}\n${this.getFullShareLink(false)}`;
 
     navigator.clipboard.writeText(msg).then(() => {
       this.openAlert(
@@ -1480,7 +1508,8 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   regenerateFrames() {
-    const psbtData = this.socket.roomState()?.psbt;
+    const state = this.socket.roomState();
+    const psbtData = state?.psbt || state?.transientPsbt;
     if (!psbtData) return;
     try {
       if (this.exportFormat() === 'ur') {
@@ -1616,7 +1645,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     if (fullHex) {
       this.stopScanner();
-      this.processScannedSignature(fullHex);
+      this.processScannedData(fullHex);
     }
   }
 
@@ -1652,16 +1681,23 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
   }
 
-  async processScannedSignature(data: string) {
+  async processScannedData(data: string) {
     try {
       const clean = data.replace(/\s+/g, '');
       const psbtBytes = /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
       const normalizedBase64 = base64.encode(psbtBytes);
 
-      await this.socket.uploadSignature(normalizedBase64);
-      this.dispatcher.emitPsbtImported('scan');
+      const phase = this.socket.ceremonyPhase();
+      
+      if (phase === 'GATHERING_NONCES') {
+        await this.socket.uploadNonce(normalizedBase64);
+        this.dispatcher.emitPsbtImported('scan-nonce' as any);
+      } else {
+        await this.socket.uploadSignature(normalizedBase64);
+        this.dispatcher.emitPsbtImported('scan');
+      }
     } catch (e) {
-      console.error('Failed to parse signed PSBT from scanner', e);
+      console.error('Failed to parse scanned PSBT data', e);
     }
   }
 

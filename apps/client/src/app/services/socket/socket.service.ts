@@ -3,7 +3,7 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Injectable, Inject, PLATFORM_ID, signal, computed } from '@angular/core';
+import { Injectable, Inject, PLATFORM_ID, signal, computed, effect } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import {
   SigningRoomClient,
@@ -91,7 +91,6 @@ export class SocketService {
       this.store.update((s) => (s ? { ...s, signerLabels: e.payload } : null));
     });
 
-    // ---> ADDED: Listen for the new Address Labels event to satisfy the tests
     this.relay.events.on('ADDRESS_LABELS_DECRYPTED' as any).subscribe((e) => {
       this.store.update((s) => (s ? { ...s, addressLabels: e.payload } : null));
     });
@@ -242,6 +241,10 @@ export class SocketService {
         this.hasAnnouncedJoin = true;
       }
 
+      if (newRole === 'admin' && this.ceremonyPhase() === 'AGGREGATING_NONCES') {
+        this.aggregateMuSig2Nonces();
+      }
+
       if (newRole === 'admin' && !this.hasSyncedLocalAddressBook) {
         this.hasSyncedLocalAddressBook = true;
         setTimeout(() => {
@@ -249,6 +252,35 @@ export class SocketService {
           this.checkAndApplyLocalAddressLabels();
         }, 50);
       }
+    });
+
+    this.relay.events.on('NONCE_THRESHOLD_MET' as any).subscribe(() => {
+      if (this.isCoordinator()) {
+        this.aggregateMuSig2Nonces();
+      }
+    });
+
+    this.relay.events.on('NEW_NONCE_DECRYPTED' as any).subscribe((event: any) => {
+      const { decryptedPsbt } = event.payload;
+      this.store.update((current) => {
+        if (!current) return null;
+        const existing = current.nonces || [];
+        if (existing.includes(decryptedPsbt)) return current;
+        return {
+          ...current,
+          nonces: [...existing, decryptedPsbt],
+        };
+      });
+    });
+
+    this.relay.events.on('AGGREGATE_PSBT_DECRYPTED' as any).subscribe((event: any) => {
+      this.store.update((current) => {
+        if (!current) return null;
+        return {
+          ...current,
+          psbt: event.payload,
+        };
+      });
     });
   }
 
@@ -341,8 +373,9 @@ export class SocketService {
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName: string = 'Untitled Room',
+    protocol?: string
   ) {
-    return await this.sdk.createRoom(psbtBase64, network, roomName);
+    return await this.sdk.createRoom(psbtBase64, network, roomName, protocol);
   }
 
   public async renameRoom(name: string) {
@@ -579,6 +612,76 @@ export class SocketService {
   });
 
   public signerCount = computed(() => this.signers().filter((signer) => signer.signed).length);
+  public nonceCount = computed(() => this.signers().filter((signer) => signer.hasNonce).length);
 
   public isReadyToBroadcast = computed(() => this.signerCount() >= this.signerThreshold());
+
+  // --- MUSIG2 STATE MACHINE ---
+
+  public ceremonyPhase = computed(() => {
+    const state = this.roomState();
+    if (!state) return 'GATHERING_SIGNATURES';
+
+    const threshold = this.signerThreshold();
+    const sigCount = state.signatures?.length || 0;
+    const nonceCount = state.nonces?.length || 0;
+
+    // If we have enough signatures, we are ready to broadcast regardless of protocol
+    if (threshold > 0 && sigCount >= threshold) return 'READY_TO_BROADCAST';
+
+    if (state.protocol === 'musig2') {
+      // If the signature-ready PSBT hasn't been published yet, we are in Round 1
+      if (!state.psbt || state.psbt === '') {
+        if (threshold > 0 && nonceCount >= threshold) return 'AGGREGATING_NONCES';
+        return 'GATHERING_NONCES';
+      }
+    }
+    
+    // Default standard flow (Round 2)
+    return 'GATHERING_SIGNATURES';
+  });
+
+  public transientPsbt = computed(() => {
+    return this.roomState()?.transientPsbt || null;
+  });
+
+  public async uploadNonce(psbtBase64: string) {
+    // Note: We use the same fingerprint extraction logic, assuming hardware wallets 
+    // attach the fingerprint to the BIP 373 nonce fields similarly to partialSigs.
+    const fingerprint = this.sdk.extractFingerprintFromSignature(psbtBase64);
+    if (!fingerprint) throw new Error('Could not extract fingerprint from PSBT');
+
+    await this.sdk.uploadNonce(psbtBase64, fingerprint);
+  }
+
+  /**
+   * The Coordinator's automated transition engine.
+   * Merges all individual Nonce PSBTs into a single base payload for Round 2.
+   */
+  public async aggregateMuSig2Nonces() {
+    if (!this.isCoordinator()) return;
+    
+    try {
+      const state = this.roomState();
+      if (!state || !state.transientPsbt) return;
+
+      console.log('[Coordinator] Threshold met. Merging MuSig2 Nonces...');
+
+      // Give the UI a 1.8s beat so participants see 2/2 Nonces Ready and the "Aggregating..." transition
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+
+      // Merge all uploaded nonces into the transient PSBT
+      let mergedNoncePsbt = state.transientPsbt;
+      for (const noncePsbt of state.nonces) {
+        mergedNoncePsbt = PsbtUtils.merge(mergedNoncePsbt, noncePsbt);
+      }
+
+      // The merged PSBT now contains all 0x1b fields and becomes the Base PSBT for Round 2
+      await this.sdk.publishAggregatePsbt(mergedNoncePsbt);
+
+    } catch (e) {
+      console.error('[Coordinator] Failed to merge nonces', e);
+      this.decryptionError.set('Failed to merge MuSig2 nonces.');
+    }
+  }
 }
