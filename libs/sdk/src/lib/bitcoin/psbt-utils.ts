@@ -736,7 +736,6 @@ export class PsbtUtils {
       tx.finalize();
       return { hex: hex.encode(tx.extract()), txId: tx.id };
     } catch (e) {
-      console.error('[PsbtUtils] Finalize failed:', e);
       return null;
     }
   }

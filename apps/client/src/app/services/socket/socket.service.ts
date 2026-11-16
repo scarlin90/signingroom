@@ -58,10 +58,14 @@ export class SocketService {
 
     this.relay.events.on('SESSION_CONNECTED').subscribe((e) => {
       this.currentSessionId.set(e.payload);
-      
+
       const roomId = this.roomState()?.roomId;
+      const resumeToken = this.sdk.getResumeToken();
       if (roomId && this.isBrowser) {
         sessionStorage.setItem(`session_id_${roomId}`, e.payload);
+        if (resumeToken) {
+          sessionStorage.setItem(`resume_token_${roomId}`, resumeToken);
+        }
       }
     });
 
@@ -180,6 +184,14 @@ export class SocketService {
     this.relay.events.on('STATE_SYNC_DECRYPTED').subscribe((event) => {
       const syncData = event.payload;
       const hasAdminToken = !!sessionStorage.getItem(`admin_token_${syncData.roomId}`);
+
+      if (this.isBrowser && this.currentSessionId()) {
+        sessionStorage.setItem(`session_id_${syncData.roomId}`, this.currentSessionId()!);
+        const resumeToken = this.sdk.getResumeToken();
+        if (resumeToken) {
+          sessionStorage.setItem(`resume_token_${syncData.roomId}`, resumeToken);
+        }
+      }
 
       if (syncData.strictRoles && !hasAdminToken && !this.sdk.currentRoleToken) {
         this.decryptionError.set('Strict Mode Active: A valid role token is required to enter this room.');
@@ -306,8 +318,9 @@ export class SocketService {
       let isReconnecting = false;
       if (this.isBrowser) {
         const savedSessionId = sessionStorage.getItem(`session_id_${roomId}`);
-        if (savedSessionId) {
-          this.sdk.restoreSessionId(savedSessionId);
+        const savedResumeToken = sessionStorage.getItem(`resume_token_${roomId}`);
+        if (savedSessionId && savedResumeToken) {
+          this.sdk.restoreSessionId(savedSessionId, savedResumeToken);
           isReconnecting = true;
         }
       }
@@ -559,6 +572,8 @@ export class SocketService {
   private clearLocalRoomData(roomId: string) {
     localStorage.removeItem(`display_name_${roomId}`);
     sessionStorage.removeItem(`admin_token_${roomId}`);
+    sessionStorage.removeItem(`session_id_${roomId}`);
+    sessionStorage.removeItem(`resume_token_${roomId}`);
   }
 
   public roomState = signal<RoomState | null>(null);

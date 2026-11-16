@@ -227,7 +227,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
     return c.json({
         status: 'healthy',
-        version: '4.1.0',
+        version: '4.2.0',
         timestamp: Date.now(),
     });
 });
@@ -526,13 +526,33 @@ export class SigningRoom implements DurableObject {
             }
         }
 
-        const requestedSessionId = url.searchParams.get('sessionId');
+        const resumeProtocol = protocolParts.find((p) => p.startsWith('resume.'));
+        let requestedSessionId: string | null = null;
+        let providedResumeToken: string | null = null;
 
-        this.handleSession(server, ip, requestedSessionId);
+        if (resumeProtocol) {
+            const parts = resumeProtocol.split('.');
+            if (parts.length >= 3) {
+                requestedSessionId = parts[1];
+                providedResumeToken = parts.slice(2).join('.');
+            }
+        } else {
+            requestedSessionId = url.searchParams.get('sessionId');
+            providedResumeToken = url.searchParams.get('resumeToken');
+        }
+
+        this.state.waitUntil(
+            this.handleSession(server, ip, requestedSessionId, providedResumeToken),
+        );
         return new Response(null, { status: 101, webSocket: client, headers: responseHeaders });
     }
 
-    async handleSession(webSocket: WebSocket, ip: string, requestedSessionId: string | null) {
+    async handleSession(
+        webSocket: WebSocket,
+        ip: string,
+        requestedSessionId: string | null,
+        providedResumeToken: string | null,
+    ) {
         if (!this.roomState) {
             webSocket.accept();
             webSocket.send(JSON.stringify({ type: 'ERROR_NOT_FOUND' }));
@@ -540,31 +560,82 @@ export class SigningRoom implements DurableObject {
             return;
         }
 
-        if (this.sessions.size >= getConfig(this.env, 'MAX_CONNECTIONS')) {
-            webSocket.accept();
-            webSocket.close(4001, 'Room Full');
-            return;
+        // Cryptographically verify session resumption via SHA-256(resumeToken)
+        let isVerifiedResume = false;
+        let sessionId = '';
+        let resumeToken = '';
+        let resumeTokenHash = '';
+
+        if (
+            requestedSessionId &&
+            /^[A-Z0-9]{4}$/.test(requestedSessionId) &&
+            providedResumeToken &&
+            /^[a-f0-9]{32,128}$/i.test(providedResumeToken) &&
+            this.roomState.participants?.[requestedSessionId]?.resumeTokenHash
+        ) {
+            const tokenBytes = new TextEncoder().encode(providedResumeToken);
+            const digest = await crypto.subtle.digest('SHA-256', tokenBytes);
+            const presentedHash = Array.from(new Uint8Array(digest))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
+
+            if (presentedHash === this.roomState.participants[requestedSessionId].resumeTokenHash) {
+                isVerifiedResume = true;
+                sessionId = requestedSessionId;
+                resumeToken = providedResumeToken;
+                resumeTokenHash = presentedHash;
+            }
         }
 
-        if (this.roomState.isLocked) {
+        // Allow verified returning participants to reconnect when room is locked; reject all new entrants
+        if (this.roomState.isLocked && !isVerifiedResume) {
             webSocket.accept();
             webSocket.send(JSON.stringify({ type: 'ERROR_LOCKED' }));
             webSocket.close(1000, 'Room is Locked');
             return;
         }
 
-        webSocket.accept();
-        const sessionId = (requestedSessionId && /^[A-Z0-9]{4}$/.test(requestedSessionId)) 
-            ? requestedSessionId 
-            : crypto.randomUUID().substring(0, 4).toUpperCase();
+        // Only enforce MAX_CONNECTIONS against net-new sessions (resuming sessions replace their old slot)
+        if (!isVerifiedResume && this.sessions.size >= getConfig(this.env, 'MAX_CONNECTIONS')) {
+            webSocket.accept();
+            webSocket.close(4001, 'Room Full');
+            return;
+        }
 
-        if (requestedSessionId) {
+        webSocket.accept();
+
+        if (isVerifiedResume) {
+            // Displace only when resumeToken is cryptographically proven, and decrement old socket's IP count!
             for (const [existingSocket, sess] of this.sessions.entries()) {
                 if (sess.id === sessionId) {
-                    try { existingSocket.close(1000, 'Session Replaced'); } catch (e) {}
+                    if (sess.ip && sess.ip !== 'unknown') {
+                        const oldCount = this.ipConnectionCounts.get(sess.ip) || 1;
+                        const nextCount = Math.max(0, oldCount - 1);
+                        if (nextCount === 0) {
+                            this.ipConnectionCounts.delete(sess.ip);
+                        } else {
+                            this.ipConnectionCounts.set(sess.ip, nextCount);
+                        }
+                    }
                     this.sessions.delete(existingSocket);
+                    try {
+                        existingSocket.close(1000, 'Session Replaced');
+                    } catch (e) {}
                 }
             }
+        } else {
+            // Generate a fresh, non-colliding 4-char Session ID and a 256-bit (64-hex-char) resumeToken
+            do {
+                sessionId = crypto.randomUUID().substring(0, 4).toUpperCase();
+            } while (this.roomState.participants && this.roomState.participants[sessionId]);
+
+            resumeToken =
+                crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+            const tokenBytes = new TextEncoder().encode(resumeToken);
+            const digest = await crypto.subtle.digest('SHA-256', tokenBytes);
+            resumeTokenHash = Array.from(new Uint8Array(digest))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
         }
 
         if (ip !== 'unknown') {
@@ -572,16 +643,13 @@ export class SigningRoom implements DurableObject {
             this.ipConnectionCounts.set(ip, currentIpCount + 1);
         }
 
-        const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
-        this.ipConnectionCounts.set(ip, currentIpCount + 1);
-
         let safeDisplayName = undefined;
         if (this.roomState.participants && this.roomState.participants[sessionId]) {
             safeDisplayName = this.roomState.participants[sessionId].encryptedDisplayName;
         }
 
         this.sessions.set(webSocket, {
-            role: 'guest', 
+            role: 'guest',
             id: sessionId,
             joinedAt: Date.now(),
             msgsInWindow: 0,
@@ -591,30 +659,48 @@ export class SigningRoom implements DurableObject {
         });
 
         if (!this.roomState.participants) this.roomState.participants = {};
-        const existingRole = this.roomState.participants[sessionId]?.role || 'guest';
-        
-        this.roomState.participants[sessionId] = { 
-            id: sessionId, 
-            role: existingRole, 
-            encryptedDisplayName: safeDisplayName,
-        };
-        
-        await this.saveRoomState();
-        this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+        const existingRole = isVerifiedResume
+            ? this.roomState.participants[sessionId]?.role || 'guest'
+            : 'guest';
 
-        webSocket.send(JSON.stringify({ type: 'SESSION_CONNECTED', sessionId: sessionId }));
+        this.roomState.participants[sessionId] = {
+            id: sessionId,
+            role: existingRole,
+            encryptedDisplayName: safeDisplayName,
+            resumeTokenHash: resumeTokenHash,
+        };
+
+        await this.saveRoomState();
+
+        // Strip internal resumeTokenHash before broadcasting participant metadata to peers
+        this.broadcast({
+            type: 'PARTICIPANTS_UPDATE',
+            participants: this.getSanitizedParticipants(),
+        });
+
+        // Send resumeToken privately to this socket only
+        webSocket.send(
+            JSON.stringify({
+                type: 'SESSION_CONNECTED',
+                sessionId: sessionId,
+                resumeToken: resumeToken,
+            }),
+        );
 
         this.broadcastConnections();
 
         const { adminToken, roleTokens, signatures, nonces, ...safeRoomState } = this.roomState;
 
-        webSocket.send(JSON.stringify({ 
-            type: 'STATE_SYNC', 
-            ...safeRoomState, 
-            signatures: Object.values(signatures || {}),
-            nonces: Object.values(nonces || {}),
-            connectedCount: this.sessions.size,
-        }));
+        webSocket.send(
+            JSON.stringify({
+                type: 'STATE_SYNC',
+                ...safeRoomState,
+                participants: this.getSanitizedParticipants(),
+                signatures: Object.values(signatures || {}),
+                nonces: Object.values(nonces || {}),
+                connectedCount: this.sessions.size,
+            }),
+        );
 
         webSocket.addEventListener('message', (event) => {
             this.state.waitUntil(this.handleMessage(event, webSocket));
@@ -976,6 +1062,16 @@ export class SigningRoom implements DurableObject {
             } catch (e) {}
         }
         this.sessions.clear();
+    }
+
+    private getSanitizedParticipants() {
+        const clean: Record<string, any> = {};
+        if (!this.roomState?.participants) return clean;
+        for (const [id, p] of Object.entries(this.roomState.participants as Record<string, any>)) {
+            const { resumeTokenHash, ...publicFields } = p;
+            clean[id] = publicFields;
+        }
+        return clean;
     }
 
     broadcastConnections() {

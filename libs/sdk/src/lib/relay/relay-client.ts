@@ -35,6 +35,17 @@ export class RelayClient {
     this.encryptionKey = key;
   }
 
+  /** Local cache of the cryptographic token required to resume an existing sessionId. */
+  private resumeToken: string | null = null;
+
+  public setResumeToken(token: string | null) {
+    this.resumeToken = token;
+  }
+
+  public getResumeToken(): string | null {
+    return this.resumeToken;
+  }
+
   /**
    * Instantiates a live WebSocket session pointing to a target relay instance.
    * Establishes low-level hooks routing platform errors and server frames cleanly into reactive buses.
@@ -81,6 +92,7 @@ export class RelayClient {
    * @param key - The raw symmetric workspace key string argument.
    * @param version - The client version identifier string checking backend compatibility.
    * @param sessionId - The client session identifier used for reconnecting in connection drop.
+   * @param resumeToken - The cryptographic token required to resume an existing sessionId
    */
   public async joinRoom(
     wsBaseUrl: string,
@@ -88,6 +100,7 @@ export class RelayClient {
     key: string,
     version: string,
     sessionId?: string | null,
+    resumeToken?: string | null,
   ) {
     let cleanKey = key.trim();
 
@@ -99,15 +112,28 @@ export class RelayClient {
 
     this.setKey(cleanKey);
 
-    const roomPass = cleanKey ? await this.crypto.blindData(roomId, cleanKey) : '';
-    let url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${encodeURIComponent(version)}`;
+    let targetSessionId = sessionId || null;
+    let targetResumeToken = resumeToken || this.resumeToken || null;
 
-    if (sessionId) {
-      url += `&sessionId=${encodeURIComponent(sessionId)}`;
+    // Support composite "SESSION_ID:RESUME_TOKEN"
+    if (targetSessionId && targetSessionId.includes(':')) {
+      const [idPart, tokenPart] = targetSessionId.split(':');
+      targetSessionId = idPart;
+      targetResumeToken = tokenPart || targetResumeToken;
     }
 
-    // Transmit roomPass via Sec-WebSocket-Protocol header rather than the URL query string
-    const protocols = roomPass ? ['signingroom-v2', `pass.${roomPass}`] : ['signingroom-v2'];
+    const roomPass = cleanKey ? await this.crypto.blindData(roomId, cleanKey) : '';
+    const url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${encodeURIComponent(version)}`;
+
+    // Transmit roomPass and session resumption secret via Sec-WebSocket-Protocol header
+    const protocols = ['signingroom-v2'];
+    if (roomPass) {
+      protocols.push(`pass.${roomPass}`);
+    }
+    if (targetSessionId && targetResumeToken) {
+      protocols.push(`resume.${targetSessionId}.${targetResumeToken}`);
+    }
+
     this.connect(url, protocols);
   }
 
@@ -158,6 +184,9 @@ export class RelayClient {
 
     switch (msg.type) {
       case 'SESSION_CONNECTED':
+        if (msg.resumeToken) {
+          this.resumeToken = msg.resumeToken;
+        }
         this.events.dispatch('SESSION_CONNECTED', msg.sessionId);
         break;
       case 'STATE_SYNC':

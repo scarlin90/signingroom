@@ -1,7 +1,16 @@
-@if (socket.status() !== 'connected' && !socket.isClosed() && !isExpired() && !socket.roomNotFound() && !socket.isLockedOut() && !socket.isRoomFull() && !socket.decryptionError()) {
-    <div id="banner-reconnecting" class="w-full bg-amber-500/90 text-brand-bg text-center text-xs font-bold py-1.5 fixed top-0 z-[200] flex items-center justify-center gap-2 animate-pulse">
-        <svg lucideLoader2 class="w-3 h-3 animate-spin"></svg>
-        Connection lost... Reconnecting...
+@if (socket.roomState() && socket.status() !== 'connected' && !socket.isClosed() && !isExpired() && !socket.roomNotFound() && !socket.isLockedOut() && !socket.isRoomFull() && !socket.decryptionError()) {
+    <div id="modal-reconnecting" class="fixed inset-0 z-[200] flex items-center justify-center bg-brand-bg/70 backdrop-blur-md animate-fade-in p-4">
+        <div class="bg-brand-card border border-amber-500/30 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 animate-pulse"></div>
+            <div class="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-amber-500/30">
+                <svg lucideLoader2 class="w-8 h-8 text-amber-500 animate-spin"></svg>
+            </div>
+            <h2 class="text-2xl font-bold text-brand-text mb-2">Connection Interrupted</h2>
+            <p class="text-brand-text-muted mb-6 text-sm leading-relaxed">
+                Reconnecting to the signing relay...<br>
+                Your session identity and local cryptographic state are preserved.
+            </p>
+        </div>
     </div>
 }
 
@@ -1056,8 +1065,11 @@
     
     <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-accent/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-    <div id="card-room-overview" class="bg-brand-card/80 backdrop-blur-sm border border-brand-card-border/50 rounded-xl p-6 mb-8 relative z-10 shadow-xl flex flex-col gap-6 overflow-hidden">
-        
+    <div id="card-room-overview" 
+     class="bg-brand-card/80 backdrop-blur-sm border border-brand-card-border/50 rounded-xl p-6 mb-8 relative z-10 shadow-xl flex flex-col gap-6 overflow-hidden transition-opacity duration-300"
+     [class.opacity-50]="socket.roomState() && socket.status() !== 'connected'"
+     [class.pointer-events-none]="socket.status() !== 'connected'">
+
         <!-- Faded Brand Watermark -->
         <div class="absolute top-10 right-4 md:top-10 md:right-6 opacity-10 pointer-events-none select-none mix-blend-plus-lighter">
             <img [src]="configService.config().logoUrl" class="w-24 h-24 md:w-32 md:h-32 object-contain filter" alt="Brand Watermark" />
@@ -1530,8 +1542,9 @@
 }
 
     <div class="grid lg:grid-cols-3 gap-8 transition-all duration-500 relative z-10" 
-        [class.opacity-20]="isExpired() || socket.isClosed()" 
-        [class.pointer-events-none]="isExpired() || socket.isClosed()">
+      [class.opacity-20]="isExpired() || socket.isClosed()" 
+      [class.opacity-50]="socket.status() !== 'connected' && !isExpired() && !socket.isClosed()"
+      [class.pointer-events-none]="isExpired() || socket.isClosed() || socket.status() !== 'connected'">
     
         <div class="lg:col-span-2 space-y-6">
             

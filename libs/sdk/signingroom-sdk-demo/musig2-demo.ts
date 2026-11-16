@@ -63,13 +63,6 @@ async function runMuSig2Demo() {
     'MuSig2 Taproot Vault (2-of-2)',
   );
 
-  console.log('DEBUG Room State after createRoomAndJoin:', {
-    protocol: coordinatorClient.getRoomState()?.protocol,
-    hasPsbt: !!coordinatorClient.getRoomState()?.psbt,
-    hasTransientPsbt: !!coordinatorClient.getRoomState()?.transientPsbt,
-    signers: coordinatorClient.getSignersStatus(coordinatorClient.getRoomState()),
-  });
-
   console.log('Room ID:              ', roomInfo.roomId);
   console.log('Encryption Key:       ', roomInfo.encryptionKey);
   console.log('Encrypted Admin Token:', roomInfo.encryptedAdminToken);

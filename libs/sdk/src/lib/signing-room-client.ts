@@ -41,10 +41,12 @@ export class SigningRoomClient {
   private host?: string;
   private _license: VerifiedLicense | null = null;
   private _sessionId: string | null = null;
+  private _resumeToken: string | null = null;
   private _role: 'admin' | 'guest' = 'guest';
   private _encryptionKey: string | null = null;
   private _roleToken: string | null = null;
   private _constraints: RoleConstraints | null = null;
+  private _joinAttemptId = 0;
 
   /**
    * Initializes a new SigningRoom client.
@@ -62,6 +64,7 @@ export class SigningRoomClient {
 
     this.relay.events.on('SESSION_CONNECTED').subscribe((e) => {
       this._sessionId = e.payload;
+      this._resumeToken = this.relay.getResumeToken();
     });
 
     this.relay.events.on('ROLE_UPDATE').subscribe(async (e) => {
@@ -373,6 +376,8 @@ export class SigningRoomClient {
     this._encryptionKey = fbek;
     this._roleToken = roleToken;
 
+    const attemptId = ++this._joinAttemptId;
+
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
     const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
     const stateSyncEvent = firstValueFrom(this.relay.events.on('STATE_SYNC_DECRYPTED'));
@@ -380,18 +385,24 @@ export class SigningRoomClient {
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(roomId, this.protocolVersion);
 
-    const isReconnecting = this._sessionId !== null;
+    const isReconnecting = this._sessionId !== null && (this._resumeToken !== null || this._sessionId.includes(':'));
     await this.relay.joinRoom(
-      wsUrl, 
-      roomId, 
-      this._encryptionKey, 
-      this.protocolVersion, 
-      this._sessionId
+      wsUrl,
+      roomId,
+      this._encryptionKey,
+      this.protocolVersion,
+      this._sessionId,
+      this._resumeToken,
     );
 
     await connectionEvent;
     await sessionEvent;
     await stateSyncEvent;
+
+    // Discard stale suspended joinRoom() calls from earlier failed reconnect attempts
+    if (attemptId !== this._joinAttemptId) {
+      return;
+    }
 
     let detailText = '';
 
@@ -435,13 +446,32 @@ export class SigningRoomClient {
     await this.logParticipantAction(logAction, detailText);
   }
 
+   /**
+    * Manually restores a session ID and its cryptographic resumption token
+    * (useful for recovering identity across hard page reloads or network drops).
+    * Must be called prior to joinRoom().
+    * @param sessionId - The 4-character session ID to restore (or a composite "ID:TOKEN" string).
+    * @param resumeToken - The secret resumption token issued on initial connection.
+    * */
+  public restoreSessionId(sessionId: string, resumeToken?: string | null) {
+    if (sessionId.includes(':')) {
+      const [idPart, tokenPart] = sessionId.split(':');
+      this._sessionId = idPart;
+      this._resumeToken = tokenPart || resumeToken || null;
+    } else {
+      this._sessionId = sessionId;
+      if (resumeToken !== undefined) {
+        this._resumeToken = resumeToken;
+      }
+    }
+    this.relay.setResumeToken(this._resumeToken);
+  }
+
   /**
-   * Manually restores a session ID (useful for recovering identity across hard page reloads).
-   * Must be called prior to joinRoom().
-   * @param sessionId - The 4-character session ID to restore.
-   */
-  public restoreSessionId(sessionId: string) {
-    this._sessionId = sessionId;
+   * Returns the cryptographic session resumption token issued by the relay for the active session (F4).
+  */
+  public getResumeToken(): string | null {
+    return this._resumeToken || this.relay.getResumeToken();
   }
 
   /**
@@ -717,6 +747,12 @@ export class SigningRoomClient {
   public isThresholdMet(): boolean {
     const state = this.getRoomState();
     if (!state || !state.psbt) return false;
+
+    const threshold = this.getThreshold(state);
+    if (threshold > 0 && state.signatures.length < threshold) {
+      return false;
+    }
+
     return PsbtUtils.finalizeTx(state.psbt) !== null;
   }
 

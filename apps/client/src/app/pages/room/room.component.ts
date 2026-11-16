@@ -479,6 +479,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     if (isPlatformBrowser(this.platformId)) {
       this.socket.disconnect();
       this.socket.reset();
+      this.socket.roomState.set(null);
 
       if (this.timerInterval) clearInterval(this.timerInterval);
     }
