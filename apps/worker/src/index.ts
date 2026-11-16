@@ -29,6 +29,9 @@ interface Env {
     MAX_SIGNATURES?: string;
     MAX_IP_TRACKERS?: string;
     LOCKOUT_DURATION_MS?: string;
+    MAX_ROOM_STATE_BYTES?: string;
+    TOMBSTONE_TTL_SECONDS?: string;
+    MAX_LOGS_PER_SESSION?: string;
 }
 
 export type ConfigKey =
@@ -42,7 +45,10 @@ export type ConfigKey =
     | 'MAX_AUTH_FAILURES'
     | 'MAX_SIGNATURES'
     | 'MAX_IP_TRACKERS'
-    | 'LOCKOUT_DURATION_MS';
+    | 'LOCKOUT_DURATION_MS'
+    | 'MAX_ROOM_STATE_BYTES'
+    | 'TOMBSTONE_TTL_SECONDS'
+    | 'MAX_LOGS_PER_SESSION';
 
 const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
     MAX_PAYLOAD_SIZE_BYTES: 2 * 1024 * 1024, // 2MB
@@ -56,6 +62,9 @@ const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
     MAX_SIGNATURES: 100, // Max signatures per room
     MAX_IP_TRACKERS: 1000, // Memory exhaustion guard
     LOCKOUT_DURATION_MS: 30 * 60 * 1000, // 30 minutes
+    MAX_ROOM_STATE_BYTES: 5 * 1024 * 1024, // 5MB total room state budget
+    TOMBSTONE_TTL_SECONDS: 3600, // 1 hour closed-room tombstone retention
+    MAX_LOGS_PER_SESSION: 150, // Per-session LOG_ACTION quota
 };
 
 // Safe routes that even an unauthenticated guest can use
@@ -68,6 +77,10 @@ const GUEST_SAFE_ROUTES = new Set([
 function getConfig(env: Env, key: ConfigKey): number {
     const value = env[key];
     return value ? parseInt(value, 10) : CONFIG_DEFAULTS[key];
+}
+
+function isValidBlindedKey(key: unknown): key is string {
+    return typeof key === 'string' && /^[a-f0-9]{8,64}$/i.test(key);
 }
 
 export interface RoleConstraints {
@@ -262,6 +275,10 @@ app.post('/api/room', async (c) => {
 
     const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens, licenseToken, protocol } = body;
 
+    if (typeof roomId !== 'string' || roomId.trim().length < 8 || roomId.trim().length > 64) {
+        return c.json({ error: 'Invalid or missing roomId.' }, 400);
+    }
+
     const attestedLicense = await verifyServerLicense(licenseToken, origin || referer);
 
     const id = c.env.SIGNING_ROOM.idFromName(roomId);
@@ -319,7 +336,7 @@ export class SigningRoom implements DurableObject {
     sessions = new Map<WebSocket, SessionData>();
     roomState: any = null;
     env: Env;
-    private isLockedOut = false;
+
     private ipConnectionCounts = new Map<string, number>();
     private ipAuthFailures = new Map<string, { count: number; lockedUntil: number }>();
 
@@ -332,26 +349,38 @@ export class SigningRoom implements DurableObject {
         });
     }
 
-    async saveRoomState() {
-        if (!this.roomState) return;
+    async saveRoomState(): Promise<boolean> {
+        if (!this.roomState) return false;
         const json = JSON.stringify(this.roomState);
+
+        // Enforce overall room byte budget before writing to Durable Object storage
+        if (json.length > getConfig(this.env, 'MAX_ROOM_STATE_BYTES')) {
+            throw new Error('ROOM_STATE_BUDGET_EXCEEDED');
+        }
+
         const chunkSize = 100 * 1024;
 
-        if (json.length < chunkSize) {
-            await this.state.storage.put('data', json);
-            await this.state.storage.delete('data_chunks');
-            return;
+        try {
+            if (json.length < chunkSize) {
+                await this.state.storage.put('data', json);
+                await this.state.storage.delete('data_chunks');
+                return true;
+            }
+
+            const chunks = Math.ceil(json.length / chunkSize);
+            const storageObj: Record<string, any> = { data_chunks: chunks };
+
+            for (let i = 0; i < chunks; i++) {
+                storageObj[`data_${i}`] = json.slice(i * chunkSize, (i + 1) * chunkSize);
+            }
+
+            await this.state.storage.put(storageObj);
+            await this.state.storage.delete('data');
+            return true;
+        } catch (storageErr) {
+            console.error('[Storage Failure]', storageErr);
+            throw new Error('STORAGE_WRITE_FAILED');
         }
-
-        const chunks = Math.ceil(json.length / chunkSize);
-        const storageObj: Record<string, any> = { data_chunks: chunks };
-
-        for (let i = 0; i < chunks; i++) {
-            storageObj[`data_${i}`] = json.slice(i * chunkSize, (i + 1) * chunkSize);
-        }
-
-        await this.state.storage.put(storageObj);
-        await this.state.storage.delete('data');
     }
 
     async loadRoomState() {
@@ -370,47 +399,115 @@ export class SigningRoom implements DurableObject {
         return typeof legacyData === 'string' ? JSON.parse(legacyData) : legacyData;
     }
 
-    async log(encryptedLogBlob: string, session?: SessionData) {
-		if (!this.roomState) return;
-		if (!this.roomState.auditLog) this.roomState.auditLog = [];
+    async appendEnvelopeWithChain(
+        encryptedLogBlob: string,
+        sessionId: string,
+        role: string,
+        serverTimestamp = Date.now(),
+        extraMeta: Record<string, any> = {},
+    ) {
+        if (!this.roomState.auditLog) this.roomState.auditLog = [];
+        const prevHash = this.roomState.auditChainHead || '0'.repeat(64);
+        const seq = this.roomState.auditLog.length;
 
-		if (this.roomState.auditLog.length >= getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH')) {
-			this.roomState.auditLog.shift();
-		}
+        const preimage = `${prevHash}|${seq}|${serverTimestamp}|${sessionId}|${role}|${encryptedLogBlob}`;
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(preimage));
+        const chainHash = Array.from(new Uint8Array(hashBuffer))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
 
-		const envelope = {
-			serverTimestamp: Date.now(),
-			sessionId: session ? session.id : 'system',
-			role: session ? session.role : 'system',
-			blob: encryptedLogBlob,
-		};
+        const envelope = {
+            seq,
+            serverTimestamp,
+            sessionId,
+            role,
+            ...extraMeta,
+            blob: encryptedLogBlob,
+            chainHash,
+        };
 
-		this.roomState.auditLog.push(envelope);
-		await this.saveRoomState();
-		this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
-	}
+        this.roomState.auditLog.push(envelope);
+        this.roomState.auditChainHead = chainHash;
+        return envelope;
+    }
+
+    async log(encryptedLogBlob: string, session?: SessionData): Promise<boolean> {
+        if (!this.roomState || !encryptedLogBlob) return false;
+        if (!this.roomState.auditLog) this.roomState.auditLog = [];
+
+        const maxLen = getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH');
+        const isAdminOrSystem = !session || session.role === 'admin';
+
+        // Refuse new entries when full instead of evicting history (reserve last 50 slots for Coordinator/System)
+        const effectiveCap = isAdminOrSystem ? maxLen : Math.max(100, maxLen - 50);
+        if (this.roomState.auditLog.length >= effectiveCap) {
+            return false;
+        }
+
+        const envelope = await this.appendEnvelopeWithChain(
+            encryptedLogBlob,
+            session ? session.id : 'system',
+            session ? session.role : 'system',
+        );
+
+        await this.saveRoomState();
+
+        // Broadcast only the newly appended envelope and running chainHead
+        this.broadcast({
+            type: 'LOG_UPDATE',
+            entry: envelope,
+            chainHead: this.roomState.auditChainHead,
+        });
+        return true;
+    }
 
     async fetch(request: Request) {
         const url = new URL(request.url);
 
         // Initialize Room
         if (url.pathname === '/init') {
+            // Reject re-initialization of a previously closed or expired room ID
+            const tombstone = await this.state.storage.get<{ closedAt: number }>('tombstone');
+            if (tombstone) {
+                return new Response('Gone: Room ID has been permanently closed and cannot be reused.', { status: 410 });
+            }
+
             const body = await request.json<any>();
-            const { 
-                roomId, 
-                expectedPass, 
-                encryptedPsbt, 
-                adminToken, 
-                network, 
-                protocolVersion, 
-                encryptedLogBlob, 
-                encryptedRoomName, 
-                roleTokens, 
+            const {
+                roomId,
+                expectedPass,
+                encryptedPsbt,
+                adminToken,
+                network,
+                protocolVersion,
+                encryptedLogBlob,
+                encryptedRoomName,
+                roleTokens,
                 attestedLicense,
                 licenseToken,
-                protocol
+                protocol,
             } = body;
-            
+
+            // Validate presence, type, and minimum length of roomId, expectedPass, adminToken, and encryptedPsbt
+            if (
+                typeof roomId !== 'string' ||
+                roomId.trim().length < 8 ||
+                roomId.trim().length > 64 ||
+                typeof expectedPass !== 'string' ||
+                expectedPass.trim().length < 16 ||
+                expectedPass.trim().length > 128 ||
+                typeof adminToken !== 'string' ||
+                adminToken.trim().length < 24 ||
+                adminToken.trim().length > 512 ||
+                typeof encryptedPsbt !== 'string' ||
+                encryptedPsbt.trim().length < 16
+            ) {
+                return new Response(
+                    'Bad Request: Invalid or missing roomId, expectedPass, adminToken, or encryptedPsbt.',
+                    { status: 400 },
+                );
+            }
+
             const now = Date.now();
             const ttlSeconds = getConfig(this.env, 'DEFAULT_ROOM_TTL_SECONDS');
 
@@ -436,11 +533,15 @@ export class SigningRoom implements DurableObject {
                 transientPsbt: protocol === 'musig2' ? encryptedPsbt : null,
                 encryptedPsbt: protocol === 'musig2' ? null : encryptedPsbt,
                 nonces: {},
+                nonceOwners: {},
                 signatures: {},
+                signatureOwners: {},
                 createdAt: now,
                 adminToken: secureStoredHash,
                 expiresAt: now + ttlSeconds * 1000,
                 auditLog: [],
+                auditChainHead: '0'.repeat(64),
+                logCounts: {},
                 signerLabels: {},
                 addressLabels: {},
                 whitelist: [],
@@ -457,13 +558,9 @@ export class SigningRoom implements DurableObject {
             };
 
             if (encryptedLogBlob) {
-                this.roomState.auditLog.push({
-                    serverTimestamp: now,
-                    sessionId: 'system',
-                    role: 'admin',
+                await this.appendEnvelopeWithChain(encryptedLogBlob, 'system', 'admin', now, {
                     tier: initialTier,
                     licensee: initialLicensee,
-                    blob: encryptedLogBlob,
                 });
             }
 
@@ -512,7 +609,6 @@ export class SigningRoom implements DurableObject {
             );
 
             server.close(4026, 'Protocol Mismatch');
-            this.handleSession(server, ip, requestedSessionId);
             return new Response(null, { status: 101, webSocket: client, headers: responseHeaders });
         }
 
@@ -689,7 +785,7 @@ export class SigningRoom implements DurableObject {
 
         this.broadcastConnections();
 
-        const { adminToken, roleTokens, signatures, nonces, ...safeRoomState } = this.roomState;
+        const { adminToken, roleTokens, signatures, signatureOwners, nonces, nonceOwners, logCounts, ...safeRoomState } = this.roomState;
 
         webSocket.send(
             JSON.stringify({
@@ -788,7 +884,7 @@ export class SigningRoom implements DurableObject {
                     if (this.roomState.participants && this.roomState.participants[session.id]) {
                         this.roomState.participants[session.id].role = 'admin';
                         await this.saveRoomState();
-                        this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+                        this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.getSanitizedParticipants() });
                     }
 
                     webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
@@ -862,6 +958,9 @@ export class SigningRoom implements DurableObject {
 
             // Label Updates (Admin Only)
             if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
+                if (!isValidBlindedKey(msg.fingerprint)) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid fingerprint format.' }));
+                }
                 if (msg.label && msg.label.length > 200) {
                     return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Label payload too large.' }));
                 }
@@ -871,12 +970,15 @@ export class SigningRoom implements DurableObject {
 
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
             }
 
             // Address Label Updates (Admin Only)
             if (msg.type === 'UPDATE_ADDRESS_LABEL' && session?.role === 'admin') {
+                if (!isValidBlindedKey(msg.blindedAddress)) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid blinded address format.' }));
+                }
                 if (msg.label && msg.label.length > 200) {
                     return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Label payload too large.' }));
                 }
@@ -886,7 +988,7 @@ export class SigningRoom implements DurableObject {
 
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'ADDRESS_LABELS_UPDATED', addressLabels: this.roomState.addressLabels });
             }
 
@@ -903,7 +1005,7 @@ export class SigningRoom implements DurableObject {
 
                 this.roomState.participants[session.id].encryptedDisplayName = safeName;
                 await this.saveRoomState();
-                this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+                this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.getSanitizedParticipants() });
 
                 this.broadcastConnections();
             }
@@ -913,24 +1015,55 @@ export class SigningRoom implements DurableObject {
                 this.roomState.roomName = msg.encryptedName;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'ROOM_RENAMED', encryptedName: msg.encryptedName });
             }
 
-            // Action Logging
+            // Action Logging (Enforce per-session quota and refuse when full)
             if (msg.type === 'LOG_ACTION') {
-                if (typeof msg.encryptedLogBlob === 'string' && msg.encryptedLogBlob.length <= 10000) {
-                    await this.log(msg.encryptedLogBlob, session, msg.meta);
+                if (typeof msg.encryptedLogBlob !== 'string' || msg.encryptedLogBlob.length > 10000) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid or oversized log entry.' }));
                 }
+
+                if (!this.roomState.logCounts) this.roomState.logCounts = {};
+                const currentSessionLogs = this.roomState.logCounts[session.id] || 0;
+
+                if (session.role !== 'admin' && currentSessionLogs >= getConfig(this.env, 'MAX_LOGS_PER_SESSION')) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Session audit log quota exceeded.' }));
+                }
+
+                const appended = await this.log(msg.encryptedLogBlob, session);
+                if (!appended) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Audit log capacity reached.' }));
+                }
+
+                this.roomState.logCounts[session.id] = currentSessionLogs + 1;
+                await this.saveRoomState();
             }
 
             // MuSig2: PSBT Nonce Upload (Round 1)
             if (msg.type === 'UPLOAD_NONCE') {
+                if (!isValidBlindedKey(msg.fingerprint)) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid fingerprint format.' }));
+                }
                 if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
-                
+
                 if (!this.roomState.nonces) this.roomState.nonces = {};
+                if (!this.roomState.nonceOwners) this.roomState.nonceOwners = {};
                 const nonces = this.roomState.nonces;
+                const nonceOwners = this.roomState.nonceOwners;
                 const isNewNonce = !nonces[msg.fingerprint];
+
+                // First-writer-wins slot ownership (unless Coordinator overrides)
+                const existingOwner = nonceOwners[msg.fingerprint];
+                if (!isNewNonce && existingOwner && existingOwner !== session.id && session.role !== 'admin') {
+                    return webSocket.send(
+                        JSON.stringify({
+                            type: 'ERROR_POLICY_VIOLATION',
+                            message: 'Signer slot already claimed by another participant session.',
+                        }),
+                    );
+                }
 
                 if (isNewNonce && Object.keys(nonces).length >= getConfig(this.env, 'MAX_SIGNATURES')) {
                     webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Nonce limit reached.' }));
@@ -938,9 +1071,10 @@ export class SigningRoom implements DurableObject {
                 }
 
                 nonces[msg.fingerprint] = msg.data.encryptedData;
+                nonceOwners[msg.fingerprint] = session.id;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'NEW_NONCE_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
             }
 
@@ -951,16 +1085,33 @@ export class SigningRoom implements DurableObject {
                 this.roomState.encryptedPsbt = msg.encryptedPsbt;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'AGGREGATE_PSBT_PUBLISHED', encryptedPsbt: msg.encryptedPsbt });
             }
 
             // PSBT Chunk Upload
             if (msg.type === 'UPLOAD_PARTIAL') {
+                if (!isValidBlindedKey(msg.fingerprint)) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid fingerprint format.' }));
+                }
                 if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
-                
-                const sigs = this.roomState.signatures || {};
+
+                if (!this.roomState.signatures) this.roomState.signatures = {};
+                if (!this.roomState.signatureOwners) this.roomState.signatureOwners = {};
+                const sigs = this.roomState.signatures;
+                const sigOwners = this.roomState.signatureOwners;
                 const isNewSigner = !sigs[msg.fingerprint];
+
+                // First-writer-wins slot ownership (unless Coordinator overrides)
+                const existingOwner = sigOwners[msg.fingerprint];
+                if (!isNewSigner && existingOwner && existingOwner !== session.id && session.role !== 'admin') {
+                    return webSocket.send(
+                        JSON.stringify({
+                            type: 'ERROR_POLICY_VIOLATION',
+                            message: 'Signer slot already claimed by another participant session.',
+                        }),
+                    );
+                }
 
                 if (isNewSigner && Object.keys(sigs).length >= getConfig(this.env, 'MAX_SIGNATURES')) {
                     webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
@@ -968,17 +1119,21 @@ export class SigningRoom implements DurableObject {
                 }
 
                 this.roomState.signatures[msg.fingerprint] = msg.data.encryptedData;
+                sigOwners[msg.fingerprint] = session.id;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
             }
 
             // Destroy Room (Admin Only)
             if (msg.type === 'CLOSE_ROOM' && session?.role === 'admin') {
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'ROOM_CLOSED', finalLog: this.roomState.auditLog });
                 await this.state.storage.deleteAll();
+                const tombstoneTtlMs = getConfig(this.env, 'TOMBSTONE_TTL_SECONDS') * 1000;
+                await this.state.storage.put('tombstone', { closedAt: Date.now() });
+                await this.state.storage.setAlarm(Date.now() + tombstoneTtlMs);
                 this.roomState = null;
                 for (const sock of this.sessions.keys()) {
                     try {
@@ -993,7 +1148,7 @@ export class SigningRoom implements DurableObject {
                 this.roomState.whitelist = msg.encryptedWhitelist;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
             }
 
@@ -1001,7 +1156,7 @@ export class SigningRoom implements DurableObject {
             if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {
                 this.roomState.isLocked = msg.isLocked;
                 await this.saveRoomState();
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'LOCK_UPDATED', isLocked: this.roomState.isLocked });
             }
 
@@ -1011,7 +1166,7 @@ export class SigningRoom implements DurableObject {
                 this.roomState.encryptedFinalTxId = msg.encryptedFinalTxId;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
 
                 this.broadcast({
                     type: 'TX_FINALIZED_BROADCAST',
@@ -1019,8 +1174,18 @@ export class SigningRoom implements DurableObject {
                     encryptedFinalTxId: msg.encryptedFinalTxId,
                 });
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            if (e?.message === 'ROOM_STATE_BUDGET_EXCEEDED' || e?.message === 'STORAGE_WRITE_FAILED') {
+                try {
+                    webSocket.send(
+                        JSON.stringify({
+                            type: 'ERROR',
+                            message: 'Room state storage limit exceeded or storage write failed.',
+                        }),
+                    );
+                } catch {}
+            }
         }
     }
 
@@ -1054,7 +1219,14 @@ export class SigningRoom implements DurableObject {
     }
 
     async alarm() {
+        const tombstone = await this.state.storage.get<{ closedAt: number }>('tombstone');
         await this.state.storage.deleteAll();
+        if (!tombstone) {
+            // Room just expired; leave a short-lived (1h) tombstone before final purge
+            const tombstoneTtlMs = getConfig(this.env, 'TOMBSTONE_TTL_SECONDS') * 1000;
+            await this.state.storage.put('tombstone', { closedAt: Date.now() });
+            await this.state.storage.setAlarm(Date.now() + tombstoneTtlMs);
+        }
         this.roomState = null;
         for (const socket of this.sessions.keys()) {
             try {

@@ -20,6 +20,10 @@ export class RelayClient {
   public blindFingerprintMap = new Map<string, string>();
   /** Local cache mapping blinded utxo addresses back to unblinded utxo addresses. */
   public blindAddressMap = new Map<string, string>();
+  /** Cached decrypted audit log for incremental LOG_UPDATE appends. */
+  private decryptedAuditLogCache: any[] = [];
+  /** Running SHA-256 chain head verified across audit envelopes. */
+  private lastVerifiedChainHash = '0'.repeat(64);
 
   /**
    * Initializes a fresh instance of the RelayClient coordination module.
@@ -231,10 +235,13 @@ export class RelayClient {
         }
         break;
       case 'LOG_UPDATE':
-        this.events.dispatch(
-          'LOG_UPDATE_DECRYPTED',
-          await this.decryptAuditLog(msg.auditLog || []),
-        );
+        if (msg.entry) {
+          const updatedLog = await this.appendIncrementalLog(msg.entry);
+          this.events.dispatch('LOG_UPDATE_DECRYPTED', updatedLog);
+        } else if (msg.auditLog) {
+          this.decryptedAuditLogCache = await this.decryptAuditLog(msg.auditLog);
+          this.events.dispatch('LOG_UPDATE_DECRYPTED', this.decryptedAuditLogCache);
+        }
         break;
       case 'CONNECTIONS_UPDATE':
         this.events.dispatch('CONNECTIONS_DECRYPTED', {
@@ -392,6 +399,7 @@ export class RelayClient {
     const decryptedLabels = await this.decryptLabels(msg.signerLabels || {});
     const decryptedAddressLabels = await this.decryptAddressLabels(msg.addressLabels || {});
     const decryptedLog = await this.decryptAuditLog(msg.auditLog || []);
+    this.decryptedAuditLogCache = decryptedLog;
     const decryptedParticipants = await this.decryptParticipants(msg.participants || {});
 
     let decryptedWhitelist: string[] = [];
@@ -486,16 +494,30 @@ export class RelayClient {
   }
 
   /**
-   * Reconstructs historical audit entries, deciphering encrypted data rows sequentially.
+   * Reconstructs historical audit entries, verifying the F5 SHA-256 envelope hash chain
+   * and deciphering encrypted data rows sequentially.
    * @param logs - Collection of plain or encrypted tracking items.
-   */
+  */
   private async decryptAuditLog(logs: any[]): Promise<any[]> {
     if (!this.encryptionKey || !logs || !Array.isArray(logs)) return [];
     const decryptedLog = [];
+    let runningHash = '0'.repeat(64);
 
-    for (const item of logs) {
+    for (let idx = 0; idx < logs.length; idx++) {
+      const item = logs[idx];
       if (!item) continue;
-      const encryptedBlob = typeof item === 'string' ? item : (item.blob || item.encryptedLogBlob);
+      const encryptedBlob = typeof item === 'string' ? item : item.blob || item.encryptedLogBlob;
+
+      // Verify relay envelope hash chain if chainHash is present
+      if (typeof item === 'object' && item.chainHash && encryptedBlob) {
+        const seq = item.seq !== undefined ? item.seq : idx;
+        const preimage = `${runningHash}|${seq}|${item.serverTimestamp}|${item.sessionId}|${item.role}|${encryptedBlob}`;
+        const expectedHash = await this.crypto.sha256(preimage);
+        if (expectedHash !== item.chainHash) {
+          console.error(`[Security] Audit log hash chain mismatch at seq ${seq}`);
+        }
+        runningHash = item.chainHash;
+      }
 
       if (encryptedBlob) {
         try {
@@ -513,9 +535,44 @@ export class RelayClient {
         decryptedLog.push(item);
       }
     }
-    return decryptedLog
-      .filter((e) => e !== null)
-      .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+  this.lastVerifiedChainHash = runningHash;
+  return decryptedLog
+    .filter((e) => e !== null)
+    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  }
+
+  /**
+   * Verifies and decrypts a single newly appended audit envelope, avoiding full-array re-broadcasts.
+  */
+  private async appendIncrementalLog(item: any): Promise<any[]> {
+    if (!this.encryptionKey || !item) return this.decryptedAuditLogCache;
+    const encryptedBlob = typeof item === 'string' ? item : item.blob || item.encryptedLogBlob;
+
+    if (typeof item === 'object' && item.chainHash && encryptedBlob) {
+      const seq = item.seq !== undefined ? item.seq : this.decryptedAuditLogCache.length;
+      const preimage = `${this.lastVerifiedChainHash}|${seq}|${item.serverTimestamp}|${item.sessionId}|${item.role}|${encryptedBlob}`;
+      const expectedHash = await this.crypto.sha256(preimage);
+      if (expectedHash !== item.chainHash) {
+        console.error(`[Security] Incremental audit log hash chain mismatch at seq ${seq}`);
+      }
+      this.lastVerifiedChainHash = item.chainHash;
+    }
+
+    if (encryptedBlob) {
+      try {
+        const dec = await this.crypto.decrypt(encryptedBlob, this.encryptionKey);
+        const entry = JSON.parse(dec);
+        if (entry) {
+          this.decryptedAuditLogCache = [...this.decryptedAuditLogCache, entry].sort(
+            (a, b) => (a.timestamp || 0) - (b.timestamp || 0),
+          );
+        }
+      } catch {
+        // Ignore malformed entry
+      }
+    }
+    return this.decryptedAuditLogCache;
   }
 
   /**
