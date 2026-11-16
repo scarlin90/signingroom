@@ -191,7 +191,7 @@ app.use(
     '/*',
     cors({
         origin: (origin, c) => (isOriginAllowed(origin, c) ? origin : null),
-        allowHeaders: ['Upgrade', 'Content-Type', 'X-Requested-With'],
+        allowHeaders: ['Upgrade', 'Content-Type', 'X-Requested-With', 'Sec-WebSocket-Protocol'],
         allowMethods: ['GET', 'POST', 'OPTIONS'],
         maxAge: 86400,
         credentials: true,
@@ -475,7 +475,17 @@ export class SigningRoom implements DurableObject {
         // Handle WebSocket Upgrade
         if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected Websocket', { status: 426 });
 
-        const providedPass = url.searchParams.get('pass');
+        // Extract room pass from Sec-WebSocket-Protocol header
+        // with fallback to query param for backward compatibility
+        const protocolHeader = request.headers.get('Sec-WebSocket-Protocol') || '';
+        const protocolParts = protocolHeader.split(',').map((p) => p.trim());
+        const passProtocol = protocolParts.find((p) => p.startsWith('pass.'));
+        const providedPass = passProtocol ? passProtocol.slice(5) : url.searchParams.get('pass');
+        const responseHeaders = new Headers();
+        if (protocolParts.includes('signingroom-v2')) {
+            responseHeaders.set('Sec-WebSocket-Protocol', 'signingroom-v2');
+        }
+
         if (this.roomState && this.roomState.expectedPass) {
             if (providedPass !== this.roomState.expectedPass) {
                 return new Response('Unauthorized: Invalid Room Pass', { status: 401 });
@@ -488,8 +498,10 @@ export class SigningRoom implements DurableObject {
         const clientMajor = clientVersion.split('.')[0];
         const roomMajor = roomVersion.split('.')[0];
 
+        const { 0: client, 1: server } = new WebSocketPair();
+
         if (clientMajor !== roomMajor) {
-            const { 0: client, 1: server } = new WebSocketPair();
+            
             server.accept();
 
             server.send(
@@ -500,13 +512,13 @@ export class SigningRoom implements DurableObject {
             );
 
             server.close(4026, 'Protocol Mismatch');
-
-            return new Response(null, { status: 101, webSocket: client });
+            this.handleSession(server, ip, requestedSessionId);
+            return new Response(null, { status: 101, webSocket: client, headers: responseHeaders });
         }
 
         const ip = resolveClientIp((name) => request.headers.get(name), this.env);
 
-        // F2: Only enforce per-IP connection cap when a real client IP is resolved
+        // Only enforce per-IP connection cap when a real client IP is resolved
         if (ip !== 'unknown') {
             const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
             if (currentIpCount >= getConfig(this.env, 'MAX_CONNECTIONS_PER_IP')) {
@@ -516,9 +528,8 @@ export class SigningRoom implements DurableObject {
 
         const requestedSessionId = url.searchParams.get('sessionId');
 
-        const { 0: client, 1: server } = new WebSocketPair();
         this.handleSession(server, ip, requestedSessionId);
-        return new Response(null, { status: 101, webSocket: client });
+        return new Response(null, { status: 101, webSocket: client, headers: responseHeaders });
     }
 
     async handleSession(webSocket: WebSocket, ip: string, requestedSessionId: string | null) {

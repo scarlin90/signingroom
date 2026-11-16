@@ -39,10 +39,11 @@ export class RelayClient {
    * Instantiates a live WebSocket session pointing to a target relay instance.
    * Establishes low-level hooks routing platform errors and server frames cleanly into reactive buses.
    * @param url - The absolute target location protocol string (e.g., `wss://relay...`).
+   * @param protocols - Optional WebSocket subprotocol array for transmitting credentials out of the URL.
    */
-  public connect(url: string): void {
+  public connect(url: string, protocols?: string | string[]): void {
     this.disconnect(true);
-    this.ws = new WebSocket(url);
+    this.ws = protocols ? new WebSocket(url, protocols) : new WebSocket(url);
 
     this.ws.onopen = () => {
       this.events.dispatch('ROOM_CONNECTED');
@@ -81,7 +82,13 @@ export class RelayClient {
    * @param version - The client version identifier string checking backend compatibility.
    * @param sessionId - The client session identifier used for reconnecting in connection drop.
    */
-  public async joinRoom(wsBaseUrl: string, roomId: string, key: string, version: string, sessionId?: string | null) {
+  public async joinRoom(
+    wsBaseUrl: string,
+    roomId: string,
+    key: string,
+    version: string,
+    sessionId?: string | null,
+  ) {
     let cleanKey = key.trim();
 
     if (cleanKey.includes('%')) {
@@ -93,14 +100,15 @@ export class RelayClient {
     this.setKey(cleanKey);
 
     const roomPass = cleanKey ? await this.crypto.blindData(roomId, cleanKey) : '';
-    let url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${version}&pass=${roomPass}`;
-    
-    // Append the resumption ID if it exists
+    let url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${encodeURIComponent(version)}`;
+
     if (sessionId) {
-      url += `&sessionId=${sessionId}`;
+      url += `&sessionId=${encodeURIComponent(sessionId)}`;
     }
-    
-    this.connect(url);
+
+    // Transmit roomPass via Sec-WebSocket-Protocol header rather than the URL query string
+    const protocols = roomPass ? ['signingroom-v2', `pass.${roomPass}`] : ['signingroom-v2'];
+    this.connect(url, protocols);
   }
 
   /**
