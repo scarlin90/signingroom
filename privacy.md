@@ -1,1 +1,5 @@
-SigningRoom.io does not collect personal information, store cookies, or maintain user accounts. Server logs are not retained. Connection metadata (IP addresses) may be visible to our hosting provider (Cloudflare) during the request, but we do not log or store this data.
+SigningRoom.io operates as an end-to-end encrypted, operator-blind relay and does not collect personal account information, set tracking cookies, or maintain user accounts. Application-level request invocation logging is disabled (`invocation_logs: false`).
+
+During an active signing ceremony (up to the 24-hour room TTL), encrypted session ciphertext is held in ephemeral Cloudflare Durable Object storage solely to synchronize connected peers and is permanently purged via `storage.deleteAll()` immediately upon room closure or TTL expiration. Self-hosted `workerd` deployments operate in volatile memory (`inMemory = void`).
+
+Transient network metadata (such as client IP addresses) is processed in memory strictly for rate-limiting and abuse prevention, with Cloudflare acting as edge sub-processor for hosted deployments.
