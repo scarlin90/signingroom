@@ -16,7 +16,7 @@ interface Env {
     ALLOWED_ORIGIN: string;
     ENVIRONMENT: 'development' | 'production';
     RATE_LIMITER: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
-
+    TRUSTED_IP_HEADER?: string;
     MAX_PAYLOAD_SIZE_BYTES?: string;
     MAX_CONNECTIONS?: string;
     RATE_LIMIT_WINDOW?: string;
@@ -142,6 +142,49 @@ function isOriginAllowed(
     }
 }
 
+/**
+ * Resolves the client IP from Cloudflare's header or a configured trusted reverse-proxy header
+ * (e.g. TRUSTED_IP_HEADER="X-Real-IP" when behind the bundled Nginx container).
+ */
+function resolveClientIp(
+    getHeader: (name: string) => string | undefined | null,
+    env: Env,
+): string {
+    const cfIp = getHeader('CF-Connecting-IP') || getHeader('cf-connecting-ip');
+    if (cfIp && cfIp.trim()) {
+        return cfIp.trim();
+    }
+
+    if (env.TRUSTED_IP_HEADER) {
+        const customHeader = getHeader(env.TRUSTED_IP_HEADER) || getHeader(env.TRUSTED_IP_HEADER.toLowerCase());
+        if (customHeader && customHeader.trim()) {
+            // Take the first IP if a comma-separated list was passed
+            return customHeader.split(',')[0].trim();
+        }
+    }
+
+    return 'unknown';
+}
+
+// Fallback rate limiter for self-hosted workerd where Cloudflare's RATE_LIMITER binding is absent
+const fallbackHttpRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkFallbackRateLimit(key: string, limit = 300, windowMs = 60_000): boolean {
+    const now = Date.now();
+    if (fallbackHttpRateLimits.size > 5000) {
+        for (const [k, v] of fallbackHttpRateLimits.entries()) {
+            if (now > v.resetAt) fallbackHttpRateLimits.delete(k);
+        }
+    }
+    const entry = fallbackHttpRateLimits.get(key);
+    if (!entry || now > entry.resetAt) {
+        fallbackHttpRateLimits.set(key, { count: 1, resetAt: now + windowMs });
+        return true;
+    }
+    entry.count++;
+    return entry.count <= limit;
+}
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.use(
@@ -161,17 +204,20 @@ app.use('/*', async (c, next) => {
     c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     c.header('X-Frame-Options', 'DENY');
 
-    const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+    const ip = resolveClientIp((name) => c.req.header(name), c.env);
 
     if (ip !== 'unknown') {
-        try {
-            const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
-
-            if (!success) {
-                return c.json({ error: 'Rate limit exceeded. Please wait.' }, 429);
+        if (c.env.RATE_LIMITER) {
+            try {
+                const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
+                if (!success) {
+                    return c.json({ error: 'Rate limit exceeded. Please wait.' }, 429);
+                }
+            } catch (err) {
+                console.error('Rate Limiter Error:', err);
             }
-        } catch (err) {
-            console.error('Rate Limiter Error:', err);
+        } else if (!checkFallbackRateLimit(ip)) {
+            return c.json({ error: 'Rate limit exceeded. Please wait.' }, 429);
         }
     }
 
@@ -387,7 +433,6 @@ export class SigningRoom implements DurableObject {
                 roomId,
                 expectedPass,
                 protocol: protocol || 'standard',
-                // Route the initial PSBT based on the protocol
                 transientPsbt: protocol === 'musig2' ? encryptedPsbt : null,
                 encryptedPsbt: protocol === 'musig2' ? null : encryptedPsbt,
                 nonces: {},
@@ -459,11 +504,14 @@ export class SigningRoom implements DurableObject {
             return new Response(null, { status: 101, webSocket: client });
         }
 
-        const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+        const ip = resolveClientIp((name) => request.headers.get(name), this.env);
 
-        const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
-        if (currentIpCount >= getConfig(this.env, 'MAX_CONNECTIONS_PER_IP')) {
-            return new Response('Rate Limit Exceeded: Too many concurrent connections from this IP.', { status: 429 });
+        // F2: Only enforce per-IP connection cap when a real client IP is resolved
+        if (ip !== 'unknown') {
+            const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
+            if (currentIpCount >= getConfig(this.env, 'MAX_CONNECTIONS_PER_IP')) {
+                return new Response('Rate Limit Exceeded: Too many concurrent connections from this IP.', { status: 429 });
+            }
         }
 
         const requestedSessionId = url.searchParams.get('sessionId');
@@ -506,6 +554,11 @@ export class SigningRoom implements DurableObject {
                     this.sessions.delete(existingSocket);
                 }
             }
+        }
+
+        if (ip !== 'unknown') {
+            const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
+            this.ipConnectionCounts.set(ip, currentIpCount + 1);
         }
 
         const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
@@ -616,10 +669,13 @@ export class SigningRoom implements DurableObject {
 
             if (msg.type === 'AUTH') {
                 const ip = session.ip;
-                const penalty = this.ipAuthFailures.get(ip) || { count: 0, lockedUntil: 0 };
+
+                // Never share lockout state across 'unknown' IPs; fall back to per-session lockout
+                const authKey = ip !== 'unknown' ? ip : `session:${session.id}`;
+                const penalty = this.ipAuthFailures.get(authKey) || { count: 0, lockedUntil: 0 };
 
                 if (Date.now() < penalty.lockedUntil) {
-                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Too many failed attempts. IP temporarily locked.' }));
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Too many failed attempts. Temporarily locked.' }));
                 }
 
                 const incomingBuffer = new TextEncoder().encode(msg.token);
@@ -629,7 +685,7 @@ export class SigningRoom implements DurableObject {
                     .join('');
 
                 if (attemptedHash === this.roomState?.adminToken) {
-                    this.ipAuthFailures.delete(ip);
+                    this.ipAuthFailures.delete(authKey);
                     this.sessions.set(webSocket, { ...session!, role: 'admin' });
 
                     if (this.roomState.participants && this.roomState.participants[session.id]) {
@@ -653,7 +709,7 @@ export class SigningRoom implements DurableObject {
                             }
                         }
                     }
-                    this.ipAuthFailures.set(ip, penalty);
+                    this.ipAuthFailures.set(authKey, penalty);
                     return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Admin Token' }));
                 }
                 this.broadcastConnections();
@@ -874,7 +930,7 @@ export class SigningRoom implements DurableObject {
     private handleClose(webSocket: WebSocket) {
         const session = this.sessions.get(webSocket);
 
-        if (session && session.ip) {
+        if (session && session.ip && session.ip !== 'unknown') {
             const currentIpCount = this.ipConnectionCounts.get(session.ip) || 1;
             const newCount = Math.max(0, currentIpCount - 1);
 
