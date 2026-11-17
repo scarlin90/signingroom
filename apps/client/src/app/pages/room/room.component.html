@@ -265,15 +265,56 @@
             }
         </div>
 
-        <div id="toggle-save-signer-book" class="mb-6 flex items-center gap-3 cursor-pointer select-none" (click)="saveToBook.set(!saveToBook())">
-            <div class="w-5 h-5 rounded border flex items-center justify-center transition-colors"
+        <div id="toggle-save-signer-book" class="mb-3 flex items-start gap-3 cursor-pointer select-none" (click)="saveToBook.set(!saveToBook())">
+            <div class="w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 mt-0.5"
                     [class.bg-brand-accent]="saveToBook()"
                     [class.border-brand-accent]="saveToBook()"
                     [class.border-brand-card-border]="!saveToBook()">
                 @if (saveToBook()) { <svg lucideCheck class="w-3.5 h-3.5 text-brand-bg"></svg> }
             </div>
-            <div class="text-sm text-brand-text">Save to Address Book</div>
+            <div>
+                <div class="text-sm text-brand-text font-medium">Save to local Address Book</div>
+                <div class="text-[11px] text-brand-text-muted leading-tight mt-0.5">
+                    Auto-fills this device label in future sessions on this browser.
+                </div>
+            </div>
         </div>
+
+        @if (saveToBook()) {
+            <div class="mb-5 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex flex-col gap-3 animate-in fade-in duration-200">
+                <div>
+                    <div class="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1.5">Local Retention Period (TTL)</div>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        @for (days of ttlOptions; track days) {
+                            <button type="button"
+                                    (click)="signerBookTtlDays.set(days)"
+                                    class="py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer"
+                                    [class.bg-amber-500]="signerBookTtlDays() === days"
+                                    [class.text-brand-bg]="signerBookTtlDays() === days"
+                                    [class.border-amber-500]="signerBookTtlDays() === days"
+                                    [class.bg-brand-bg]="signerBookTtlDays() !== days"
+                                    [class.text-brand-text-muted]="signerBookTtlDays() !== days"
+                                    [class.border-brand-card-border]="signerBookTtlDays() !== days"
+                                    [class.hover:text-brand-text]="signerBookTtlDays() !== days">
+                                {{ days === 0 ? 'Tab Only' : (days + (days === 1 ? ' Day' : ' Days')) }}
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="flex items-start gap-2 pt-1 border-t border-amber-500/20">
+                    <svg lucideAlertTriangle class="w-4 h-4 text-amber-500 shrink-0 mt-0.5"></svg>
+                    <p class="text-[11px] text-amber-200/90 leading-relaxed">
+                        @if (signerBookTtlDays() === 0) {
+                            <strong>Tab-Scoped Storage:</strong> Kept in temporary <code>sessionStorage</code> across rooms in this tab and <strong>automatically wiped by your browser as soon as you close the tab</strong>.
+                        } @else {
+                            <strong>OpSec Note:</strong> Persists in browser <code>localStorage</code> for <strong>{{ signerBookTtlDays() }} {{ signerBookTtlDays() === 1 ? 'day' : 'days' }}</strong> (purged on next app load after expiry, or uncheck to wipe now).
+                        }
+                    </p>
+                </div>
+            </div>
+        } @else {
+            <div class="mb-5"></div>
+        }
 
         <button id="btn-save-signer-label" (click)="saveLabel()" class="w-full py-3 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg font-bold rounded-xl transition cursor-pointer">
             Save Label
@@ -317,15 +358,56 @@
             }
         </div>
 
-        <div id="toggle-save-address-book" class="mb-6 flex items-center gap-3 cursor-pointer select-none" (click)="saveAddressToBook.set(!saveAddressToBook())">
-            <div class="w-5 h-5 rounded border flex items-center justify-center transition-colors"
+        <div id="toggle-save-address-book" class="mb-3 flex items-start gap-3 cursor-pointer select-none" (click)="saveAddressToBook.set(!saveAddressToBook())">
+            <div class="w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 mt-0.5"
                     [class.bg-brand-accent]="saveAddressToBook()"
                     [class.border-brand-accent]="saveAddressToBook()"
                     [class.border-brand-card-border]="!saveAddressToBook()">
                 @if (saveAddressToBook()) { <svg lucideCheck class="w-3.5 h-3.5 text-brand-bg"></svg> }
             </div>
-            <div class="text-sm text-brand-text">Save to local Address Book</div>
+            <div>
+                <div class="text-sm text-brand-text font-medium">Save to local Address Book</div>
+                <div class="text-[11px] text-brand-text-muted leading-tight mt-0.5">
+                    Auto-fills this address label in future sessions on this browser.
+                </div>
+            </div>
         </div>
+
+        @if (saveAddressToBook()) {
+            <div class="mb-5 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex flex-col gap-3 animate-in fade-in duration-200">
+                <div>
+                    <div class="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1.5">Local Retention Period (TTL)</div>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        @for (days of ttlOptions; track days) {
+                            <button type="button"
+                                    (click)="signerBookTtlDays.set(days)"
+                                    class="py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer"
+                                    [class.bg-amber-500]="signerBookTtlDays() === days"
+                                    [class.text-brand-bg]="signerBookTtlDays() === days"
+                                    [class.border-amber-500]="signerBookTtlDays() === days"
+                                    [class.bg-brand-bg]="signerBookTtlDays() !== days"
+                                    [class.text-brand-text-muted]="signerBookTtlDays() !== days"
+                                    [class.border-brand-card-border]="signerBookTtlDays() !== days"
+                                    [class.hover:text-brand-text]="signerBookTtlDays() !== days">
+                                {{ days === 0 ? 'Tab Only' : (days + (days === 1 ? ' Day' : ' Days')) }}
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="flex items-start gap-2 pt-1 border-t border-amber-500/20">
+                    <svg lucideAlertTriangle class="w-4 h-4 text-amber-500 shrink-0 mt-0.5"></svg>
+                    <p class="text-[11px] text-amber-200/90 leading-relaxed">
+                        @if (signerBookTtlDays() === 0) {
+                            <strong>Tab-Scoped Storage:</strong> Kept in temporary <code>sessionStorage</code> across rooms in this tab and <strong>automatically wiped by your browser as soon as you close the tab</strong>.
+                        } @else {
+                            <strong>OpSec Note:</strong> Persists in browser <code>localStorage</code> for <strong>{{ signerBookTtlDays() }} {{ signerBookTtlDays() === 1 ? 'day' : 'days' }}</strong> (purged on next app load after expiry, or uncheck to wipe now).
+                        }
+                    </p>
+                </div>
+            </div>
+        } @else {
+            <div class="mb-5"></div>
+        }
 
         <button id="btn-save-address-label" (click)="saveAddressLabel()" class="w-full py-3 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg font-bold rounded-xl transition cursor-pointer">
             Save Label

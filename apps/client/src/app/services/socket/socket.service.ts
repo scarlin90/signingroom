@@ -31,6 +31,7 @@ export class SocketService {
   private fallbackVersion: string | null = null;
   private failedKeyAttempts = 0;
   private encryptionKey: string | null = null;
+  private readonly ADDRESS_BOOK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 Day
 
   public isBrowser: boolean;
 
@@ -44,6 +45,7 @@ export class SocketService {
     this.relay = this.sdk.relay;
     this.store = this.sdk.store;
     this.encryptionEngine = this.sdk.engine;
+    this.purgeExpiredAddressBook();
     this.registerEventlisteners();
   }
 
@@ -442,22 +444,119 @@ export class SocketService {
     return await this.sdk.getAuditLogPdf(options);
   }
 
-  getLocalLabel(fingerprint: string): string | null {
-    return localStorage.getItem(`addr_book_${fingerprint}`);
+  /**
+   * Proactively sweeps and deletes any expired localStorage address book entries on app startup,
+   * rather than waiting for a specific fingerprint or address to be read again.
+   */
+  public purgeExpiredAddressBook(): void {
+    if (!this.isBrowser) return;
+    const now = Date.now();
+    const keysToRemove: string[] = [];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('addr_book_')) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.expiresAt === 'number' && now > parsed.expiresAt) {
+            keysToRemove.push(key);
+          }
+        } catch {
+          // Legacy entry without expiresAt: remove to enforce strict TTL hygiene
+          keysToRemove.push(key);
+        }
+      }
+    }
+
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
   }
 
-  saveToAddressBook(fingerprint: string, label: string) {
-    localStorage.setItem(`addr_book_${fingerprint}`, label);
+  /**
+   * Wipes all saved signer and address labels from both sessionStorage and localStorage.
+   */
+  public clearAllAddressBookEntries(): void {
+    if (!this.isBrowser) return;
+    for (const storage of [localStorage, sessionStorage]) {
+      const keys: string[] = [];
+      for (let i = 0; i < storage.length; i++) {
+        const k = storage.key(i);
+        if (k && k.startsWith('addr_book_')) keys.push(k);
+      }
+      keys.forEach((k) => storage.removeItem(k));
+    }
+  }
+
+  private readEntryWithTtl(key: string): { label: string; ttlDays: 0 | 1 | 7 | 30 } | null {
+    if (!this.isBrowser) return null;
+
+    // Check ephemeral sessionStorage first (wiped automatically by browser on tab close)
+    const sessionVal = sessionStorage.getItem(key);
+    if (sessionVal) {
+      return { label: sessionVal, ttlDays: 0 };
+    }
+
+    // Check TTL-bound localStorage
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && 'label' in parsed && 'expiresAt' in parsed) {
+        if (Date.now() > parsed.expiresAt) {
+          localStorage.removeItem(key);
+          return null;
+        }
+        const days = parsed.ttlDays;
+        return {
+          label: parsed.label,
+          ttlDays: days === 1 || days === 7 || days === 30 ? days : 7,
+        };
+      }
+    } catch {
+      localStorage.removeItem(key);
+    }
+    return null;
+  }
+
+  private writeWithTtl(key: string, label: string, ttlDays: 0 | 1 | 7 | 30 = 0) {
+    if (!this.isBrowser) return;
+
+    if (ttlDays === 0) {
+      localStorage.removeItem(key);
+      sessionStorage.setItem(key, label);
+      return;
+    }
+
+    sessionStorage.removeItem(key);
+    const payload = JSON.stringify({
+      label,
+      ttlDays,
+      expiresAt: Date.now() + ttlDays * 24 * 60 * 60 * 1000,
+    });
+    localStorage.setItem(key, payload);
+  }
+
+  getLocalLabel(fingerprint: string): string | null {
+    return this.readEntryWithTtl(`addr_book_${fingerprint}`)?.label ?? null;
+  }
+
+  getLocalLabelTtl(fingerprint: string): 0 | 1 | 7 | 30 {
+    return this.readEntryWithTtl(`addr_book_${fingerprint}`)?.ttlDays ?? 0;
+  }
+
+  saveToAddressBook(fingerprint: string, label: string, ttlDays: 0 | 1 | 7 | 30 = 0) {
+    this.writeWithTtl(`addr_book_${fingerprint}`, label, ttlDays);
   }
 
   removeFromAddressBook(fingerprint: string) {
+    if (!this.isBrowser) return;
     localStorage.removeItem(`addr_book_${fingerprint}`);
+    sessionStorage.removeItem(`addr_book_${fingerprint}`);
   }
 
   public async updateSignerLabel(fingerprint: string, label: string) {
-    const state = this.sdk.getRoomState();
-    if (state) localStorage.setItem(`signer_label_${state.roomId}_${fingerprint}`, label);
-
     await this.sdk.setSignerLabel(fingerprint, label);
   }
 
@@ -480,22 +579,26 @@ export class SocketService {
   // --- ADDRESS LABEL METHODS ---
 
   public async updateAddressLabel(address: string, label: string) {
-    const state = this.sdk.getRoomState();
-    if (state) localStorage.setItem(`address_label_${state.roomId}_${address}`, label);
     // @ts-ignore - Ignore type error if SDK definition isn't fully synced locally
     await this.sdk.setAddressLabel(address, label);
   }
 
   getLocalAddressLabel(address: string): string | null {
-    return localStorage.getItem(`addr_book_address_${address}`);
+    return this.readEntryWithTtl(`addr_book_address_${address}`)?.label ?? null;
   }
 
-  saveAddressToBook(address: string, label: string) {
-    localStorage.setItem(`addr_book_address_${address}`, label);
+  getLocalAddressLabelTtl(address: string): 0 | 1 | 7 | 30 {
+    return this.readEntryWithTtl(`addr_book_address_${address}`)?.ttlDays ?? 0;
+  }
+
+  saveAddressToBook(address: string, label: string, ttlDays: 0 | 1 | 7 | 30 = 0) {
+    this.writeWithTtl(`addr_book_address_${address}`, label, ttlDays);
   }
 
   removeAddressFromBook(address: string) {
+    if (!this.isBrowser) return;
     localStorage.removeItem(`addr_book_address_${address}`);
+    sessionStorage.removeItem(`addr_book_address_${address}`);
   }
 
   checkAndApplyLocalAddressLabels() {

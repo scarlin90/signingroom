@@ -1,1 +1,11 @@
+# Default owner for all repository files
 * @scarlin90
+
+# Security-critical relay, cryptography, licensing, and CI/CD paths
+/apps/worker/ @scarlin90
+/libs/sdk/src/lib/crypto/ @scarlin90
+/libs/sdk/src/lib/licensing/ @scarlin90
+/libs/sdk/src/lib/bitcoin/ @scarlin90
+/.github/workflows/ @scarlin90
+/apps/client/public/pgp-key.asc @scarlin90
+/apps/client/public/security.txt @scarlin90

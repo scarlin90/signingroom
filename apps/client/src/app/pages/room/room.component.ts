@@ -247,7 +247,11 @@ export class RoomComponent implements OnInit, OnDestroy {
   public showAddressLabelModal = signal(false);
   public editingAddress = signal<string | null>(null);
   public editingAddressLabel = signal('');
-  public saveAddressToBook = signal(true);
+  public saveAddressToBook = signal(false);
+
+  public readonly ttlOptions: (0 | 1 | 7 | 30)[] = [0, 1, 7, 30];
+  public signerBookTtlDays = signal<0 | 1 | 7 | 30>(0);
+  public addressBookTtlDays = signal<0 | 1 | 7 | 30>(0);
 
   public claimPassword = '';
   public manualKey = '';
@@ -256,7 +260,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   public editingFingerprint = signal<string | null>(null);
   public editingLabel = signal('');
-  public saveToBook = signal(true);
+  public saveToBook = signal(false);
 
   private hasEmittedFinalized = false;
   public expectedHost = '';
@@ -446,9 +450,16 @@ export class RoomComponent implements OnInit, OnDestroy {
         const hostParam = this.route.snapshot.queryParamMap.get('host');
 
         if (hostParam) {
-          this.expectedHost = decodeURIComponent(hostParam);
-
-          this.dispatcher.setTargetOrigin(this.expectedHost);
+          const decodedHost = decodeURIComponent(hostParam);
+          if (this.configService.isEmbedOriginAllowed(decodedHost)) {
+            this.expectedHost = new URL(decodedHost).origin;
+            this.dispatcher.setTargetOrigin(this.expectedHost);
+          } else {
+            console.warn('[Security] Rejected untrusted embed host parameter:', decodedHost);
+            if (typeof window !== 'undefined') {
+              this.expectedHost = window.location.origin;
+            }
+          }
         } else if (typeof window !== 'undefined') {
           this.expectedHost = window.location.origin;
         }
@@ -686,7 +697,8 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     this.editingFingerprint.set(fingerprint);
     this.editingLabel.set(current || saved || '');
-    this.saveToBook.set(true);
+    this.saveToBook.set(!!saved);
+    this.signerBookTtlDays.set(this.socket.getLocalLabelTtl(fingerprint));
     this.showLabelModal.set(true);
   }
 
@@ -698,7 +710,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.socket.updateSignerLabel(fp, label);
 
       if (this.saveToBook() && label) {
-        this.socket.saveToAddressBook(fp, label);
+        this.socket.saveToAddressBook(fp, label, this.signerBookTtlDays());
       } else {
         this.socket.removeFromAddressBook(fp);
       }
@@ -724,7 +736,8 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     this.editingAddress.set(address);
     this.editingAddressLabel.set(current || saved || '');
-    this.saveAddressToBook.set(true);
+    this.saveAddressToBook.set(!!saved);
+    this.addressBookTtlDays.set(this.socket.getLocalAddressLabelTtl(address));
     this.showAddressLabelModal.set(true);
     this.dispatcher.emitModalView('Label Address');
   }
@@ -737,7 +750,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.socket.updateAddressLabel(address, label);
 
       if (this.saveAddressToBook() && label) {
-        this.socket.saveAddressToBook(address, label);
+        this.socket.saveAddressToBook(address, label, this.addressBookTtlDays());
       } else {
         this.socket.removeAddressFromBook(address);
       }
