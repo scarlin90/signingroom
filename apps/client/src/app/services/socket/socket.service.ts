@@ -755,26 +755,18 @@ export class SocketService {
 
   /**
    * The Coordinator's automated transition engine.
-   * Merges all individual Nonce PSBTs into a single base payload for Round 2.
+   * Waits briefly for UI feedback and delegates nonce aggregation to the SDK.
    */
   public async aggregateMuSig2Nonces() {
     if (!this.isCoordinator()) return;
-    
+
     try {
       const state = this.roomState();
       if (!state || !state.transientPsbt) return;
 
       await new Promise((resolve) => setTimeout(resolve, 1800));
 
-      // Merge all uploaded nonces into the transient PSBT
-      let mergedNoncePsbt = state.transientPsbt;
-      for (const noncePsbt of state.nonces) {
-        mergedNoncePsbt = PsbtUtils.merge(mergedNoncePsbt, noncePsbt);
-      }
-
-      // The merged PSBT now contains all 0x1b fields and becomes the Base PSBT for Round 2
-      await this.sdk.publishAggregatePsbt(mergedNoncePsbt);
-
+      await (this.sdk as any).aggregateMuSig2Nonces();
     } catch (e) {
       console.error('[Coordinator] Failed to merge nonces', e);
       this.decryptionError.set('Failed to merge MuSig2 nonces.');

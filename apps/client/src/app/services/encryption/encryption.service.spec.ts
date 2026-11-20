@@ -19,6 +19,19 @@ describe('EncryptionService (Angular Wrapper)', () => {
     expect(service).toBeTruthy();
   });
 
+  it('should expose the underlying EncryptionEngine via getEngine()', () => {
+    expect(service.getEngine()).toBe(engine);
+  });
+
+  it('should round-trip encrypt and decrypt with matching AAD and fail on mismatched AAD', async () => {
+    const key = await service.generateKey();
+    const aad = 'room:test-id|field:psbt';
+    const cipher = await service.encrypt('secret-payload', key, aad);
+
+    await expect(service.decrypt(cipher, key, aad)).resolves.toBe('secret-payload');
+    await expect(service.decrypt(cipher, key, 'room:test-id|field:wrong')).rejects.toThrow();
+  });
+
   it('should delegate generateKey to the engine', async () => {
     const spy = vi.spyOn(engine, 'generateKey').mockResolvedValue('mock-key');
     const result = await service.generateKey();
