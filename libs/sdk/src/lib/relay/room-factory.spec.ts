@@ -33,10 +33,11 @@ describe('RoomFactory', () => {
     expect(payload.httpPayload.encryptedPsbt).not.toBe(dummyPsbt);
     expect(payload.httpPayload.encryptedRoomName).not.toBe('Multisig Signing Room Alpha');
 
-    // Cross-verify decryptability to check for accurate data composition
+    // Cross-verify decryptability using the room_name AAD binding
     const decryptedName = await engine.decrypt(
       payload.httpPayload.encryptedRoomName,
       payload.localData.encryptionKey,
+      `room:${payload.localData.roomId}|field:room_name`,
     );
     expect(decryptedName).toBe('Multisig Signing Room Alpha');
   });
@@ -50,6 +51,7 @@ describe('RoomFactory', () => {
     const decryptedName = await engine.decrypt(
       payload.httpPayload.encryptedRoomName,
       payload.localData.encryptionKey,
+      `room:${payload.localData.roomId}|field:room_name`,
     );
     expect(decryptedName).toBe('Untitled Room');
   });

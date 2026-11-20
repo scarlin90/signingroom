@@ -673,7 +673,7 @@ export class PsbtUtils {
             return null;
           }
 
-          // 1. Extract the ordered participant 33-byte public keys from 0x1a
+          // Extract the ordered participant 33-byte public keys from 0x1a
           const firstEntry = input.musig2ParticipantPubkeys[0];
           const participants: Uint8Array[] = Array.isArray(firstEntry)
             ? firstEntry[1]
@@ -683,7 +683,7 @@ export class PsbtUtils {
           if (input.musig2PartialSig.length < participants.length) return null;
           if (input.musig2PubNonce.length < participants.length) return null;
 
-          // 2. Align nonces (0x1b) and partial sigs (0x1c) to the exact participant order
+          // Align nonces (0x1b) and partial sigs (0x1c) to the exact participant order
           const orderedNonces: Uint8Array[] = [];
           const orderedSigs: Uint8Array[] = [];
 
@@ -702,7 +702,7 @@ export class PsbtUtils {
             orderedSigs.push(sigEntry[1] ?? sigEntry.value);
           }
 
-          // 3. Compute the BIP-341 TapTweak scalar using scure's tagSchnorr
+          // Compute the BIP-341 TapTweak scalar using scure's tagSchnorr
           const untweakedXOnly = musig2.keyAggExport(musig2.keyAggregate(participants));
           const merkleRoot: Uint8Array | undefined = input.tapMerkleRoot;
           const tweakScalar =
@@ -710,7 +710,7 @@ export class PsbtUtils {
               ? tagSchnorr('TapTweak', untweakedXOnly, merkleRoot)
               : tagSchnorr('TapTweak', untweakedXOnly);
 
-          // 4. Compute the native BIP-341 Taproot Keypath Sighash via scure's preimageWitnessV1
+          // Compute the native BIP-341 Taproot Keypath Sighash via scure's preimageWitnessV1
           const sighash = (tx as any).preimageWitnessV1(
             i,
             prevOutScripts,
@@ -718,7 +718,7 @@ export class PsbtUtils {
             prevOutAmounts,
           );
 
-          // 5. Aggregate nonces and partial signatures via scure's BIP-327 Session
+          // Aggregate nonces and partial signatures via scure's BIP-327 Session
           const aggNonce = musig2.nonceAggregate(orderedNonces);
           const session = new musig2.Session(
             aggNonce,

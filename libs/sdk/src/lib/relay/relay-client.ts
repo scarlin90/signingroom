@@ -372,7 +372,8 @@ export class RelayClient {
         );
         masterPsbt = PsbtUtils.normalize(masterPsbt);
       } catch (e) {
-        // Safe to ignore if null during Round 1 of MuSig2
+        this.events.dispatch('DECRYPTION_ERROR', 'Failed to decrypt room PSBT');
+        return null;
       }
     }
 
