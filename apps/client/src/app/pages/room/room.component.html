@@ -1,17 +1,33 @@
-@if (socket.roomState() && socket.status() !== 'connected' && !socket.isClosed() && !isExpired() && !socket.roomNotFound() && !socket.isLockedOut() && !socket.isRoomFull() && !socket.decryptionError()) {
-    <div id="modal-reconnecting" class="fixed inset-0 z-[200] flex items-center justify-center bg-brand-bg/70 backdrop-blur-md animate-fade-in p-4">
-        <div class="bg-brand-card border border-amber-500/30 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 animate-pulse"></div>
-            <div class="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-amber-500/30">
-                <svg lucideLoader2 class="w-8 h-8 text-amber-500 animate-spin"></svg>
+@if (!socket.isClosed() && !isExpired() && !socket.roomNotFound() && !socket.isRoomFull() && !socket.isLockedOut() && !socket.decryptionError()) {
+    @if (!hasEverConnected() && socket.status() !== 'connected') {
+        <div id="modal-starting-room" class="fixed inset-0 z-[200] flex items-center justify-center bg-brand-bg/70 backdrop-blur-md animate-fade-in p-4">
+            <div class="bg-brand-card border border-brand-accent/30 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-accent via-emerald-400 to-brand-accent animate-pulse"></div>
+                <div class="w-16 h-16 bg-brand-accent/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-brand-accent/30">
+                    <svg lucideLoader2 class="w-8 h-8 text-brand-accent animate-spin"></svg>
+                </div>
+                <h2 class="text-2xl font-bold text-brand-text mb-2">Starting Room</h2>
+                <p class="text-brand-text-muted mb-6 text-sm leading-relaxed">
+                    Connecting to the signing relay and decrypting room state...<br>
+                    Your decryption key stays strictly local in your browser.
+                </p>
             </div>
-            <h2 class="text-2xl font-bold text-brand-text mb-2">Connection Interrupted</h2>
-            <p class="text-brand-text-muted mb-6 text-sm leading-relaxed">
-                Reconnecting to the signing relay...<br>
-                Your session identity and local cryptographic state are preserved.
-            </p>
         </div>
-    </div>
+    } @else if (hasEverConnected() && socket.status() !== 'connected') {
+        <div id="modal-reconnecting" class="fixed inset-0 z-[200] flex items-center justify-center bg-brand-bg/70 backdrop-blur-md animate-fade-in p-4">
+            <div class="bg-brand-card border border-amber-500/30 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 animate-pulse"></div>
+                <div class="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-amber-500/30">
+                    <svg lucideLoader2 class="w-8 h-8 text-amber-500 animate-spin"></svg>
+                </div>
+                <h2 class="text-2xl font-bold text-brand-text mb-2">Connection Interrupted</h2>
+                <p class="text-brand-text-muted mb-6 text-sm leading-relaxed">
+                    Reconnecting to the signing relay...<br>
+                    Your session identity and local cryptographic state are preserved.
+                </p>
+            </div>
+        </div>
+    }
 }
 
 @if (showPsbtModal()) {
@@ -1559,69 +1575,69 @@
     }
 
     @if (isExpired() && !socket.isClosed()) {
-    <div id="modal-status-expired" class="fixed inset-0 z-[200] flex items-center justify-center bg-brand-bg/90 backdrop-blur-xl animate-fade-in">
-        <div class="bg-brand-card border border-brand-card-border p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
-            <div class="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg lucideAlertTriangle class="w-8 h-8 text-rose-500"></svg>
+        <div id="modal-status-expired" class="fixed inset-0 z-[200] flex items-center justify-center bg-brand-bg/90 backdrop-blur-xl animate-fade-in">
+            <div class="bg-brand-card border border-brand-card-border p-8 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
+                <div class="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg lucideAlertTriangle class="w-8 h-8 text-rose-500"></svg>
+                </div>
+                <h2 class="text-2xl font-bold text-brand-text mb-2">Room Expired</h2>
+                <p class="text-brand-text-muted mb-8">This session has timed out. All ephemeral data has been wiped.</p>
+                @if (!isEmbedded) {
+                    <a routerLink="/create" class="w-full py-3 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg font-bold rounded-xl transition flex items-center justify-center gap-2 decoration-0">
+                        <svg lucideZap class="w-4 h-4"></svg> Start New Signing
+                    </a>
+                }
             </div>
-            <h2 class="text-2xl font-bold text-brand-text mb-2">Room Expired</h2>
-            <p class="text-brand-text-muted mb-8">This session has timed out. All ephemeral data has been wiped.</p>
-            @if (!isEmbedded) {
-                <a routerLink="/create" class="w-full py-3 bg-brand-accent hover:bg-brand-accent-hover text-brand-bg font-bold rounded-xl transition flex items-center justify-center gap-2 decoration-0">
-                    <svg lucideZap class="w-4 h-4"></svg> Start New Signing
-                </a>
-            }
         </div>
-    </div>
     }
 
     @if (showPrivacyWarning()) {
-    <div id="modal-opsec-warning" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all">
-    <div class="bg-brand-card border border-amber-500/30 rounded-xl max-w-xl w-full p-6 shadow-2xl relative overflow-hidden">
-        
-        <div class="absolute top-0 left-0 w-full h-1 bg-amber-500"></div>
+        <div id="modal-opsec-warning" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all">
+        <div class="bg-brand-card border border-amber-500/30 rounded-xl max-w-xl w-full p-6 shadow-2xl relative overflow-hidden">
+            
+            <div class="absolute top-0 left-0 w-full h-1 bg-amber-500"></div>
 
-        <div class="flex items-center gap-3 text-amber-500 mb-4">
-        <svg lucideEye class="w-7 h-7 animate-pulse"></svg>
-        <h3 class="text-xl font-bold text-brand-text">OpSec Warning</h3>
-        </div>
-        
-        <p class="text-brand-text mb-6 leading-relaxed">
-        You are about to reveal sensitive transaction details. Before proceeding, please ensure:
-        <br><br>
-        <span class="flex items-center gap-2 text-sm text-brand-text-muted">
-            <svg lucideCheckCircle class="w-4 h-4 text-brand-accent"></svg> No one is looking over your shoulder.
-        </span>
-        <span class="flex items-center gap-2 text-sm text-brand-text-muted mt-2">
-            <svg lucideCheckCircle class="w-4 h-4 text-brand-accent"></svg> You are not sharing your screen.
-        </span>
-        <span class="flex items-center gap-2 text-sm text-brand-text-muted mt-2">
-            <svg lucideCheckCircle class="w-4 h-4 text-brand-accent"></svg> There are no cameras recording your screen.
-        </span>
-        </p>
+            <div class="flex items-center gap-3 text-amber-500 mb-4">
+            <svg lucideEye class="w-7 h-7 animate-pulse"></svg>
+            <h3 class="text-xl font-bold text-brand-text">OpSec Warning</h3>
+            </div>
+            
+            <p class="text-brand-text mb-6 leading-relaxed">
+            You are about to reveal sensitive transaction details. Before proceeding, please ensure:
+            <br><br>
+            <span class="flex items-center gap-2 text-sm text-brand-text-muted">
+                <svg lucideCheckCircle class="w-4 h-4 text-brand-accent"></svg> No one is looking over your shoulder.
+            </span>
+            <span class="flex items-center gap-2 text-sm text-brand-text-muted mt-2">
+                <svg lucideCheckCircle class="w-4 h-4 text-brand-accent"></svg> You are not sharing your screen.
+            </span>
+            <span class="flex items-center gap-2 text-sm text-brand-text-muted mt-2">
+                <svg lucideCheckCircle class="w-4 h-4 text-brand-accent"></svg> There are no cameras recording your screen.
+            </span>
+            </p>
 
-        <div class="flex flex-wrap sm:flex-nowrap gap-3 justify-end mt-8">
-        <button id="btn-privacy-keep-blurred"
-            (click)="closePrivacyWarning()" 
-            class="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-brand-card-border text-brand-text hover:bg-brand-card-border/50 transition-colors font-medium cursor-pointer">
-            Keep Blurred
-        </button>
-        <button id="btn-privacy-reveal-all"
-            (click)="confirmUnblurAll()" 
-            class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-amber-500/10 text-amber-500 font-bold hover:bg-amber-500/20 border border-amber-500/30 transition-colors flex items-center justify-center gap-2 cursor-pointer">
-            <svg lucideEye class="w-[18px] h-[18px]"></svg>
-            Reveal All
-        </button>
-        <button id="btn-privacy-reveal-section"
-            (click)="confirmUnblur()" 
-            class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-amber-500 text-brand-bg font-bold hover:bg-amber-400 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer">
-            <svg lucideEye class="w-[18px] h-[18px]"></svg>
-            Reveal Section
-        </button>
+            <div class="flex flex-wrap sm:flex-nowrap gap-3 justify-end mt-8">
+            <button id="btn-privacy-keep-blurred"
+                (click)="closePrivacyWarning()" 
+                class="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-brand-card-border text-brand-text hover:bg-brand-card-border/50 transition-colors font-medium cursor-pointer">
+                Keep Blurred
+            </button>
+            <button id="btn-privacy-reveal-all"
+                (click)="confirmUnblurAll()" 
+                class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-amber-500/10 text-amber-500 font-bold hover:bg-amber-500/20 border border-amber-500/30 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                <svg lucideEye class="w-[18px] h-[18px]"></svg>
+                Reveal All
+            </button>
+            <button id="btn-privacy-reveal-section"
+                (click)="confirmUnblur()" 
+                class="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-amber-500 text-brand-bg font-bold hover:bg-amber-400 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer">
+                <svg lucideEye class="w-[18px] h-[18px]"></svg>
+                Reveal Section
+            </button>
+            </div>
         </div>
-    </div>
-    </div>
-}
+        </div>
+    }
 
     <div class="grid lg:grid-cols-3 gap-8 transition-all duration-500 relative z-10" 
       [class.opacity-20]="isExpired() || socket.isClosed()" 

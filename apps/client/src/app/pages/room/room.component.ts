@@ -159,6 +159,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   public qrDataUrl = signal<string | null>(null);
   public qrIncludesKey = signal(false);
 
+  public hasEverConnected = signal(false);
   public timeRemaining = signal('Loading...');
   public isExpired = signal(false);
   public isLowTime = signal(false);
@@ -310,6 +311,12 @@ export class RoomComponent implements OnInit, OnDestroy {
     private encryptionEngine: EncryptionEngine,
     public readonly configService: ConfigService,
   ) {
+    effect(() => {
+      if (this.socket.status() === 'connected') {
+        this.hasEverConnected.set(true);
+      }
+    });
+
     effect(() => {
       const status = this.socket.status();
       const currentFragment = this.route.snapshot.fragment;
@@ -491,6 +498,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.socket.disconnect();
       this.socket.reset();
       this.socket.roomState.set(null);
+      this.hasEverConnected.set(false);
 
       if (this.timerInterval) clearInterval(this.timerInterval);
     }

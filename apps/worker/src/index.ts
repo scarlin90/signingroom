@@ -821,12 +821,24 @@ export class SigningRoom implements DurableObject {
             }
 
             const now = Date.now();
-            if (now - session.lastMsgTime > getConfig(this.env, 'RATE_LIMIT_WINDOW')) {
+            const windowMs = getConfig(this.env, 'RATE_LIMIT_WINDOW');
+            const maxMsgs = getConfig(this.env, 'MAX_MSGS_PER_WINDOW');
+
+            if (now - session.lastMsgTime > windowMs) {
                 session.msgsInWindow = 1;
                 session.lastMsgTime = now;
             } else {
                 session.msgsInWindow++;
-                if (session.msgsInWindow > getConfig(this.env, 'MAX_MSGS_PER_WINDOW')) {
+                if (session.msgsInWindow > maxMsgs) {
+                    if (session.msgsInWindow === maxMsgs + 1) {
+                        webSocket.send(
+                            JSON.stringify({
+                                type: 'ERROR',
+                                code: 'RATE_LIMITED',
+                                message: `Message rate limit exceeded (max ${maxMsgs} per ${windowMs / 1000}s). Slow down and retry.`,
+                            }),
+                        );
+                    }
                     return;
                 }
             }
