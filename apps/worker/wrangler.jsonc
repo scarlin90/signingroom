@@ -110,5 +110,11 @@
 		},
 	},
 	"kv_namespaces": [],
-	"observability": { "enabled": true },
+	"observability": {
+		"enabled": true,
+		"logs": {
+			"enabled": false,
+			"invocation_logs": false
+		}
+	}
 }

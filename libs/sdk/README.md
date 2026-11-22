@@ -1,8 +1,11 @@
+Here is the complete, updated `README.md` for `@signing-room/sdk`. It integrates the **MuSig2 Two-Round Ceremonies (BIP-327 / BIP-373)** section right after the standard finalization section, complete with an API & Event reference table and end-to-end code examples using `SigningRoomClient`.
+
+```markdown
 # @signing-room/sdk
 
 The official JavaScript/TypeScript SDK for **SigningRoom**.
 
-This SDK provides a robust, programmatic interface to create, manage, and participate in secure, ephemeral Bitcoin multi-signature ceremonies. It handles end-to-end encryption, Zero-knowledge RBAC (server-enforced upload limits; policy delivered encrypted), WebSocket relay coordination, automatic session resumption, and PSBT (Partially Signed Bitcoin Transaction) merging automatically.
+This SDK provides a robust, programmatic interface to create, manage, and participate in secure, ephemeral Bitcoin multi-signature and **MuSig2 (BIP-327 / BIP-373)** Taproot ceremonies. It handles end-to-end encryption, Zero-knowledge RBAC (server-enforced upload limits; policy delivered encrypted), WebSocket relay coordination, automatic session resumption, and PSBT (Partially Signed Bitcoin Transaction) nonce and signature aggregation automatically.
 
 ---
 
@@ -21,13 +24,13 @@ npm install @signing-room/sdk
 
 Looking for a working implementation? Check out our **[signingroom-sdk-demo](https://github.com/scarlin90/signingroom/blob/main/libs/sdk/signingroom-sdk-demo)**.
 
-This repository provides a complete, runnable TypeScript project that demonstrates the full SDK lifecycle—from room creation and granular RBAC enforcement to threshold signing, session resumption, and forensic offline audit verification.
+This repository provides complete, runnable TypeScript walkthroughs for both **Standard M-of-N Multisig (`index.ts`)** and **2-Round MuSig2 Taproot Keypath (`musig2-demo.ts`)** ceremonies—demonstrating room creation, granular RBAC enforcement, Round 1 nonce aggregation, Round 2 threshold signing, session resumption, and forensic offline audit verification.
 
 ---
 
 ## Relay Requirements & Headless Access (Self-Hosting)
 
-When connecting the SDK to a hosted relay Worker (e.g., `[https://api.my-relay.com](https://api.my-relay.com)`), the relay's environment variables must be configured to accommodate your architecture:
+When connecting the SDK to a hosted relay Worker (e.g., `https://api.my-relay.com`), the relay's environment variables must be configured to accommodate your architecture:
 
 | Environment Variable | Required Setting | Description |
 | --- | --- | --- |
@@ -35,8 +38,8 @@ When connecting the SDK to a hosted relay Worker (e.g., `[https://api.my-relay.c
 | `ALLOW_HEADLESS_ACCESS` | `"true"` | **Required for Node.js / CLI integrations against remote relays.** Because Node.js runtimes do not emit browser `Origin` headers, self-hosted relays must set this to `"true"` to allow backend daemons, bots, and CI/CD runners to communicate with the API and WebSockets. |
 | `ENVIRONMENT` | `"development"` or `"production"` | When set to `"development"`, headless calls and `localhost`/`127.0.0.1` origins on any port are permitted automatically without additional configuration. |
 
-> ** Note:**
-> The official public deployment at `api.signingroom.io` enforces `ALLOW_HEADLESS_ACCESS="false"`. Programmatic SDK scripts  must target a self-hosted relay instance with `ALLOW_HEADLESS_ACCESS="true"` enabled or run locally with `ENVIRONMENT="development"`.
+> **Note:**
+> The official public deployment at `api.signingroom.io` enforces `ALLOW_HEADLESS_ACCESS="false"`. Programmatic SDK scripts must target a self-hosted relay instance with `ALLOW_HEADLESS_ACCESS="true"` enabled or run locally with `ENVIRONMENT="development"`.
 
 ---
 
@@ -46,7 +49,7 @@ The SDK is built around the `SigningRoomClient`.
 
 A user can act as either:
 
-* **Coordinator** — administrative privileges, room management, capability generation, finalization, auditing
+* **Coordinator** — administrative privileges, room management, capability generation, MuSig2 nonce aggregation, finalization, auditing
 * **Guest** — cryptographically restricted access (e.g., Signer, Blind Signer, Auditor)
 
 Below is a complete lifecycle example demonstrating how to orchestrate a secure Bitcoin multi-signature signing ceremony.
@@ -55,7 +58,7 @@ Below is a complete lifecycle example demonstrating how to orchestrate a secure 
 
 ## 1. Initialization & Room Creation (Coordinator)
 
-To start a new signing ceremony, instantiate the client and provide an unsigned PSBT.
+To start a new signing ceremony, instantiate the client and provide an unsigned PSBT. The SDK automatically inspects the PSBT to detect whether it is a standard multisig transaction or a 2-round **MuSig2 (BIP-373)** ceremony.
 
 *If operating an Enterprise or Custom White-label tier, inject your commercial license token here to securely attest infrastructure provenance.*
 
@@ -76,6 +79,7 @@ const coordinator = new SigningRoomClient({
 });
 
 // Create the room and automatically join as Coordinator
+// (Automatically detects 'standard' vs 'musig2' protocol from PSBT fields)
 const session = await coordinator.createRoomAndJoin(
   UNSIGNED_PSBT,
   'bitcoin', // 'bitcoin' | 'testnet' | 'signet'
@@ -93,9 +97,9 @@ await coordinator.setDisplayName('Treasury Manager');
 
 ---
 
-## 2. Generating Capability-based RBAC roles (Coordinator)
+## 2. Generating Capability-based RBAC Roles (Coordinator)
 
-The Coordinator can generate cryptographically secure, capability-restricted role tokens. The server stores role token hashes and enforces coarse constraints (e.g. signature upload) without access to the encryption key. Fine-grained UI policies travel in an encrypted policy blob.
+The Coordinator can generate cryptographically secure, capability-restricted role tokens. The server stores role token hashes and enforces coarse constraints (e.g. nonce and signature uploads) without access to the encryption key. Fine-grained UI policies travel in an encrypted policy blob.
 
 ```javascript
 // Generate a Standard Signer Role
@@ -119,7 +123,7 @@ const auditorRole = await coordinator.generateAndRegisterRole({
 });
 
 // Easily generate ready-to-click share links for frontend UIs
-const UI_APP_URL = 'https://signingroom.io';
+const UI_APP_URL = '[https://signingroom.io](https://signingroom.io)';
 console.log(`Signer Link: ${coordinator.getRoomLink(UI_APP_URL, true, signerRole)}`);
 
 ```
@@ -283,7 +287,92 @@ coordinator
 
 ---
 
-## 8. Independent Offline Auditing & License Verification
+## 8. MuSig2 Two-Round Ceremonies (BIP-327 / BIP-373)
+
+The SDK natively supports 2-round **MuSig2 Taproot keypath ceremonies** using BIP-373 PSBT fields (`0x1a` participant pubkeys, `0x1b` public nonces, and `0x1c` partial signatures).
+
+### MuSig2 Methods & Events
+
+| Method / Event | Type | Role | Description |
+| --- | --- | --- | --- |
+| `client.detectProtocol(psbt)` | Method | Any | Inspects a PSBT and returns `'musig2'` if BIP-373 fields (`0x1a`/`0x1b`/`0x1c`) are present, or `'standard'`. Called automatically by `createRoomAndJoin()`. |
+| `client.uploadNonce(psbt, fp)` | Method | Signer | Encrypts and uploads a Round 1 PSBT containing the participant's `0x1b` public nonce. |
+| `client.aggregateMuSig2Nonces()` | Method | Coordinator | Merges all collected Round 1 `0x1b` nonces into the setup PSBT and publishes the Round 2 signing PSBT to the room. |
+| `'NONCE_RECEIVED'` | Event | Any | Emitted whenever a participant uploads a Round 1 public nonce (`{ fingerprint, noncesReceived, threshold }`). |
+| `'NONCE_THRESHOLD_MET'` | Event | Any | Emitted when all required Round 1 public nonces have been collected (`{ noncesReceived, threshold }`). |
+| `'AGGREGATE_PSBT_DECRYPTED'` | Event | Any | Emitted on all connected clients when the Coordinator publishes the aggregated Round 2 PSBT, signaling that signers can now export and sign. |
+
+### Complete 2-Round MuSig2 Lifecycle Example
+
+```javascript
+import { SigningRoomClient } from '@signing-room/sdk';
+import { take } from 'rxjs';
+
+// 1. Coordinator initializes the MuSig2 room
+// The SDK auto-detects BIP-373 (0x1a) fields and places the setup PSBT into Round 1 (transientPsbt)
+const protocol = coordinator.detectProtocol(MUSIG2_SETUP_PSBT); // 'musig2'
+
+const session = await coordinator.createRoomAndJoin(
+  MUSIG2_SETUP_PSBT,
+  'signet',
+  'MuSig2 Taproot Vault (2-of-2)',
+);
+
+// 2. Monitor Round 1 Public Nonce Uploads
+coordinator.onEvent('NONCE_RECEIVED').subscribe(({ payload }) => {
+  console.log(
+    `[Round 1] Nonce received from ${payload.fingerprint} (${payload.noncesReceived}/${payload.threshold})`,
+  );
+});
+
+// 3. Automatically aggregate nonces & transition to Round 2 when all nonces arrive
+coordinator
+  .onEvent('NONCE_THRESHOLD_MET')
+  .pipe(take(1))
+  .subscribe(async ({ payload }) => {
+    console.log(`All ${payload.noncesReceived}/${payload.threshold} nonces collected! Aggregating...`);
+
+    // Merges all Round 1 public nonces (0x1b) and broadcasts the Round 2 Base PSBT
+    await coordinator.aggregateMuSig2Nonces();
+    console.log('Room transitioned to Round 2 (Signing Phase).');
+  });
+
+// Signers extract their device fingerprint and upload Round 1 Public Nonces (0x1b)
+const fp1 = signer1.extractFingerprintFromSignature(SIGNER1_NONCE_PSBT);
+await signer1.uploadNonce(SIGNER1_NONCE_PSBT, fp1);
+
+const fp2 = signer2.extractFingerprintFromSignature(SIGNER2_NONCE_PSBT);
+await signer2.uploadNonce(SIGNER2_NONCE_PSBT, fp2);
+
+// 4. Guests can listen for the Round 2 transition to export the aggregated PSBT and upload partial signatures (0x1c)
+signer1
+  .onEvent('AGGREGATE_PSBT_DECRYPTED')
+  .pipe(take(1))
+  .subscribe(async (event) => {
+    const round2PsbtBase64 = event.payload; // Contains all participants' 0x1b nonces
+    console.log('Round 2 PSBT received! Uploading partial signatures...');
+
+    await signer1.uploadSignature(SIGNER1_PARTIAL_PSBT, fp1);
+    await signer2.uploadSignature(SIGNER2_PARTIAL_PSBT, fp2);
+  });
+
+// 5. Coordinator finalizes into a single 64-byte Schnorr Taproot keypath witness once THRESHOLD_MET fires
+coordinator
+  .onEvent('THRESHOLD_MET')
+  .pipe(take(1))
+  .subscribe(async () => {
+    // Runs BIP-327 nonceAggregate + Session.partialSigAgg with BIP-341 TapTweak verification
+    const finalTx = await coordinator.finalizeTransaction();
+
+    console.log(`Finalized Taproot Keypath TX Hex: ${finalTx.hex}`);
+    console.log(`TXID: ${finalTx.txId}`);
+  });
+
+```
+
+---
+
+## 9. Independent Offline Auditing & License Verification
 
 A true Zero-Trust architecture means external auditors can independently verify the cryptographic math and software provenance *after* the infrastructure is destroyed. The SDK provides static methods to verify the transaction history and infrastructure licensing using nothing but the exported CSV file.
 
@@ -337,7 +426,7 @@ if (rawToken) {
 
 ---
 
-## 9. Coordinator Role Recovery
+## 10. Coordinator Role Recovery
 
 If the Coordinator disconnects or closes their browser, they can reclaim administrative privileges using the encrypted admin token returned during room creation.
 
@@ -367,3 +456,5 @@ await recoveryClient.claimCoordinator(session.encryptedAdminToken);
 Distributed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
 If you modify this code and run it over a network, you must release your source code. See `LICENSE` for more information.
+
+```

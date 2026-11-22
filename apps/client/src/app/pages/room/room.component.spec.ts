@@ -9,7 +9,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SocketService } from '../../services/socket/socket.service';
 import { UrService } from '../../services/ur/ur.service';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
-import { EncryptionEngine } from '@signing-room/sdk';
+import { EncryptionEngine, PsbtUtils } from '@signing-room/sdk';
+import { base64, hex } from '@scure/base';
 
 let mockSocketService: any;
 let mockUrService: any;
@@ -70,26 +71,31 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       isLockedOut: signal(false),
       isRoomFull: signal(false),
       decryptionError: signal(''),
-      roomState: signal({ roomId: 'room-123', network: 'bitcoin' }),
-      txDetails: signal(null),
-      signers: signal([]),
+      roomState: signal<any>({ roomId: 'room-123', network: 'bitcoin', signatures: [] }),
+      txDetails: signal<any>(null),
+      signers: signal<any[]>([]),
       signerCount: signal(0),
-      activeSessions: signal([]),
+      nonceCount: signal(0),
+      activeSessions: signal<any[]>([]),
       currentSessionId: signal('session-1'),
-      currentConstraints: signal(null),
-      role: signal('guest'),
+      currentConstraints: signal<any>(null),
+      role: signal<'guest' | 'admin'>('guest'),
+      ceremonyPhase: signal<'GATHERING_NONCES' | 'AGGREGATING_NONCES' | 'GATHERING_SIGNATURES' | 'READY_TO_BROADCAST'>('GATHERING_SIGNATURES'),
+      transientPsbt: signal<string | null>(null),
 
       networkSignatureReceived$: of({}),
       securityAlert$: of({}),
       isCoordinator: vi.fn().mockReturnValue(false),
       getThreshold: vi.fn().mockReturnValue(2),
-      signerThreshold: vi.fn().mockReturnValue(2),
+      signerThreshold: signal(2),
       isReadyToBroadcast: vi.fn().mockReturnValue(false),
       getRoomKey: vi.fn().mockReturnValue('test-key-123'),
       getCurrentFragment: vi.fn().mockReturnValue('test-key-123:mock-role'),
       getRoomLink: vi.fn().mockReturnValue('http://localhost/room#key'),
       getLocalLabel: vi.fn().mockReturnValue(undefined),
+      getLocalLabelTtl: vi.fn().mockReturnValue(0),
       getLocalAddressLabel: vi.fn().mockReturnValue(undefined),
+      getLocalAddressLabelTtl: vi.fn().mockReturnValue(0),
       logAction: vi.fn(),
       connect: vi.fn(),
       disconnect: vi.fn(),
@@ -99,7 +105,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       checkAndApplyLocalAddressLabels: vi.fn(),
       claimCoordinator: vi.fn(),
       renameRoom: vi.fn(),
-      uploadSignature: vi.fn(),
+      uploadSignature: vi.fn().mockResolvedValue(undefined),
+      uploadNonce: vi.fn().mockResolvedValue(undefined),
       getSettlementCsvData: vi.fn().mockReturnValue('csv,data'),
       getAuditLogCsv: vi.fn().mockReturnValue('audit,csv'),
       getFinalTxHex: vi.fn(),
@@ -124,10 +131,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       setDisplayName: vi.fn(),
       generateAndRegisterRole: vi.fn().mockResolvedValue('new-role-token'),
       sdk: {
+        currentRoleToken: undefined,
         store: {
           getState: vi.fn().mockReturnValue({ roomId: null }),
         },
         onEvent: vi.fn().mockReturnValue({ subscribe: vi.fn() }),
+        parsePsbtFile: vi.fn(),
         extractFingerprintFromSignature: vi.fn(),
         verifyOfflineIntegrity: vi.fn(),
       },
@@ -317,7 +326,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     describe('Timelock Signals', () => {
       it('should default to 0, false, and null when txDetails is null', () => {
         mockSocketService.txDetails.set(null);
-        
+
         expect(component.absoluteTimelock()).toBe(0);
         expect(component.hasRelativeTimelock()).toBe(false);
         expect(component.relativeTimelockValue()).toBeNull();
@@ -329,7 +338,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
           hasRelativeTimelock: true,
           relativeTimelockValue: '144 Blocks',
         });
-        
+
         expect(component.absoluteTimelock()).toBe(840000);
         expect(component.hasRelativeTimelock()).toBe(true);
         expect(component.relativeTimelockValue()).toBe('144 Blocks');
@@ -339,7 +348,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         mockSocketService.txDetails.set({
           amount: 50000,
         });
-        
+
         expect(component.absoluteTimelock()).toBe(0);
         expect(component.hasRelativeTimelock()).toBe(false);
         expect(component.relativeTimelockValue()).toBeNull();
@@ -360,6 +369,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         });
 
         mockSocketService.roomState.set({
+          signatures: [],
           addressLabels: {
             bc1qabc123: 'Cold Storage Vault',
             bc1qxyz890: 'Vendor Payout',
@@ -416,7 +426,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         mockSocketService.txDetails.set({
           inputsList: [{ address: 'bc1q-match', scriptType: 'P2WPKH' }, { address: '3abc-no-match', scriptType: 'P2SH' }],
         } as any);
-        mockSocketService.roomState.set({ addressLabels: {} });
+        mockSocketService.roomState.set({ signatures: [], addressLabels: {} });
 
         component.inputSearchQuery.set('bc1q');
         expect(component.filteredInputs().length).toBe(1);
@@ -427,16 +437,13 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     describe('requiredSignatures', () => {
-      it('should calculate threshold from PSBT via socket service', () => {
-        mockSocketService.roomState.set({ psbt: 'base64psbtdata' });
-        mockSocketService.getThreshold.mockReturnValue(3);
-
+      it('should read threshold from signerThreshold signal', () => {
+        mockSocketService.signerThreshold.set(3);
         expect(component.requiredSignatures).toBe(3);
-        expect(mockSocketService.getThreshold).toHaveBeenCalledWith('base64psbtdata');
       });
 
-      it('should return 0 if there is no psbt in room state', () => {
-        mockSocketService.roomState.set(null);
+      it('should return 0 when signerThreshold is 0', () => {
+        mockSocketService.signerThreshold.set(0);
         expect(component.requiredSignatures).toBe(0);
       });
     });
@@ -445,9 +452,9 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('should return true if signed count meets or exceeds threshold', () => {
         mockSocketService.roomState.set({
           psbt: 'psbt',
-          signatures: ['sig1', 'sig2'], 
+          signatures: ['sig1', 'sig2'],
         });
-        mockSocketService.getThreshold.mockReturnValue(2);
+        mockSocketService.signerThreshold.set(2);
 
         expect(component.canFinalize).toBe(true);
       });
@@ -455,9 +462,9 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       it('should return false if signed count is below threshold', () => {
         mockSocketService.roomState.set({
           psbt: 'psbt',
-          signatures: ['sig1'], 
+          signatures: ['sig1'],
         });
-        mockSocketService.getThreshold.mockReturnValue(2);
+        mockSocketService.signerThreshold.set(2);
 
         expect(component.canFinalize).toBe(false);
       });
@@ -471,6 +478,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     describe('Helper Methods (Whitelist & Labels)', () => {
       beforeEach(() => {
         mockSocketService.roomState.set({
+          signatures: [],
           whitelist: ['bc1qtrusted'],
           signerLabels: { fingerprintA: 'Alice Hardware' },
           addressLabels: { bc1qtrusted: 'Vault' },
@@ -500,11 +508,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       it('isSaved should return true if a local label exists in address book', () => {
         expect(component.isSaved('fingerprintB')).toBe(true);
-        expect(component.isSaved('fingerprintA')).toBe(false); 
-      });
-
-      it('getAddressLabel should return the mapping from state', () => {
-        expect(component.getAddressLabel('bc1qtrusted')).toBe('Vault');
+        expect(component.isSaved('fingerprintA')).toBe(false);
       });
 
       it('getAddressLabel should return the mapping from state', () => {
@@ -645,6 +649,15 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       beforeEach(() => {
         mockSocketService.sdk.parsePsbtFile = vi.fn();
         mockSocketService.uploadSignature = vi.fn();
+        vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValue({
+          isValidPsbt: true,
+          txId: null,
+          hasMuSig2PartialSig: true,
+          hasStandardSig: true,
+          hasMuSig2Nonce: false,
+          nonceFingerprints: [],
+          signedFingerprints: [],
+        } as any);
 
         mockEvent = {
           target: {
@@ -674,7 +687,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       it('should reject data sets exceeding the strict 2MB constraint boundary', async () => {
         const spyAlert = vi.spyOn(component, 'openAlert');
-        const largeBlob = new Blob([new ArrayBuffer(2.1 * 1024 * 1024)]); // 2.1 MB
+        const largeBlob = new Blob([new ArrayBuffer(2.1 * 1024 * 1024)]);
         mockEvent.target.files = [largeBlob as File];
         Object.defineProperty(mockEvent.target.files[0], 'name', { value: 'huge_tx.psbt' });
 
@@ -702,7 +715,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       it('should return early and alert when file extension is unsupported', async () => {
         const spyAlert = vi.spyOn(component, 'openAlert');
-        const event = { target: { files: [new File([''], 'data.pdf')] } }; // .pdf is invalid
+        const event = { target: { files: [new File([''], 'data.pdf')] } };
 
         await component.onFileSelected(event);
 
@@ -841,11 +854,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         component.editingAddress.set('tb1q1');
         component.editingAddressLabel.set('A'.repeat(70));
         component.saveAddressToBook.set(true);
+        component.addressBookTtlDays.set(7);
 
         component.saveAddressLabel();
 
         expect(mockSocketService.updateAddressLabel).toHaveBeenCalledWith('tb1q1', 'A'.repeat(64));
-        expect(mockSocketService.saveAddressToBook).toHaveBeenCalledWith('tb1q1', 'A'.repeat(64));
+        expect(mockSocketService.saveAddressToBook).toHaveBeenCalledWith('tb1q1', 'A'.repeat(64), 7);
         expect(mockDispatcher.emitAddressLabelled).toHaveBeenCalledWith('tb1q1', 'A'.repeat(64));
         expect(component.showAddressLabelModal()).toBe(false);
       });
@@ -864,7 +878,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     describe('Finalization & Broadcasting', () => {
-
       it('finalize should execute immediately if no unverified outputs exist', () => {
         mockSocketService.roomState.set({ whitelist: ['out1'] });
         mockSocketService.txDetails.set({ outputs: [{ address: 'out1', isChange: false }] });
@@ -877,12 +890,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       });
 
       it('finalize should execute immediately if whitelist exists but is empty', () => {
-        mockSocketService.roomState.set({ whitelist: [] }); 
+        mockSocketService.roomState.set({ whitelist: [] });
         const confirmSpy = vi.spyOn(component, 'openConfirm');
 
         component.finalize();
 
-        expect(confirmSpy).not.toHaveBeenCalled(); 
+        expect(confirmSpy).not.toHaveBeenCalled();
       });
 
       it('finalize should intercept and warn if unverified destinations exist', () => {
@@ -1122,13 +1135,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         const startSpy = vi.spyOn(component, 'startFountainAnimation').mockImplementation(() => {});
         const stopSpy = vi.spyOn(component, 'stopFountainAnimation').mockImplementation(() => {});
 
-        // Reveal
         component.isFountainRevealed.set(false);
         component.toggleFountainReveal();
         expect(component.isFountainRevealed()).toBe(true);
         expect(startSpy).toHaveBeenCalled();
 
-        // Hide
         component.toggleFountainReveal();
         expect(component.isFountainRevealed()).toBe(false);
         expect(stopSpy).toHaveBeenCalled();
@@ -1147,11 +1158,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     describe('Scanner Logic (Inhale)', () => {
-      it('handleScanResult should process fragment and upload if full hex is decoded', async () => {
+      it('handleScanResult should process fragment and upload if full hex is decoded', () => {
         const stopSpy = vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
         const processSpy = vi
-          .spyOn(component, 'processScannedSignature')
-          .mockImplementation(() => Promise.resolve());
+          .spyOn(component, 'processScannedData')
+          .mockResolvedValue(undefined);
 
         mockUrService.processFragment.mockReturnValue('full-hex-string');
 
@@ -1162,12 +1173,21 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         expect(processSpy).toHaveBeenCalledWith('full-hex-string');
       });
 
-      it('processScannedSignature should normalize base64 and upload signature', async () => {
+      it('processScannedData should normalize hex/base64 and upload signature', async () => {
+        vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValue({
+          isValidPsbt: true,
+          txId: null,
+          hasMuSig2PartialSig: true,
+          hasStandardSig: true,
+          hasMuSig2Nonce: false,
+          nonceFingerprints: [],
+          signedFingerprints: [],
+        } as any);
         mockSocketService.uploadSignature.mockResolvedValue(true);
 
-        await component.processScannedSignature('deadbeef');
+        await component.processScannedData('deadbeef');
 
-        expect(mockSocketService.uploadSignature).toHaveBeenCalled();
+        expect(mockSocketService.uploadSignature).toHaveBeenCalledWith(base64.encode(hex.decode('deadbeef')));
         expect(mockDispatcher.emitPsbtImported).toHaveBeenCalledWith('scan');
       });
     });
@@ -1282,9 +1302,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     describe('Room Error States & Expirations', () => {
       it('should render Connection Lost banner', () => {
+        component.hasEverConnected.set(true);
         mockSocketService.status.set('disconnected');
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Connection lost... Reconnecting...');
+        const text = fixture.nativeElement.textContent;
+        expect(text).toContain('Connection Interrupted');
+        expect(text).toContain('Reconnecting to the signing relay...');
       });
 
       it('should render Room Not Found overlay', () => {
@@ -1326,7 +1349,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     describe('UI Toggles & Specific Roles', () => {
       it('should render Input and Output search placeholders based on viewMode', () => {
-        component.blurStates.set({ 'transaction-details': false } as any); // Unblur to render search
+        component.blurStates.set({ 'transaction-details': false } as any);
 
         component.viewMode.set('inputs');
         fixture.detectChanges();
@@ -1347,7 +1370,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       it('should display specific Coordinator actions', () => {
         mockSocketService.isCoordinator.mockReturnValue(true);
-        mockSocketService.roomState.set({ network: 'bitcoin', isLocked: false, connectedCount: 1 });
+        mockSocketService.roomState.set({ signatures: [], network: 'bitcoin', isLocked: false, connectedCount: 1 });
         fixture.detectChanges();
 
         const html = fixture.nativeElement.textContent;
@@ -1416,11 +1439,11 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should render dynamic text for Lock Room based on coordinator and lock state', () => {
       mockSocketService.isCoordinator.mockReturnValue(true);
 
-      mockSocketService.roomState.set({ isLocked: true });
+      mockSocketService.roomState.set({ signatures: [], isLocked: true });
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Locked');
 
-      mockSocketService.roomState.set({ isLocked: false });
+      mockSocketService.roomState.set({ signatures: [], isLocked: false });
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Lock Room');
     });
@@ -1428,7 +1451,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should render both destructive and standard variants of the Confirm Modal', () => {
       component.showConfirmModal.set(true);
 
-      // Variant 1: Destructive Confirm
       component.confirmData.set({
         title: 'Nuke',
         message: 'msg',
@@ -1438,10 +1460,9 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       });
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Nuke');
-      expect(fixture.nativeElement.textContent).toContain('Cancel'); // Cancel button exists
-      expect(fixture.nativeElement.textContent).toContain('Confirm'); // Confirm text
+      expect(fixture.nativeElement.textContent).toContain('Cancel');
+      expect(fixture.nativeElement.textContent).toContain('Confirm');
 
-      // Variant 2: Standard Alert
       component.confirmData.set({
         title: 'Safe',
         message: 'msg',
@@ -1451,8 +1472,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       });
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Safe');
-      expect(fixture.nativeElement.textContent).not.toContain('Cancel'); // No cancel button on alert
-      expect(fixture.nativeElement.textContent).toContain('OK'); // OK text
+      expect(fixture.nativeElement.textContent).not.toContain('Cancel');
+      expect(fixture.nativeElement.textContent).toContain('OK');
     });
 
     it('should render raw optical feed fallback and reconstructing signature progress in scanner modal', () => {
@@ -1495,10 +1516,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       component.blurStates.set({ 'transaction-details': false } as any);
 
       const fourItems = [
-        { address: 'addr1', scriptType: 'P2TR' }, 
-        { address: 'addr2', scriptType: 'P2TR' }, 
-        { address: 'addr3', scriptType: 'P2TR' }, 
-        { address: 'addr4', scriptType: 'P2TR' }
+        { address: 'addr1', scriptType: 'P2TR' },
+        { address: 'addr2', scriptType: 'P2TR' },
+        { address: 'addr3', scriptType: 'P2TR' },
+        { address: 'addr4', scriptType: 'P2TR' },
       ];
       mockSocketService.txDetails.set({ inputsList: fourItems, outputs: fourItems });
 
@@ -1538,7 +1559,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
         { fingerprint: 'fp-456', signed: false },
       ]);
 
-      mockSocketService.roomState.set({ signerLabels: { 'fp-123': 'Hardware Wallet' } });
+      mockSocketService.roomState.set({ signatures: [], signerLabels: { 'fp-123': 'Hardware Wallet' } });
       fixture.detectChanges();
 
       const html = fixture.nativeElement.textContent;
@@ -1684,13 +1705,13 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       expect(component.showScannerModal()).toBe(false);
     });
 
-    it('processScannedSignature should catch malformed base64/hex data', async () => {
+    it('processScannedData should catch malformed base64/hex data', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      await component.processScannedSignature('not_valid_hex_or_base64!');
+      await component.processScannedData('not_valid_hex_or_base64!');
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to parse signed PSBT from scanner',
+        'Failed to parse scanned PSBT data',
         expect.anything(),
       );
     });
@@ -1805,12 +1826,12 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('handleScanResult: should process fragment and stop scanner when complete', () => {
       vi.spyOn(component.urService, 'processFragment').mockReturnValue('010203');
       vi.spyOn(component, 'stopScanner').mockImplementation(() => {});
-      vi.spyOn(component, 'processScannedSignature').mockImplementation(async () => {});
+      vi.spyOn(component, 'processScannedData').mockResolvedValue(undefined);
 
       component.handleScanResult('UR:CRYPTO-PSBT/1-1/MOCK');
 
       expect(component.stopScanner).toHaveBeenCalled();
-      expect(component.processScannedSignature).toHaveBeenCalledWith('010203');
+      expect(component.processScannedData).toHaveBeenCalledWith('010203');
     });
 
     it('handleScanResult: should do nothing if fragment is incomplete', () => {
@@ -1843,17 +1864,26 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       expect(component.startFountainAnimation).not.toHaveBeenCalled();
     });
 
-    it('should catch errors if uploadSignature fails in processScannedSignature', async () => {
+    it('should catch errors if uploadSignature fails in processScannedData', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValue({
+        isValidPsbt: true,
+        txId: null,
+        hasMuSig2PartialSig: true,
+        hasStandardSig: true,
+        hasMuSig2Nonce: false,
+        nonceFingerprints: [],
+        signedFingerprints: [],
+      } as any);
 
       vi.spyOn(component.socket, 'uploadSignature').mockRejectedValue(
         new Error('Network disconnected'),
       );
 
-      await component.processScannedSignature('01020304');
+      await component.processScannedData('01020304');
 
       expect(console.error).toHaveBeenCalledWith(
-        'Failed to parse signed PSBT from scanner',
+        'Failed to parse scanned PSBT data',
         expect.any(Error),
       );
     });
@@ -1874,10 +1904,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should safely handle errors when parsing a scanned signature fails', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      await component.processScannedSignature('INVALID_!!!_DATA');
+      await component.processScannedData('INVALID_!!!_DATA');
 
       expect(console.error).toHaveBeenCalledWith(
-        'Failed to parse signed PSBT from scanner',
+        'Failed to parse scanned PSBT data',
         expect.anything(),
       );
     });
@@ -2174,9 +2204,9 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('getFullShareLink should include the role token if requested and available', () => {
       mockSocketService.sdk.currentRoleToken = 'mock-role-token';
       mockSocketService.getRoomLink.mockReturnValue('http://localhost/room#fbek:mock-role-token');
-      
+
       const result = component.getFullShareLink(true);
-      
+
       expect(mockSocketService.getRoomLink).toHaveBeenCalledWith(window.location.origin, true, 'mock-role-token');
       expect(result).toBe('http://localhost/room#fbek:mock-role-token');
     });
@@ -2184,9 +2214,9 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('getFullShareLink should exclude the role token if includeCurrentToken is false', () => {
       mockSocketService.sdk.currentRoleToken = 'mock-role-token';
       mockSocketService.getRoomLink.mockReturnValue('http://localhost/room#fbek');
-      
+
       const result = component.getFullShareLink(false);
-      
+
       expect(mockSocketService.getRoomLink).toHaveBeenCalledWith(window.location.origin, true, undefined);
       expect(result).toBe('http://localhost/room#fbek');
     });
@@ -2194,9 +2224,9 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('generateQrData should request the full link with the active token when qrIncludesKey is true', async () => {
       const linkSpy = vi.spyOn(component, 'getFullShareLink').mockReturnValue('http://localhost/room#fbek:token');
       component.qrIncludesKey.set(true);
-      
+
       await component['generateQrData']();
-      
+
       expect(linkSpy).toHaveBeenCalledWith(true);
     });
   });
@@ -2209,7 +2239,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('should log the action and emit addressCopied event when an address is copied', async () => {
       const mockAddress = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
-
       const expectedShortAddress = 'bc1qxy...hx0wlh';
 
       const logActionSpy = vi.spyOn(component.socket, 'logAction');
@@ -2218,7 +2247,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
 
       await component.copyAddress(mockAddress);
-
       await new Promise(process.nextTick);
 
       expect(logActionSpy).toHaveBeenCalledWith('Address Copied', expectedShortAddress);
@@ -2291,7 +2319,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
 
       component.copyTxId(mockTxId);
-      
       await new Promise(process.nextTick);
 
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(mockTxId);
@@ -2309,7 +2336,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(mockTxId);
 
-      await Promise.resolve(); 
+      await Promise.resolve();
 
       expect(component.copiedTxId()).toBe(true);
 
@@ -2376,8 +2403,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       const createElementSpy = vi.spyOn(document, 'createElement');
       const clickSpy = vi.fn();
       createElementSpy.mockReturnValue({ click: clickSpy, setAttribute: vi.fn() } as any);
-      const appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => {});
-      const removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+      vi.spyOn(document.body, 'appendChild').mockImplementation(() => null as any);
+      vi.spyOn(document.body, 'removeChild').mockImplementation(() => null as any);
       const createObjectUrlSpy = vi
         .spyOn(window.URL, 'createObjectURL')
         .mockReturnValue('blob:url');
@@ -2505,7 +2532,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       beforeEach(() => {
         originalImage = window.Image;
-
         originalCreateElement = document.createElement.bind(document);
 
         class MockImage {
@@ -2556,8 +2582,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
         const result = await promise;
 
-        expect(mockCanvas.width).toBe(300); // 100 * 3
-        expect(mockCanvas.height).toBe(150); // 50 * 3
+        expect(mockCanvas.width).toBe(300);
+        expect(mockCanvas.height).toBe(150);
         expect(mockContext.drawImage).toHaveBeenCalledWith(mockImageInstance, 0, 0, 300, 150);
         expect(result).toBe('data:image/png;base64,mockdata');
       });
@@ -2587,8 +2613,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
         await promise;
 
-        expect(mockCanvas.width).toBe(1650); // 550 * 3
-        expect(mockCanvas.height).toBe(480); // 160 * 3
+        expect(mockCanvas.width).toBe(1650);
+        expect(mockCanvas.height).toBe(480);
       });
 
       it('should resolve with null if the canvas 2d context cannot be created', async () => {
@@ -2637,7 +2663,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
       Object.defineProperty(window, 'location', {
         value: { href: 'http://localhost/room' },
-        writable: true
+        writable: true,
       });
 
       await component.generateAndCopy('full');
@@ -2684,10 +2710,10 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('copySecureLink should copy the base URL only', () => {
       const doCopySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
-      
+
       Object.defineProperty(window, 'location', {
         value: { href: 'http://localhost/room' },
-        writable: true
+        writable: true,
       });
 
       component.copySecureLink();
@@ -2698,7 +2724,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('copyFullLink should copy the full share link with the current fragment', () => {
       const doCopySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
-      
+
       component.copyFullLink();
 
       expect(doCopySpy).toHaveBeenCalledWith('http://localhost/room#key', component.fullLinkCopied);
@@ -2759,9 +2785,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
   describe('Path Modal Interactions', () => {
     it('should open the path modal, set state, and emit a modal view event', () => {
       const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
-      const mockPaths = [
-        { path: "m/84'/0'/0'/0/0", fingerprints: ['aabbccdd'] }
-      ];
+      const mockPaths = [{ path: "m/84'/0'/0'/0/0", fingerprints: ['aabbccdd'] }];
 
       component.openPathModal('Input #0 (Vault)', mockPaths);
 
@@ -2773,17 +2797,16 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('should fallback to an empty array if paths are undefined when opening modal', () => {
       component.openPathModal('Empty Path', undefined as any);
-      
+
       expect(component.inspectingPathsTitle()).toBe('Empty Path');
       expect(component.inspectingPathsList()).toEqual([]);
       expect(component.showPathModal()).toBe(true);
     });
 
     it('should close the path modal and reset the tracking signals', () => {
-      // Seed the state first
       component.showPathModal.set(true);
       component.inspectingPathsTitle.set('Old Title');
-      component.inspectingPathsList.set([{ path: "m/0", fingerprints: ['11223344'] }]);
+      component.inspectingPathsList.set([{ path: 'm/0', fingerprints: ['11223344'] }]);
 
       component.closePathModal();
 
@@ -2795,8 +2818,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
   describe('Signer Label Modal Interactions', () => {
     it('should open label modal and populate with existing room state label', () => {
-      vi.spyOn(component.socket, 'roomState').mockReturnValue({ signerLabels: { 'aabbccdd': 'Alice' } } as any);
-      vi.spyOn(component.socket, 'getLocalLabel').mockReturnValue('Local Bob');
+      mockSocketService.roomState.set({ signerLabels: { aabbccdd: 'Alice' } });
+      mockSocketService.getLocalLabel.mockReturnValue('Local Bob');
 
       component.openLabelModal('aabbccdd');
 
@@ -2807,8 +2830,8 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     });
 
     it('should open label modal and fallback to local label if no room state label exists', () => {
-      vi.spyOn(component.socket, 'roomState').mockReturnValue({ signerLabels: {} } as any);
-      vi.spyOn(component.socket, 'getLocalLabel').mockReturnValue('Local Bob');
+      mockSocketService.roomState.set({ signerLabels: {} });
+      mockSocketService.getLocalLabel.mockReturnValue('Local Bob');
 
       component.openLabelModal('eeff0011');
 
@@ -2826,18 +2849,19 @@ describe('RoomComponent - Setup & Lifecycle', () => {
       component.editingFingerprint.set('aabbccdd');
       component.editingLabel.set('  Hardware Wallet  ');
       component.saveToBook.set(true);
+      component.signerBookTtlDays.set(7);
 
       component.saveLabel();
 
       expect(updateSpy).toHaveBeenCalledWith('aabbccdd', 'Hardware Wallet');
-      expect(saveBookSpy).toHaveBeenCalledWith('aabbccdd', 'Hardware Wallet');
+      expect(saveBookSpy).toHaveBeenCalledWith('aabbccdd', 'Hardware Wallet', 7);
       expect(emitSpy).toHaveBeenCalledWith('signer', 'Hardware Wallet', 'aabbccdd');
       expect(closeSpy).toHaveBeenCalled();
     });
 
     it('should remove the label from the address book if saveToBook is false', () => {
       const removeBookSpy = vi.spyOn(component.socket, 'removeFromAddressBook');
-      
+
       component.editingFingerprint.set('aabbccdd');
       component.editingLabel.set('Temp Label');
       component.saveToBook.set(false);
@@ -2862,28 +2886,28 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
   describe('Sessions Modal & Personal Name', () => {
     it('should open sessions modal, fetch name from localStorage, and emit modal view', () => {
-    const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
-    component.roomId.set('room-123');
-    
-    const getItemSpy = vi.fn().mockReturnValue('Saved Auditor');
-    Object.defineProperty(window, 'localStorage', {
-      value: { getItem: getItemSpy },
-      configurable: true,
-      writable: true,
+      const emitSpy = vi.spyOn((component as any).dispatcher, 'emitModalView');
+      component.roomId.set('room-123');
+
+      const getItemSpy = vi.fn().mockReturnValue('Saved Auditor');
+      Object.defineProperty(window, 'localStorage', {
+        value: { getItem: getItemSpy },
+        configurable: true,
+        writable: true,
+      });
+
+      component.openSessionsModal();
+
+      expect(getItemSpy).toHaveBeenCalledWith('display_name_room-123');
+      expect(component.personalDisplayName()).toBe('Saved Auditor');
+      expect(component.showSessionsModal()).toBe(true);
+      expect(emitSpy).toHaveBeenCalledWith('Active Sessions');
     });
-
-    component.openSessionsModal();
-
-    expect(getItemSpy).toHaveBeenCalledWith('display_name_room-123');
-    expect(component.personalDisplayName()).toBe('Saved Auditor');
-    expect(component.showSessionsModal()).toBe(true);
-    expect(emitSpy).toHaveBeenCalledWith('Active Sessions');
-  });
 
     it('should save personal name, update socket, emit event, and close sessions modal', () => {
       const setDisplayNameSpy = vi.spyOn(component.socket, 'setDisplayName');
       const emitSpy = vi.spyOn((component as any).dispatcher, 'emitParticipantLabelled');
-      
+
       component.showSessionsModal.set(true);
       component.personalDisplayName.set('  New Auditor Name  ');
 
@@ -2987,16 +3011,16 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should split a standard length address into prefix, body, and checksum', () => {
       const address = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
       const result = component.splitAddress(address);
-      
+
       expect(result.prefix).toBe('bc1q');
       expect(result.checksum).toBe('hx0wlh');
       expect(result.body).toBe('xy2kgdygjrsqtzq2n0yrf2493p83kkfj');
     });
 
     it('should return the full address in the body if it is too short', () => {
-      const shortAddress = 'bc1qshort'; // Less than 14 characters
+      const shortAddress = 'bc1qshort';
       const result = component.splitAddress(shortAddress);
-      
+
       expect(result.prefix).toBe('');
       expect(result.checksum).toBe('');
       expect(result.body).toBe('bc1qshort');
@@ -3004,10 +3028,186 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('should handle empty or null addresses safely', () => {
       const result = component.splitAddress('');
-      
+
       expect(result.prefix).toBe('');
       expect(result.checksum).toBe('');
       expect(result.body).toBe('');
+    });
+  });
+
+  describe('Ceremony Validation, MuSig2 & Additional Modal Coverage', () => {
+    it('should validate and upload a nonce when onFileSelected is called with type "nonce"', async () => {
+      const file = new File(['nonce-psbt'], 'nonce.psbt');
+      const event = { target: { value: 'nonce.psbt', files: [file] } };
+
+      mockSocketService.sdk.parsePsbtFile.mockResolvedValue('nonce_psbt_b64');
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValue({
+        isValidPsbt: true,
+        txId: 'tx_match',
+        hasMuSig2PartialSig: false,
+        hasStandardSig: false,
+        hasMuSig2Nonce: true,
+        nonceFingerprints: ['fp_new'],
+        signedFingerprints: [],
+      } as any);
+      mockSocketService.roomState.set({
+        roomId: 'room-123',
+        protocol: 'musig2',
+        signatures: [],
+      });
+      mockSocketService.ceremonyPhase.set('GATHERING_NONCES');
+      mockSocketService.txDetails.set({ txId: 'tx_match' });
+      mockSocketService.signers.set([{ fingerprint: 'fp_new', hasNonce: false, signed: false }]);
+
+      await component.onFileSelected(event, 'nonce');
+
+      expect(mockSocketService.uploadNonce).toHaveBeenCalledWith('nonce_psbt_b64');
+      expect(mockDispatcher.emitPsbtImported).toHaveBeenCalledWith('upload-nonce');
+    });
+
+    it('should alert on invalid PSBT, txId mismatch, aggregating phase, and duplicate nonce/signature', () => {
+      const alertSpy = vi.spyOn(component, 'openAlert');
+
+      // Corrupt PSBT
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValueOnce({ isValidPsbt: false } as any);
+      expect((component as any).validateCeremonyPayload('bad')).toBe(false);
+      expect(alertSpy).toHaveBeenCalledWith('Invalid PSBT Data', expect.any(String));
+
+      // Transaction mismatch
+      mockSocketService.txDetails.set({ txId: 'expected_tx_123456' });
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValueOnce({
+        isValidPsbt: true,
+        txId: 'different_tx_999999',
+      } as any);
+      expect((component as any).validateCeremonyPayload('mismatch')).toBe(false);
+      expect(alertSpy).toHaveBeenCalledWith('Transaction Mismatch', expect.any(String));
+
+      // Aggregating in progress
+      mockSocketService.txDetails.set({ txId: 'expected_tx_123456' });
+      mockSocketService.ceremonyPhase.set('AGGREGATING_NONCES');
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValueOnce({
+        isValidPsbt: true,
+        txId: 'expected_tx_123456',
+      } as any);
+      expect((component as any).validateCeremonyPayload('agg')).toBe(false);
+      expect(alertSpy).toHaveBeenCalledWith('Aggregation in Progress', expect.any(String));
+
+      // Round 1 duplicate nonce
+      mockSocketService.roomState.set({ protocol: 'musig2', signatures: [] });
+      mockSocketService.ceremonyPhase.set('GATHERING_NONCES');
+      mockSocketService.signers.set([{ fingerprint: 'fp1', hasNonce: true, signed: false }]);
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValueOnce({
+        isValidPsbt: true,
+        txId: 'expected_tx_123456',
+        hasMuSig2PartialSig: false,
+        hasStandardSig: false,
+        hasMuSig2Nonce: true,
+        nonceFingerprints: ['fp1'],
+        signedFingerprints: [],
+      } as any);
+      expect((component as any).validateCeremonyPayload('dup-nonce')).toBe(false);
+      expect(alertSpy).toHaveBeenCalledWith('Duplicate Nonce', expect.any(String));
+
+      // Round 2 missing partial sig (has nonce only)
+      mockSocketService.ceremonyPhase.set('GATHERING_SIGNATURES');
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValueOnce({
+        isValidPsbt: true,
+        txId: 'expected_tx_123456',
+        hasMuSig2PartialSig: false,
+        hasMuSig2Nonce: true,
+        nonceFingerprints: ['fp1'],
+        signedFingerprints: [],
+      } as any);
+      expect((component as any).validateCeremonyPayload('wrong-step-2')).toBe(false);
+      expect(alertSpy).toHaveBeenCalledWith('Wrong Ceremony Step (Step 2 of 2)', expect.any(String));
+
+      // Standard room unsigned PSBT
+      mockSocketService.roomState.set({ protocol: 'standard', signatures: [] });
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValueOnce({
+        isValidPsbt: true,
+        txId: 'expected_tx_123456',
+        hasStandardSig: false,
+        hasMuSig2PartialSig: false,
+        signedFingerprints: [],
+      } as any);
+      expect((component as any).validateCeremonyPayload('unsigned')).toBe(false);
+      expect(alertSpy).toHaveBeenCalledWith('No Signature Found', expect.any(String));
+
+      // Duplicate signature
+      mockSocketService.signers.set([{ fingerprint: 'fp2', signed: true }]);
+      vi.spyOn(PsbtUtils, 'inspectCeremonyPayload').mockReturnValueOnce({
+        isValidPsbt: true,
+        txId: 'expected_tx_123456',
+        hasStandardSig: true,
+        hasMuSig2PartialSig: true,
+        signedFingerprints: ['fp2'],
+      } as any);
+      expect((component as any).validateCeremonyPayload('dup-sig')).toBe(false);
+      expect(alertSpy).toHaveBeenCalledWith('Duplicate Signature', expect.any(String));
+    });
+
+    it('should download transientPsbt with musig2_setup prefix in Round 1', () => {
+      component.roomId.set('abcdefgh1234');
+      mockSocketService.roomState.set({
+        protocol: 'musig2',
+        psbt: null,
+        transientPsbt: 'transient_psbt_data',
+      });
+      const createElementSpy = vi.spyOn(document, 'createElement');
+      const linkObj = { click: vi.fn(), href: '', download: '' } as any;
+      createElementSpy.mockReturnValue(linkObj);
+      vi.spyOn(window.URL, 'createObjectURL').mockReturnValue('blob:musig');
+      vi.spyOn(window.URL, 'revokeObjectURL').mockImplementation(() => {});
+
+      component.downloadUnsignedPsbt();
+
+      expect(linkObj.download).toBe('musig2_setup_abcdefgh.psbt');
+    });
+
+    it('should handle copyAdminToken, copyRoomLinkOnly, toggleQrKey, and closeFountainModal', async () => {
+      component.roomId.set('room-123');
+      sessionStorage.setItem('admin_token_room-123', 'enc_admin_tok');
+      mockEncryptionEngine.decrypt.mockResolvedValueOnce('plain_admin_tok');
+      const doCopySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
+
+      component.showAdminModal.set(true);
+      await component.copyAdminToken();
+      expect(doCopySpy).toHaveBeenCalledWith('plain_admin_tok', component.adminCopied);
+      expect(component.showAdminModal()).toBe(false);
+
+      component.copyRoomLinkOnly();
+      expect(doCopySpy).toHaveBeenCalledWith(expect.any(String), component.roomLinkCopied);
+      expect(mockDispatcher.emitDataCopied).toHaveBeenCalledWith('share-link');
+
+      const genSpy = vi.spyOn(component as any, 'generateQrData').mockResolvedValue(undefined);
+      await component.toggleQrKey(true);
+      expect(component.qrIncludesKey()).toBe(true);
+      expect(genSpy).toHaveBeenCalled();
+
+      const stopAnimSpy = vi.spyOn(component, 'stopFountainAnimation').mockImplementation(() => {});
+      component.showFountainModal.set(true);
+      component.isFountainRevealed.set(true);
+      component.closeFountainModal();
+      expect(component.showFountainModal()).toBe(false);
+      expect(component.isFountainRevealed()).toBe(false);
+      expect(stopAnimSpy).toHaveBeenCalled();
+    });
+
+    it('should cover null fragment copyKey, transientPsbt frames, and modal closes', () => {
+      mockSocketService.getCurrentFragment.mockReturnValueOnce(null);
+      const copySpy = vi.spyOn(component as any, 'doCopy').mockImplementation(() => {});
+      component.copyKey();
+      expect(copySpy).not.toHaveBeenCalled();
+
+      mockSocketService.roomState.set({ psbt: null, transientPsbt: 'musig_transient_b64' });
+      component.exportFormat.set('ur');
+      component.regenerateFrames();
+      expect(mockUrService.generateFrames).toHaveBeenCalledWith('musig_transient_b64');
+
+      component.closeLabelModal();
+      expect(component.showLabelModal()).toBe(false);
+      component.closeAddressLabelModal();
+      expect(component.showAddressLabelModal()).toBe(false);
     });
   });
 });

@@ -23,15 +23,27 @@ export interface AuditEntry {
 export interface RoomState {
   /** Semantic version string specifying structural validation expectations. */
   protocolVersion: string;
+  /** The protocol execution environment. */
+  protocol: 'standard' | 'musig2';
   /** The unique string tracking identifier for the session room space. */
   roomId: string;
   /** Descriptive name or structural text label assigned to the room workspace. */
   roomName: string;
   /** Blockchain execution context parameters constraint tag. */
   network: 'bitcoin' | 'testnet' | 'signet';
-  /** The core partially signed bitcoin transaction matrix string. */
+  /** 
+   * (MuSig2 Only) The initial transaction used strictly for gathering public nonces in Round 1. 
+   */
+  transientPsbt?: string; 
+  /** 
+   * The signature-ready transaction. 
+   * - Standard: Populated at room creation.
+   * - MuSig2: Populated by the coordinator AFTER nonce aggregation.
+   */
   psbt: string;
-  /** A collection of individual cryptographic partial signatures collected from room members. */
+  /** Decrypted Base64 PSBT payloads containing individual public nonces. */
+  nonces: string[];
+  /** A collection of individual cryptographic partial signatures. */
   signatures: string[];
   /** The fully constructed, serialized network transaction payload string if finalized. */
   finalTxHex?: string;
@@ -116,6 +128,16 @@ export class RoomStateStore {
         },
       });
     });
+    this.events.on('NEW_NONCE_DECRYPTED' as any).subscribe((e) => {
+      if (!this.state) return;
+      this.updatePartial({
+        nonces: [...(this.state.nonces || []), e.payload.decryptedPsbt],
+      });
+    });
+
+    this.events.on('AGGREGATE_PSBT_DECRYPTED' as any).subscribe((e) => {
+      this.updatePartial({ psbt: e.payload });
+    });
   }
 
   /**
@@ -145,7 +167,10 @@ export class RoomStateStore {
   public init(roomId: string, protocolVersion: string) {
     this.state = {
       roomId,
+      protocol: 'standard',
       psbt: '',
+      transientPsbt: undefined,
+      nonces: [],
       signatures: [],
       connectedCount: 0,
       createdAt: Date.now(),

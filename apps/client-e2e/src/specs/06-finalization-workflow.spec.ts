@@ -590,4 +590,61 @@ test.describe('Cryptographic Protocol Scenarios', () => {
     await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
     await Promise.all([coordCtx.close(), guestCtx.close()]);
   });
+
+  test('Scenario N: MuSig2 2 Rounds (Nonce Collection, Aggregation, Partial Signatures & Finalization)', async ({
+    browser,
+  }) => {
+    const { ctx: coordCtx, page: coordPage } = await createSecurePage(browser);
+    const { ctx: signer1Ctx, page: signer1Page } = await createSecurePage(browser);
+    const { ctx: signer2Ctx, page: signer2Page } = await createSecurePage(browser);
+
+    const baseDir = 'scenarios/Scenario N: Musig2 2 Rounds';
+    const coordRoom = await launchRoomFromFixture(coordPage, `${baseDir}/unsigned.txt`, 'signet');
+
+    await coordRoom.switchTab('Inputs');
+    await expect(coordPage.getByText(/TAPROOT/i).first()).toBeVisible();
+
+    // Round 1: Collect Nonces
+    await expect(coordPage.getByText(/Step 1 of 2 · Collect Nonces/i).first()).toBeVisible();
+    await expect(coordPage.getByRole('button', { name: /Waiting for Nonces \(0 \/ 2\)/i })).toBeVisible();
+
+    await coordRoom.generateRoleLink('full', { viewSigners: true });
+    await expect(coordPage.locator('#modal-share-room')).toBeHidden({ timeout: 5000 });
+    const sharedLink = await coordPage.evaluate(() => (window as any).__capturedClipboard);
+
+    const signer1Room = await joinRoomFromLink(signer1Page, sharedLink);
+    const signer2Room = await joinRoomFromLink(signer2Page, sharedLink);
+
+    await signer1Room.uploadSignature(`${baseDir}/signer1_nonce.txt`);
+    await expect(coordPage.getByRole('button', { name: /Waiting for Nonces \(1 \/ 2\)/i })).toBeVisible({
+      timeout: 10000,
+    });
+
+    await signer2Room.uploadSignature(`${baseDir}/signer2_nonce.txt`);
+
+    // Coordinator aggregates nonces and transitions into Round 2 (Collect Signatures)
+    await expect(
+      coordPage.getByText(/All nonces aggregated! Proceed to Step 2: Export & sign\./i).first(),
+    ).toBeVisible({ timeout: 20000 });
+    await expect(coordPage.getByText(/Step 2 of 2 · Collect Signatures/i).first()).toBeVisible({
+      timeout: 10000,
+    });
+
+    // Round 2: Collect Partial Signatures
+    await signer1Room.uploadSignature(`${baseDir}/signer1_partial.txt`);
+    await expect(
+      coordPage.getByRole('button', { name: /Waiting for Signatures \(1 \/ 2\)/i }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await signer2Room.uploadSignature(`${baseDir}/signer2_partial.txt`);
+
+    await expect(coordRoom.finalizeButton).toBeVisible({ timeout: 10000 });
+    await expect(coordRoom.finalizeButton).toContainText('Finalize Transaction (2/2)');
+    await coordRoom.finalizeButton.click();
+
+    await expect(coordPage.getByText('Transaction Signed')).toBeVisible();
+    await expect(coordRoom.broadcastButton).toBeVisible();
+
+    await Promise.all([coordCtx.close(), signer1Ctx.close(), signer2Ctx.close()]);
+  });
 });

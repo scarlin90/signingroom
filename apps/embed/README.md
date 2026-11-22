@@ -1,11 +1,11 @@
 # @signing-room/embed
 
-A framework-agnostic Web Component for integrating the [SigningRoom.io](https://signingroom.io/) Multisig Coordination Dashboard directly into your web app.
+A framework-agnostic Web Component for integrating the [SigningRoom.io](https://signingroom.io/) Multisig & MuSig2 Coordination Dashboard directly into your web app.
 
 ![NPM Version](https://img.shields.io/npm/v/@signing-room/embed)
 ![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)
 
-The Signing Room widget provides an ephemeral, non-custodial, real-time interface for coordinating Bitcoin multisig transactions via PSBTs (Partially Signed Bitcoin Transactions). It requires zero framework dependencies and works seamlessly with React, Vue, Angular, or Vanilla JS.
+The Signing Room widget provides an ephemeral, non-custodial, real-time interface for coordinating Bitcoin multisig and 2-round MuSig2 Taproot ceremonies (BIP-327 / BIP-373) via PSBTs (Partially Signed Bitcoin Transactions). It requires zero framework dependencies and works seamlessly with React, Vue, Angular, or Vanilla JS.
 
 **👉 [View the Live Demo & API Documentation](https://signingroom.io/webcomponent-demo.html)**
 
@@ -33,7 +33,6 @@ Once imported, you can use the `<signing-room>` custom element anywhere in your 
 <div style="min-height: 650px;">
   <signing-room 
     network="signet" 
-    hide-header="true"
     relay-endpoint="https://signingroom.io">
   </signing-room>
 </div>
@@ -46,11 +45,13 @@ Once imported, you can use the `<signing-room>` custom element anywhere in your 
 | Attribute        | Description |
 |------------------|-------------|
 | `network`        | Sets the Bitcoin network. Options: `bitcoin`, `testnet`, `signet`. (Default: `bitcoin`) |
-| `hide-header`    | If `true`, hides the top header and network badges for a cleaner white-label embed. |
 | `relay-endpoint` | (Optional) Overrides the default relay server URL (useful for local testing). |
 | `view`           | (Optional) Set to `inject` to load into a specific flow context. |
 | `room-id`        | (Optional) The public ID of an existing room to join automatically. |
 | `decryption-key` | (Optional) The private decryption key required to unlock the room. |
+| `license-token` | (Optional) Signed Ed25519 commercial license token (`srl_...`) to enable white-label mode and remove Community Edition badges/watermarks. |
+
+> **Edition Badge:** Unlicensed / Community Edition deployments automatically display a compact `"Powered by Signing Room® Community Edition"` footer badge in embedded mode. Commercial deployments licensed via the host client configuration omit this badge.
 
 ## ⚡ Coordinator Injection API
 
@@ -72,28 +73,40 @@ The component emits standard DOM CustomEvents. You can listen for the `transacti
 ```javascript
 const widget = document.querySelector('signing-room');
 
+// Capture final signed transaction & forensic audit artifacts
 widget.addEventListener('transactionFinalized', (e) => {
-    const data = e.detail;
+  const data = e.detail;
 
-    console.log("Fully Signed Hex:", data.txHex);
-    console.log("Transaction ID:", data.txId);
-    
-    // Compliance & Audit Data
-    console.log("Audit Log (CSV):\n", data.auditLogCsv);
-    console.log("PDF Document Data URI:", data.auditPdfUri);
-    
-    // Full room state (participants, labels, whitelist, etc.)
-    console.log("Room State Object:", data.roomState);
+  console.log("Fully Signed Hex:", data.txHex);
+  console.log("Transaction ID:", data.txId);
+
+  // Compliance & Audit Data
+  console.log("Audit Log (CSV):\n", data.auditLogCsv);
+  console.log("PDF Document Data URI:", data.auditPdfUri);
+
+  // Full room state (participants, labels, whitelist, etc.)
+  console.log("Room State Object:", data.roomState);
 });
 
 // Catch errors (parsing issues, network mismatches, etc.)
 widget.addEventListener('signingError', (e) => {
-    console.error("Room Failed:", e.detail.message);
+  console.error("Room Failed:", e.detail.message);
+});
+
+// Track 2-Round MuSig2 ceremonies
+widget.addEventListener('nonceReceived', (e) => {
+  const { fingerprint, noncesReceived, threshold } = e.detail;
+  console.log(`MuSig2 Nonce received from ${fingerprint} (${noncesReceived}/${threshold})`);
+});
+
+widget.addEventListener('noncesAggregated', (e) => {
+  const { phase, noncesReceived, threshold } = e.detail;
+  console.log(`All nonces aggregated (${noncesReceived}/${threshold}) -> Phase: ${phase}`);
 });
 ```
 
 ### Universal Event Context
-Every event payload (except signingError) implicitly includes a BaseEventContext object, ensuring your host application always knows who triggered the event, and in which room.
+Every event payload (except signingError) implicitly includes a BaseEventContext object, ensuring your host application always knows who triggered the event and in which room.
 ```
 export interface BaseEventContext {
   roomId: string | null;
@@ -109,35 +122,41 @@ All event properties listed below are attached directly to event.detail (alongsi
 
 #### Core Lifecycle & Security
 ```
-roomCreated: { roomId: string, network: string }
-transactionFinalized: { txId: string, txHex: string, auditPdfUri: string, auditLogCsv: string, settlementCsv: string, roomState: RoomState }
+roomCreated: { roomId: string; network: string }
+roleGenerated: { constraints: Record<string, boolean> }
+transactionFinalized: { txId: string; txHex: string; auditPdfUri: string; auditLogCsv: string; settlementCsv: string; roomState: RoomState }
 roomStateChanged: { state: 'locked' | 'unlocked' | 'closed' }
-participantPresence: { action: 'joined' | 'left', participantId: string, participantRole: string, displayName?: string }
-destinationVerified: { type: 'inputs' | 'outputs', address: string | 'batch', isVerified: boolean }
-securityAlert: { alertType: 'access_denied', severity: 'low' | 'medium' | 'high', message: string }
+participantPresence: { action: 'joined' | 'left'; participantId: string; participantRole: string; displayName?: string }
+destinationVerified: { type: 'inputs' | 'outputs'; address: string | 'batch'; isVerified: boolean }
+policyViolation: { message: string }
+securityAlert: { alertType: 'access_denied'; severity: 'low' | 'medium' | 'high'; message: string }
 ```
 
 #### Hardware & Cryptographic Imports
 ```
-signatureReceived: { fingerprint: string, signerLabel?: string, signerSessionId?: string, signerName?: string }
-psbtImported: { method: 'scan' | 'upload' }
-qrStateChanged: { includesKey: boolean, isRevealed: boolean }
+nonceReceived: { fingerprint: string; noncesReceived: number; threshold: number; signerLabel?: string; signerSessionId?: string; signerName?: string }
+noncesAggregated: { phase: 'GATHERING_SIGNATURES' | 'READY_TO_BROADCAST'; noncesReceived: number; threshold: number }
+signatureReceived: { fingerprint: string; signerLabel?: string; signerSessionId?: string; signerName?: string }
+psbtImported: { method: 'scan' | 'upload' | 'scan-nonce' | 'upload-nonce' }
+addressLabelled: { address: string; label: string }
+qrStateChanged: { includesKey: boolean; isRevealed: boolean }
 fountainFormatChanged: { format: 'ur' | 'bbqr' }
-fountainStateChanged: { isRevealed: boolean, format: 'ur' | 'bbqr' }
+fountainStateChanged: { isRevealed: boolean; format: 'ur' | 'bbqr' }
 ```
 
 #### User Actions & Data Management
 ```
+addressCopied: { address: string }
 dataCopied: { dataType: 'room-id' | 'session-id' | 'decryption-key' | 'admin-token' | 'share-link' | 'share-link-full' | 'final-hex' }
 downloadTriggered: { fileType: 'audit-log' | 'csv' | 'unsigned-psbt' | 'qr-code-image' }
 roomRenamed: { newName: string }
-participantLabelled: { target: 'self' | 'participant' | 'signer', label: string, fingerprint?: string, participantId?: string }
+participantLabelled: { target: 'self' | 'participant' | 'signer'; label: string; fingerprint?: string; participantId?: string }
 ```
 
 #### Privacy & UI Telemetry
 ```
-privacyToggled: { section: string, state: 'blurred' | 'reveal-all' | 'reveal-section' | 'hidden' }
-modalViewed: { modalName: string, context?: string }
+privacyToggled: { section: string; state: 'blurred' | 'reveal-all' | 'reveal-section' | 'hidden' }
+modalViewed: { modalName: string; context?: string }
 transactionViewChanged: { view: 'inputs' | 'outputs' }
 ```
 

@@ -34,17 +34,23 @@ export class EncryptionService {
    * Encrypts a string using AES-GCM.
    * @param data The plaintext string to encrypt.
    * @param key The Base64 encoded encryption key.
+   * @param aad Additional Authenticated Data
    * @returns A Base64 string containing the IV + Ciphertext.
    */
-  async encrypt(data: string, key: string) { return this.engine.encrypt(data, key); }
+  encrypt(data: string, key: string, aad?: string): Promise<string> {
+    return this.engine.encrypt(data, key, aad);
+  }
 
   /**
    * Decrypts a Base64 payload using AES-GCM.
    * @param encryptedData The Base64 string (IV + Ciphertext).
    * @param key The Base64 encoded decryption key.
+   * @param aad Additional Authenticated Data
    * @returns The decrypted plaintext string.
    */
-  async decrypt(data: string, key: string) { return this.engine.decrypt(data, key); }
+  decrypt(encryptedData: string, key: string, aad?: string): Promise<string> {
+    return this.engine.decrypt(encryptedData, key, aad);
+  }
 
   /**
    * Deterministically blinds metadata using the room's encryption key as a salt.

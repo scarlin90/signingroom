@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { getFixturePath } from '../support/room-helper';
+import { getFixturePath, getFixtureContent } from '../support/room-helper';
 
 /**
  * Suite: Web Component / Embedded Integration
@@ -173,7 +173,7 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // --- Verification: Environment Readiness ---
     await expect(frame.locator('span[title="Room Active"]')).toBeVisible();
-    await expect(frame.getByText('Connection lost... Reconnecting...')).toBeHidden();
+    await expect(frame.getByText('Connection Interrupted')).toBeHidden();
 
     // --- Interaction: Threshold Progression ---
     const fileInput = frame.locator('input[type="file"]');
@@ -225,7 +225,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await page.evaluate(() => navigator.clipboard.writeText(''));
     const copyHexButton = frame.getByRole('button', { name: 'Copy Hex' });
     await expect(copyHexButton).toBeVisible();
-    
+
     await copyHexButton.evaluate((btn: HTMLElement) => btn.click());
 
     await expect(async () => {
@@ -269,7 +269,7 @@ test.describe('Web Component / Embedded Integration', () => {
     await hostFrame.getByRole('button', { name: /Start a Signing Room®/i }).click({ force: true });
 
     // --- Verification: Host Ready State ---
-    await expect(hostFrame.getByText('Connection lost... Reconnecting...')).toBeHidden();
+    await expect(hostFrame.getByText('Connection Interrupted')).toBeHidden();
     await expect(hostFrame.locator('span[title="Room Active"]')).toBeVisible();
 
     // --- Interaction: Remove Privacy Blur ---
@@ -310,7 +310,7 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // --- Verification: Guest Integration Success ---
     const guestFrame = guestPage.frameLocator('iframe');
-    await expect(guestFrame.getByText('Connection lost... Reconnecting...')).toBeHidden();
+    await expect(guestFrame.getByText('Connection Interrupted')).toBeHidden();
     await expect(guestFrame.locator('span[title="Room Active"]')).toBeVisible();
 
     // Verify that both embedded widgets are synchronized in the same session
@@ -390,7 +390,7 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // Ensure the modal rendered before trying to click the copy button
     const copyBtn = frame.getByRole('button', { name: 'Copy Raw Room ID' });
-    
+
     await copyBtn.evaluate((btn: HTMLElement) => btn.click());
 
     await expect(async () => {
@@ -447,7 +447,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // Provide correct Room ID, but completely WRONG key to mount the widget in its rejected state
     await guestPage.locator('#guest-room-id').fill(roomId);
     await guestPage.locator('#guest-key').fill('malicious-wrong-key-initial');
-    
+
     // CRITICAL: Ensure the host button is forcibly clicked so the iframe mounts properly
     await guestPage.locator('#load-guest-btn').click({ force: true });
 
@@ -455,7 +455,7 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // Verify UI accurately reflects the denial by kicking them back to the key prompt
     await expect(guestFrame.getByText(/Decryption Key Required/i)).toBeVisible({ timeout: 15000 });
-    
+
     const keyInput = guestFrame.getByPlaceholder(/Enter decryption key/i);
     await expect(keyInput).toBeVisible();
 
@@ -463,7 +463,7 @@ test.describe('Web Component / Embedded Integration', () => {
       await keyInput.fill(`malicious-wrong-key-${i}`);
       await guestFrame.getByRole('button', { name: 'Decrypt Room' }).click({ force: true });
       // Brief pause to allow the websocket round-trip to fail and reset the modal state
-      await guestPage.waitForTimeout(500); 
+      await guestPage.waitForTimeout(500);
     }
 
     // Verify the widget fired the SIEM/Security webhook now that the threshold is met
@@ -550,7 +550,7 @@ test.describe('Web Component / Embedded Integration', () => {
     // Pause to allow Angular to render the loading skeleton
     await guestPage.waitForTimeout(1000);
 
-    await expect(guestFrame.getByText('Connection lost... Reconnecting...')).toBeHidden({
+    await expect(guestFrame.getByText('Connection Interrupted')).toBeHidden({
       timeout: 15000,
     });
     await expect(guestFrame.locator('span[title="Room Active"]')).toBeVisible();
@@ -759,7 +759,7 @@ test.describe('Web Component / Embedded Integration', () => {
 
     // Target the close button explicitly by its ID
     await frame.locator('#btn-modal-close').click({ force: true });
-    
+
     // Explicitly wait for the modal backdrop to fully close
     await expect(frame.locator('#modal-qr-code')).toBeHidden();
 
@@ -793,5 +793,83 @@ test.describe('Web Component / Embedded Integration', () => {
       expect(fountainFormatEvent).toBeDefined();
       expect(fountainFormatEvent.payload.format).toBe('bbqr');
     }).toPass({ timeout: 5000 });
+  });
+
+  test('Should support MuSig2 2-round ceremony and emit nonce/aggregation/finalization events in embedded widget', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    const baseDir = 'scenarios/Scenario N: Musig2 2 Rounds';
+    const unsignedPsbt = getFixtureContent(`${baseDir}/unsigned.txt`).trim();
+
+    await page.goto('/webcomponent-demo.html');
+    const messages = await trapWidgetEvents(page);
+
+    await page.evaluate((psbt: string) => {
+      // @ts-ignore
+      const widget = window.mountWidget(null, null, 'inject');
+      setTimeout(() => widget.loadPsbt(psbt), 100);
+    }, unsignedPsbt);
+
+    const frame = page.frameLocator('iframe');
+    const startButton = frame.locator('#btn-launch-room');
+    await expect(startButton).toBeEnabled({ timeout: 10000 });
+    await startButton.evaluate((btn: HTMLElement) => {
+      btn.scrollIntoView({ block: 'center', inline: 'nearest' });
+      btn.click();
+    });
+
+    await expect(frame.locator('span[title="Room Active"]')).toBeVisible({ timeout: 15000 });
+    await expect(frame.getByText(/Step 1 of 2 · Collect Nonces/i).first()).toBeVisible();
+
+    const fileInput = frame.locator('input[type="file"]');
+
+    // Round 1: Upload Signer 1 & Signer 2 nonces
+    await fileInput.setInputFiles(getFixturePath(`${baseDir}/signer1_nonce.txt`));
+    await expect(frame.getByRole('button', { name: /Waiting for Nonces \(1 \/ 2\)/i })).toBeVisible({
+      timeout: 10000,
+    });
+
+    await expect(async () => {
+      const nonceImport = messages.find(
+        (m) => m.action === 'psbtImported' && m.payload.method === 'upload-nonce',
+      );
+      expect(nonceImport).toBeDefined();
+    }).toPass({ timeout: 5000 });
+
+    await fileInput.setInputFiles(getFixturePath(`${baseDir}/signer2_nonce.txt`));
+
+    // Wait for aggregation and transition into Round 2
+    await expect(frame.getByText(/Step 2 of 2 · Collect Signatures/i).first()).toBeVisible({
+      timeout: 20000,
+    });
+
+    await expect(async () => {
+      const aggEvent = messages.find((m) => m.action === 'noncesAggregated');
+      expect(aggEvent).toBeDefined();
+      expect(aggEvent.payload.phase).toBe('GATHERING_SIGNATURES');
+    }).toPass({ timeout: 10000 });
+
+    // Round 2: Upload partial signatures
+    await fileInput.setInputFiles(getFixturePath(`${baseDir}/signer1_partial.txt`));
+    await expect(
+      frame.getByRole('button', { name: /Waiting for Signatures \(1 \/ 2\)/i }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await fileInput.setInputFiles(getFixturePath(`${baseDir}/signer2_partial.txt`));
+
+    const finalizeButton = frame.getByRole('button', { name: /Finalize Transaction/i });
+    await expect(finalizeButton).toBeVisible({ timeout: 10000 });
+    await finalizeButton.click({ force: true });
+
+    await expect(frame.getByText('Transaction Signed')).toBeVisible();
+
+    await expect(async () => {
+      const finalizedEvent = messages.find((m) => m.action === 'transactionFinalized');
+      expect(finalizedEvent).toBeDefined();
+      expect(finalizedEvent.payload.txHex).toBeDefined();
+    }).toPass({ timeout: 10000 });
   });
 });

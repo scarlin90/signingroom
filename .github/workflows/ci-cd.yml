@@ -72,6 +72,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Verify Warrant Canary Signature & Expiry
+        run: |
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          gpg --batch --import apps/client/public/pgp-key.asc
+          gpg --batch --verify apps/client/public/security.txt
+          EXPIRY=$(grep -oP 'This statement is valid until:\s*\K[0-9]{4}-[0-9]{2}-[0-9]{2}' apps/client/public/security.txt)
+          TODAY=$(date -u +%Y-%m-%d)
+          echo "Canary valid until: $EXPIRY (Today: $TODAY)"
+          if [[ -z "$EXPIRY" || "$TODAY" > "$EXPIRY" ]]; then
+            echo "❌ Error: Warrant canary is expired or missing a valid expiry date ($EXPIRY)."
+            exit 1
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 

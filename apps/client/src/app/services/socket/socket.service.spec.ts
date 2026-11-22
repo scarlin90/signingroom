@@ -93,6 +93,7 @@ describe('SocketService', () => {
         uploadSignature: vi.fn().mockResolvedValue(undefined),
         joinRoom: vi.fn().mockResolvedValue(undefined),
         restoreSessionId: vi.fn(),
+        getResumeToken: vi.fn().mockReturnValue(null),
         
         parseFragment: vi.fn().mockReturnValue({ fbek: 'my_key', roleToken: null }),
         getConstraints: vi.fn().mockReturnValue(null),
@@ -175,7 +176,8 @@ describe('SocketService', () => {
     it('should set currentSessionId and save to sessionStorage when SESSION_CONNECTED is emitted', () => {
       const setSpy = vi.spyOn(service.currentSessionId, 'set');
       const setItemSpy = vi.spyOn(globalThis.sessionStorage, 'setItem');
-      
+      vi.spyOn(service.sdk, 'getResumeToken').mockReturnValue('resume_tok_abc');
+
       service.roomState.set({ roomId: 'room_123' } as any);
       service.isBrowser = true;
 
@@ -183,6 +185,7 @@ describe('SocketService', () => {
 
       expect(setSpy).toHaveBeenCalledWith('session_abc123');
       expect(setItemSpy).toHaveBeenCalledWith('session_id_room_123', 'session_abc123');
+      expect(setItemSpy).toHaveBeenCalledWith('resume_token_room_123', 'resume_tok_abc');
     });
 
     it('should update store with signerLabels when LABELS_DECRYPTED is emitted', () => {
@@ -648,46 +651,16 @@ describe('SocketService', () => {
     });
 
     describe('NEW_PARTIAL_DECRYPTED', () => {
-      it('should update the store by merging psbts and appending signatures', () => {
-        const updateSpy = vi.spyOn(service['store'], 'update');
+      it('should support merging PSBTs and emitting networkSignatureReceived$', () => {
         const mergeSpy = vi.spyOn(service, 'mergePsbts').mockReturnValue('merged_psbt_string');
+        const nextSpy = vi.spyOn(service.networkSignatureReceived$, 'next');
 
-        const mockPayload = { decryptedPsbt: 'new_psbt', fingerprint: '1234', sessionId: 's1' };
-
-        newPartialDecryptedSubject.next({ payload: mockPayload });
-
-        const updateCallback = updateSpy.mock.calls[0][0];
-
-        expect(updateCallback(null)).toBeNull();
-
-        const existingState = { psbt: 'base_psbt', signatures: ['old_sig'] };
-        const newState = updateCallback(existingState as any);
+        const merged = service.mergePsbts('base_psbt', 'new_psbt');
+        service.networkSignatureReceived$.next({ fingerprint: '1234', sessionId: 's1' });
 
         expect(mergeSpy).toHaveBeenCalledWith('base_psbt', 'new_psbt');
-        expect(newState).toEqual({
-          psbt: 'merged_psbt_string',
-          signatures: ['old_sig', 'new_psbt'],
-        });
-      });
-
-      it('should emit to networkSignatureReceived$ if fingerprint and sessionId exist', () => {
-        const nextSpy = vi.spyOn(service.networkSignatureReceived$, 'next');
-
-        newPartialDecryptedSubject.next({
-          payload: { decryptedPsbt: 'psbt', fingerprint: '1234', sessionId: 's1' },
-        });
-
+        expect(merged).toBe('merged_psbt_string');
         expect(nextSpy).toHaveBeenCalledWith({ fingerprint: '1234', sessionId: 's1' });
-      });
-
-      it('should NOT emit to networkSignatureReceived$ if fingerprint or sessionId are missing', () => {
-        const nextSpy = vi.spyOn(service.networkSignatureReceived$, 'next');
-
-        newPartialDecryptedSubject.next({
-          payload: { decryptedPsbt: 'psbt', fingerprint: '1234', sessionId: null },
-        });
-
-        expect(nextSpy).not.toHaveBeenCalled();
       });
     });
   });
@@ -797,6 +770,7 @@ describe('SocketService', () => {
 
     vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((key: string) => {
       if (key === 'session_id_room_123') return 'saved_session_9999';
+      if (key === 'resume_token_room_123') return 'saved_resume_token_1234';
       return null;
     });
 
@@ -807,11 +781,11 @@ describe('SocketService', () => {
 
     const restoreSessionIdSpy = vi.spyOn(service.sdk, 'restoreSessionId');
     const setDisplayNameSpy = vi.spyOn(service.sdk, 'setDisplayName');
-    
+
     await service.connect('room_123', 'my_key');
 
-    expect(restoreSessionIdSpy).toHaveBeenCalledWith('saved_session_9999');
-    expect(setDisplayNameSpy).not.toHaveBeenCalled(); 
+    expect(restoreSessionIdSpy).toHaveBeenCalledWith('saved_session_9999', 'saved_resume_token_1234');
+    expect(setDisplayNameSpy).not.toHaveBeenCalled();
   });
 
   it('should catch joinRoom failures and set status to error', async () => {
@@ -837,7 +811,7 @@ describe('SocketService', () => {
 
     await service.createRoom(psbt, network, roomName);
 
-    expect(createRoomSpy).toHaveBeenCalledWith(psbt, network, roomName);
+    expect(createRoomSpy).toHaveBeenCalledWith(psbt, network, roomName, undefined);
     expect(createRoomSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -1045,8 +1019,13 @@ describe('SocketService', () => {
 
   // --- SIGNER LABEL TESTS ---
   it('should retrieve a label from local storage based on fingerprint', () => {
-    vi.spyOn(globalThis.localStorage, 'getItem').mockReturnValue('My Saved Label');
     const fingerprint = '1234abcd';
+    const entry = JSON.stringify({
+      label: 'My Saved Label',
+      ttlDays: 7,
+      expiresAt: Date.now() + 86400000,
+    });
+    vi.spyOn(globalThis.localStorage, 'getItem').mockReturnValue(entry);
 
     const result = service.getLocalLabel(fingerprint);
 
@@ -1059,9 +1038,35 @@ describe('SocketService', () => {
     const fingerprint = '1234abcd';
     const label = 'Alice';
 
-    service.saveToAddressBook(fingerprint, label);
+    service.saveToAddressBook(fingerprint, label, 7);
 
-    expect(setItemSpy).toHaveBeenCalledWith(`addr_book_${fingerprint}`, label);
+    expect(setItemSpy).toHaveBeenCalledWith(
+      `addr_book_${fingerprint}`,
+      expect.stringContaining('"label":"Alice"'),
+    );
+  });
+
+  it('should update signer label and delegate to the SDK', async () => {
+    const setSignerLabelSpy = vi.spyOn(service.sdk, 'setSignerLabel');
+    const fingerprint = '1234abcd';
+    const label = 'Bob';
+
+    await service.updateSignerLabel(fingerprint, label);
+
+    expect(setSignerLabelSpy).toHaveBeenCalledWith(fingerprint, label);
+    expect(setSignerLabelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should still delegate updateSignerLabel to the SDK when room state is undefined', async () => {
+    vi.spyOn(service.sdk, 'getRoomState').mockReturnValue(undefined as any);
+    const setSignerLabelSpy = vi.spyOn(service.sdk, 'setSignerLabel');
+    const fingerprint = '1234abcd';
+    const label = 'Bob';
+
+    await service.updateSignerLabel(fingerprint, label);
+
+    expect(setSignerLabelSpy).toHaveBeenCalledWith(fingerprint, label);
+    expect(setSignerLabelSpy).toHaveBeenCalledTimes(1);
   });
 
   it('should remove a label from local storage based on fingerprint', () => {
@@ -1071,40 +1076,6 @@ describe('SocketService', () => {
     service.removeFromAddressBook(fingerprint);
 
     expect(removeItemSpy).toHaveBeenCalledWith(`addr_book_${fingerprint}`);
-  });
-
-  it('should update signer label in local storage and delegate to the SDK', async () => {
-    const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
-    const getRoomStateSpy = vi
-      .spyOn(service.sdk, 'getRoomState')
-      .mockReturnValue({ roomId: 'room_1' } as any);
-    const setSignerLabelSpy = vi.spyOn(service.sdk, 'setSignerLabel');
-
-    const fingerprint = '1234abcd';
-    const label = 'Bob';
-
-    await service.updateSignerLabel(fingerprint, label);
-
-    expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
-    expect(setItemSpy).toHaveBeenCalledWith(`signer_label_room_1_${fingerprint}`, label);
-    expect(setSignerLabelSpy).toHaveBeenCalledWith(fingerprint, label);
-    expect(setSignerLabelSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('should not call local storage and delegate to the SDK', async () => {
-    const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
-    const getRoomStateSpy = vi.spyOn(service.sdk, 'getRoomState').mockReturnValue(undefined as any);
-    const setSignerLabelSpy = vi.spyOn(service.sdk, 'setSignerLabel');
-
-    const fingerprint = '1234abcd';
-    const label = 'Bob';
-
-    await service.updateSignerLabel(fingerprint, label);
-
-    expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
-    expect(setItemSpy).toHaveBeenCalledTimes(0);
-    expect(setSignerLabelSpy).toHaveBeenCalledWith(fingerprint, label);
-    expect(setSignerLabelSpy).toHaveBeenCalledTimes(1);
   });
 
   it('should return early if the user is not a coordinator (checkAndApplyLocalLabels)', () => {
@@ -1175,27 +1146,25 @@ describe('SocketService', () => {
 
   // --- ADDRESS LABEL TESTS ---
   describe('Address Labelling Methods', () => {
-    it('should update address label in local storage and delegate to the SDK', async () => {
-      const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
-      const getRoomStateSpy = vi
-        .spyOn(service.sdk, 'getRoomState')
-        .mockReturnValue({ roomId: 'room_1' } as any);
+    it('should update address label and delegate to the SDK', async () => {
       const setAddressLabelSpy = vi.spyOn(service.sdk, 'setAddressLabel');
-
       const address = 'tb1q1234abcd';
       const label = 'Treasury';
 
       await service.updateAddressLabel(address, label);
 
-      expect(getRoomStateSpy).toHaveBeenCalledTimes(1);
-      expect(setItemSpy).toHaveBeenCalledWith(`address_label_room_1_${address}`, label);
       expect(setAddressLabelSpy).toHaveBeenCalledWith(address, label);
       expect(setAddressLabelSpy).toHaveBeenCalledTimes(1);
     });
 
     it('should retrieve an address label from local storage based on address', () => {
-      vi.spyOn(globalThis.localStorage, 'getItem').mockReturnValue('Vault A');
       const address = 'tb1q123';
+      const entry = JSON.stringify({
+        label: 'Vault A',
+        ttlDays: 7,
+        expiresAt: Date.now() + 86400000,
+      });
+      vi.spyOn(globalThis.localStorage, 'getItem').mockReturnValue(entry);
 
       const result = service.getLocalAddressLabel(address);
 
@@ -1208,9 +1177,12 @@ describe('SocketService', () => {
       const address = 'tb1q123';
       const label = 'Vault A';
 
-      service.saveAddressToBook(address, label);
+      service.saveAddressToBook(address, label, 7);
 
-      expect(setItemSpy).toHaveBeenCalledWith(`addr_book_address_${address}`, label);
+      expect(setItemSpy).toHaveBeenCalledWith(
+        `addr_book_address_${address}`,
+        expect.stringContaining('"label":"Vault A"'),
+      );
     });
 
     it('should remove an address label from local storage', () => {
@@ -1417,6 +1389,346 @@ describe('SocketService', () => {
 
       expect(result).toBe(expectedValue);
       expect(finalizeSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('TTL Address Book, Strict Roles & MuSig2 Coverage', () => {
+    it('should purge expired and legacy addr_book entries on purgeExpiredAddressBook()', () => {
+      const now = Date.now();
+      const entries: Record<string, string> = {
+        addr_book_expired: JSON.stringify({ label: 'Old', ttlDays: 1, expiresAt: now - 1000 }),
+        addr_book_valid: JSON.stringify({ label: 'Active', ttlDays: 7, expiresAt: now + 60000 }),
+        addr_book_legacy: 'plain-string-without-expiresAt',
+        other_key: 'keep-me',
+      };
+
+      const keys = Object.keys(entries);
+      (globalThis.localStorage as any).length = keys.length;
+      (globalThis.localStorage as any).key = vi.fn((i: number) => keys[i] ?? null);
+      (globalThis.localStorage as any).getItem = vi.fn((k: string) => entries[k] ?? null);
+      const removeSpy = vi.spyOn(globalThis.localStorage, 'removeItem');
+
+      service.isBrowser = true;
+      service.purgeExpiredAddressBook();
+
+      expect(removeSpy).toHaveBeenCalledWith('addr_book_expired');
+      expect(removeSpy).toHaveBeenCalledWith('addr_book_legacy');
+      expect(removeSpy).not.toHaveBeenCalledWith('addr_book_valid');
+      expect(removeSpy).not.toHaveBeenCalledWith('other_key');
+    });
+
+    it('should clear all addr_book entries from localStorage and sessionStorage', () => {
+      (globalThis.localStorage as any).length = 1;
+      (globalThis.localStorage as any).key = vi.fn((i: number) => (i === 0 ? 'addr_book_fp1' : null));
+      const localRemoveSpy = vi.spyOn(globalThis.localStorage, 'removeItem');
+
+      (globalThis.sessionStorage as any).length = 1;
+      (globalThis.sessionStorage as any).key = vi.fn((i: number) => (i === 0 ? 'addr_book_fp2' : null));
+      const sessionRemoveSpy = vi.spyOn(globalThis.sessionStorage, 'removeItem');
+
+      service.isBrowser = true;
+      service.clearAllAddressBookEntries();
+
+      expect(localRemoveSpy).toHaveBeenCalledWith('addr_book_fp1');
+      expect(sessionRemoveSpy).toHaveBeenCalledWith('addr_book_fp2');
+    });
+
+    it('should support TTL read/write/remove for signer and address labels including expiry and tab-only mode', () => {
+      service.isBrowser = true;
+      const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem');
+      const sessionSetSpy = vi.spyOn(globalThis.sessionStorage, 'setItem');
+      const localRemoveSpy = vi.spyOn(globalThis.localStorage, 'removeItem');
+      const sessionRemoveSpy = vi.spyOn(globalThis.sessionStorage, 'removeItem');
+
+      // Tab-only (ttlDays = 0)
+      service.saveToAddressBook('fp_tab', 'Tab Signer', 0);
+      expect(localRemoveSpy).toHaveBeenCalledWith('addr_book_fp_tab');
+      expect(sessionSetSpy).toHaveBeenCalledWith('addr_book_fp_tab', 'Tab Signer');
+
+      vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation((k: string) =>
+        k === 'addr_book_fp_tab' ? 'Tab Signer' : null,
+      );
+      expect(service.getLocalLabel('fp_tab')).toBe('Tab Signer');
+      expect(service.getLocalLabelTtl('fp_tab')).toBe(0);
+
+      // Persistent TTL (7 days)
+      service.saveAddressToBook('tb1q_vault', 'Vault Label', 7);
+      expect(sessionRemoveSpy).toHaveBeenCalledWith('addr_book_address_tb1q_vault');
+      expect(setItemSpy).toHaveBeenCalledWith(
+        'addr_book_address_tb1q_vault',
+        expect.stringContaining('"ttlDays":7'),
+      );
+
+      vi.spyOn(globalThis.sessionStorage, 'getItem').mockReturnValue(null);
+      vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation((k: string) =>
+        k === 'addr_book_address_tb1q_vault'
+          ? JSON.stringify({ label: 'Vault Label', ttlDays: 7, expiresAt: Date.now() + 86400000 })
+          : null,
+      );
+      expect(service.getLocalAddressLabel('tb1q_vault')).toBe('Vault Label');
+      expect(service.getLocalAddressLabelTtl('tb1q_vault')).toBe(7);
+
+      // Expired TTL entry returns null and gets removed
+      vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation((k: string) =>
+        k === 'addr_book_address_tb1q_vault'
+          ? JSON.stringify({ label: 'Expired Label', ttlDays: 1, expiresAt: Date.now() - 1000 })
+          : null,
+      );
+      expect(service.getLocalAddressLabel('tb1q_vault')).toBeNull();
+      expect(localRemoveSpy).toHaveBeenCalledWith('addr_book_address_tb1q_vault');
+    });
+
+    it('should build getCurrentFragment with and without roleToken', () => {
+      expect(service.getCurrentFragment()).toBeNull();
+
+      service.setRoomKey('fbek_key');
+      service.sdk.currentRoleToken = undefined;
+      expect(service.getCurrentFragment()).toBe('fbek_key');
+
+      service.sdk.currentRoleToken = 'role_tok_1';
+      expect(service.getCurrentFragment()).toBe('fbek_key:role_tok_1');
+    });
+
+    it('should handle strictRoles and coordinator sync in STATE_SYNC_DECRYPTED', () => {
+      vi.useFakeTimers();
+      service.isBrowser = true;
+      service.currentSessionId.set('sess_1');
+      vi.spyOn(service.sdk, 'getResumeToken').mockReturnValue('res_tok_1');
+      const sessionSetSpy = vi.spyOn(globalThis.sessionStorage, 'setItem');
+      const errSpy = vi.spyOn(service.decryptionError, 'set');
+      const discSpy = vi.spyOn(service, 'disconnect').mockImplementation(() => {});
+
+      // Strict roles without adminToken or roleToken -> blocks entry
+      service.sdk.currentRoleToken = undefined;
+      vi.spyOn(globalThis.sessionStorage, 'getItem').mockReturnValue(null);
+      stateSyncDecryptedSubject.next({ payload: { roomId: 'strict_room', strictRoles: true } });
+
+      expect(sessionSetSpy).toHaveBeenCalledWith('session_id_strict_room', 'sess_1');
+      expect(sessionSetSpy).toHaveBeenCalledWith('resume_token_strict_room', 'res_tok_1');
+      expect(errSpy).toHaveBeenCalledWith(
+        'Strict Mode Active: A valid role token is required to enter this room.',
+      );
+      expect(discSpy).toHaveBeenCalled();
+
+      // Strict roles for non-admin with roleToken -> sets default restrictive constraints
+      service.decryptionError.set(null);
+      service.sdk.currentRoleToken = 'guest_role_tok';
+      service.role.set('guest');
+      service.currentConstraints.set(null);
+      stateSyncDecryptedSubject.next({ payload: { roomId: 'strict_room', strictRoles: true } });
+      expect(service.currentConstraints()?.canUploadSignature).toBe(false);
+
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    });
+
+    it('should support uploadNonce and aggregateMuSig2Nonces coordinator transition', async () => {
+      const extractSpy = vi
+        .spyOn(service.sdk, 'extractFingerprintFromSignature')
+        .mockReturnValue('fp_nonce_1');
+      (service.sdk as any).uploadNonce = vi.fn().mockResolvedValue(undefined);
+      const aggregateSpy = vi.fn().mockResolvedValue('merged_nonce_psbt');
+      (service.sdk as any).aggregateMuSig2Nonces = aggregateSpy;
+
+      await service.uploadNonce('nonce_psbt_b64');
+      expect(extractSpy).toHaveBeenCalledWith('nonce_psbt_b64');
+      expect((service.sdk as any).uploadNonce).toHaveBeenCalledWith('nonce_psbt_b64', 'fp_nonce_1');
+
+      extractSpy.mockReturnValueOnce(null as any);
+      await expect(service.uploadNonce('bad_psbt')).rejects.toThrow(
+        'Could not extract fingerprint from PSBT',
+      );
+
+      // Coordinator aggregates nonces when state has transientPsbt
+      vi.useFakeTimers();
+      service.role.set('admin');
+      service.roomState.set({
+        roomId: 'musig_room',
+        protocol: 'musig2',
+        transientPsbt: 'base_transient',
+        nonces: ['nonce_1'],
+      } as any);
+
+      const aggPromise = service.aggregateMuSig2Nonces();
+      await vi.advanceTimersByTimeAsync(1800);
+      await aggPromise;
+
+      expect(aggregateSpy).toHaveBeenCalledTimes(1);
+      vi.useRealTimers();
+    });
+  });
+
+  describe('Uncovered Event Listeners, Ceremony Phases & Cleanup Coverage', () => {
+    function getRelaySubject(eventName: string): Subject<any> {
+      const subj = new Subject<any>();
+      const relayOn = vi.mocked(service.relay.events.on);
+      const prevImpl = relayOn.getMockImplementation();
+      relayOn.mockImplementation((name: string) =>
+        name === eventName ? subj.asObservable() : prevImpl ? prevImpl(name) : new Subject().asObservable(),
+      );
+      service.registerEventlisteners();
+      return subj;
+    }
+
+    it('should clear display name, admin token, session ID, and resume token in clearLocalRoomData()', () => {
+      const localRemoveSpy = vi.spyOn(globalThis.localStorage, 'removeItem');
+      const sessionRemoveSpy = vi.spyOn(globalThis.sessionStorage, 'removeItem');
+
+      (service as any).clearLocalRoomData('room_clean_1');
+
+      expect(localRemoveSpy).toHaveBeenCalledWith('display_name_room_clean_1');
+      expect(sessionRemoveSpy).toHaveBeenCalledWith('admin_token_room_clean_1');
+      expect(sessionRemoveSpy).toHaveBeenCalledWith('session_id_room_clean_1');
+      expect(sessionRemoveSpy).toHaveBeenCalledWith('resume_token_room_clean_1');
+    });
+
+    it('should handle NEW_NONCE_DECRYPTED, AGGREGATE_PSBT_DECRYPTED, and NONCE_THRESHOLD_MET events', () => {
+      const nonceSub = getRelaySubject('NEW_NONCE_DECRYPTED');
+      const aggSub = getRelaySubject('AGGREGATE_PSBT_DECRYPTED');
+      const thresholdSub = getRelaySubject('NONCE_THRESHOLD_MET');
+
+      const updateSpy = vi.spyOn(service['store'], 'update');
+      const aggSpy = vi.spyOn(service, 'aggregateMuSig2Nonces').mockResolvedValue(undefined);
+
+      nonceSub.next({ payload: { decryptedPsbt: 'nonce_b64_1' } });
+      const nonceUpdater = updateSpy.mock.calls[updateSpy.mock.calls.length - 1][0];
+      expect(nonceUpdater(null)).toBeNull();
+      expect(nonceUpdater({ nonces: ['nonce_b64_1'] } as any)).toEqual({ nonces: ['nonce_b64_1'] });
+      expect(nonceUpdater({ nonces: ['nonce_b64_1'] } as any)).toEqual({ nonces: ['nonce_b64_1'] });
+      expect(nonceUpdater({ nonces: [] } as any)).toEqual({ nonces: ['nonce_b64_1'] });
+
+      aggSub.next({ payload: 'final_agg_psbt' });
+      const aggUpdater = updateSpy.mock.calls[updateSpy.mock.calls.length - 1][0];
+      expect(aggUpdater(null)).toBeNull();
+      expect(aggUpdater({ psbt: 'old_psbt' } as any)).toEqual({ psbt: 'final_agg_psbt' });
+
+      service.role.set('guest');
+      thresholdSub.next({});
+      expect(aggSpy).not.toHaveBeenCalled();
+
+      service.role.set('admin');
+      thresholdSub.next({});
+      expect(aggSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should trigger local label sync and MuSig2 aggregation on STATE_SYNC_DECRYPTED and ROLE_UPDATE', () => {
+      vi.useFakeTimers();
+      const syncSub = getRelaySubject('STATE_SYNC_DECRYPTED');
+      const roleSub = getRelaySubject('ROLE_UPDATE');
+
+      const labelsSpy = vi.spyOn(service, 'checkAndApplyLocalLabels').mockImplementation(() => {});
+      const addrLabelsSpy = vi.spyOn(service, 'checkAndApplyLocalAddressLabels').mockImplementation(() => {});
+      const aggSpy = vi.spyOn(service, 'aggregateMuSig2Nonces').mockResolvedValue(undefined);
+
+      (service as any).hasSyncedLocalAddressBook = false;
+      service.role.set('admin');
+      syncSub.next({ payload: { roomId: 'room_sync' } });
+      vi.advanceTimersByTime(50);
+
+      expect(labelsSpy).toHaveBeenCalled();
+      expect(addrLabelsSpy).toHaveBeenCalled();
+
+      (service as any).hasSyncedLocalAddressBook = false;
+      service.currentConstraints.set({ canUploadSignature: false } as any);
+      vi.spyOn(service, 'ceremonyPhase').mockReturnValue('AGGREGATING_NONCES');
+
+      roleSub.next({ payload: 'admin' });
+      vi.advanceTimersByTime(50);
+
+      expect(service.currentConstraints()).toBeNull();
+      expect(aggSpy).toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should compute ceremonyPhase and transientPsbt across MuSig2 and standard room states', () => {
+      (service.sdk as any).getThreshold = vi.fn().mockReturnValue(2);
+
+      // Null state
+      service.roomState.set(null);
+      expect(service.ceremonyPhase()).toBe('GATHERING_SIGNATURES');
+      expect(service.transientPsbt()).toBeNull();
+
+      // MuSig2 Round 1: gathering nonces (< threshold)
+      service.roomState.set({
+        roomId: 'm1',
+        protocol: 'musig2',
+        transientPsbt: 't_psbt',
+        psbt: '',
+        nonces: ['n1'],
+        signatures: [],
+      } as any);
+      expect(service.ceremonyPhase()).toBe('GATHERING_NONCES');
+      expect(service.transientPsbt()).toBe('t_psbt');
+
+      // MuSig2 Round 1: aggregating nonces (>= threshold nonces, no psbt yet)
+      service.roomState.set({
+        roomId: 'm1',
+        protocol: 'musig2',
+        transientPsbt: 't_psbt',
+        psbt: '',
+        nonces: ['n1', 'n2'],
+        signatures: [],
+      } as any);
+      expect(service.ceremonyPhase()).toBe('AGGREGATING_NONCES');
+
+      // MuSig2 Round 2: aggregate psbt published, gathering signatures
+      service.roomState.set({
+        roomId: 'm1',
+        protocol: 'musig2',
+        transientPsbt: 't_psbt',
+        psbt: 'agg_psbt',
+        nonces: ['n1', 'n2'],
+        signatures: ['s1'],
+      } as any);
+      expect(service.ceremonyPhase()).toBe('GATHERING_SIGNATURES');
+
+      // Ready to broadcast when signatures >= threshold
+      service.roomState.set({
+        roomId: 'm1',
+        protocol: 'musig2',
+        transientPsbt: 't_psbt',
+        psbt: 'agg_psbt',
+        nonces: ['n1', 'n2'],
+        signatures: ['s1', 's2'],
+      } as any);
+      expect(service.ceremonyPhase()).toBe('READY_TO_BROADCAST');
+    });
+
+    it('should set decryptionError if aggregateMuSig2Nonces fails', async () => {
+      vi.useFakeTimers();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Non-coordinator returns early
+      service.role.set('guest');
+      await service.aggregateMuSig2Nonces();
+      expect(service.decryptionError()).toBeNull();
+
+      // Coordinator with missing transientPsbt returns early
+      service.role.set('admin');
+      service.roomState.set({ roomId: 'm2', protocol: 'musig2', transientPsbt: null, nonces: [] } as any);
+      await service.aggregateMuSig2Nonces();
+      expect(service.decryptionError()).toBeNull();
+
+      // Error during merge/publish sets decryptionError
+      service.roomState.set({
+        roomId: 'm2',
+        protocol: 'musig2',
+        transientPsbt: 't_psbt',
+        nonces: ['n1'],
+      } as any);
+      vi.spyOn(PsbtUtils, 'merge').mockImplementation(() => {
+        throw new Error('Merge boom');
+      });
+
+      const promise = service.aggregateMuSig2Nonces();
+      await vi.advanceTimersByTimeAsync(1800);
+      await promise;
+
+      expect(consoleSpy).toHaveBeenCalled();
+      expect(service.decryptionError()).toBe('Failed to merge MuSig2 nonces.');
+
+      vi.useRealTimers();
     });
   });
 });

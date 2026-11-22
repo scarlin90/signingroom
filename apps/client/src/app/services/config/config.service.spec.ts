@@ -74,4 +74,63 @@ describe('ConfigService', () => {
       expect(service.settings.brandName).toBe(DEFAULT_BRANDING_CONFIG.brandName);
     });
   });
+
+  describe('setWhitelabelAllowed() & isEmbedOriginAllowed()', () => {
+    it('should enforce default branding when whitelabel is disallowed', () => {
+      (service as any)._rawConfig.set({
+        ...DEFAULT_BRANDING_CONFIG,
+        brandName: 'Custom WhiteLabel',
+        brandSuffix: '.custom',
+        logoUrl: '/custom.svg',
+        hideFooter: true,
+      });
+
+      service.setWhitelabelAllowed(false);
+
+      expect(service.config().whitelabel).toBe(false);
+      expect(service.config().brandName).toBe('Signing Room®');
+      expect(service.config().brandSuffix).toBe('.io');
+      expect(service.config().logoUrl).toBe('/brand/logo.svg');
+      expect(service.config().hideFooter).toBe(false);
+    });
+
+    it('should return false for empty or malformed candidateOrigin values', () => {
+      expect(service.isEmbedOriginAllowed('')).toBe(false);
+      expect(service.isEmbedOriginAllowed('not-a-valid-url')).toBe(false);
+    });
+
+    it('should allow same-origin candidateOrigin matching window.location.origin', () => {
+      expect(service.isEmbedOriginAllowed(window.location.origin)).toBe(true);
+    });
+
+    it('should match allowlisted origins by full URL and by host fallback', () => {
+      service.setWhitelabelAllowed(true);
+      (service as any)._rawConfig.set({
+        ...DEFAULT_BRANDING_CONFIG,
+        allowedEmbedOrigins: ['https://partner.example.com', 'partner.io', '://bad-entry'],
+      } as any);
+
+      expect(service.isEmbedOriginAllowed('https://partner.example.com')).toBe(true);
+      expect(service.isEmbedOriginAllowed('https://partner.io')).toBe(true);
+      expect(service.isEmbedOriginAllowed('https://untrusted.example.com')).toBe(false);
+    });
+
+    it('should permit localhost/127.0.0.1 when running on localhost', () => {
+      const originalLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        value: { origin: 'http://localhost:4200', hostname: 'localhost' },
+        configurable: true,
+      });
+
+      try {
+        expect(service.isEmbedOriginAllowed('http://127.0.0.1:5173')).toBe(true);
+        expect(service.isEmbedOriginAllowed('https://external-site.com')).toBe(false);
+      } finally {
+        Object.defineProperty(window, 'location', {
+          value: originalLocation,
+          configurable: true,
+        });
+      }
+    });
+  });
 });

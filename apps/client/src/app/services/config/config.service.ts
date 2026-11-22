@@ -45,6 +45,43 @@ export class ConfigService {
     this._isWhitelabelAllowed.set(allowed);
   }
 
+  /*
+  * Validates whether a candidate ?host= origin is authorized to receive embedded postMessage events.
+  */
+  public isEmbedOriginAllowed(candidateOrigin: string): boolean {
+    if (!candidateOrigin) return false;
+    try {
+      const parsed = new URL(candidateOrigin);
+      if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
+        return true;
+      }
+
+      const allowlist = (this.config() as any).allowedEmbedOrigins as string[] | undefined;
+      if (Array.isArray(allowlist) && allowlist.length > 0) {
+        return allowlist.some((allowed) => {
+        try {
+          return new URL(allowed).origin === parsed.origin;
+        } catch {
+          return allowed.toLowerCase() === parsed.host.toLowerCase();
+        }
+        });
+      }
+
+      // Permit localhost ports only when running on localhost
+      if (
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+      (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1')
+      ) {
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   async loadConfig(): Promise<void> {
     try {
       const response = await firstValueFrom(

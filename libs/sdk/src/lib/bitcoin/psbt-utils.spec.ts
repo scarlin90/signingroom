@@ -3,7 +3,7 @@ import { PsbtUtils } from './psbt-utils';
 import { base64, hex } from '@scure/base';
 import { Transaction } from '@scure/btc-signer';
 
-// Safely mock the ESM module at the TOP LEVEL to allow branching tests on getInputType
+
 vi.mock('@scure/btc-signer', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@scure/btc-signer')>();
   return {
@@ -16,6 +16,21 @@ vi.mock('@scure/btc-signer', async (importOriginal) => {
     }),
   };
 });
+
+vi.mock('@scure/btc-signer/musig2.js', () => ({
+  keyAggregate: vi.fn(() => ({})),
+  keyAggExport: vi.fn(() => new Uint8Array(32).fill(0xaa)),
+  nonceAggregate: vi.fn(() => new Uint8Array(66).fill(0xbb)),
+  Session: vi.fn(function () {
+    return {
+      partialSigAgg: vi.fn(() => new Uint8Array(64).fill(0xcc)),
+    };
+  }),
+}));
+
+vi.mock('@scure/btc-signer/utils.js', () => ({
+  tagSchnorr: vi.fn(() => new Uint8Array(32).fill(0xdd)),
+}));
 
 describe('PsbtUtils - Encoding & Normalization', () => {
   it('should decode a hex-encoded PSBT into a Uint8Array', () => {
@@ -608,6 +623,41 @@ describe('PsbtUtils - Successful Operations (Mocked Scure Signer)', () => {
     expect(details?.outputs[0].derivationPaths).toEqual([
       { path: "m/86'/1'/0/1/0", fingerprints: ['eeff0011'], type: 'Legacy' }
     ]);
+  });
+
+  it('should cover remaining parseTxDetails and analyze branches', () => {
+    const k1 = new Uint8Array(33).fill(0x02);
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce({
+      id: 'tx-branches',
+      inputsLength: 1,
+      outputsLength: 2,
+      get fee() {
+        return BigInt(500);
+      },
+      get vsize() {
+        return 120;
+      },
+      getInput: vi.fn().mockReturnValue({
+        tapLeafScript: [[new Uint8Array([0x00]), new Uint8Array([0x51, 0x87, 0xc0])]],
+        bip32Derivation: [[k1, { fingerprint: 0x11111111 }]],
+      }),
+      getOutput: vi
+        .fn()
+        .mockReturnValueOnce({
+          amount: BigInt(1000),
+          witnessScript: new Uint8Array([0x51, 0xae]),
+          bip32Derivation: [[k1, { fingerprint: 0x11111111 }]],
+        })
+        .mockReturnValueOnce({
+          amount: BigInt(2000),
+          tapBip32Derivation: [[k1, { fingerprint: 0x11111111, path: [0, 1, 0] }]],
+        }),
+    } as any);
+
+    const details = PsbtUtils.parseTxDetails('cHNidP8A', 'bitcoin');
+    expect(details?.inputsList[0].scriptType).toBe('P2TR');
+    expect(details?.outputs[0].derivationPaths[0].type).toBe('SegWit');
+    expect(details?.outputs[1].derivationPaths[0].type).toBe('Taproot Key Path');
   });
 });
 
@@ -1325,5 +1375,448 @@ describe('PsbtUtils - Input VByte Estimation Branches', () => {
       expect(details?.outputs[2].derivationPaths[0].type).toBe('Taproot Key Path');
       expect(details?.outputs[3].derivationPaths[0].type).toBe('Tapscript Leaf');
     });
+  });
+});
+
+describe('PsbtUtils - v2.0.0 MuSig2 & Ceremony Inspection', () => {
+  const validPsbtBase64 = 'cHNidP8A';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should detect musig2 protocol from native fields or unknown 0x1a/0x1b/0x1c fields', () => {
+    const nativeMusigTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        musig2ParticipantPubkeys: [[new Uint8Array(33), [new Uint8Array(33)]]],
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce(nativeMusigTx as any);
+    expect(PsbtUtils.detectProtocol(validPsbtBase64)).toBe('musig2');
+
+    const rawUnknownMusigTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        unknown: [{ key: new Uint8Array([0x1b]), value: new Uint8Array(66) }],
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce(rawUnknownMusigTx as any);
+    expect(PsbtUtils.detectProtocol(validPsbtBase64)).toBe('musig2');
+
+    const standardTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({}),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce(standardTx as any);
+    expect(PsbtUtils.detectProtocol(validPsbtBase64)).toBe('standard');
+  });
+
+  it('should extract public nonces from native and raw musig2PubNonce entries', () => {
+    const partPub = new Uint8Array(33).fill(0x02);
+    const aggPub = new Uint8Array(33).fill(0x03);
+    const nonceVal = new Uint8Array(66).fill(0x04);
+    const rawKey = new Uint8Array(66);
+    rawKey.set(partPub, 0);
+    rawKey.set(aggPub, 33);
+
+    const mockTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        musig2PubNonce: [
+          [{ participantPubkey: partPub, aggregatePubkey: aggPub }, nonceVal],
+          [rawKey, nonceVal],
+        ],
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const nonces = PsbtUtils.extractPublicNonces(validPsbtBase64);
+    expect(nonces).toHaveLength(2);
+    expect(nonces[0].participantPubKey).toBe(hex.encode(partPub));
+    expect(nonces[0].aggregatePubKey).toBe(hex.encode(aggPub));
+    expect(nonces[0].publicNonce).toBe(hex.encode(nonceVal));
+    expect(nonces[1].participantPubKey).toBe(hex.encode(partPub));
+  });
+
+  it('should inspect ceremony payloads for nonces, partial sigs, and standard sigs', () => {
+    const pubkey = new Uint8Array([0x02, 0x00]);
+    const mockTx = {
+      id: 'tx-123',
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        musig2PubNonce: [[{ participantPubkey: pubkey }, new Uint8Array(66)]],
+        musig2PartialSig: [[{ participantPubkey: pubkey }, new Uint8Array(32)]],
+        partialSig: [[pubkey, new Uint8Array(70)]],
+        bip32Derivation: [[pubkey, { fingerprint: 0xaf4b013d }]],
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const info = PsbtUtils.inspectCeremonyPayload(validPsbtBase64);
+    expect(info.isValidPsbt).toBe(true);
+    expect(info.txId).toBe('tx-123');
+    expect(info.hasMuSig2Nonce).toBe(true);
+    expect(info.hasMuSig2PartialSig).toBe(true);
+    expect(info.hasStandardSig).toBe(true);
+    expect(info.nonceFingerprints).toEqual(['af4b013d']);
+    expect(info.signedFingerprints).toEqual(['af4b013d']);
+  });
+
+  it('should aggregate MuSig2 partial signatures and finalize a Taproot input', () => {
+    const p1 = new Uint8Array(33).fill(0x02);
+    const p2 = new Uint8Array(33).fill(0x03);
+    const n1 = new Uint8Array(66).fill(0x11);
+    const n2 = new Uint8Array(66).fill(0x22);
+    const s1 = new Uint8Array(32).fill(0x33);
+    const s2 = new Uint8Array(32).fill(0x44);
+
+    const mockTx = {
+      id: 'final-musig2-txid',
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        witnessUtxo: { amount: BigInt(100000), script: new Uint8Array([0x51, 0x20]) },
+        musig2ParticipantPubkeys: [[new Uint8Array(33), [p1, p2]]],
+        musig2PubNonce: [
+          [{ participantPubkey: p1 }, n1],
+          [{ participantPubkey: p2 }, n2],
+        ],
+        musig2PartialSig: [
+          [{ participantPubkey: p1 }, s1],
+          [{ participantPubkey: p2 }, s2],
+        ],
+      }),
+      preimageWitnessV1: vi.fn(() => new Uint8Array(32).fill(0x55)),
+      updateInput: vi.fn(),
+      finalize: vi.fn(),
+      extract: vi.fn(() => new Uint8Array([0x02, 0x00, 0x00, 0x00])),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const res = PsbtUtils.finalizeTx(validPsbtBase64);
+    expect(res).toEqual({ hex: '02000000', txId: 'final-musig2-txid' });
+    expect(mockTx.updateInput).toHaveBeenCalledWith(
+      0,
+      expect.objectContaining({ tapKeySig: expect.any(Uint8Array) }),
+    );
+  });
+
+  it('should return null in finalizeTx if MuSig2 nonces or partial sigs are incomplete', () => {
+    const p1 = new Uint8Array(33).fill(0x02);
+    const p2 = new Uint8Array(33).fill(0x03);
+
+    const incompleteTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        musig2ParticipantPubkeys: [[new Uint8Array(33), [p1, p2]]],
+        musig2PubNonce: [[{ participantPubkey: p1 }, new Uint8Array(66)]],
+        musig2PartialSig: [[{ participantPubkey: p1 }, new Uint8Array(32)]],
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(incompleteTx as any);
+
+    expect(PsbtUtils.finalizeTx(validPsbtBase64)).toBeNull();
+  });
+});
+
+describe('PsbtUtils - Remaining Branch & Edge Coverage', () => {
+  const validPsbtBase64 = 'cHNidP8A';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should compute TapTweak with tapMerkleRoot in finalizeTx when present', () => {
+    const p1 = new Uint8Array(33).fill(0x02);
+    const n1 = new Uint8Array(66).fill(0x11);
+    const s1 = new Uint8Array(32).fill(0x33);
+    const merkleRoot = new Uint8Array(32).fill(0x99);
+
+    const mockTx = {
+      id: 'merkle-musig2-txid',
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        witnessUtxo: { amount: BigInt(100000), script: new Uint8Array([0x51, 0x20]) },
+        tapMerkleRoot: merkleRoot,
+        musig2ParticipantPubkeys: [[new Uint8Array(33), [p1]]],
+        musig2PubNonce: [[{ participantPubkey: p1 }, n1]],
+        musig2PartialSig: [[{ participantPubkey: p1 }, s1]],
+      }),
+      preimageWitnessV1: vi.fn(() => new Uint8Array(32).fill(0x55)),
+      updateInput: vi.fn(),
+      finalize: vi.fn(),
+      extract: vi.fn(() => new Uint8Array([0x02])),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const res = PsbtUtils.finalizeTx(validPsbtBase64);
+    expect(res?.txId).toBe('merkle-musig2-txid');
+  });
+
+  it('should handle extractPublicNonces errors and inspectCeremonyPayload invalid/witness states', () => {
+    vi.spyOn(PsbtUtils, 'decode').mockImplementationOnce(() => {
+      throw new Error('bad');
+    });
+    expect(PsbtUtils.extractPublicNonces('bad')).toEqual([]);
+
+    vi.spyOn(PsbtUtils, 'decode').mockImplementationOnce(() => {
+      throw new Error('bad');
+    });
+    const invalidRes = PsbtUtils.inspectCeremonyPayload('bad');
+    expect(invalidRes.isValidPsbt).toBe(false);
+
+    const witnessTx = {
+      get id() {
+        throw new Error('no id');
+      },
+      inputsLength: 1,
+      outputsLength: 0,
+      get fee() {
+        return BigInt(0);
+      },
+      get vsize() {
+        return 100;
+      },
+      getInput: vi.fn().mockReturnValue({
+        unknown: [{ key: new Uint8Array([0x1c]), value: new Uint8Array(32) }],
+        finalScriptWitness: new Uint8Array([1, 2]),
+      }),
+      getOutput: vi.fn(),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(witnessTx as any);
+
+    const inspected = PsbtUtils.inspectCeremonyPayload(validPsbtBase64);
+    expect(inspected.hasMuSig2PartialSig).toBe(true);
+    expect(inspected.hasStandardSig).toBe(true);
+    expect(inspected.txId).toBeNull();
+  });
+
+  it('should classify output script types and Taproot change outputs in parseTxDetails', () => {
+    const p2wpkhScript = hex.decode('001489abcdefabaabcdeffedcbaabaabcdefaba12345');
+    const p2wshScript = hex.decode('0020' + '11'.repeat(32));
+    const p2shScript = hex.decode('a914' + '22'.repeat(20) + '87');
+    const p2pkhScript = hex.decode('76a914' + '33'.repeat(20) + '88ac');
+
+    const mockTx = {
+      id: 'script-types-tx',
+      inputsLength: 2,
+      outputsLength: 5,
+      get fee() {
+        return BigInt(2000);
+      },
+      get vsize() {
+        return 250;
+      },
+      getInput: vi
+        .fn()
+        .mockReturnValueOnce({
+          witnessUtxo: { amount: BigInt(10000), script: p2wpkhScript },
+        })
+        .mockReturnValueOnce({
+          witnessScript: new Uint8Array([0x51, 0xae]),
+          witnessUtxo: { amount: BigInt(10000), script: p2wshScript },
+        }),
+      getOutput: vi
+        .fn()
+        .mockReturnValueOnce({ amount: BigInt(5000), script: p2wpkhScript })
+        .mockReturnValueOnce({ amount: BigInt(5000), script: p2wshScript })
+        .mockReturnValueOnce({ amount: BigInt(5000), script: p2shScript })
+        .mockReturnValueOnce({ amount: BigInt(5000), script: p2pkhScript })
+        .mockReturnValueOnce({
+          amount: BigInt(18000),
+          script: p2wpkhScript,
+          tapBip32Derivation: [[new Uint8Array(32), { der: { path: [0, 1, 0] } }]],
+        }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(mockTx as any);
+
+    const details = PsbtUtils.parseTxDetails(validPsbtBase64, 'bitcoin');
+    expect(details?.inputsList.map((i) => i.scriptType)).toEqual(['P2PKH', 'P2WSH']);
+    expect(details?.outputs.map((o) => o.scriptType)).toContain('P2WPKH');
+    expect(details?.outputs.map((o) => o.scriptType)).toContain('P2WSH');
+    expect(details?.outputs.map((o) => o.scriptType)).toContain('P2SH');
+    expect(details?.outputs.map((o) => o.scriptType)).toContain('P2PKH');
+    expect(details?.outputs.some((o) => o.isChange)).toBe(true);
+  });
+
+  it('should cover multi-keypath taproot threshold and musig2 key shape fallbacks', () => {
+    const k1 = new Uint8Array(33).fill(0x02);
+    const k2 = new Uint8Array(33).fill(0x03);
+
+    const tx = {
+      inputsLength: 2,
+      getInput: vi.fn((idx: number) =>
+        idx === 0
+          ? {
+              tapBip32Derivation: [
+                [k1, { der: { fingerprint: 0x11111111, path: [0] }, hashes: [] }],
+                [k2, { der: { fingerprint: 0x22222222, path: [1] }, hashes: [] }],
+              ],
+              musig2PubNonce: [
+                { key: { participantPubkey: k1 }, value: new Uint8Array(66) },
+                { key: k2, value: new Uint8Array(66) },
+              ],
+              witnessScript: new Uint8Array([0x00, 0x01]),
+            }
+          : {
+              tapBip32Derivation: [
+                [k1, { der: { fingerprint: 0x11111111, path: [0] }, hashes: [new Uint8Array(32)] }],
+              ],
+              musig2PartialSig: [[k1, new Uint8Array(32)]],
+              tapKeySig: new Uint8Array(64),
+              tapInternalKey: k2,
+            },
+      ),
+    };
+    const spy = vi.spyOn(Transaction, 'fromPSBT').mockReturnValue(tx as any);
+
+    try {
+      expect(PsbtUtils.getThreshold('cHNidP8A')).toBe(2);
+      expect(PsbtUtils.getFingerprintFromPsbt('cHNidP8A')).toBe('11111111');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('should cover finalScriptSig, P2WPKH/P2SH input script types, and non-matching partialSig/tapKeySig', () => {
+    const k1 = new Uint8Array(33).fill(0x02);
+    const k2 = new Uint8Array(33).fill(0x03);
+    const p2wpkhScript = hex.decode('001489abcdefabaabcdeffedcbaabaabcdefaba12345');
+    const p2shScript = hex.decode('a914' + '22'.repeat(20) + '87');
+
+    // inspectCeremonyPayload with finalScriptSig
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce({
+      id: 'tx-final-sig',
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({ finalScriptSig: new Uint8Array([1]) }),
+    } as any);
+    expect(PsbtUtils.inspectCeremonyPayload('cHNidP8A').hasStandardSig).toBe(true);
+
+    // getFingerprintFromPsbt when partialSig & tapKeySig do not match derivation
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce({
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        partialSig: [[k1, new Uint8Array([1])]],
+        tapKeySig: new Uint8Array(64),
+        tapInternalKey: k1,
+        bip32Derivation: [[k2, { fingerprint: 0x11111111 }]],
+        tapBip32Derivation: [[k2, { fingerprint: 0x11111111 }]],
+      }),
+    } as any);
+    expect(PsbtUtils.getFingerprintFromPsbt('cHNidP8A')).toBeNull();
+
+    // parseTxDetails with P2WPKH & P2SH address prefixes and Taproot change path
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce({
+      id: 'tx-addr-types',
+      inputsLength: 2,
+      outputsLength: 1,
+      get fee() {
+        return BigInt(100);
+      },
+      get vsize() {
+        return 120;
+      },
+      getInput: vi
+        .fn()
+        .mockReturnValueOnce({
+          witnessUtxo: { amount: BigInt(1000), script: p2wpkhScript },
+        })
+        .mockReturnValueOnce({
+          witnessUtxo: { amount: BigInt(1000), script: p2shScript },
+        }),
+      getOutput: vi.fn().mockReturnValue({
+        amount: BigInt(1900),
+        script: p2wpkhScript,
+        tapBip32Derivation: [[k1, { der: { path: [0, 2147483649, 0] } }]],
+      }),
+    } as any);
+    const details = PsbtUtils.parseTxDetails('cHNidP8A', 'bitcoin');
+    expect(details?.outputs[0].isChange).toBe(true);
+  });
+
+  it('should cover MuSig2 threshold, fingerprint, signer status, and address catch fallbacks', () => {
+    const pub1 = new Uint8Array(33).fill(0x02);
+    const pub2 = new Uint8Array(33).fill(0x03);
+
+    // MuSig2 threshold via musig2ParticipantPubkeys (array and Uint8Array) and 0x1a unknown field
+    const musigThresholdTx = {
+      inputsLength: 3,
+      getInput: vi
+        .fn()
+        .mockReturnValueOnce({
+          musig2ParticipantPubkeys: [[new Uint8Array(33), [pub1, pub2]]],
+        })
+        .mockReturnValueOnce({
+          musig2ParticipantPubkeys: [{ participants: new Uint8Array(66) }],
+        })
+        .mockReturnValueOnce({
+          unknown: [{ key: new Uint8Array([0x1a]), value: new Uint8Array(66) }],
+        }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce(musigThresholdTx as any);
+    expect(PsbtUtils.getThreshold(validPsbtBase64)).toBe(2);
+
+    // MuSig2 fingerprint via musig2PubNonce & musig2PartialSig
+    const musigFpTx = {
+      inputsLength: 2,
+      getInput: vi
+        .fn()
+        .mockReturnValueOnce({
+          musig2PubNonce: [[{ participantPubkey: pub1 }, new Uint8Array(66)]],
+          bip32Derivation: [[pub1, { fingerprint: 0xaaaaaaaa }]],
+        })
+        .mockReturnValueOnce({
+          musig2PartialSig: [{ key: pub2, value: new Uint8Array(32) }],
+          bip32Derivation: [[pub2, { fingerprint: 0xbbbbbbbb }]],
+        }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce(musigFpTx as any);
+    expect(PsbtUtils.getFingerprintFromPsbt(validPsbtBase64)).toBe('aaaaaaaa');
+
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce({
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        musig2PartialSig: [{ key: pub2, value: new Uint8Array(32) }],
+        bip32Derivation: [[pub2, { fingerprint: 0xbbbbbbbb }]],
+      }),
+    } as any);
+    expect(PsbtUtils.getFingerprintFromPsbt(validPsbtBase64)).toBe('bbbbbbbb');
+
+    // extractSigners with musig2PubNonce, musig2PartialSig, and 0x1b/0x1c unknown fields
+    const signersTx = {
+      inputsLength: 1,
+      getInput: vi.fn().mockReturnValue({
+        musig2PubNonce: [[{ participantPubkey: pub1 }, new Uint8Array(66)]],
+        musig2PartialSig: [[{ participantPubkey: pub1 }, new Uint8Array(32)]],
+        unknown: [
+          { key: new Uint8Array([0x1b, ...pub2]), value: new Uint8Array(66) },
+          { key: new Uint8Array([0x1c, ...pub2]), value: new Uint8Array(32) },
+        ],
+        bip32Derivation: [
+          [pub1, { fingerprint: 0x11111111, path: [0] }],
+          [pub2, { fingerprint: 0x22222222, path: [0] }],
+        ],
+      }),
+    };
+    vi.spyOn(Transaction, 'fromPSBT').mockReturnValueOnce(signersTx as any);
+    const signers = PsbtUtils.extractSigners(validPsbtBase64);
+    expect(signers.find((s) => s.fingerprint === '11111111')?.signed).toBe(true);
+    expect(signers.find((s) => s.fingerprint === '11111111')?.hasNonce).toBe(true);
+    expect(signers.find((s) => s.fingerprint === '22222222')?.signed).toBe(true);
+    expect(signers.find((s) => s.fingerprint === '22222222')?.hasNonce).toBe(true);
+
+    // formatScriptAddress catch fallbacks for 0020 and 51 prefixes
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const p2wsh = hex.decode('0020' + '11'.repeat(32));
+    p2wsh.slice = () => {
+      throw new Error('fail');
+    };
+    expect(PsbtUtils.formatScriptAddress(p2wsh, 'bitcoin')).toBe('11'.repeat(32));
+
+    const p2tr = hex.decode('5120' + '22'.repeat(32));
+    p2tr.slice = () => {
+      throw new Error('fail');
+    };
+    expect(PsbtUtils.formatScriptAddress(p2tr, 'bitcoin')).toBe('22'.repeat(32));
   });
 });

@@ -5,6 +5,7 @@ import { EncryptionEngine } from '../crypto/encryption-engine';
 // --- MOCK PLATFORM BOUNDARIES ---
 class MockWebSocket {
   public url: string;
+  public protocols?: string | string[];
   public readyState: number = 0; // CONNECTING
   public send = vi.fn();
   public close = vi.fn();
@@ -14,8 +15,9 @@ class MockWebSocket {
   public onerror: ((e: any) => void) | null = null;
   public onmessage: ((e: any) => void) | null = null;
 
-  constructor(url: string) {
+  constructor(url: string, protocols?: string | string[]) {
     this.url = url;
+    this.protocols = protocols;
     MockWebSocket.lastInstance = this;
   }
   static lastInstance: MockWebSocket | null = null;
@@ -32,6 +34,7 @@ vi.mock('../bitcoin/psbt-utils', () => ({
       if (s === 'CORRUPT_PSBT') throw new Error('Decode error');
       return new Uint8Array([1, 2, 3]);
     }),
+    extractSigners: vi.fn(() => []),
     parseTxDetails: vi.fn(() => ({
       inputsList: [],
       outputs: [],
@@ -68,6 +71,7 @@ describe('RelayClient', () => {
         if (data.startsWith('enc-')) return data.replace('enc-', '');
         return data;
       }),
+      sha256: vi.fn(async () => 'd532dd5a168537f7bfd8278d174acb6814ac10bff1793060d8c34b8d36a1e3cf'),
     };
     client = new RelayClient(mockCrypto as unknown as EncryptionEngine);
   });
@@ -102,7 +106,8 @@ describe('RelayClient', () => {
     it('should sanitize, decode and calculate parameters correctly during joinRoom execution profiles', async () => {
       await client.joinRoom('wss://test', 'room-1', '  key%20with%20spaces  ', '1.0.0');
       const ws = MockWebSocket.lastInstance!;
-      expect(ws.url).toContain('pass=blinded-room-1-key with spaces');
+      expect(ws.url).toBe('wss://test/api/room/room-1/websocket?v=1.0.0');
+      expect(ws.protocols).toEqual(['signingroom-v2', 'pass.blinded-room-1-key with spaces']);
     });
 
     it('should swallow URI decoding errors if joinRoom encounters a broken percent string', async () => {
@@ -455,13 +460,18 @@ describe('RelayClient', () => {
       MockWebSocket.lastInstance!.readyState = MockWebSocket.OPEN;
     });
 
-    it('should emit DECRYPTION_ERROR tokens immediately if initial master sync hashes break decryption routines', async () => {
+    it('should emit DECRYPTION_ERROR and not emit STATE_SYNC_DECRYPTED if encryptedPsbt fails to decrypt during STATE_SYNC', async () => {
+      let stateSyncFired = false;
       let errFired = false;
+      client.events.on('STATE_SYNC_DECRYPTED').subscribe(() => (stateSyncFired = true));
       client.events.on('DECRYPTION_ERROR').subscribe(() => (errFired = true));
 
       const ws = MockWebSocket.lastInstance!;
-      await ws.onmessage!({ data: JSON.stringify({ type: 'STATE_SYNC', encryptedPsbt: 'FAIL' }) });
+      await expect(
+        ws.onmessage!({ data: JSON.stringify({ type: 'STATE_SYNC', encryptedPsbt: 'FAIL' }) }),
+      ).resolves.not.toThrow();
       expect(errFired).toBe(true);
+      expect(stateSyncFired).toBe(false);
     });
 
     it('should reconcile complete master histories, falling back to cleartext strings if signatures lack padding', async () => {
@@ -707,6 +717,302 @@ describe('RelayClient', () => {
         expect(routed).toBe(true);
         sub.unsubscribe();
       }
+    });
+  });
+
+  describe('MuSig2, Resumption & Hash-Chained Audit Log', () => {
+
+    it('should support separate sessionId and resumeToken args and skip MuSig2 uploads without key', async () => {
+      await client.joinRoom('wss://relay', 'room-sep', 'key', '2.0.0', 'S1', 'R1');
+      const ws = MockWebSocket.lastInstance!;
+      expect(ws.protocols).toContain('resume.S1.R1');
+
+      client.setKey(null);
+      ws.readyState = MockWebSocket.OPEN;
+      await client.uploadNonce('n', 'fp', 'u');
+      await client.publishAggregatePsbt('p', 'u');
+      expect(ws.send).not.toHaveBeenCalled();
+    });
+
+    it('should include pass and resume subprotocols in joinRoom and support composite sessionId:resumeToken', async () => {
+      await client.joinRoom('wss://test', 'room-1', 'secret-key', '2.0.0', 'ABCD:token-xyz');
+      const ws = MockWebSocket.lastInstance!;
+      expect(ws.url).toBe('wss://test/api/room/room-1/websocket?v=2.0.0');
+      expect(ws.protocols).toEqual([
+        'signingroom-v2',
+        'pass.blinded-room-1-secret-key',
+        'resume.ABCD.token-xyz',
+      ]);
+    });
+
+    it('should store resumeToken on SESSION_CONNECTED and expose via getResumeToken()', async () => {
+      client.connect('wss://relay');
+      const ws = MockWebSocket.lastInstance!;
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'SESSION_CONNECTED',
+          sessionId: 'ABCD',
+          resumeToken: 'a1b2c3d4e5f6',
+        }),
+      });
+      expect(client.getResumeToken()).toBe('a1b2c3d4e5f6');
+    });
+
+    it('should decrypt transientPsbt and nonces in STATE_SYNC and register fingerprints', async () => {
+      const { PsbtUtils } = await import('../bitcoin/psbt-utils');
+      vi.mocked(PsbtUtils.extractSigners).mockReturnValueOnce([{ fingerprint: 'af4b013d' }] as any);
+
+      client.connect('wss://relay');
+      client.setKey('key');
+      const ws = MockWebSocket.lastInstance!;
+
+      let syncResult: any = null;
+      client.events.on('STATE_SYNC_DECRYPTED').subscribe((v) => (syncResult = v.payload));
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'STATE_SYNC',
+          roomId: 'room-musig2',
+          protocol: 'musig2',
+          encryptedPsbt: null,
+          transientPsbt: 'enc-setup-psbt',
+          nonces: { '07877d968ee881d3': { encryptedData: 'enc-nonce-1' } },
+        }),
+      });
+
+      expect(syncResult.transientPsbt).toBe('setup-psbt');
+      expect(syncResult.nonces).toEqual(['nonce-1']);
+      expect(client.blindFingerprintMap.get('blinded-af4b013d-key')).toBe('af4b013d');
+      expect(mockCrypto.decrypt).toHaveBeenCalledWith(
+        'enc-setup-psbt',
+        'key',
+        'room:room-musig2|field:psbt',
+      );
+      expect(mockCrypto.decrypt).toHaveBeenCalledWith(
+        'enc-nonce-1',
+        'key',
+        'room:room-musig2|field:nonce',
+      );
+    });
+
+    it('should handle NEW_NONCE_DATA and AGGREGATE_PSBT_PUBLISHED events', async () => {
+      client.connect('wss://relay');
+      client.setKey('key');
+      client.blindFingerprintMap.set('blind-fp', 'af4b013d');
+      const ws = MockWebSocket.lastInstance!;
+
+      let nonceEvent: any = null;
+      let aggPsbtEvent: any = null;
+      client.events.on('NEW_NONCE_DECRYPTED' as any).subscribe((v) => (nonceEvent = v.payload));
+      client.events
+        .on('AGGREGATE_PSBT_DECRYPTED' as any)
+        .subscribe((v) => (aggPsbtEvent = v.payload));
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'NEW_NONCE_DATA',
+          fingerprint: 'blind-fp',
+          sessionId: 'ABCD',
+          data: { encryptedData: 'enc-nonce-psbt' },
+        }),
+      });
+      expect(nonceEvent).toEqual({
+        decryptedPsbt: 'nonce-psbt',
+        fingerprint: 'af4b013d',
+        sessionId: 'ABCD',
+      });
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'AGGREGATE_PSBT_PUBLISHED',
+          encryptedPsbt: 'enc-agg-psbt',
+        }),
+      });
+      expect(aggPsbtEvent).toBe('agg-psbt');
+    });
+
+    it('should verify hash chain and append incremental LOG_UPDATE entries', async () => {
+      client.connect('wss://relay');
+      client.setKey('key');
+      const ws = MockWebSocket.lastInstance!;
+
+      let logs: any[] = [];
+      client.events.on('LOG_UPDATE_DECRYPTED').subscribe((v) => (logs = v.payload));
+
+      const entryBlob =
+        'enc-' +
+        JSON.stringify({
+          timestamp: 1710000000000,
+          seq: 0,
+          event: 'Public Nonce Uploaded',
+          user: 'Guest (ABCD)',
+        });
+      
+      const digestSpy = vi.spyOn(crypto.subtle, 'digest');
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'LOG_UPDATE',
+          entry: {
+            seq: 0,
+            serverTimestamp: 1710000000500,
+            sessionId: 'ABCD',
+            role: 'guest',
+            blob: entryBlob,
+            chainHash: 'd532dd5a168537f7bfd8278d174acb6814ac10bff1793060d8c34b8d36a1e3cf',
+          },
+          chainHead: 'd532dd5a168537f7bfd8278d174acb6814ac10bff1793060d8c34b8d36a1e3cf',
+        }),
+      });
+
+      expect(mockCrypto.sha256).toHaveBeenCalled();
+      expect(logs).toHaveLength(1);
+      expect(logs[0].event).toBe('Public Nonce Uploaded');
+    });
+
+    it('should send UPLOAD_NONCE and PUBLISH_AGGREGATE_PSBT with blinded fingerprint and AAD', async () => {
+      await client.joinRoom('wss://relay', 'room-aad', 'key', '2.0.0');
+      const ws = MockWebSocket.lastInstance!;
+      ws.readyState = MockWebSocket.OPEN;
+
+      await client.uploadNonce('nonce-psbt-b64', 'af4b013d', 'Guest (ABCD)');
+      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('"type":"UPLOAD_NONCE"'));
+      expect(mockCrypto.encrypt).toHaveBeenCalledWith(
+        'nonce-psbt-b64',
+        'key',
+        'room:room-aad|field:nonce',
+      );
+
+      await client.publishAggregatePsbt('agg-psbt-b64', 'Coordinator');
+      expect(ws.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"PUBLISH_AGGREGATE_PSBT"'),
+      );
+      expect(mockCrypto.encrypt).toHaveBeenCalledWith(
+        'agg-psbt-b64',
+        'key',
+        'room:room-aad|field:psbt',
+      );
+    });
+
+    it('should dispatch PROTOCOL_ERROR on non-1000 close codes and reset log seq on room change', async () => {
+      const protoErrors: any[] = [];
+      client.events.on('PROTOCOL_ERROR').subscribe((e) => protoErrors.push(e.payload));
+
+      client.connect('wss://relay');
+      const ws = MockWebSocket.lastInstance!;
+      ws.onclose!({ code: 4026, reason: 'mismatch' });
+      ws.onclose!({ code: 4001, reason: 'full' });
+      ws.onclose!({ code: 1006, reason: 'denied' });
+      ws.onclose!({ code: 4004, reason: 'missing' });
+
+      expect(protoErrors.map((p) => p.type)).toEqual([
+        'version_mismatch',
+        'room_full',
+        'access_denied',
+        'not_found',
+      ]);
+
+      await client.joinRoom('wss://relay', 'room-A', 'key', '2.0.0');
+      const blob1 = await client.createSecureLogBlob('E1', 'D1', 'U1');
+      expect(blob1).toContain('"seq":1');
+
+      await client.joinRoom('wss://relay', 'room-B', 'key', '2.0.0');
+      const blob2 = await client.createSecureLogBlob('E2', 'D2', 'U2');
+      expect(blob2).toContain('"seq":1');
+    });
+
+    it('should flag hash chain mismatches and ignore mismatched roomId audit entries', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      client.connect('wss://relay');
+      client.setKey('key');
+      const ws = MockWebSocket.lastInstance!;
+
+      let logs: any[] = [];
+      client.events.on('LOG_UPDATE_DECRYPTED').subscribe((v) => (logs = v.payload));
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'STATE_SYNC',
+          roomId: 'room-expected',
+          auditLog: [
+            {
+              seq: 0,
+              serverTimestamp: 1000,
+              sessionId: 'ABCD',
+              role: 'guest',
+              blob: 'enc-' + JSON.stringify({ timestamp: 1, roomId: 'other-room', event: 'Skip', user: 'x' }),
+              chainHash: 'wrong-hash',
+            },
+          ],
+        }),
+      });
+
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('hash chain mismatch'));
+      expect(logs).toEqual([]);
+      errSpy.mockRestore();
+    });
+
+    it('should cover aggregate psbt error, mismatched roomId in incremental log, and address label fallbacks', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await client.joinRoom('wss://relay', 'room-match', 'key', '2.0.0');
+      const ws = MockWebSocket.lastInstance!;
+      ws.readyState = MockWebSocket.OPEN;
+
+      await ws.onmessage!({
+        data: JSON.stringify({ type: 'AGGREGATE_PSBT_PUBLISHED', encryptedPsbt: 'FAIL' }),
+      });
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'LOG_UPDATE',
+          entry: {
+            seq: 0,
+            serverTimestamp: 1000,
+            sessionId: 'ABCD',
+            role: 'guest',
+            blob: 'enc-' + JSON.stringify({ timestamp: 1, roomId: 'wrong-room', event: 'Drop', user: 'u' }),
+          },
+        }),
+      });
+
+      let addrLabels: any = null;
+      client.events.on('ADDRESS_LABELS_DECRYPTED').subscribe((v) => (addrLabels = v.payload));
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'ADDRESS_LABELS_UPDATED',
+          addressLabels: {
+            shortAddr: 'tiny',
+            failAddr: 'enc-FAIL' + 'X'.repeat(30),
+          },
+        }),
+      });
+      expect(addrLabels.shortAddr).toBe('tiny');
+      expect(addrLabels.failAddr).toBe('enc-FAIL' + 'X'.repeat(30));
+      errSpy.mockRestore();
+    });
+
+    it('should cover transientPsbt/nonce decrypt errors and malformed incremental LOG_UPDATE entry', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      client.connect('wss://relay');
+      client.setKey('key');
+      const ws = MockWebSocket.lastInstance!;
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'STATE_SYNC',
+          transientPsbt: 'FAIL',
+          nonces: ['FAIL'],
+        }),
+      });
+
+      await ws.onmessage!({
+        data: JSON.stringify({
+          type: 'LOG_UPDATE',
+          entry: { seq: 0, serverTimestamp: 1000, sessionId: 'ABCD', role: 'guest', blob: 'FAIL' },
+        }),
+      });
+
+      errSpy.mockRestore();
     });
   });
 });
