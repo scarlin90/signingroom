@@ -144,12 +144,16 @@ async function runDemo() {
   printHeader('Phase 2: Participant Entry with Specific Constraints');
 
   let aliceSessionId = '';
+  let aliceResumeToken = '';
   const aliceClient = new SigningRoomClient({ apiUrl: API_URL });
-  
-  // Capture AND log her session ID the exact moment the socket connects
+
+  // Capture AND log her session ID + cryptographic resume token when the socket connects
   aliceClient.onEvent('SESSION_CONNECTED').subscribe((e) => {
     aliceSessionId = e.payload;
-    console.log(`   [Network] Alice received and cached Session ID: ${aliceSessionId}`);
+    aliceResumeToken = aliceClient.getResumeToken() || '';
+    console.log(
+      `   [Network] Alice received Session ID: ${aliceSessionId} & Resume Secret: ${aliceResumeToken.slice(0, 12)}...`,
+    );
   });
   
   await aliceClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);
@@ -363,8 +367,8 @@ async function runDemo() {
   console.log('-> Alice regains internet and spins up a new client connection...');
   const aliceReconnectedClient = new SigningRoomClient({ apiUrl: API_URL });
 
-  console.log(`-> Injecting cached Session ID [${aliceSessionId}] prior to joining...`);
-  aliceReconnectedClient.restoreSessionId(aliceSessionId);
+  console.log(`-> Injecting cached Session ID [${aliceSessionId}] & cryptographic Resume Token prior to joining...`);
+  aliceReconnectedClient.restoreSessionId(aliceSessionId, aliceResumeToken);
 
   // Notice we pass the same signerRole token she used originally
   await aliceReconnectedClient.joinRoom(roomInfo.roomId, roomInfo.encryptionKey, signerRole);

@@ -71,11 +71,14 @@ export class EncryptionEngine {
 
   /**
    * Encrypts plain text string data using authenticated 256-bit AES-GCM encryption.
+   * Supports optional Additional Authenticated Data (AAD) to cryptographically bind
+   * ciphertexts to their room context and target field (F6).
    * @param data - The string message content to encrypt.
    * @param key - The base64-encoded 256-bit secret key.
+   * @param aad - Optional Additional Authenticated Data context string (e.g. "roomId|field").
    * @returns A Promise resolving to a single Base64 string containing both the 12-byte random Initialization Vector (IV) and the encrypted ciphertext payload.
    */
-  async encrypt(data: string, key: string): Promise<string> {
+  async encrypt(data: string, key: string, aad?: string): Promise<string> {
     const encoder = new TextEncoder();
     const rawKey = this.base642buf(key);
     const cryptoSubtle = this.getCrypto();
@@ -86,11 +89,11 @@ export class EncryptionEngine {
     ]);
 
     const iv = this.getRandomValues(new Uint8Array(12));
-    const encryptedData = await cryptoSubtle.encrypt(
-      { name: 'AES-GCM', iv },
-      keyBuffer,
-      encoder.encode(data),
-    );
+    const params: AesGcmParams = aad
+      ? { name: 'AES-GCM', iv, additionalData: encoder.encode(aad) }
+      : { name: 'AES-GCM', iv };
+
+    const encryptedData = await cryptoSubtle.encrypt(params, keyBuffer, encoder.encode(data));
 
     const result = new Uint8Array(iv.length + encryptedData.byteLength);
     result.set(iv);
@@ -100,12 +103,15 @@ export class EncryptionEngine {
 
   /**
    * Decrypts a combined IV and ciphertext payload using 256-bit AES-GCM.
+   * Verifies optional Additional Authenticated Data (AAD) context binding (F6).
    * @param encryptedData - The base64 string combining the 12-byte IV and the encrypted payload.
    * @param key - The base64-encoded 256-bit secret key matching the encryption instance.
+   * @param aad - Optional Additional Authenticated Data context string expected on this field.
    * @returns A Promise resolving to the original UTF-8 plain text string.
-   * @throws {Error} If decryption fails, indicating invalid parameters, data tampering, or a key mismatch.
+   * @throws {Error} If decryption fails, indicating invalid parameters, data tampering, context swap, or a key mismatch.
    */
-  async decrypt(encryptedData: string, key: string): Promise<string> {
+  async decrypt(encryptedData: string, key: string, aad?: string): Promise<string> {
+    const encoder = new TextEncoder();
     const rawKey = this.base642buf(key);
     const cryptoSubtle = this.getCrypto();
     const keyBuffer = await cryptoSubtle.importKey(
@@ -120,11 +126,20 @@ export class EncryptionEngine {
     const iv = encryptedArray.slice(0, 12);
     const ciphertext = encryptedArray.slice(12);
 
-    const decryptedData = await cryptoSubtle.decrypt(
-      { name: 'AES-GCM', iv },
-      keyBuffer,
-      ciphertext,
-    );
+    if (aad) {
+      try {
+        const decryptedWithAad = await cryptoSubtle.decrypt(
+          { name: 'AES-GCM', iv, additionalData: encoder.encode(aad) },
+          keyBuffer,
+          ciphertext,
+        );
+        return new TextDecoder().decode(decryptedWithAad);
+      } catch {
+        // Fallback for encrypted payloads directly without AAD
+      }
+    }
+
+    const decryptedData = await cryptoSubtle.decrypt({ name: 'AES-GCM', iv }, keyBuffer, ciphertext);
     return new TextDecoder().decode(decryptedData);
   }
 

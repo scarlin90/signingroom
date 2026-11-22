@@ -36,6 +36,7 @@ vi.mock('./bitcoin/psbt-utils', () => ({
     getThreshold: vi.fn(),
     extractSigners: vi.fn(),
     getFingerprintFromPsbt: vi.fn(),
+    detectProtocol: vi.fn(() => 'standard'),
   },
 }));
 
@@ -199,6 +200,68 @@ describe('SigningRoomClient', () => {
       expect(logSpy).toHaveBeenCalledWith('User Joined', 'Allowed: Unknown (Error/Revoked)');
     });
 
+    it('should handle joinRoom with explicit roleToken and URL-encoded fragments', async () => {
+      const sendSpy = vi.spyOn(client.relay, 'send').mockImplementation((type) => {
+        if (type === 'AUTH_ROLE') {
+          client.relay.events.dispatch('CONSTRAINT_UPDATE' as any, {
+            policyBlob: JSON.stringify({
+              canUploadSignature: false,
+              canExportPsbt: false,
+              canExportAudit: false,
+              canViewDetails: false,
+              canViewSigners: false,
+              canShareSession: false,
+            }),
+          });
+        }
+      });
+      vi.spyOn(client.engine, 'decrypt').mockResolvedValueOnce(
+        JSON.stringify({
+          canUploadSignature: false,
+          canExportPsbt: false,
+          canExportAudit: false,
+          canViewDetails: false,
+          canViewSigners: false,
+          canShareSession: false,
+        }),
+      );
+      vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
+        client.relay.events.dispatch('ROOM_CONNECTED');
+        client.relay.events.dispatch('SESSION_CONNECTED', 'sid-exp');
+        client.relay.events.dispatch('STATE_SYNC_DECRYPTED');
+      });
+
+      await client.joinRoom('room-1', '#my%20key', 'role%20tok');
+      expect(sendSpy).toHaveBeenCalledWith('AUTH_ROLE', { token: 'role+tok' });
+    });
+
+    it('should handle empty/no-op whitelist updates and superseded joinRoom attempts', async () => {
+      await client.updateWhitelist([]);
+      client.store.set({ whitelist: ['addr1'] } as any);
+      await client.updateWhitelist(['missing-addr'], true);
+
+      let resolveFirstJoin!: () => void;
+      const firstJoinGate = new Promise<void>((r) => (resolveFirstJoin = r));
+      let callCount = 0;
+
+      vi.spyOn(client.relay, 'joinRoom').mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          await firstJoinGate;
+        }
+        client.relay.events.dispatch('ROOM_CONNECTED');
+        client.relay.events.dispatch('SESSION_CONNECTED', `sid-${callCount}`);
+        client.relay.events.dispatch('STATE_SYNC_DECRYPTED');
+      });
+
+      const p1 = client.joinRoom('room-1', 'key-1');
+      const p2 = client.joinRoom('room-2', 'key-2');
+      await p2;
+      resolveFirstJoin();
+      await p1;
+      expect(callCount).toBe(2);
+    });
+
     it('should successfully create a room and store keys including the default role token', async () => {
       mockFetch.mockResolvedValue({ ok: true });
       vi.spyOn(client.engine, 'encrypt').mockResolvedValue('mock-encrypted-blob');
@@ -256,7 +319,8 @@ describe('SigningRoomClient', () => {
         'room-id',
         'existing-key',
         '1.2.0',
-        null
+        null,
+        null,
       );
       expect(client.userContext).toContain('sid-2');
       expect(client.currentRoleToken).toBeNull();
@@ -271,7 +335,7 @@ describe('SigningRoomClient', () => {
 
       const logSpy = vi.spyOn(client, 'logParticipantAction').mockResolvedValue(undefined);
 
-      client.restoreSessionId('sid-old');
+      client.restoreSessionId('sid-old', 'resume-token-123');
       await client.joinRoom('room-id', 'existing-key');
 
       expect(joinSpy).toHaveBeenCalledWith(
@@ -279,7 +343,8 @@ describe('SigningRoomClient', () => {
         'room-id',
         'existing-key',
         '1.2.0',
-        'sid-old'
+        'sid-old',
+        'resume-token-123',
       );
       expect(logSpy).toHaveBeenCalledWith('Session Reconnected', 'Legacy Guest Access');
     });
@@ -351,6 +416,7 @@ describe('SigningRoomClient', () => {
 
     it('disconnect triggers graceful closure', () => {
       const spy = vi.spyOn(client.relay, 'gracefullyDisconnect').mockImplementation(() => {});
+      
       client.disconnect();
       expect(spy).toHaveBeenCalledWith(null);
     });
@@ -471,14 +537,15 @@ describe('SigningRoomClient', () => {
       client.store.set(null);
       expect(await client.finalizeTransaction()).toBeNull();
 
-      client.store.set({ psbt: 'xyz' } as any);
+      client.store.set({ psbt: 'xyz', signatures: [] } as any);
       vi.mocked(PsbtUtils.finalizeTx).mockReturnValue(null);
       expect(await client.finalizeTransaction()).toBeNull();
       expect(client.isThresholdMet()).toBe(false);
     });
 
     it('should update storage and broadcast final hex when finalized successfully', async () => {
-      client.store.set({ psbt: 'xyz', auditLog: [] } as any);
+      client.store.set({ psbt: 'xyz', signatures: ['sig1'], auditLog: [] } as any);
+      vi.mocked(PsbtUtils.getThreshold).mockReturnValue(1);
       vi.mocked(PsbtUtils.finalizeTx).mockReturnValue({ hex: '0100', txId: 'txid' });
 
       const broadcastSpy = vi
@@ -840,6 +907,28 @@ describe('SigningRoomClient', () => {
       expect(client.getErrorCategory(1006)).toBe('AUTH_FAILED');
       expect(client.getErrorCategory(9999)).toBe('UNKNOWN');
     });
+
+    it('should attach srl_ license token on createRoom and throw on non-ok response', async () => {
+      client.setLicenseToken('srl_valid_license');
+      vi.spyOn(client.engine, 'encrypt').mockResolvedValue('enc');
+      vi.spyOn(client.engine, 'sha256').mockResolvedValue('hash');
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      await client.createRoom('psbtData', 'bitcoin', 'Room');
+      const bodySent = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(bodySent.licenseToken).toBe('srl_valid_license');
+
+      mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Server error' });
+      await expect(client.createRoom('psbtData', 'bitcoin', 'Room')).rejects.toThrow(
+        'Failed to create room: Server error',
+      );
+    });
+
+    it('should return transaction details from getTransactionDetails when state has psbt', () => {
+      client.store.set({ psbt: 'psbt-b64', network: 'signet', signatures: [] } as any);
+      vi.mocked(PsbtUtils.parseTxDetails).mockReturnValue({ txId: 'tx-signet', fee: 250 } as any);
+      expect(client.getTransactionDetails()).toEqual({ txId: 'tx-signet', fee: 250 });
+    });
   });
 
   describe('Offline License Verification (Static Tools)', () => {
@@ -948,6 +1037,77 @@ describe('SigningRoomClient', () => {
       
       vi.mocked(LicenseCodec.unpack).mockReturnValueOnce(null);
       expect(SigningRoomClient.inspectLicenseToken('srl_bad')).toBeNull();
+    });
+  });
+
+  describe('v2.0.0 MuSig2 & Session Resumption', () => {
+    it('should expose and restore resumeToken across session recovery', () => {
+      expect(client.getResumeToken()).toBeNull();
+      client.restoreSessionId('SID1', 'resume-secret-abc');
+      expect(client.getResumeToken()).toBe('resume-secret-abc');
+    });
+
+    it('should upload nonce and publish aggregate PSBT in MuSig2 ceremonies', async () => {
+      const nonceSpy = vi.spyOn(client.relay, 'uploadNonce').mockImplementation(async () => {
+        client.relay.events.dispatch('NEW_NONCE_DECRYPTED' as any, { fingerprint: 'fp1' });
+      });
+      await client.uploadNonce('nonce-b64', 'fp1');
+      expect(nonceSpy).toHaveBeenCalledWith('nonce-b64', 'fp1', 'Guest (Unknown)');
+
+      const pubSpy = vi
+        .spyOn(client.relay, 'publishAggregatePsbt')
+        .mockImplementation(async () => {
+          client.relay.events.dispatch('AGGREGATE_PSBT_DECRYPTED' as any, 'agg-b64');
+        });
+      await client.publishAggregatePsbt('agg-b64');
+      expect(pubSpy).toHaveBeenCalledWith('agg-b64', 'Guest (Unknown)');
+    });
+
+    it('should aggregate MuSig2 nonces and throw if transientPsbt is absent', async () => {
+      client.store.set({ protocol: 'musig2', transientPsbt: null, nonces: [] } as any);
+      await expect(client.aggregateMuSig2Nonces()).rejects.toThrow(
+        'Cannot aggregate nonces: No transient setup PSBT found in room state.',
+      );
+
+      (PsbtUtils as any).merge = vi.fn(() => 'merged-nonce-psbt');
+      const pubSpy = vi.spyOn(client, 'publishAggregatePsbt').mockResolvedValue();
+
+      client.store.set({
+        protocol: 'musig2',
+        transientPsbt: 'setup-psbt',
+        nonces: ['nonce-1', 'nonce-2'],
+      } as any);
+
+      const result = await client.aggregateMuSig2Nonces();
+      expect(PsbtUtils.merge).toHaveBeenCalledTimes(2);
+      expect(pubSpy).toHaveBeenCalledWith('merged-nonce-psbt');
+      expect(result).toBe('merged-nonce-psbt');
+    });
+
+    it('should dispatch NONCE_THRESHOLD_MET when Round 1 nonces reach threshold', () => {
+      const dispatchSpy = vi.spyOn(client.relay.events, 'dispatch');
+      client.store.set({
+        protocol: 'musig2',
+        psbt: '',
+        nonces: ['n1', 'n2'],
+      } as any);
+      vi.spyOn(client, 'getThreshold').mockReturnValue(2);
+
+      client.relay.events.dispatch('NEW_NONCE_DECRYPTED' as any, {
+        fingerprint: 'fp2',
+        decryptedPsbt: 'n3',
+      });
+
+      expect(dispatchSpy).toHaveBeenCalledWith('NONCE_THRESHOLD_MET', {
+        noncesReceived: 3,
+        threshold: 2,
+      });
+    });
+
+    it('should delegate detectProtocol on both instance and static class', () => {
+      vi.mocked(PsbtUtils.detectProtocol).mockReturnValue('musig2');
+      expect(client.detectProtocol('psbt-data')).toBe('musig2');
+      expect(SigningRoomClient.detectProtocol('psbt-data')).toBe('musig2');
     });
   });
 });

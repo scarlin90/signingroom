@@ -31,6 +31,8 @@ export interface RoomCreationPayload {
     protocolVersion: string;
     /** The base64-encoded encrypted string representation of the descriptive room title. */
     encryptedRoomName: string;
+    /** The protocol execution environment. */
+    protocol?: string;
   };
 }
 
@@ -55,6 +57,7 @@ export class RoomFactory {
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName: string = 'Untitled Room',
     protocolVersion: string = '1.0.0',
+    protocol?: string
   ): Promise<RoomCreationPayload> {
     // Generate core secrets safely depending on environmental capabilities
     const encryptionKey = await engine.generateKey();
@@ -67,10 +70,18 @@ export class RoomFactory {
         ? crypto.randomUUID()
         : this.fallbackUUID();
 
-    // Encrypt payloads using the shared key
-    const encryptedData = await engine.encrypt(rawPsbtBase64, encryptionKey);
+    // Bind initial room ciphertexts to roomId and field type via AES-GCM AAD
+    const encryptedData = await engine.encrypt(
+      rawPsbtBase64,
+      encryptionKey,
+      `room:${roomId}|field:psbt`,
+    );
     const encryptedAdminToken = await engine.encrypt(adminSecret, encryptionKey);
-    const encryptedRoomName = await engine.encrypt(roomName, encryptionKey);
+    const encryptedRoomName = await engine.encrypt(
+      roomName,
+      encryptionKey,
+      `room:${roomId}|field:room_name`,
+    );
     const expectedPass = await engine.blindData(roomId, encryptionKey);
 
     return {
@@ -87,6 +98,7 @@ export class RoomFactory {
         network,
         protocolVersion,
         encryptedRoomName,
+        protocol
       },
     };
   }

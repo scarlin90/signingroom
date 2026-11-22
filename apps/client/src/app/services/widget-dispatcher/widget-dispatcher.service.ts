@@ -17,6 +17,8 @@ import {
   BaseEventContext,
   SecurityAlertPayload,
   AddressLabelledPayload,
+  NonceReceivedPayload,
+  NoncesAggregatedPayload
 } from '../../models/widget-events.model';
 
 @Injectable({
@@ -228,5 +230,39 @@ export class WidgetDispatcherService {
 
   emitPolicyViolation(message: string): void {
     this.dispatchEvent('policyViolation', { message });
+  }
+
+  // --- Musig2 Events ---
+
+  emitNonceReceived(
+    fingerprint: string,
+    noncesReceived: number,
+    threshold: number,
+    signerLabel?: string,
+    signerSessionId?: string,
+    signerName?: string,
+  ): void {
+    const payload: NonceReceivedPayload = {
+      fingerprint,
+      signerLabel,
+      signerSessionId,
+      signerName,
+      noncesReceived,
+      threshold,
+    };
+    this.dispatchEvent('nonceReceived', payload);
+  }
+
+  emitNoncesAggregated(
+    phase: NoncesAggregatedPayload['phase'],
+    noncesReceived: number,
+    threshold: number,
+  ): void {
+    const payload: NoncesAggregatedPayload = {
+      phase,
+      noncesReceived,
+      threshold,
+    };
+    this.dispatchEvent('noncesAggregated', payload);
   }
 }

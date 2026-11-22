@@ -1,7 +1,21 @@
-import { Transaction, getInputType, NETWORK, TEST_NETWORK, Address } from '@scure/btc-signer';
+import { Transaction, getInputType, NETWORK, TEST_NETWORK, Address, utils } from '@scure/btc-signer';
+import * as musig2 from '@scure/btc-signer/musig2.js';
+import { tagSchnorr } from '@scure/btc-signer/utils.js';
 import { base64, hex } from '@scure/base';
 import { bech32, bech32m } from '@scure/base';
 
+// BIP 373 MuSig2 Proprietary Field Constants
+export const MUSIG2_FIELDS = {
+  PARTICIPANT_PUBKEYS: 0x1a,
+  PUB_NONCE: 0x1b,
+  PARTIAL_SIG: 0x1c
+} as const;
+
+export interface ExtractedNonce {
+  participantPubKey: string;
+  aggregatePubKey: string;
+  publicNonce: string; // 66-byte hex
+}
 
 export interface TxDerivationInfo {
     path: string;
@@ -63,6 +77,8 @@ export interface SignerStatus {
   fingerprint: string;
   /** Indicates whether a valid partial signature exists from this participant. */
   signed: boolean;
+  /** Indicates whether a MuSig2 public nonce (0x1b) has been provided by this participant. */
+  hasNonce: boolean;
   /** Unique derivation paths and spend types authorized or required by this participant. */
   derivationPaths: DerivationPathSummary[];
 }
@@ -128,16 +144,19 @@ export class PsbtUtils {
 
   /**
    * Cryptographically merges two distinct PSBT payloads sharing the same underlying transaction state.
-   * Used to aggregate isolated participant signatures into a unified transaction map.
+   * Used to aggregate isolated participant signatures/nonces into a unified transaction map.
    * 
    * @param base - The primary Base64 PSBT payload.
    * @param next - The secondary Base64 PSBT payload containing parallel signatures.
    * @returns A new Base64 PSBT string containing the combined signatures, or the original base on failure.
    */
   static merge(base: string, next: string): string {
+    if (!base || !base.trim()) return next ? this.normalize(next) : '';
+    if (!next || !next.trim()) return this.normalize(base);
     try {
-      const txBase = Transaction.fromPSBT(this.decode(base));
-      const txNext = Transaction.fromPSBT(this.decode(next));
+      const opts = { allowUnknownInputs: true, allowUnknownOutputs: true };
+      const txBase = Transaction.fromPSBT(this.decode(base), opts);
+      const txNext = Transaction.fromPSBT(this.decode(next), opts);
       txBase.combine(txNext);
       return base64.encode(txBase.toPSBT());
     } catch (e) {
@@ -156,21 +175,50 @@ export class PsbtUtils {
    */
   static getThreshold(psbtBase64: string): number {
     try {
-      const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
+      const tx = Transaction.fromPSBT(this.decode(psbtBase64), { allowUnknownInputs: true, allowUnknownOutputs: true });
 
       let maxThreshold = 0;
       let unknownInputs = 0;
 
       for (let i = 0; i < tx.inputsLength; i++) {
-        const input = tx.getInput(i);
+        const input = tx.getInput(i) as any;
         if (!input) continue;
 
         let inputThreshold = 0;
 
+        // 0. BIP-373 MuSig2 Participant Pubkeys (N-of-N for all participants in the aggregate key)
+        if (input.musig2ParticipantPubkeys && input.musig2ParticipantPubkeys.length > 0) {
+          for (const entry of input.musig2ParticipantPubkeys) {
+            // Native @scure/btc-signer shape: [aggregatePubkey, [participant1, participant2, ...]]
+            const participants = Array.isArray(entry) ? entry[1] : entry?.participants;
+            if (Array.isArray(participants) && participants.length > inputThreshold) {
+              inputThreshold = participants.length;
+            } else if (participants instanceof Uint8Array) {
+              // Raw byte buffer fallback (concatenated 33-byte pubkeys)
+              const count = Math.floor(participants.length / 33);
+              if (count > inputThreshold) inputThreshold = count;
+            }
+          }
+        }
+
+        // Fallback: Check raw unknown fields for 0x1a (PSBT_IN_MUSIG2_PARTICIPANT_PUBKEYS)
+        if (inputThreshold === 0 && input.unknown) {
+          for (const u of input.unknown) {
+            const anyU = u as any;
+            const keyBytes = anyU.key || anyU[0]?.key || (anyU[0] instanceof Uint8Array ? anyU[0] : null);
+            const valBytes = anyU.value || anyU[1];
+            if (keyBytes && keyBytes[0] === MUSIG2_FIELDS.PARTICIPANT_PUBKEYS && valBytes instanceof Uint8Array) {
+              const count = Math.floor(valBytes.length / 33);
+              if (count > inputThreshold) inputThreshold = count;
+            }
+          }
+        }
+
         // 1. Legacy SegWit / P2SH multisig
         const legacyScript = input.witnessScript || input.redeemScript;
         if (legacyScript && legacyScript.length > 0) {
-          inputThreshold = this.extractThresholdFromScript(legacyScript);
+          const legacyReq = this.extractThresholdFromScript(legacyScript);
+          if (legacyReq > inputThreshold) inputThreshold = legacyReq;
         }
 
         // 2. Taproot script-path – take the highest threshold among all leaves
@@ -178,8 +226,6 @@ export class PsbtUtils {
           let highestLeaf = 0;
 
           for (const leaf of input.tapLeafScript) {
-            // leaf is typically [controlBlock, scriptWithVersion]
-            // scriptWithVersion = script bytes + 1-byte leaf version at the end
             const rawValue = (leaf as any)[1] as Uint8Array | undefined;
             if (!rawValue || rawValue.length < 2) continue;
 
@@ -192,14 +238,19 @@ export class PsbtUtils {
           if (highestLeaf > inputThreshold) inputThreshold = highestLeaf;
         }
 
-        // 3. Pure Taproot key-path (no leaves)
+        // 3. Pure Taproot key-path (no leaves, non-MuSig2)
         if (
           inputThreshold === 0 &&
           (!input.tapLeafScript || input.tapLeafScript.length === 0) &&
           input.tapBip32Derivation &&
           input.tapBip32Derivation.length > 0
         ) {
-          inputThreshold = 1;
+          // If multiple derivations exist without leaf hashes, use the derivation count, otherwise 1
+          const keypathDerivations = input.tapBip32Derivation.filter(([, meta]: any) => {
+            const hashes = meta?.hashes || [];
+            return hashes.length === 0;
+          });
+          inputThreshold = keypathDerivations.length > 1 ? keypathDerivations.length : 1;
         }
 
         if (inputThreshold > 0) {
@@ -218,68 +269,124 @@ export class PsbtUtils {
   }
 
   /**
-   * Identifies the primary signer's master key fingerprint associated with the first detected partial signature.
-   * Works across Legacy, Segwit, and Taproot.
-   * 
-   * @param psbtData - The normalized Base64 PSBT payload.
-   * @returns The 8-character hex fingerprint string, or null if no valid signature mapping is found.
+   * Identifies the primary signer's master key fingerprint associated with the first detected payload.
+   * Works across Legacy, Segwit, Taproot, and MuSig2 (Round 1 Nonces & Round 2 Partial Sigs).
    */
   static getFingerprintFromPsbt(psbtData: string): string | null {
-    try {
-      const bytes = this.decode(psbtData);
-      const tx = Transaction.fromPSBT(bytes);
+  try {
+    const bytes = this.decode(psbtData);
+    const tx = Transaction.fromPSBT(bytes, {
+      allowUnknownInputs: true,
+      allowUnknownOutputs: true,
+    });
 
-      for (let i = 0; i < tx.inputsLength; i++) {
-        const input = tx.getInput(i);
+    for (let i = 0; i < tx.inputsLength; i++) {
+      const input = tx.getInput(i) as any;
 
-        // 1. Legacy ECDSA Signatures
-        if (input.partialSig && input.partialSig.length > 0) {
-          const pubkeySigned = input.partialSig[0][0];
-          if (input.bip32Derivation) {
-            for (const [pubkey, meta] of input.bip32Derivation) {
-              if (this.areKeysEqual(pubkey, pubkeySigned)) {
+      const findFingerprintForPubkey = (participantPubKey: Uint8Array): string | null => {
+        if (input.tapBip32Derivation) {
+          for (const [pubkey, meta] of input.tapBip32Derivation) {
+            if (this.areKeysEqual(pubkey, participantPubKey)) {
+              const derInfo = (meta as any).der || meta;
+              const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
+              if (fp != null) return fp.toString(16).padStart(8, '0');
+            }
+          }
+        }
+        if (input.bip32Derivation) {
+          for (const [pubkey, meta] of input.bip32Derivation) {
+            if (this.areKeysEqual(pubkey, participantPubKey)) {
+              if (meta?.fingerprint != null) {
                 return meta.fingerprint.toString(16).padStart(8, '0');
               }
             }
           }
         }
+        return null;
+      };
 
-        // 2. Taproot Script Path Signatures
-        if (input.tapScriptSig && input.tapScriptSig.length > 0) {
-          const sigEntry = input.tapScriptSig[0] as any;
-          const pubkeySigned = sigEntry.pubkey || (sigEntry[0] && sigEntry[0].pubKey);
+      const tryExtractFromMuSig2Entries = (entries: any[] | undefined): string | null => {
+        if (!entries?.length) return null;
 
-          if (pubkeySigned && input.tapBip32Derivation) {
-            for (const [pubkey, meta] of input.tapBip32Derivation) {
-              if (this.areKeysEqual(pubkey, pubkeySigned)) {
-                const derInfo = (meta as any).der || meta;
-                const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
-                if (fp != null) {
-                  return fp.toString(16).padStart(8, '0');
-                }
-              }
-            }
+        for (const entry of entries) {
+          let participantKey: Uint8Array | null = null;
+
+          // Native scure shape: [MuSig2Key, value]
+          if (Array.isArray(entry) && entry[0]?.participantPubkey instanceof Uint8Array) {
+            participantKey = entry[0].participantPubkey;
+          }
+          // Fallback: raw key bytes
+          else if (Array.isArray(entry) && entry[0] instanceof Uint8Array && entry[0].length >= 33) {
+            participantKey = entry[0].slice(0, 33);
+          }
+          // Fallback: { key, value }
+          else if (entry?.key?.participantPubkey instanceof Uint8Array) {
+            participantKey = entry.key.participantPubkey;
+          } else if (entry?.key instanceof Uint8Array && entry.key.length >= 33) {
+            participantKey = entry.key.slice(0, 33);
+          }
+
+          if (participantKey) {
+            const fp = findFingerprintForPubkey(participantKey);
+            if (fp) return fp;
           }
         }
+        return null;
+      };
 
-        // 3. Taproot Keypath Signatures
-        if (input.tapKeySig && input.tapInternalKey && input.tapBip32Derivation) {
-          for (const [pubkey, meta] of input.tapBip32Derivation) {
-            if (this.areKeysEqual(pubkey, input.tapInternalKey)) {
-              const derInfo = (meta as any).der || meta;
-              const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
-              if (fp != null) {
-                return fp.toString(16).padStart(8, '0');
-              }
+      // --- 1. MuSig2 Native Fields ---
+      if (input.musig2PubNonce) {
+        const fp = tryExtractFromMuSig2Entries(input.musig2PubNonce);
+        if (fp) return fp;
+      }
+      if (input.musig2PartialSig) {
+        const fp = tryExtractFromMuSig2Entries(input.musig2PartialSig);
+        if (fp) return fp;
+      }
+
+      // --- 2. Legacy ECDSA Signatures ---
+      if (input.partialSig && input.partialSig.length > 0) {
+        const pubkeySigned = input.partialSig[0][0];
+        if (input.bip32Derivation) {
+          for (const [pubkey, meta] of input.bip32Derivation) {
+            if (this.areKeysEqual(pubkey, pubkeySigned)) {
+              return meta.fingerprint.toString(16).padStart(8, '0');
             }
           }
         }
       }
-      return null;
-    } catch (e) {
-      return null;
+
+      // --- 3. Taproot Script Path Signatures ---
+      if (input.tapScriptSig && input.tapScriptSig.length > 0) {
+        const sigEntry = input.tapScriptSig[0] as any;
+        const pubkeySigned = sigEntry.pubkey || (sigEntry[0] && sigEntry[0].pubKey);
+        if (pubkeySigned && input.tapBip32Derivation) {
+          for (const [pubkey, meta] of input.tapBip32Derivation) {
+            if (this.areKeysEqual(pubkey, pubkeySigned)) {
+              const derInfo = (meta as any).der || meta;
+              const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
+              if (fp != null) return fp.toString(16).padStart(8, '0');
+            }
+          }
+        }
+      }
+
+      // --- 4. Taproot Keypath Signatures ---
+      if (input.tapKeySig && input.tapInternalKey && input.tapBip32Derivation) {
+        for (const [pubkey, meta] of input.tapBip32Derivation) {
+          if (this.areKeysEqual(pubkey, input.tapInternalKey)) {
+            const derInfo = (meta as any).der || meta;
+            const fp = derInfo?.fingerprint ?? derInfo?.masterFingerprint;
+            if (fp != null) return fp.toString(16).padStart(8, '0');
+          }
+        }
+      }
     }
+    return null;
+  } catch (e) {
+    return null;
   }
+}
 
   /**
    * Scans a PSBT to map all expected participants and evaluates their current signature state.
@@ -288,23 +395,25 @@ export class PsbtUtils {
    * @param psbtBase64 - The normalized Base64 PSBT payload.
    * @returns An array mapping participant fingerprints to their active signed status.
    */
-static extractSigners(psbtBase64: string): SignerStatus[] {
+    static extractSigners(psbtBase64: string): SignerStatus[] {
     try {
-      const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
-      const signersMap = new Map<string, { signed: boolean; paths: Map<string, DerivationPathSummary> }>();
+      const tx = Transaction.fromPSBT(this.decode(psbtBase64), { allowUnknownInputs: true, allowUnknownOutputs: true });
+      const signersMap = new Map<string, { signed: boolean; hasNonce: boolean; paths: Map<string, DerivationPathSummary> }>();
 
       for (let i = 0; i < tx.inputsLength; i++) {
-        const input = tx.getInput(i);
+        const input = tx.getInput(i) as any;
 
         const processDerivation = (pubkey: Uint8Array, fp: any, pathArray: number[], spendType: DerivationPathSummary['spendType']) => {
           if (fp == null) return;
           const fpHex = fp.toString(16).padStart(8, '0');
           const pubkeyHex = hex.encode(pubkey);
           let isSigned = false;
+          let hasNonce = false;
 
+          // --- Check Signatures ---
           // Legacy / Segwit
           if (input.partialSig) {
-            isSigned = input.partialSig.some((p) => this.areKeysEqual(p[0], pubkey));
+            isSigned = input.partialSig.some((p: any) => this.areKeysEqual(p[0], pubkey));
           }
           // Tapscript Schnorr
           if (!isSigned && input.tapScriptSig) {
@@ -317,13 +426,54 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
           if (!isSigned && input.tapKeySig && input.tapInternalKey) {
             if (this.areKeysEqual(input.tapInternalKey, pubkey)) isSigned = true;
           }
+          // MuSig2 Partial Signature (Native)
+          if (!isSigned && input.musig2PartialSig) {
+            isSigned = input.musig2PartialSig.some((p: any) => {
+              const key = p[0];
+              const participant =
+                key?.participantPubkey ??
+                (key instanceof Uint8Array ? key.slice(0, 33) : null);
+              return participant ? this.areKeysEqual(participant, pubkey) : false;
+            });
+          }
+          // MuSig2 Partial Signature (Fallback)
+          if (!isSigned && input.unknown) {
+            isSigned = input.unknown.some((u: any) => {
+              const keyBytes = u.key || u[0]?.key || (u[0] instanceof Uint8Array ? u[0] : null);
+              if (keyBytes && keyBytes[0] === MUSIG2_FIELDS.PARTIAL_SIG && keyBytes.length >= 34) {
+                return this.areKeysEqual(keyBytes.slice(1, 34), pubkey);
+              }
+              return false;
+            });
+          }
+
+          // --- Check MuSig2 Public Nonces (Round 1) ---
+          if (input.musig2PubNonce) {
+            hasNonce = input.musig2PubNonce.some((p: any) => {
+              const key = p[0];
+              const participant =
+                key?.participantPubkey ??
+                (key instanceof Uint8Array ? key.slice(0, 33) : null);
+              return participant ? this.areKeysEqual(participant, pubkey) : false;
+            });
+          }
+          if (!hasNonce && input.unknown) {
+            hasNonce = input.unknown.some((u: any) => {
+              const keyBytes = u.key || u[0]?.key || (u[0] instanceof Uint8Array ? u[0] : null);
+              if (keyBytes && keyBytes[0] === MUSIG2_FIELDS.PUB_NONCE && keyBytes.length >= 34) {
+                return this.areKeysEqual(keyBytes.slice(1, 34), pubkey);
+              }
+              return false;
+            });
+          }
 
           if (!signersMap.has(fpHex)) {
-            signersMap.set(fpHex, { signed: false, paths: new Map() });
+            signersMap.set(fpHex, { signed: false, hasNonce: false, paths: new Map() });
           }
           
           const current = signersMap.get(fpHex)!;
           current.signed = current.signed || isSigned;
+          current.hasNonce = current.hasNonce || hasNonce;
           
           const uniqueOriginKey = `${pubkeyHex}-${spendType}`;
           
@@ -345,10 +495,10 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
         }
 
         if (input.tapBip32Derivation) {
-        for (const [pubkey, meta] of input.tapBip32Derivation) {
-          const derInfo = (meta as any).der || meta;
-          const leafHashes = (meta as any).hashes || [];
-          const type = leafHashes.length > 0 ? 'Tapscript Leaf' : 'Taproot Key Path';
+          for (const [pubkey, meta] of input.tapBip32Derivation) {
+            const derInfo = (meta as any).der || meta;
+            const leafHashes = (meta as any).hashes || [];
+            const type = leafHashes.length > 0 ? 'Tapscript Leaf' : 'Taproot Key Path';
             
             processDerivation(pubkey, derInfo?.fingerprint ?? derInfo?.masterFingerprint, derInfo?.path || [], type);
           }
@@ -358,6 +508,7 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
       return Array.from(signersMap.entries()).map(([fp, data]) => ({
         fingerprint: fp,
         signed: data.signed,
+        hasNonce: data.hasNonce,
         derivationPaths: Array.from(data.paths.values())
       }));
     } catch (e) {
@@ -499,7 +650,89 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
    */
   static finalizeTx(psbtBase64: string): { hex: string; txId: string } | null {
     try {
-      const tx = Transaction.fromPSBT(this.decode(psbtBase64));
+      const tx = Transaction.fromPSBT(this.decode(psbtBase64), {
+        allowUnknownInputs: true,
+        allowUnknownOutputs: true,
+      });
+
+      // Collect all input prevOut scripts and amounts (required by BIP-341 Taproot sighash)
+      const prevOutScripts: Uint8Array[] = [];
+      const prevOutAmounts: bigint[] = [];
+      for (let i = 0; i < tx.inputsLength; i++) {
+        const prev = this.getPrevOut(tx.getInput(i));
+        prevOutScripts.push(prev?.script ?? new Uint8Array());
+        prevOutAmounts.push(prev?.amount ?? BigInt(0));
+      }
+
+      for (let i = 0; i < tx.inputsLength; i++) {
+        const input = tx.getInput(i) as any;
+
+        // If this input has BIP-373 MuSig2 partial signatures (0x1c)
+        if (!input.tapKeySig && input.musig2PartialSig?.length > 0) {
+          if (!input.musig2ParticipantPubkeys?.length || !input.musig2PubNonce?.length) {
+            return null;
+          }
+
+          // Extract the ordered participant 33-byte public keys from 0x1a
+          const firstEntry = input.musig2ParticipantPubkeys[0];
+          const participants: Uint8Array[] = Array.isArray(firstEntry)
+            ? firstEntry[1]
+            : firstEntry?.participants;
+
+          if (!Array.isArray(participants) || participants.length === 0) return null;
+          if (input.musig2PartialSig.length < participants.length) return null;
+          if (input.musig2PubNonce.length < participants.length) return null;
+
+          // Align nonces (0x1b) and partial sigs (0x1c) to the exact participant order
+          const orderedNonces: Uint8Array[] = [];
+          const orderedSigs: Uint8Array[] = [];
+
+          for (const partPub of participants) {
+            const nonceEntry = input.musig2PubNonce.find((e: any) => {
+              const pKey = e[0]?.participantPubkey ?? (e[0] instanceof Uint8Array ? e[0].slice(0, 33) : null);
+              return pKey && this.areKeysEqual(pKey, partPub);
+            });
+            const sigEntry = input.musig2PartialSig.find((e: any) => {
+              const pKey = e[0]?.participantPubkey ?? (e[0] instanceof Uint8Array ? e[0].slice(0, 33) : null);
+              return pKey && this.areKeysEqual(pKey, partPub);
+            });
+
+            if (!nonceEntry || !sigEntry) return null;
+            orderedNonces.push(nonceEntry[1] ?? nonceEntry.value);
+            orderedSigs.push(sigEntry[1] ?? sigEntry.value);
+          }
+
+          // Compute the BIP-341 TapTweak scalar using scure's tagSchnorr
+          const untweakedXOnly = musig2.keyAggExport(musig2.keyAggregate(participants));
+          const merkleRoot: Uint8Array | undefined = input.tapMerkleRoot;
+          const tweakScalar =
+            merkleRoot && merkleRoot.length > 0
+              ? tagSchnorr('TapTweak', untweakedXOnly, merkleRoot)
+              : tagSchnorr('TapTweak', untweakedXOnly);
+
+          // Compute the native BIP-341 Taproot Keypath Sighash via scure's preimageWitnessV1
+          const sighash = (tx as any).preimageWitnessV1(
+            i,
+            prevOutScripts,
+            0x00, // SIGHASH_DEFAULT
+            prevOutAmounts,
+          );
+
+          // Aggregate nonces and partial signatures via scure's BIP-327 Session
+          const aggNonce = musig2.nonceAggregate(orderedNonces);
+          const session = new musig2.Session(
+            aggNonce,
+            participants,
+            sighash,
+            [tweakScalar],
+            [true], // isXonly = true for BIP-341 Taproot tweak
+          );
+
+          const finalSchnorrSig = session.partialSigAgg(orderedSigs);
+          tx.updateInput(i, { tapKeySig: finalSchnorrSig });
+        }
+      }
+
       tx.finalize();
       return { hex: hex.encode(tx.extract()), txId: tx.id };
     } catch (e) {
@@ -965,5 +1198,163 @@ static extractSigners(psbtBase64: string): SignerStatus[] {
       return isHardened ? `${value}'` : `${value}`;
     });
     return `m/${path.join('/')}`;
+  }
+
+  static detectProtocol(psbtBase64: string): 'standard' | 'musig2' {
+    try {
+      const tx = Transaction.fromPSBT(this.decode(psbtBase64), {
+        allowUnknownInputs: true,
+        allowUnknownOutputs: true,
+      });
+
+      for (let i = 0; i < tx.inputsLength; i++) {
+        const input = tx.getInput(i) as any;
+
+        if (
+          (input.musig2ParticipantPubkeys?.length > 0) ||
+          (input.musig2PubNonce?.length > 0) ||
+          (input.musig2PartialSig?.length > 0)
+        ) {
+          return 'musig2';
+        }
+
+        // very old scure fallback
+        if (input.unknown?.some((u: any) => {
+          const k = u.key || u[0]?.key || u[0];
+          return k && (k[0] === 0x1a || k[0] === 0x1b || k[0] === 0x1c);
+        })) {
+          return 'musig2';
+        }
+      }
+      return 'standard';
+    } catch {
+      return 'standard';
+    }
+  }
+
+  static extractPublicNonces(psbtBase64: string): ExtractedNonce[] {
+    const extracted: ExtractedNonce[] = [];
+    try {
+      const tx = Transaction.fromPSBT(this.decode(psbtBase64), {
+        allowUnknownInputs: true,
+        allowUnknownOutputs: true,
+      });
+
+      for (let i = 0; i < tx.inputsLength; i++) {
+        const input = tx.getInput(i) as any;
+
+        if (input.musig2PubNonce) {
+          for (const entry of input.musig2PubNonce) {
+            const key = entry[0];
+            const valueBytes = entry[1];
+
+            // Native scure shape
+            if (key?.participantPubkey && key?.aggregatePubkey && valueBytes) {
+              extracted.push({
+                participantPubKey: hex.encode(key.participantPubkey),
+                aggregatePubKey: hex.encode(key.aggregatePubkey),
+                publicNonce: hex.encode(valueBytes),
+              });
+              continue;
+            }
+
+            // Fallback: raw key bytes
+            const keyBytes = key instanceof Uint8Array ? key : entry.key;
+            if (keyBytes instanceof Uint8Array && keyBytes.length >= 66 && valueBytes) {
+              extracted.push({
+                participantPubKey: hex.encode(keyBytes.slice(0, 33)),
+                aggregatePubKey: hex.encode(keyBytes.slice(33, 66)),
+                publicNonce: hex.encode(valueBytes),
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[PsbtUtils] Failed to extract nonces', e);
+    }
+    return extracted;
+  }
+
+  /**
+   * Inspects an uploaded PSBT payload to validate phase-specific ceremony rules.
+   */
+  static inspectCeremonyPayload(psbtBase64: string): {
+    isValidPsbt: boolean;
+    txId: string | null;
+    hasMuSig2Nonce: boolean;
+    hasMuSig2PartialSig: boolean;
+    hasStandardSig: boolean;
+    nonceFingerprints: string[];
+    signedFingerprints: string[];
+  } {
+    try {
+      const tx = Transaction.fromPSBT(this.decode(psbtBase64), {
+        allowUnknownInputs: true,
+        allowUnknownOutputs: true,
+      });
+
+      let hasMuSig2Nonce = false;
+      let hasMuSig2PartialSig = false;
+      let hasStandardSig = false;
+
+      for (let i = 0; i < tx.inputsLength; i++) {
+        const input = tx.getInput(i) as any;
+
+        if (input.musig2PubNonce?.length > 0) hasMuSig2Nonce = true;
+        if (input.musig2PartialSig?.length > 0) hasMuSig2PartialSig = true;
+
+        if (input.unknown?.length > 0) {
+          for (const u of input.unknown) {
+            const keyBytes = u.key || u[0]?.key || (u[0] instanceof Uint8Array ? u[0] : null);
+            if (keyBytes?.length > 0) {
+              if (keyBytes[0] === 0x1b) hasMuSig2Nonce = true;
+              if (keyBytes[0] === 0x1c) hasMuSig2PartialSig = true;
+            }
+          }
+        }
+
+        if (
+          input.partialSig?.length > 0 ||
+          input.tapScriptSig?.length > 0 ||
+          !!input.tapKeySig ||
+          !!input.finalScriptWitness ||
+          !!input.finalScriptSig
+        ) {
+          hasStandardSig = true;
+        }
+      }
+
+      const signers = this.extractSigners(psbtBase64);
+      const nonceFingerprints = signers.filter((s) => s.hasNonce).map((s) => s.fingerprint);
+      const signedFingerprints = signers.filter((s) => s.signed).map((s) => s.fingerprint);
+
+      let txId: string | null = null;
+      try {
+        txId = tx.id;
+      } catch {
+        txId = this.parseTxDetails(psbtBase64)?.txId ?? null;
+      }
+
+      return {
+        isValidPsbt: true,
+        txId,
+        hasMuSig2Nonce,
+        hasMuSig2PartialSig,
+        hasStandardSig,
+        nonceFingerprints,
+        signedFingerprints,
+      };
+    } catch {
+      return {
+        isValidPsbt: false,
+        txId: null,
+        hasMuSig2Nonce: false,
+        hasMuSig2PartialSig: false,
+        hasStandardSig: false,
+        nonceFingerprints: [],
+        signedFingerprints: [],
+      };
+    }
   }
 }

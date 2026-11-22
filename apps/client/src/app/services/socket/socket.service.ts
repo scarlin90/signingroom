@@ -3,7 +3,7 @@
  * Licensed under the GNU Affero General Public License v3.0
  */
 
-import { Injectable, Inject, PLATFORM_ID, signal, computed } from '@angular/core';
+import { Injectable, Inject, PLATFORM_ID, signal, computed, effect } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import {
   SigningRoomClient,
@@ -31,6 +31,7 @@ export class SocketService {
   private fallbackVersion: string | null = null;
   private failedKeyAttempts = 0;
   private encryptionKey: string | null = null;
+  private readonly ADDRESS_BOOK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 Day
 
   public isBrowser: boolean;
 
@@ -44,6 +45,7 @@ export class SocketService {
     this.relay = this.sdk.relay;
     this.store = this.sdk.store;
     this.encryptionEngine = this.sdk.engine;
+    this.purgeExpiredAddressBook();
     this.registerEventlisteners();
   }
 
@@ -58,10 +60,14 @@ export class SocketService {
 
     this.relay.events.on('SESSION_CONNECTED').subscribe((e) => {
       this.currentSessionId.set(e.payload);
-      
+
       const roomId = this.roomState()?.roomId;
+      const resumeToken = this.sdk.getResumeToken();
       if (roomId && this.isBrowser) {
         sessionStorage.setItem(`session_id_${roomId}`, e.payload);
+        if (resumeToken) {
+          sessionStorage.setItem(`resume_token_${roomId}`, resumeToken);
+        }
       }
     });
 
@@ -91,7 +97,6 @@ export class SocketService {
       this.store.update((s) => (s ? { ...s, signerLabels: e.payload } : null));
     });
 
-    // ---> ADDED: Listen for the new Address Labels event to satisfy the tests
     this.relay.events.on('ADDRESS_LABELS_DECRYPTED' as any).subscribe((e) => {
       this.store.update((s) => (s ? { ...s, addressLabels: e.payload } : null));
     });
@@ -182,6 +187,14 @@ export class SocketService {
       const syncData = event.payload;
       const hasAdminToken = !!sessionStorage.getItem(`admin_token_${syncData.roomId}`);
 
+      if (this.isBrowser && this.currentSessionId()) {
+        sessionStorage.setItem(`session_id_${syncData.roomId}`, this.currentSessionId()!);
+        const resumeToken = this.sdk.getResumeToken();
+        if (resumeToken) {
+          sessionStorage.setItem(`resume_token_${syncData.roomId}`, resumeToken);
+        }
+      }
+
       if (syncData.strictRoles && !hasAdminToken && !this.sdk.currentRoleToken) {
         this.decryptionError.set('Strict Mode Active: A valid role token is required to enter this room.');
         this.setRoomKey(null);
@@ -216,15 +229,6 @@ export class SocketService {
     this.relay.events.on('NEW_PARTIAL_DECRYPTED').subscribe((event) => {
       const { decryptedPsbt, fingerprint, sessionId } = event.payload;
 
-      this.store.update((current) => {
-        if (!current) return null;
-        return {
-          ...current,
-          psbt: this.mergePsbts(current.psbt, decryptedPsbt),
-          signatures: [...current.signatures, decryptedPsbt],
-        };
-      });
-
       if (fingerprint && sessionId) {
         this.networkSignatureReceived$.next({ fingerprint, sessionId });
       }
@@ -242,6 +246,10 @@ export class SocketService {
         this.hasAnnouncedJoin = true;
       }
 
+      if (newRole === 'admin' && this.ceremonyPhase() === 'AGGREGATING_NONCES') {
+        this.aggregateMuSig2Nonces();
+      }
+
       if (newRole === 'admin' && !this.hasSyncedLocalAddressBook) {
         this.hasSyncedLocalAddressBook = true;
         setTimeout(() => {
@@ -249,6 +257,35 @@ export class SocketService {
           this.checkAndApplyLocalAddressLabels();
         }, 50);
       }
+    });
+
+    this.relay.events.on('NONCE_THRESHOLD_MET' as any).subscribe(() => {
+      if (this.isCoordinator()) {
+        this.aggregateMuSig2Nonces();
+      }
+    });
+
+    this.relay.events.on('NEW_NONCE_DECRYPTED' as any).subscribe((event: any) => {
+      const { decryptedPsbt } = event.payload;
+      this.store.update((current) => {
+        if (!current) return null;
+        const existing = current.nonces || [];
+        if (existing.includes(decryptedPsbt)) return current;
+        return {
+          ...current,
+          nonces: [...existing, decryptedPsbt],
+        };
+      });
+    });
+
+    this.relay.events.on('AGGREGATE_PSBT_DECRYPTED' as any).subscribe((event: any) => {
+      this.store.update((current) => {
+        if (!current) return null;
+        return {
+          ...current,
+          psbt: event.payload,
+        };
+      });
     });
   }
 
@@ -291,8 +328,9 @@ export class SocketService {
       let isReconnecting = false;
       if (this.isBrowser) {
         const savedSessionId = sessionStorage.getItem(`session_id_${roomId}`);
-        if (savedSessionId) {
-          this.sdk.restoreSessionId(savedSessionId);
+        const savedResumeToken = sessionStorage.getItem(`resume_token_${roomId}`);
+        if (savedSessionId && savedResumeToken) {
+          this.sdk.restoreSessionId(savedSessionId, savedResumeToken);
           isReconnecting = true;
         }
       }
@@ -341,8 +379,9 @@ export class SocketService {
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName: string = 'Untitled Room',
+    protocol?: string
   ) {
-    return await this.sdk.createRoom(psbtBase64, network, roomName);
+    return await this.sdk.createRoom(psbtBase64, network, roomName, protocol);
   }
 
   public async renameRoom(name: string) {
@@ -413,22 +452,128 @@ export class SocketService {
     return await this.sdk.getAuditLogPdf(options);
   }
 
-  getLocalLabel(fingerprint: string): string | null {
-    return localStorage.getItem(`addr_book_${fingerprint}`);
+  /**
+   * Proactively sweeps and deletes any expired localStorage address book entries on app startup,
+   * rather than waiting for a specific fingerprint or address to be read again.
+   */
+  public purgeExpiredAddressBook(): void {
+    if (!this.isBrowser) return;
+
+    if (
+      typeof localStorage === 'undefined' ||
+      !localStorage ||
+      typeof localStorage.key !== 'function'
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+    const keysToRemove: string[] = [];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('addr_book_')) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.expiresAt === 'number' && now > parsed.expiresAt) {
+            keysToRemove.push(key);
+          }
+        } catch {
+          // Legacy entry without expiresAt: remove to enforce strict TTL hygiene
+          keysToRemove.push(key);
+        }
+      }
+    }
+
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
   }
 
-  saveToAddressBook(fingerprint: string, label: string) {
-    localStorage.setItem(`addr_book_${fingerprint}`, label);
+  /**
+   * Wipes all saved signer and address labels from both sessionStorage and localStorage.
+   */
+  public clearAllAddressBookEntries(): void {
+    if (!this.isBrowser) return;
+    for (const storage of [localStorage, sessionStorage]) {
+      const keys: string[] = [];
+      for (let i = 0; i < storage.length; i++) {
+        const k = storage.key(i);
+        if (k && k.startsWith('addr_book_')) keys.push(k);
+      }
+      keys.forEach((k) => storage.removeItem(k));
+    }
+  }
+
+  private readEntryWithTtl(key: string): { label: string; ttlDays: 0 | 1 | 7 | 30 } | null {
+    if (!this.isBrowser) return null;
+
+    // Check ephemeral sessionStorage first (wiped automatically by browser on tab close)
+    const sessionVal = sessionStorage.getItem(key);
+    if (sessionVal) {
+      return { label: sessionVal, ttlDays: 0 };
+    }
+
+    // Check TTL-bound localStorage
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && 'label' in parsed && 'expiresAt' in parsed) {
+        if (Date.now() > parsed.expiresAt) {
+          localStorage.removeItem(key);
+          return null;
+        }
+        const days = parsed.ttlDays;
+        return {
+          label: parsed.label,
+          ttlDays: days === 1 || days === 7 || days === 30 ? days : 7,
+        };
+      }
+    } catch {
+      localStorage.removeItem(key);
+    }
+    return null;
+  }
+
+  private writeWithTtl(key: string, label: string, ttlDays: 0 | 1 | 7 | 30 = 0) {
+    if (!this.isBrowser) return;
+
+    if (ttlDays === 0) {
+      localStorage.removeItem(key);
+      sessionStorage.setItem(key, label);
+      return;
+    }
+
+    sessionStorage.removeItem(key);
+    const payload = JSON.stringify({
+      label,
+      ttlDays,
+      expiresAt: Date.now() + ttlDays * 24 * 60 * 60 * 1000,
+    });
+    localStorage.setItem(key, payload);
+  }
+
+  getLocalLabel(fingerprint: string): string | null {
+    return this.readEntryWithTtl(`addr_book_${fingerprint}`)?.label ?? null;
+  }
+
+  getLocalLabelTtl(fingerprint: string): 0 | 1 | 7 | 30 {
+    return this.readEntryWithTtl(`addr_book_${fingerprint}`)?.ttlDays ?? 0;
+  }
+
+  saveToAddressBook(fingerprint: string, label: string, ttlDays: 0 | 1 | 7 | 30 = 0) {
+    this.writeWithTtl(`addr_book_${fingerprint}`, label, ttlDays);
   }
 
   removeFromAddressBook(fingerprint: string) {
+    if (!this.isBrowser) return;
     localStorage.removeItem(`addr_book_${fingerprint}`);
+    sessionStorage.removeItem(`addr_book_${fingerprint}`);
   }
 
   public async updateSignerLabel(fingerprint: string, label: string) {
-    const state = this.sdk.getRoomState();
-    if (state) localStorage.setItem(`signer_label_${state.roomId}_${fingerprint}`, label);
-
     await this.sdk.setSignerLabel(fingerprint, label);
   }
 
@@ -451,22 +596,26 @@ export class SocketService {
   // --- ADDRESS LABEL METHODS ---
 
   public async updateAddressLabel(address: string, label: string) {
-    const state = this.sdk.getRoomState();
-    if (state) localStorage.setItem(`address_label_${state.roomId}_${address}`, label);
     // @ts-ignore - Ignore type error if SDK definition isn't fully synced locally
     await this.sdk.setAddressLabel(address, label);
   }
 
   getLocalAddressLabel(address: string): string | null {
-    return localStorage.getItem(`addr_book_address_${address}`);
+    return this.readEntryWithTtl(`addr_book_address_${address}`)?.label ?? null;
   }
 
-  saveAddressToBook(address: string, label: string) {
-    localStorage.setItem(`addr_book_address_${address}`, label);
+  getLocalAddressLabelTtl(address: string): 0 | 1 | 7 | 30 {
+    return this.readEntryWithTtl(`addr_book_address_${address}`)?.ttlDays ?? 0;
+  }
+
+  saveAddressToBook(address: string, label: string, ttlDays: 0 | 1 | 7 | 30 = 0) {
+    this.writeWithTtl(`addr_book_address_${address}`, label, ttlDays);
   }
 
   removeAddressFromBook(address: string) {
+    if (!this.isBrowser) return;
     localStorage.removeItem(`addr_book_address_${address}`);
+    sessionStorage.removeItem(`addr_book_address_${address}`);
   }
 
   checkAndApplyLocalAddressLabels() {
@@ -490,8 +639,6 @@ export class SocketService {
       }
     });
   }
-
-  // ---
 
   public async uploadSignature(psbtBase64: string) {
     const fingerprint = this.sdk.extractFingerprintFromSignature(psbtBase64);
@@ -545,6 +692,8 @@ export class SocketService {
   private clearLocalRoomData(roomId: string) {
     localStorage.removeItem(`display_name_${roomId}`);
     sessionStorage.removeItem(`admin_token_${roomId}`);
+    sessionStorage.removeItem(`session_id_${roomId}`);
+    sessionStorage.removeItem(`resume_token_${roomId}`);
   }
 
   public roomState = signal<RoomState | null>(null);
@@ -579,6 +728,65 @@ export class SocketService {
   });
 
   public signerCount = computed(() => this.signers().filter((signer) => signer.signed).length);
+  public nonceCount = computed(() => this.signers().filter((signer) => signer.hasNonce).length);
 
   public isReadyToBroadcast = computed(() => this.signerCount() >= this.signerThreshold());
+
+  // --- MUSIG2 STATE MACHINE ---
+
+  public ceremonyPhase = computed(() => {
+    const state = this.roomState();
+    if (!state) return 'GATHERING_SIGNATURES';
+
+    const threshold = this.signerThreshold();
+    const sigCount = state.signatures?.length || 0;
+    const nonceCount = state.nonces?.length || 0;
+
+    // If we have enough signatures, we are ready to broadcast regardless of protocol
+    if (threshold > 0 && sigCount >= threshold) return 'READY_TO_BROADCAST';
+
+    if (state.protocol === 'musig2') {
+      // If the signature-ready PSBT hasn't been published yet, we are in Round 1
+      if (!state.psbt || state.psbt === '') {
+        if (threshold > 0 && nonceCount >= threshold) return 'AGGREGATING_NONCES';
+        return 'GATHERING_NONCES';
+      }
+    }
+    
+    // Default standard flow (Round 2)
+    return 'GATHERING_SIGNATURES';
+  });
+
+  public transientPsbt = computed(() => {
+    return this.roomState()?.transientPsbt || null;
+  });
+
+  public async uploadNonce(psbtBase64: string) {
+    // Note: We use the same fingerprint extraction logic, assuming hardware wallets 
+    // attach the fingerprint to the BIP 373 nonce fields similarly to partialSigs.
+    const fingerprint = this.sdk.extractFingerprintFromSignature(psbtBase64);
+    if (!fingerprint) throw new Error('Could not extract fingerprint from PSBT');
+
+    await this.sdk.uploadNonce(psbtBase64, fingerprint);
+  }
+
+  /**
+   * The Coordinator's automated transition engine.
+   * Waits briefly for UI feedback and delegates nonce aggregation to the SDK.
+   */
+  public async aggregateMuSig2Nonces() {
+    if (!this.isCoordinator()) return;
+
+    try {
+      const state = this.roomState();
+      if (!state || !state.transientPsbt) return;
+
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+
+      await (this.sdk as any).aggregateMuSig2Nonces();
+    } catch (e) {
+      console.error('[Coordinator] Failed to merge nonces', e);
+      this.decryptionError.set('Failed to merge MuSig2 nonces.');
+    }
+  }
 }

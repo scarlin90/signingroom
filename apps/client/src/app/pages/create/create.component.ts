@@ -169,10 +169,15 @@ export class CreateComponent implements OnInit {
   async launchRoom() {
     this.isLoading.set(true);
     try {
-      const { payload: createRoomPayload, defaultRoleToken } = await this.socket.createRoom(
+      // Detect if the PSBT contains BIP 373 Participant Pubkey fields
+      const detectedProtocol = PsbtUtils.detectProtocol(this.rawHex);
+
+      // Explicitly pass the detected protocol to the SDK
+      const { payload: createRoomPayload, defaultRoleToken } = await this.socket.sdk.createRoom(
         this.rawHex,
         this.selectedNetwork(),
         'Untitled Room',
+        detectedProtocol // <-- This ensures 'musig2' is sent to the server
       );
 
       const encryptedToken = await this.encryptionEngine.encrypt(

@@ -1,6 +1,9 @@
 # 📂 Forensic Data Manifest
 
-This directory contains raw traffic logs exported from the SigningRoom Cloudflare Worker instance. These logs are provided to verify the "Stateless" architecture claims and track the adoption of the PWA (Progressive Web App).
+This directory contains historical edge traffic and cache-ratio telemetry exported from the SigningRoom Cloudflare zone. These metrics track PWA static asset caching ("Vending Machine" mode) versus live, uncached WebSocket relay traffic ("Vacuum" mode).
+
+> **Architectural Clarification on Storage Metrics:**  
+> Throughout these historical snapshots, **"0 KB Persistent Database Footprint"** refers to the absence of any long-term relational/NoSQL user database or post-session transaction archive. During an active ceremony (up to the 24-hour TTL), encrypted room ciphertext is held ephemerally in Cloudflare Durable Object storage and purged via `storage.deleteAll()` upon room closure or TTL expiry (or held strictly in volatile memory `inMemory = void` on self-hosted `workerd` instances). All payloads are end-to-end AES-256-GCM encrypted client-side; the relay remains operator-blind at all times.
 
 ## 🗂 Directory Structure
 
@@ -23,10 +26,10 @@ To ensure immutable audit trails, logs are grouped by their specific Audit Date.
 
 ## 📊 Performance Metrics (Global Aggregate)
 
-| Metric                            | Value | Interpretation                                                            |
-| :-------------------------------- | :---- | :------------------------------------------------------------------------ |
-| **Database Footprint**            | 0 KB  | **Absolute Statelessness:** No user metadata or PSBTs are stored.         |
-| **Current Cache Ratio (Avg 30d)** | 40.9% | **Healthy Equilibrium:** Balancing static delivery with dynamic relaying. |
+| Metric | Value | Interpretation |
+| :--- | :--- | :--- |
+| **Persistent Database Footprint** | 0 KB | **No Post-Session Retention:** No user accounts or historical PSBT archives are retained after room closure/expiry. |
+| **Current Cache Ratio (Avg 30d)** | 40.9% | **Healthy Equilibrium:** Balancing static PWA delivery with dynamic encrypted WebSocket relaying. |
 
 ---
 

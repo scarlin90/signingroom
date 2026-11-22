@@ -1,7 +1,6 @@
 import { RoomEventBus } from '../events/room-event-bus';
 import { EncryptionEngine } from '../crypto/encryption-engine';
 import { PsbtUtils } from '../bitcoin/psbt-utils';
-import { Transaction } from '@scure/btc-signer';
 
 /**
  * Active orchestrator client responsible for full-duplex room relay communications.
@@ -20,6 +19,14 @@ export class RelayClient {
   public blindFingerprintMap = new Map<string, string>();
   /** Local cache mapping blinded utxo addresses back to unblinded utxo addresses. */
   public blindAddressMap = new Map<string, string>();
+  /** Cached decrypted audit log for incremental LOG_UPDATE appends (F5). */
+  private decryptedAuditLogCache: any[] = [];
+  /** Running SHA-256 chain head verified across audit envelopes (F5). */
+  private lastVerifiedChainHash = '0'.repeat(64);
+  /** Active roomId used for F6 AES-GCM Additional Authenticated Data (AAD) context binding. */
+  private currentRoomId: string | null = null;
+  /** Monotonic per-session sequence counter for outbound audit log entries (F6). */
+  private outboundLogSeq = 0;
 
   /**
    * Initializes a fresh instance of the RelayClient coordination module.
@@ -35,14 +42,33 @@ export class RelayClient {
     this.encryptionKey = key;
   }
 
+  /** Local cache of the cryptographic token required to resume an existing sessionId (F4). */
+  private resumeToken: string | null = null;
+
+  public setResumeToken(token: string | null) {
+    this.resumeToken = token;
+  }
+
+  public getResumeToken(): string | null {
+    return this.resumeToken;
+  }
+
+  /**
+   * Builds the F6 AES-GCM Additional Authenticated Data (AAD) context tag for a given room field.
+   */
+  private getFieldAad(field: string): string | undefined {
+    return this.currentRoomId ? `room:${this.currentRoomId}|field:${field}` : undefined;
+  }
+
   /**
    * Instantiates a live WebSocket session pointing to a target relay instance.
    * Establishes low-level hooks routing platform errors and server frames cleanly into reactive buses.
    * @param url - The absolute target location protocol string (e.g., `wss://relay...`).
+   * @param protocols - Optional WebSocket subprotocol array for transmitting credentials out of the URL.
    */
-  public connect(url: string): void {
+  public connect(url: string, protocols?: string | string[]): void {
     this.disconnect(true);
-    this.ws = new WebSocket(url);
+    this.ws = protocols ? new WebSocket(url, protocols) : new WebSocket(url);
 
     this.ws.onopen = () => {
       this.events.dispatch('ROOM_CONNECTED');
@@ -80,8 +106,16 @@ export class RelayClient {
    * @param key - The raw symmetric workspace key string argument.
    * @param version - The client version identifier string checking backend compatibility.
    * @param sessionId - The client session identifier used for reconnecting in connection drop.
+   * @param resumeToken - The cryptographic token required to resume an existing sessionId
    */
-  public async joinRoom(wsBaseUrl: string, roomId: string, key: string, version: string, sessionId?: string | null) {
+  public async joinRoom(
+    wsBaseUrl: string,
+    roomId: string,
+    key: string,
+    version: string,
+    sessionId?: string | null,
+    resumeToken?: string | null,
+  ) {
     let cleanKey = key.trim();
 
     if (cleanKey.includes('%')) {
@@ -90,17 +124,37 @@ export class RelayClient {
       } catch (e) {}
     }
 
+    if (this.currentRoomId !== roomId) {
+      this.outboundLogSeq = 0;
+      this.decryptedAuditLogCache = [];
+      this.lastVerifiedChainHash = '0'.repeat(64);
+    }
+    this.currentRoomId = roomId;
     this.setKey(cleanKey);
 
-    const roomPass = cleanKey ? await this.crypto.blindData(roomId, cleanKey) : '';
-    let url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${version}&pass=${roomPass}`;
-    
-    // Append the resumption ID if it exists
-    if (sessionId) {
-      url += `&sessionId=${sessionId}`;
+    let targetSessionId = sessionId || null;
+    let targetResumeToken = resumeToken || this.resumeToken || null;
+
+    // Support composite "SESSION_ID:RESUME_TOKEN"
+    if (targetSessionId && targetSessionId.includes(':')) {
+      const [idPart, tokenPart] = targetSessionId.split(':');
+      targetSessionId = idPart;
+      targetResumeToken = tokenPart || targetResumeToken;
     }
-    
-    this.connect(url);
+
+    const roomPass = cleanKey ? await this.crypto.blindData(roomId, cleanKey) : '';
+    const url = `${wsBaseUrl}/api/room/${roomId}/websocket?v=${encodeURIComponent(version)}`;
+
+    // Transmit roomPass and session resumption secret via Sec-WebSocket-Protocol header
+    const protocols = ['signingroom-v2'];
+    if (roomPass) {
+      protocols.push(`pass.${roomPass}`);
+    }
+    if (targetSessionId && targetResumeToken) {
+      protocols.push(`resume.${targetSessionId}.${targetResumeToken}`);
+    }
+
+    this.connect(url, protocols);
   }
 
   /**
@@ -138,21 +192,48 @@ export class RelayClient {
    * @param msg - The raw parsed server frame payload object.
    */
   private async routeMessage(msg: any) {
-    if (!this.encryptionKey && (msg.encryptedPsbt || msg.type === 'NEW_PARTIAL_DATA')) {
+    if (
+      !this.encryptionKey &&
+      (msg.encryptedPsbt ||
+        msg.transientPsbt ||
+        msg.type === 'NEW_PARTIAL_DATA' ||
+        msg.type === 'NEW_NONCE_DATA')
+    ) {
       this.events.dispatch('DECRYPTION_ERROR', 'Decryption Key Missing');
       return;
     }
 
     switch (msg.type) {
       case 'SESSION_CONNECTED':
+        if (msg.resumeToken) {
+          this.resumeToken = msg.resumeToken;
+        }
         this.events.dispatch('SESSION_CONNECTED', msg.sessionId);
         break;
       case 'STATE_SYNC':
         const syncData = await this.processStateSync(msg);
         if (syncData) this.events.dispatch('STATE_SYNC_DECRYPTED', syncData);
         break;
+      case 'NEW_NONCE_DATA':
+        const nonceData = await this.processNewPartial(msg, 'nonce');
+        if (nonceData) this.events.dispatch('NEW_NONCE_DECRYPTED' as any, nonceData);
+        break;
+      case 'AGGREGATE_PSBT_PUBLISHED':
+        if (msg.encryptedPsbt && this.encryptionKey) {
+          try {
+            const dec = await this.crypto.decrypt(
+              msg.encryptedPsbt,
+              this.encryptionKey,
+              this.getFieldAad('psbt'),
+            );
+            this.events.dispatch('AGGREGATE_PSBT_DECRYPTED' as any, PsbtUtils.normalize(dec));
+          } catch (e) {
+            console.error('Relay: Failed to decrypt aggregate PSBT', e);
+          }
+        }
+        break;
       case 'NEW_PARTIAL_DATA':
-        const partialData = await this.processNewPartial(msg);
+        const partialData = await this.processNewPartial(msg, 'partial');
         if (partialData) this.events.dispatch('NEW_PARTIAL_DECRYPTED', partialData);
         break;
       case 'LABELS_UPDATED':
@@ -167,7 +248,11 @@ export class RelayClient {
       case 'ROOM_RENAMED':
         if (msg.encryptedName && this.encryptionKey) {
           try {
-            const roomName = await this.crypto.decrypt(msg.encryptedName, this.encryptionKey);
+            const roomName = await this.crypto.decrypt(
+              msg.encryptedName,
+              this.encryptionKey,
+              this.getFieldAad('room_name'),
+            );
             this.events.dispatch('ROOM_RENAMED_DECRYPTED', roomName);
           } catch (e) {
             console.error('Relay: Failed to decrypt room name', e);
@@ -175,10 +260,13 @@ export class RelayClient {
         }
         break;
       case 'LOG_UPDATE':
-        this.events.dispatch(
-          'LOG_UPDATE_DECRYPTED',
-          await this.decryptAuditLog(msg.auditLog || []),
-        );
+        if (msg.entry) {
+          const updatedLog = await this.appendIncrementalLog(msg.entry);
+          this.events.dispatch('LOG_UPDATE_DECRYPTED', updatedLog);
+        } else if (msg.auditLog) {
+          this.decryptedAuditLogCache = await this.decryptAuditLog(msg.auditLog);
+          this.events.dispatch('LOG_UPDATE_DECRYPTED', this.decryptedAuditLogCache);
+        }
         break;
       case 'CONNECTIONS_UPDATE':
         this.events.dispatch('CONNECTIONS_DECRYPTED', {
@@ -195,7 +283,11 @@ export class RelayClient {
       case 'WHITELIST_UPDATED':
         if (msg.encryptedWhitelist && this.encryptionKey) {
           try {
-            const decW = await this.crypto.decrypt(msg.encryptedWhitelist, this.encryptionKey);
+            const decW = await this.crypto.decrypt(
+              msg.encryptedWhitelist,
+              this.encryptionKey,
+              this.getFieldAad('whitelist'),
+            );
             this.events.dispatch('WHITELIST_DECRYPTED', JSON.parse(decW));
           } catch (e) {
             console.error('Relay: Failed to decrypt whitelist', e);
@@ -217,8 +309,13 @@ export class RelayClient {
             const finalTxHex = await this.crypto.decrypt(
               msg.encryptedFinalTxHex,
               this.encryptionKey,
+              this.getFieldAad('final_hex'),
             );
-            const finalTxId = await this.crypto.decrypt(msg.encryptedFinalTxId, this.encryptionKey);
+            const finalTxId = await this.crypto.decrypt(
+              msg.encryptedFinalTxId,
+              this.encryptionKey,
+              this.getFieldAad('final_txid'),
+            );
             this.events.dispatch('TX_FINALIZED_DECRYPTED', { finalTxHex, finalTxId });
           } catch (e) {
             console.error('Relay: Failed to decrypt final tx', e);
@@ -261,24 +358,67 @@ export class RelayClient {
    * @returns A Promise resolving to structural composite state metrics or null if execution encounters errors.
    */
   private async processStateSync(msg: any): Promise<any | null> {
-    let masterPsbt = '';
-    try {
-      masterPsbt = msg.encryptedPsbt
-        ? await this.crypto.decrypt(msg.encryptedPsbt, this.encryptionKey!)
-        : msg.psbt || '';
-    } catch (e) {
-      this.events.dispatch('DECRYPTION_ERROR', 'Invalid decryption key provided.');
-      return null;
+    if (msg.roomId && !this.currentRoomId) {
+      this.currentRoomId = msg.roomId;
     }
 
-    masterPsbt = PsbtUtils.normalize(masterPsbt);
+    let masterPsbt = '';
+    if (msg.encryptedPsbt) {
+      try {
+        masterPsbt = await this.crypto.decrypt(
+          msg.encryptedPsbt,
+          this.encryptionKey!,
+          this.getFieldAad('psbt'),
+        );
+        masterPsbt = PsbtUtils.normalize(masterPsbt);
+      } catch (e) {
+        this.events.dispatch('DECRYPTION_ERROR', 'Failed to decrypt room PSBT');
+        return null;
+      }
+    }
+
+    let transientPsbt = '';
+    if (msg.transientPsbt) {
+      try {
+        transientPsbt = await this.crypto.decrypt(
+          msg.transientPsbt,
+          this.encryptionKey!,
+          this.getFieldAad('psbt'),
+        );
+        transientPsbt = PsbtUtils.normalize(transientPsbt);
+      } catch (e) {
+        console.error('Relay: Failed to decrypt transient PSBT');
+      }
+    }
+
+    const decryptedNonces: string[] = [];
+    if (msg.nonces) {
+      for (const n of Object.values(msg.nonces)) {
+        try {
+          const encTarget = (n as any)?.encryptedData || n;
+          const dec = await this.crypto.decrypt(
+            encTarget,
+            this.encryptionKey!,
+            this.getFieldAad('nonce'),
+          );
+          decryptedNonces.push(PsbtUtils.normalize(dec));
+        } catch (e) {
+          console.error('Relay: Failed to decrypt nonce');
+        }
+      }
+    }
+
     const decryptedHistory: string[] = [];
 
     if (msg.signatures?.length) {
       for (const sig of msg.signatures) {
         try {
           const encTarget = sig?.encryptedData || sig;
-          const dec = await this.crypto.decrypt(encTarget, this.encryptionKey!);
+          const dec = await this.crypto.decrypt(
+            encTarget,
+            this.encryptionKey!,
+            this.getFieldAad('partial'),
+          );
           decryptedHistory.push(PsbtUtils.normalize(dec));
         } catch (e) {
           if (typeof sig === 'string') decryptedHistory.push(PsbtUtils.normalize(sig));
@@ -291,10 +431,12 @@ export class RelayClient {
       mergedPsbt = PsbtUtils.merge(mergedPsbt, sigData);
     }
 
-    if (mergedPsbt) {
-      await this.registerAllFingerprints(mergedPsbt);
+    // Use mergedPsbt (Round 2 / Standard) OR transientPsbt (MuSig2 Round 1) to populate blind maps
+    const targetPsbt = mergedPsbt || transientPsbt;
+    if (targetPsbt) {
+      await this.registerAllFingerprints(targetPsbt);
 
-      const txDetails = PsbtUtils.parseTxDetails(mergedPsbt, msg.network || 'bitcoin');
+      const txDetails = PsbtUtils.parseTxDetails(targetPsbt, msg.network || 'bitcoin');
       if (txDetails) {
         const allAddresses = [
           ...(txDetails.inputsList?.map((i: any) => i.address) || []),
@@ -312,12 +454,17 @@ export class RelayClient {
     const decryptedLabels = await this.decryptLabels(msg.signerLabels || {});
     const decryptedAddressLabels = await this.decryptAddressLabels(msg.addressLabels || {});
     const decryptedLog = await this.decryptAuditLog(msg.auditLog || []);
+    this.decryptedAuditLogCache = decryptedLog;
     const decryptedParticipants = await this.decryptParticipants(msg.participants || {});
 
     let decryptedWhitelist: string[] = [];
     if (msg.whitelist && typeof msg.whitelist === 'string') {
       try {
-        const decW = await this.crypto.decrypt(msg.whitelist, this.encryptionKey!);
+        const decW = await this.crypto.decrypt(
+          msg.whitelist,
+          this.encryptionKey!,
+          this.getFieldAad('whitelist'),
+        );
         decryptedWhitelist = JSON.parse(decW);
       } catch (e) {
         console.error('Relay: Failed to decrypt whitelist in sync');
@@ -330,7 +477,11 @@ export class RelayClient {
     if (msg.roomName && this.encryptionKey) {
       if (msg.roomName.length >= 40) {
         try {
-          decryptedRoomName = await this.crypto.decrypt(msg.roomName, this.encryptionKey);
+          decryptedRoomName = await this.crypto.decrypt(
+            msg.roomName,
+            this.encryptionKey,
+            this.getFieldAad('room_name'),
+          );
         } catch (e) {
           decryptedRoomName = msg.roomName;
         }
@@ -343,8 +494,16 @@ export class RelayClient {
     let finalTxId = msg.finalTxId;
     if (msg.encryptedFinalTxHex && msg.encryptedFinalTxId && this.encryptionKey) {
       try {
-        finalTxHex = await this.crypto.decrypt(msg.encryptedFinalTxHex, this.encryptionKey);
-        finalTxId = await this.crypto.decrypt(msg.encryptedFinalTxId, this.encryptionKey);
+        finalTxHex = await this.crypto.decrypt(
+          msg.encryptedFinalTxHex,
+          this.encryptionKey,
+          this.getFieldAad('final_hex'),
+        );
+        finalTxId = await this.crypto.decrypt(
+          msg.encryptedFinalTxId,
+          this.encryptionKey,
+          this.getFieldAad('final_txid'),
+        );
       } catch (e) {
         console.error('Relay: Failed to decrypt final TX data in sync', e);
       }
@@ -353,6 +512,8 @@ export class RelayClient {
     return {
       ...msg,
       psbt: mergedPsbt,
+      transientPsbt: transientPsbt,
+      nonces: decryptedNonces,
       signatures: decryptedHistory,
       signerLabels: Object.keys(decryptedLabels).length > 0 ? decryptedLabels : msg.signerLabels,
       addressLabels:
@@ -372,13 +533,18 @@ export class RelayClient {
   }
 
   /**
-   * Decrypts individual standalone incoming user signature frames.
+   * Decrypts individual standalone incoming user signature or nonce frames.
    * @param msg - The partial data payload container.
+   * @param fieldType - The expected AAD field context ('partial' or 'nonce').
    * @returns Decoded structural mapping properties or null if empty.
    */
-  private async processNewPartial(msg: any) {
+  private async processNewPartial(msg: any, fieldType: 'partial' | 'nonce' = 'partial') {
     if (!msg.data?.encryptedData) return null;
-    const decrypted = await this.crypto.decrypt(msg.data.encryptedData, this.encryptionKey!);
+    const decrypted = await this.crypto.decrypt(
+      msg.data.encryptedData,
+      this.encryptionKey!,
+      this.getFieldAad(fieldType),
+    );
     const realFingerprint = this.blindFingerprintMap.get(msg.fingerprint) || msg.fingerprint;
 
     return {
@@ -389,47 +555,60 @@ export class RelayClient {
   }
 
   /**
-   * Decodes input scopes inside a PSBT map, extracting and caching hardware BIP32 source paths.
+   * Delegates PSBT signer extraction to PsbtUtils and caches blinded-to-real fingerprint mappings.
    * @param psbtData - Target unencrypted transaction base64 string.
    */
   private async registerAllFingerprints(psbtData: string) {
-    if (!this.encryptionKey) return;
-    try {
-      const bytes = PsbtUtils.decode(psbtData);
-      const tx = Transaction.fromPSBT(bytes);
-      for (let i = 0; i < tx.inputsLength; i++) {
-        const input = tx.getInput(i);
-        if (input.bip32Derivation) {
-          for (const [, meta] of input.bip32Derivation) {
-            const fp = meta.fingerprint.toString(16).padStart(8, '0');
-            const blinded = await this.crypto.blindData(fp, this.encryptionKey);
-            this.blindFingerprintMap.set(blinded, fp);
-            this.blindFingerprintMap.set(fp, fp);
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Relay: Failed to parse fingerprints');
+    if (!this.encryptionKey || !psbtData) return;
+    const signers = PsbtUtils.extractSigners(psbtData);
+    for (const signer of signers) {
+      const fp = signer.fingerprint;
+      const blinded = await this.crypto.blindData(fp, this.encryptionKey);
+      this.blindFingerprintMap.set(blinded, fp);
+      this.blindFingerprintMap.set(fp, fp);
     }
   }
 
   /**
-   * Reconstructs historical audit entries, deciphering encrypted data rows sequentially.
+   * Reconstructs historical audit entries, verifying the F5 SHA-256 envelope hash chain
+   * and deciphering encrypted data rows sequentially.
    * @param logs - Collection of plain or encrypted tracking items.
    */
   private async decryptAuditLog(logs: any[]): Promise<any[]> {
     if (!this.encryptionKey || !logs || !Array.isArray(logs)) return [];
     const decryptedLog = [];
+    let runningHash = '0'.repeat(64);
 
-    for (const item of logs) {
+    for (let idx = 0; idx < logs.length; idx++) {
+      const item = logs[idx];
       if (!item) continue;
-      const encryptedBlob = typeof item === 'string' ? item : (item.blob || item.encryptedLogBlob);
+      const encryptedBlob = typeof item === 'string' ? item : item.blob || item.encryptedLogBlob;
+
+      // Verify relay envelope hash chain if chainHash is present (F5)
+      if (typeof item === 'object' && item.chainHash && encryptedBlob) {
+        const seq = item.seq !== undefined ? item.seq : idx;
+        const preimage = `${runningHash}|${seq}|${item.serverTimestamp}|${item.sessionId}|${item.role}|${encryptedBlob}`;
+        const expectedHash = await this.crypto.sha256(preimage);
+        if (expectedHash !== item.chainHash) {
+          console.error(`[Security] Audit log hash chain mismatch at seq ${seq}`);
+        }
+        runningHash = item.chainHash;
+      }
 
       if (encryptedBlob) {
         try {
-          const dec = await this.crypto.decrypt(encryptedBlob, this.encryptionKey);
+          const dec = await this.crypto.decrypt(
+            encryptedBlob,
+            this.encryptionKey,
+            this.getFieldAad('audit_log'),
+          );
           const entry = JSON.parse(dec);
-          if (entry) decryptedLog.push(entry);
+          if (entry) {
+            if (entry.roomId && this.currentRoomId && entry.roomId !== this.currentRoomId) {
+              continue;
+            }
+            decryptedLog.push(entry);
+          }
         } catch (e) {
           decryptedLog.push({
             timestamp: 0,
@@ -441,9 +620,51 @@ export class RelayClient {
         decryptedLog.push(item);
       }
     }
+
+    this.lastVerifiedChainHash = runningHash;
     return decryptedLog
       .filter((e) => e !== null)
       .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  }
+
+  /**
+   * Verifies and decrypts a single newly appended audit envelope, avoiding full-array re-broadcasts.
+   */
+  private async appendIncrementalLog(item: any): Promise<any[]> {
+    if (!this.encryptionKey || !item) return this.decryptedAuditLogCache;
+    const encryptedBlob = typeof item === 'string' ? item : item.blob || item.encryptedLogBlob;
+
+    if (typeof item === 'object' && item.chainHash && encryptedBlob) {
+      const seq = item.seq !== undefined ? item.seq : this.decryptedAuditLogCache.length;
+      const preimage = `${this.lastVerifiedChainHash}|${seq}|${item.serverTimestamp}|${item.sessionId}|${item.role}|${encryptedBlob}`;
+      const expectedHash = await this.crypto.sha256(preimage);
+      if (expectedHash !== item.chainHash) {
+        console.error(`[Security] Incremental audit log hash chain mismatch at seq ${seq}`);
+      }
+      this.lastVerifiedChainHash = item.chainHash;
+    }
+
+    if (encryptedBlob) {
+      try {
+        const dec = await this.crypto.decrypt(
+          encryptedBlob,
+          this.encryptionKey,
+          this.getFieldAad('audit_log'),
+        );
+        const entry = JSON.parse(dec);
+        if (entry) {
+          if (entry.roomId && this.currentRoomId && entry.roomId !== this.currentRoomId) {
+            return this.decryptedAuditLogCache;
+          }
+          this.decryptedAuditLogCache = [...this.decryptedAuditLogCache, entry].sort(
+            (a, b) => (a.timestamp || 0) - (b.timestamp || 0),
+          );
+        }
+      } catch {
+        // Ignore malformed entry
+      }
+    }
+    return this.decryptedAuditLogCache;
   }
 
   /**
@@ -461,7 +682,11 @@ export class RelayClient {
       try {
         decryptedLabels[realFp] =
           encryptedLabel.length >= 40
-            ? await this.crypto.decrypt(encryptedLabel, this.encryptionKey)
+            ? await this.crypto.decrypt(
+                encryptedLabel,
+                this.encryptionKey,
+                this.getFieldAad(`signer_label:${blindedFp}`),
+              )
             : encryptedLabel;
       } catch (e) {
         decryptedLabels[realFp] = encryptedLabel;
@@ -484,7 +709,11 @@ export class RelayClient {
       try {
         decryptedLabels[realAddr] =
           encryptedLabel.length >= 40
-            ? await this.crypto.decrypt(encryptedLabel, this.encryptionKey)
+            ? await this.crypto.decrypt(
+                encryptedLabel,
+                this.encryptionKey,
+                this.getFieldAad(`address_label:${blindedAddr}`),
+              )
             : encryptedLabel;
       } catch (e) {
         decryptedLabels[realAddr] = encryptedLabel;
@@ -504,7 +733,11 @@ export class RelayClient {
         let plainName = undefined;
         if (s.encryptedDisplayName) {
           try {
-            plainName = await this.crypto.decrypt(s.encryptedDisplayName, this.encryptionKey!);
+            plainName = await this.crypto.decrypt(
+              s.encryptedDisplayName,
+              this.encryptionKey!,
+              this.getFieldAad('display_name'),
+            );
           } catch (e) {
             plainName = 'Decrypt Error';
           }
@@ -526,7 +759,11 @@ export class RelayClient {
       const typedP = pData as any;
       if (typedP.encryptedDisplayName) {
         try {
-          plainName = await this.crypto.decrypt(typedP.encryptedDisplayName, this.encryptionKey);
+          plainName = await this.crypto.decrypt(
+            typedP.encryptedDisplayName,
+            this.encryptionKey,
+            this.getFieldAad('display_name'),
+          );
         } catch (e) {}
       }
       decParts[sid] = { ...typedP, displayName: plainName };
@@ -536,14 +773,26 @@ export class RelayClient {
 
   /**
    * Packs unified auditing lines into base64 encryptions ready for platform synchronization.
+   * Includes roomId and a monotonic per-session sequence counter (F6).
    * @param event - Core title representing the executed method.
    * @param detail - Informative log context statement data.
    * @param user - Human handle triggering the action task.
    */
   public async createSecureLogBlob(event: string, detail: string, user: string): Promise<string> {
     if (!this.encryptionKey) return '';
-    const logEntry = { timestamp: Date.now(), event, detail, user };
-    return await this.crypto.encrypt(JSON.stringify(logEntry), this.encryptionKey);
+    const logEntry = {
+      timestamp: Date.now(),
+      seq: ++this.outboundLogSeq,
+      roomId: this.currentRoomId,
+      event,
+      detail,
+      user,
+    };
+    return await this.crypto.encrypt(
+      JSON.stringify(logEntry),
+      this.encryptionKey,
+      this.getFieldAad('audit_log'),
+    );
   }
 
   /**
@@ -563,7 +812,11 @@ export class RelayClient {
   public async uploadSignature(partialPsbtBase64: string, fingerprint: string, user: string) {
     if (!this.encryptionKey) return;
     const blindedFingerprint = await this.crypto.blindData(fingerprint, this.encryptionKey);
-    const encryptedData = await this.crypto.encrypt(partialPsbtBase64, this.encryptionKey);
+    const encryptedData = await this.crypto.encrypt(
+      partialPsbtBase64,
+      this.encryptionKey,
+      this.getFieldAad('partial'),
+    );
     const encryptedLogBlob = await this.createSecureLogBlob(
       'Signature Uploaded',
       `Signer: ${fingerprint}`,
@@ -619,7 +872,11 @@ export class RelayClient {
    */
   public async renameRoom(newName: string, user: string) {
     if (!this.encryptionKey) return;
-    const encryptedName = await this.crypto.encrypt(newName, this.encryptionKey);
+    const encryptedName = await this.crypto.encrypt(
+      newName,
+      this.encryptionKey,
+      this.getFieldAad('room_name'),
+    );
     const encryptedLogBlob = await this.createSecureLogBlob(
       'Room Renamed',
       `Renamed: ${newName}`,
@@ -637,7 +894,11 @@ export class RelayClient {
     if (!this.encryptionKey) return;
     const safeLabel = label ? label.substring(0, 64) : '';
     const blindedFingerprint = await this.crypto.blindData(fingerprint, this.encryptionKey);
-    const encryptedLabel = await this.crypto.encrypt(safeLabel, this.encryptionKey);
+    const encryptedLabel = await this.crypto.encrypt(
+      safeLabel,
+      this.encryptionKey,
+      this.getFieldAad(`signer_label:${blindedFingerprint}`),
+    );
     const encryptedLogBlob = await this.createSecureLogBlob(
       'Label Updated',
       `${safeLabel} (${fingerprint})`,
@@ -661,7 +922,11 @@ export class RelayClient {
     if (!this.encryptionKey) return;
     const safeLabel = label ? label.substring(0, 64) : '';
     const blindedAddress = await this.crypto.blindData(address, this.encryptionKey);
-    const encryptedLabel = await this.crypto.encrypt(safeLabel, this.encryptionKey);
+    const encryptedLabel = await this.crypto.encrypt(
+      safeLabel,
+      this.encryptionKey,
+      this.getFieldAad(`address_label:${blindedAddress}`),
+    );
 
     const shortAddr =
       address.length > 8 ? `${address.slice(0, 4)}...${address.slice(-4)}` : address;
@@ -687,7 +952,11 @@ export class RelayClient {
     if (!this.encryptionKey) return;
     const safeName = name.trim().substring(0, 64);
     if (safeName) {
-      const encryptedDisplayName = await this.crypto.encrypt(safeName, this.encryptionKey);
+      const encryptedDisplayName = await this.crypto.encrypt(
+        safeName,
+        this.encryptionKey,
+        this.getFieldAad('display_name'),
+      );
       this.send('SET_DISPLAY_NAME', { encryptedDisplayName });
     } else {
       this.send('SET_DISPLAY_NAME', { encryptedDisplayName: null });
@@ -704,6 +973,7 @@ export class RelayClient {
     const encryptedWhitelist = await this.crypto.encrypt(
       JSON.stringify(newList),
       this.encryptionKey,
+      this.getFieldAad('whitelist'),
     );
     const encryptedLogBlob = await this.createSecureLogBlob(
       'Whitelist Updated',
@@ -731,13 +1001,70 @@ export class RelayClient {
    */
   public async broadcastFinalization(finalTxHex: string, finalTxId: string, user: string) {
     if (!this.encryptionKey) return;
-    const encryptedFinalTxHex = await this.crypto.encrypt(finalTxHex, this.encryptionKey);
-    const encryptedFinalTxId = await this.crypto.encrypt(finalTxId, this.encryptionKey);
+    const encryptedFinalTxHex = await this.crypto.encrypt(
+      finalTxHex,
+      this.encryptionKey,
+      this.getFieldAad('final_hex'),
+    );
+    const encryptedFinalTxId = await this.crypto.encrypt(
+      finalTxId,
+      this.encryptionKey,
+      this.getFieldAad('final_txid'),
+    );
     const encryptedLogBlob = await this.createSecureLogBlob(
       'Tx Finalized',
       'Signatures merged successfully',
       user,
     );
     this.send('TX_FINALIZED', { encryptedFinalTxHex, encryptedFinalTxId, encryptedLogBlob });
+  }
+
+  /**
+   * Prepares and uploads a MuSig2 public nonce payload to the server pipeline.
+   */
+  public async uploadNonce(noncePsbtBase64: string, fingerprint: string, user: string) {
+    if (!this.encryptionKey) return;
+    const blindedFingerprint = await this.crypto.blindData(fingerprint, this.encryptionKey);
+    const encryptedData = await this.crypto.encrypt(
+      noncePsbtBase64,
+      this.encryptionKey,
+      this.getFieldAad('nonce'),
+    );
+    const encryptedLogBlob = await this.createSecureLogBlob(
+      'Public Nonce Uploaded',
+      `Signer: ${fingerprint}`,
+      user,
+    );
+
+    this.blindFingerprintMap.set(blindedFingerprint, fingerprint);
+    this.blindFingerprintMap.set(fingerprint, fingerprint);
+
+    this.send('UPLOAD_NONCE', {
+      fingerprint: blindedFingerprint,
+      data: { encryptedData },
+      encryptedLogBlob,
+    });
+  }
+
+  /**
+   * Coordinator exclusively publishes the finalized aggregate PSBT to begin Round 2.
+   */
+  public async publishAggregatePsbt(aggregatePsbtBase64: string, user: string) {
+    if (!this.encryptionKey) return;
+    const encryptedPsbt = await this.crypto.encrypt(
+      aggregatePsbtBase64,
+      this.encryptionKey,
+      this.getFieldAad('psbt'),
+    );
+    const encryptedLogBlob = await this.createSecureLogBlob(
+      'Aggregate Nonce Broadcasted',
+      'Coordinator transitioning room to signing phase',
+      user,
+    );
+
+    this.send('PUBLISH_AGGREGATE_PSBT', {
+      encryptedPsbt,
+      encryptedLogBlob,
+    });
   }
 }

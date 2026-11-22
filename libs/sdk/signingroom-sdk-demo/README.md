@@ -1,23 +1,32 @@
 # signingroom-sdk-demo
 
-An interactive TypeScript demo demonstrating end-to-end programmatic integration with the **@signing-room/sdk**.
+Interactive TypeScript demos demonstrating end-to-end programmatic integration with the **@signing-room/sdk**.
 
-This demo orchestrates a complete 3-of-5 multisig signing ceremony lifecycle:
-- Cryptographic room creation & FBEK encryption
-- Zero-knowledge RBAC role link generation (Signer, Blind Signer, Observer)
-- Concurrent hardware signature uploads and quorum alarms
-- Tamper-evident transaction finalization & SHA-256 forensic anchor derivation
-- Session recovery & dirty-disconnect identity resumption
-- Offline third-party event timeline & Ed25519 license provenance attestation
+This directory includes two interactive ceremony walkthroughs:
+
+1. **Standard Multisig Ceremony (`index.ts`):** Orchestrates a 3-of-5 multisig signing lifecycle:
+   - Cryptographic room creation & FBEK encryption
+   - Zero-knowledge RBAC role link generation (Signer, Blind Signer, Observer)
+   - Concurrent hardware signature uploads and quorum alarms
+   - Tamper-evident transaction finalization & SHA-256 forensic anchor derivation
+   - Session recovery & dirty-disconnect identity resumption
+   - Offline third-party event timeline & Ed25519 license provenance attestation
+
+2. **MuSig2 Taproot Ceremony (`musig2-demo.ts`):** Orchestrates a 2-round BIP-327 / BIP-373 MuSig2 keypath ceremony:
+   - Round 1 setup PSBT (`0x1a` participant pubkeys) room initialization
+   - Event-driven Round 1 public nonce (`0x1b`) collection (`NONCE_RECEIVED` & `NONCE_THRESHOLD_MET`)
+   - Automated Coordinator nonce aggregation & transition to Round 2 (`aggregateMuSig2Nonces()`)
+   - Round 2 partial signature (`0x1c`) collection and BIP-340 Schnorr keypath finalization
 
 ---
 
 ## Migration Guide (v1 to v2)
 
-This release introduces the `v2.0.0` protocol and the new Enterprise licensing engine. 
+This release introduces the `v2.0.0` protocol, BIP-327/BIP-373 MuSig2 support, and the Enterprise licensing engine.
 
 * **Breaking Protocol Change:** The relay protocol has been strictly bumped. Older `v1.x` SDK clients will be actively rejected by `v4.0.0` relays with an `ERROR_VERSION_MISMATCH` event.
-* **Constructor Update:** The `SigningRoomClient` constructor now accepts `licenseToken` and `host` parameters to support cryptographic license attestation and dynamic whitelabeling for Enterprise nodes
+* **Constructor Update:** The `SigningRoomClient` constructor now accepts `licenseToken` and `host` parameters to support cryptographic license attestation and dynamic whitelabeling for Enterprise nodes.
+* **MuSig2 Support:** `createRoomAndJoin` and `createRoom` accept an optional `protocol: 'standard' | 'musig2'` parameter for 2-round nonce and partial signature aggregation.
 
 ## Prerequisites
 
@@ -51,7 +60,19 @@ Open a terminal in the demo directory:
 ```bash
 cd libs/sdk/signingroom-sdk-demo
 
+```
+
+### Option A: Run the Standard Multisig Demo (3-of-5)
+
+```bash
 node index.ts
+
+```
+
+### Option B: Run the MuSig2 2-Round Taproot Demo (2-of-2)
+
+```bash
+node musig2-demo.ts
 
 ```
 

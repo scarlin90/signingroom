@@ -1,6 +1,6 @@
 {
   "name": "@signing-room/source",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "license": "AGPL-3.0",
   "author": {
     "name": "Stateless Research Ltd",
@@ -23,7 +23,7 @@
     "@emnapi/core": "^1.11.1",
     "@emnapi/runtime": "^1.11.1",
     "@fontsource/inter": "^5.3.0",
-    "@lucide/angular": "latest",
+    "@lucide/angular": "1.73.0",
     "@napi-rs/wasm-runtime": "^1.0.7",
     "@ngraveio/bc-ur": "^1.1.13",
     "@scure/btc-signer": "^2.0.1",

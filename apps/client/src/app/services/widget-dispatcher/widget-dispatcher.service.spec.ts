@@ -400,5 +400,68 @@ describe('WidgetDispatcherService', () => {
         'https://trusted-host.com',
       );
     });
+
+    it('emitPsbtImported (nonce upload and scan methods)', () => {
+      service.emitPsbtImported('upload-nonce');
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'psbtImported',
+          payload: expect.objectContaining({ method: 'upload-nonce' }),
+        }),
+        TEST_ORIGIN,
+      );
+
+      service.emitPsbtImported('scan-nonce');
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'psbtImported',
+          payload: expect.objectContaining({ method: 'scan-nonce' }),
+        }),
+        TEST_ORIGIN,
+      );
+    });
+
+    it('emitNonceReceived', () => {
+      service.emitNonceReceived('fp_nonce_1', 1, 2, 'Coldcard Q', 's_nonce_1', 'Signer 1');
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'SIGNING_ROOM_EVENT',
+          action: 'nonceReceived',
+          payload: expect.objectContaining({
+            roomId: 'test-room',
+            sessionId: 'session-123',
+            role: 'coordinator',
+            network: 'testnet',
+            fingerprint: 'fp_nonce_1',
+            noncesReceived: 1,
+            threshold: 2,
+            signerLabel: 'Coldcard Q',
+            signerSessionId: 's_nonce_1',
+            signerName: 'Signer 1',
+          }),
+        }),
+        TEST_ORIGIN,
+      );
+    });
+
+    it('emitNoncesAggregated', () => {
+      service.emitNoncesAggregated('GATHERING_SIGNATURES', 2, 2);
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'SIGNING_ROOM_EVENT',
+          action: 'noncesAggregated',
+          payload: expect.objectContaining({
+            roomId: 'test-room',
+            sessionId: 'session-123',
+            role: 'coordinator',
+            network: 'testnet',
+            phase: 'GATHERING_SIGNATURES',
+            noncesReceived: 2,
+            threshold: 2,
+          }),
+        }),
+        TEST_ORIGIN,
+      );
+    });
   });
 });

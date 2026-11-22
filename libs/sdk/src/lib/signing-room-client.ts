@@ -4,7 +4,7 @@ import { RoomStateStore, RoomState } from './relay/room-state-store';
 import { RoomFactory, RoomCreationPayload } from './relay/room-factory';
 import { RoleConstraints, RoomEvent, RoomEventType } from './types/client-events';
 import { AuditLogOptions, RoomAuditor } from './bitcoin/room-auditor';
-import { PsbtUtils, TxDetails } from './bitcoin/psbt-utils';
+import { PsbtUtils, TxDetails, SignerStatus } from './bitcoin/psbt-utils';
 import { Observable, firstValueFrom } from 'rxjs';
 import { jsPDF } from 'jspdf';
 import { LicenseEngine, STATELESS_RESEARCH_PUBKEY } from './licensing/verifier';
@@ -41,10 +41,12 @@ export class SigningRoomClient {
   private host?: string;
   private _license: VerifiedLicense | null = null;
   private _sessionId: string | null = null;
+  private _resumeToken: string | null = null;
   private _role: 'admin' | 'guest' = 'guest';
   private _encryptionKey: string | null = null;
   private _roleToken: string | null = null;
   private _constraints: RoleConstraints | null = null;
+  private _joinAttemptId = 0;
 
   /**
    * Initializes a new SigningRoom client.
@@ -62,6 +64,7 @@ export class SigningRoomClient {
 
     this.relay.events.on('SESSION_CONNECTED').subscribe((e) => {
       this._sessionId = e.payload;
+      this._resumeToken = this.relay.getResumeToken();
     });
 
     this.relay.events.on('ROLE_UPDATE').subscribe(async (e) => {
@@ -90,6 +93,30 @@ export class SigningRoomClient {
         this.relay.events.dispatch('THRESHOLD_MET', {
           signaturesReceived: progress.signaturesReceived,
           threshold: threshold,
+        });
+      }
+    });
+
+    this.relay.events.on('NEW_NONCE_DECRYPTED' as any).subscribe((e) => {
+      const state = this.getRoomState();
+      const threshold = this.getThreshold(state);
+      const noncesReceived = state?.nonces?.length || 0;
+
+      this.relay.events.dispatch('NONCE_RECEIVED' as any, {
+        fingerprint: e.payload?.fingerprint,
+        noncesReceived,
+        threshold,
+      });
+
+      if (
+        state?.protocol === 'musig2' &&
+        (!state.psbt || state.psbt === '') &&
+        threshold > 0 &&
+        noncesReceived >= threshold
+      ) {
+        this.relay.events.dispatch('NONCE_THRESHOLD_MET' as any, {
+          noncesReceived,
+          threshold,
         });
       }
     });
@@ -206,11 +233,19 @@ export class SigningRoomClient {
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName = 'Untitled Room',
+    protocol?: string
   ) {
     await this.ensureLicense();
 
+    const resolvedProtocol = protocol || this.detectProtocol(psbtBase64);
+
     const payload = await RoomFactory.prepareCreationPayload(
-      this.engine, psbtBase64, network, roomName, this.protocolVersion,
+      this.engine,
+      psbtBase64,
+      network,
+      roomName,
+      this.protocolVersion,
+      resolvedProtocol,
     );
 
     this._encryptionKey = payload.localData.encryptionKey;
@@ -263,9 +298,10 @@ export class SigningRoomClient {
     psbtBase64: string,
     network: 'bitcoin' | 'testnet' | 'signet',
     roomName = 'Untitled Room',
+    protocol?: string
   ) {
     await this.ensureLicense();
-    const { payload, defaultRoleToken } = await this.createRoom(psbtBase64, network, roomName);
+    const { payload, defaultRoleToken } = await this.createRoom(psbtBase64, network, roomName, protocol);
 
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
     const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
@@ -340,6 +376,8 @@ export class SigningRoomClient {
     this._encryptionKey = fbek;
     this._roleToken = roleToken;
 
+    const attemptId = ++this._joinAttemptId;
+
     const connectionEvent = firstValueFrom(this.relay.events.on('ROOM_CONNECTED'));
     const sessionEvent = firstValueFrom(this.relay.events.on('SESSION_CONNECTED'));
     const stateSyncEvent = firstValueFrom(this.relay.events.on('STATE_SYNC_DECRYPTED'));
@@ -347,18 +385,24 @@ export class SigningRoomClient {
     const wsUrl = this.apiUrl.replace(/^http/, 'ws');
     this.store.init(roomId, this.protocolVersion);
 
-    const isReconnecting = this._sessionId !== null;
+    const isReconnecting = this._sessionId !== null && (this._resumeToken !== null || this._sessionId.includes(':'));
     await this.relay.joinRoom(
-      wsUrl, 
-      roomId, 
-      this._encryptionKey, 
-      this.protocolVersion, 
-      this._sessionId
+      wsUrl,
+      roomId,
+      this._encryptionKey,
+      this.protocolVersion,
+      this._sessionId,
+      this._resumeToken,
     );
 
     await connectionEvent;
     await sessionEvent;
     await stateSyncEvent;
+
+    // Discard stale suspended joinRoom() calls from earlier failed reconnect attempts
+    if (attemptId !== this._joinAttemptId) {
+      return;
+    }
 
     let detailText = '';
 
@@ -402,13 +446,32 @@ export class SigningRoomClient {
     await this.logParticipantAction(logAction, detailText);
   }
 
+   /**
+    * Manually restores a session ID and its cryptographic resumption token
+    * (useful for recovering identity across hard page reloads or network drops).
+    * Must be called prior to joinRoom().
+    * @param sessionId - The 4-character session ID to restore (or a composite "ID:TOKEN" string).
+    * @param resumeToken - The secret resumption token issued on initial connection.
+    * */
+  public restoreSessionId(sessionId: string, resumeToken?: string | null) {
+    if (sessionId.includes(':')) {
+      const [idPart, tokenPart] = sessionId.split(':');
+      this._sessionId = idPart;
+      this._resumeToken = tokenPart || resumeToken || null;
+    } else {
+      this._sessionId = sessionId;
+      if (resumeToken !== undefined) {
+        this._resumeToken = resumeToken;
+      }
+    }
+    this.relay.setResumeToken(this._resumeToken);
+  }
+
   /**
-   * Manually restores a session ID (useful for recovering identity across hard page reloads).
-   * Must be called prior to joinRoom().
-   * @param sessionId - The 4-character session ID to restore.
-   */
-  public restoreSessionId(sessionId: string) {
-    this._sessionId = sessionId;
+   * Returns the cryptographic session resumption token issued by the relay for the active session (F4).
+  */
+  public getResumeToken(): string | null {
+    return this._resumeToken || this.relay.getResumeToken();
   }
 
   /**
@@ -429,6 +492,49 @@ export class SigningRoomClient {
     const confirmation = this.waitForEvent('LOCK_UPDATED');
     await this.relay.toggleLock(isLocked, this.userContext);
     await confirmation;
+  }
+
+  /**
+   * Uploads a public nonce (Round 1) to the room for the specified hardware wallet.
+   * @param noncePsbtBase64 - The PSBT payload containing the 0x1b proprietary fields.
+   * @param fingerprint - The hardware device's master key fingerprint.
+   */
+  public async uploadNonce(noncePsbtBase64: string, fingerprint: string) {
+    const confirmation = this.waitForEvent('NEW_NONCE_DECRYPTED');
+    await this.relay.uploadNonce(noncePsbtBase64, fingerprint, this.userContext);
+    await confirmation;
+  }
+
+  /**
+   * Overwrites the room's Base PSBT with a newly aggregated transaction.
+   * Only the Coordinator can execute this to transition the room to Round 2.
+   * @param aggregatePsbtBase64 - The PSBT containing the aggregated 0x1b nonce.
+   */
+  public async publishAggregatePsbt(aggregatePsbtBase64: string) {
+    const confirmation = this.waitForEvent('AGGREGATE_PSBT_DECRYPTED');
+    await this.relay.publishAggregatePsbt(aggregatePsbtBase64, this.userContext);
+    await confirmation;
+  }
+
+  /**
+   * Merges all collected Round 1 public nonces into the room's transient setup PSBT
+   * and publishes the aggregated PSBT to transition the room into Round 2 (signing phase).
+   * Only the Coordinator can execute this.
+   * @returns The normalized Base64 aggregate PSBT published to the room.
+   */
+  public async aggregateMuSig2Nonces(): Promise<string> {
+    const state = this.getRoomState();
+    if (!state || !state.transientPsbt) {
+      throw new Error('Cannot aggregate nonces: No transient setup PSBT found in room state.');
+    }
+
+    let mergedNoncePsbt = state.transientPsbt;
+    for (const noncePsbt of state.nonces || []) {
+      mergedNoncePsbt = PsbtUtils.merge(mergedNoncePsbt, noncePsbt);
+    }
+
+    await this.publishAggregatePsbt(mergedNoncePsbt);
+    return mergedNoncePsbt;
   }
 
   /**
@@ -641,6 +747,12 @@ export class SigningRoomClient {
   public isThresholdMet(): boolean {
     const state = this.getRoomState();
     if (!state || !state.psbt) return false;
+
+    const threshold = this.getThreshold(state);
+    if (threshold > 0 && state.signatures.length < threshold) {
+      return false;
+    }
+
     return PsbtUtils.finalizeTx(state.psbt) !== null;
   }
 
@@ -683,20 +795,35 @@ export class SigningRoomClient {
 
   /**
    * Returns a list of all required hardware fingerprints for this transaction,
-   * and a boolean indicating if their signature has been provided yet.
+   * and a boolean indicating if their signature or nonce has been provided yet.
    */
-  public getSignersStatus(state: RoomState | null): any[] {
-    if (!state || !state.psbt) return [];
-    return PsbtUtils.extractSigners(state.psbt);
+  public getSignersStatus(state: RoomState | null): SignerStatus[] {
+    if (!state) return [];
+    let targetPsbt = state.psbt || state.transientPsbt;
+    if (!targetPsbt) return [];
+
+    // During Round 1 of MuSig2, fold in uploaded nonces so extractSigners sees live status
+    if (!state.psbt && state.nonces && state.nonces.length > 0) {
+      for (const noncePsbt of state.nonces) {
+        targetPsbt = PsbtUtils.merge(targetPsbt, noncePsbt);
+      }
+    }
+
+    return PsbtUtils.extractSigners(targetPsbt);
   }
 
   public getTxDetails(state: RoomState | null): TxDetails | null {
-    return state?.psbt ? PsbtUtils.parseTxDetails(state.psbt, state.network) : null;
+    if (!state) return null;
+    const targetPsbt = state.psbt || state.transientPsbt;
+    return targetPsbt ? PsbtUtils.parseTxDetails(targetPsbt, state.network) : null;
   }
 
   public getThreshold(state: RoomState | null): number {
-    if (!state?.psbt) return 0;
-    const threshold = PsbtUtils.getThreshold(state.psbt);
+    if (!state) return 0;
+    const targetPsbt = state.psbt || state.transientPsbt;
+    if (!targetPsbt) return 0;
+    
+    const threshold = PsbtUtils.getThreshold(targetPsbt);
     return threshold > 0 ? threshold : this.getSignersStatus(state).length;
   }
 
@@ -1113,5 +1240,21 @@ export class SigningRoomClient {
       expiresAt: unpacked.payload.expiresAt ? new Date(unpacked.payload.expiresAt) : null,
       isExpired: unpacked.payload.expiresAt !== 0 && Date.now() > unpacked.payload.expiresAt,
     };
+  }
+
+  /**
+   * Auto-detects whether a PSBT uses standard signing or BIP-373 MuSig2 fields (0x1a / 0x1b / 0x1c).
+   * @param psbtBase64 - The Base64 or Hex encoded PSBT string.
+   * @returns 'musig2' if BIP-373 MuSig2 fields are present, otherwise 'standard'.
+   */
+  public detectProtocol(psbtBase64: string): 'standard' | 'musig2' {
+    return PsbtUtils.detectProtocol(psbtBase64);
+  }
+
+  /**
+   * Static helper to auto-detect PSBT protocol without instantiating a client.
+   */
+  public static detectProtocol(psbtBase64: string): 'standard' | 'musig2' {
+    return PsbtUtils.detectProtocol(psbtBase64);
   }
 }

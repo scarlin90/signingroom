@@ -16,7 +16,7 @@ interface Env {
     ALLOWED_ORIGIN: string;
     ENVIRONMENT: 'development' | 'production';
     RATE_LIMITER: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
-
+    TRUSTED_IP_HEADER?: string;
     MAX_PAYLOAD_SIZE_BYTES?: string;
     MAX_CONNECTIONS?: string;
     RATE_LIMIT_WINDOW?: string;
@@ -29,6 +29,9 @@ interface Env {
     MAX_SIGNATURES?: string;
     MAX_IP_TRACKERS?: string;
     LOCKOUT_DURATION_MS?: string;
+    MAX_ROOM_STATE_BYTES?: string;
+    TOMBSTONE_TTL_SECONDS?: string;
+    MAX_LOGS_PER_SESSION?: string;
 }
 
 export type ConfigKey =
@@ -42,7 +45,10 @@ export type ConfigKey =
     | 'MAX_AUTH_FAILURES'
     | 'MAX_SIGNATURES'
     | 'MAX_IP_TRACKERS'
-    | 'LOCKOUT_DURATION_MS';
+    | 'LOCKOUT_DURATION_MS'
+    | 'MAX_ROOM_STATE_BYTES'
+    | 'TOMBSTONE_TTL_SECONDS'
+    | 'MAX_LOGS_PER_SESSION';
 
 const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
     MAX_PAYLOAD_SIZE_BYTES: 2 * 1024 * 1024, // 2MB
@@ -56,6 +62,9 @@ const CONFIG_DEFAULTS: Record<ConfigKey, number> = {
     MAX_SIGNATURES: 100, // Max signatures per room
     MAX_IP_TRACKERS: 1000, // Memory exhaustion guard
     LOCKOUT_DURATION_MS: 30 * 60 * 1000, // 30 minutes
+    MAX_ROOM_STATE_BYTES: 5 * 1024 * 1024, // 5MB total room state budget
+    TOMBSTONE_TTL_SECONDS: 3600, // 1 hour closed-room tombstone retention
+    MAX_LOGS_PER_SESSION: 150, // Per-session LOG_ACTION quota
 };
 
 // Safe routes that even an unauthenticated guest can use
@@ -68,6 +77,10 @@ const GUEST_SAFE_ROUTES = new Set([
 function getConfig(env: Env, key: ConfigKey): number {
     const value = env[key];
     return value ? parseInt(value, 10) : CONFIG_DEFAULTS[key];
+}
+
+function isValidBlindedKey(key: unknown): key is string {
+    return typeof key === 'string' && /^[a-f0-9]{8,64}$/i.test(key);
 }
 
 export interface RoleConstraints {
@@ -142,13 +155,56 @@ function isOriginAllowed(
     }
 }
 
+/**
+ * Resolves the client IP from Cloudflare's header or a configured trusted reverse-proxy header
+ * (e.g. TRUSTED_IP_HEADER="X-Real-IP" when behind the bundled Nginx container).
+ */
+function resolveClientIp(
+    getHeader: (name: string) => string | undefined | null,
+    env: Env,
+): string {
+    const cfIp = getHeader('CF-Connecting-IP') || getHeader('cf-connecting-ip');
+    if (cfIp && cfIp.trim()) {
+        return cfIp.trim();
+    }
+
+    if (env.TRUSTED_IP_HEADER) {
+        const customHeader = getHeader(env.TRUSTED_IP_HEADER) || getHeader(env.TRUSTED_IP_HEADER.toLowerCase());
+        if (customHeader && customHeader.trim()) {
+            // Take the first IP if a comma-separated list was passed
+            return customHeader.split(',')[0].trim();
+        }
+    }
+
+    return 'unknown';
+}
+
+// Fallback rate limiter for self-hosted workerd where Cloudflare's RATE_LIMITER binding is absent
+const fallbackHttpRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkFallbackRateLimit(key: string, limit = 300, windowMs = 60_000): boolean {
+    const now = Date.now();
+    if (fallbackHttpRateLimits.size > 5000) {
+        for (const [k, v] of fallbackHttpRateLimits.entries()) {
+            if (now > v.resetAt) fallbackHttpRateLimits.delete(k);
+        }
+    }
+    const entry = fallbackHttpRateLimits.get(key);
+    if (!entry || now > entry.resetAt) {
+        fallbackHttpRateLimits.set(key, { count: 1, resetAt: now + windowMs });
+        return true;
+    }
+    entry.count++;
+    return entry.count <= limit;
+}
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.use(
     '/*',
     cors({
         origin: (origin, c) => (isOriginAllowed(origin, c) ? origin : null),
-        allowHeaders: ['Upgrade', 'Content-Type', 'X-Requested-With'],
+        allowHeaders: ['Upgrade', 'Content-Type', 'X-Requested-With', 'Sec-WebSocket-Protocol'],
         allowMethods: ['GET', 'POST', 'OPTIONS'],
         maxAge: 86400,
         credentials: true,
@@ -161,17 +217,20 @@ app.use('/*', async (c, next) => {
     c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     c.header('X-Frame-Options', 'DENY');
 
-    const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+    const ip = resolveClientIp((name) => c.req.header(name), c.env);
 
     if (ip !== 'unknown') {
-        try {
-            const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
-
-            if (!success) {
-                return c.json({ error: 'Rate limit exceeded. Please wait.' }, 429);
+        if (c.env.RATE_LIMITER) {
+            try {
+                const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
+                if (!success) {
+                    return c.json({ error: 'Rate limit exceeded. Please wait.' }, 429);
+                }
+            } catch (err) {
+                console.error('Rate Limiter Error:', err);
             }
-        } catch (err) {
-            console.error('Rate Limiter Error:', err);
+        } else if (!checkFallbackRateLimit(ip)) {
+            return c.json({ error: 'Rate limit exceeded. Please wait.' }, 429);
         }
     }
 
@@ -181,7 +240,7 @@ app.use('/*', async (c, next) => {
 app.get('/api/health', (c) => {
     return c.json({
         status: 'healthy',
-        version: '4.1.0',
+        version: '4.2.0',
         timestamp: Date.now(),
     });
 });
@@ -214,7 +273,11 @@ app.post('/api/room', async (c) => {
         return c.json({ error: 'Invalid JSON payload.' }, 400);
     }
 
-    const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens, licenseToken } = body;
+    const { roomId, expectedPass, encryptedPsbt, network, adminToken, protocolVersion, roleTokens, licenseToken, protocol } = body;
+
+    if (typeof roomId !== 'string' || roomId.trim().length < 8 || roomId.trim().length > 64) {
+        return c.json({ error: 'Invalid or missing roomId.' }, 400);
+    }
 
     const attestedLicense = await verifyServerLicense(licenseToken, origin || referer);
 
@@ -234,6 +297,7 @@ app.post('/api/room', async (c) => {
                 roleTokens,
                 attestedLicense,
                 licenseToken,
+                protocol
             }),
         }),
     );
@@ -272,7 +336,7 @@ export class SigningRoom implements DurableObject {
     sessions = new Map<WebSocket, SessionData>();
     roomState: any = null;
     env: Env;
-    private isLockedOut = false;
+
     private ipConnectionCounts = new Map<string, number>();
     private ipAuthFailures = new Map<string, { count: number; lockedUntil: number }>();
 
@@ -285,26 +349,38 @@ export class SigningRoom implements DurableObject {
         });
     }
 
-    async saveRoomState() {
-        if (!this.roomState) return;
+    async saveRoomState(): Promise<boolean> {
+        if (!this.roomState) return false;
         const json = JSON.stringify(this.roomState);
+
+        // Enforce overall room byte budget before writing to Durable Object storage
+        if (json.length > getConfig(this.env, 'MAX_ROOM_STATE_BYTES')) {
+            throw new Error('ROOM_STATE_BUDGET_EXCEEDED');
+        }
+
         const chunkSize = 100 * 1024;
 
-        if (json.length < chunkSize) {
-            await this.state.storage.put('data', json);
-            await this.state.storage.delete('data_chunks');
-            return;
+        try {
+            if (json.length < chunkSize) {
+                await this.state.storage.put('data', json);
+                await this.state.storage.delete('data_chunks');
+                return true;
+            }
+
+            const chunks = Math.ceil(json.length / chunkSize);
+            const storageObj: Record<string, any> = { data_chunks: chunks };
+
+            for (let i = 0; i < chunks; i++) {
+                storageObj[`data_${i}`] = json.slice(i * chunkSize, (i + 1) * chunkSize);
+            }
+
+            await this.state.storage.put(storageObj);
+            await this.state.storage.delete('data');
+            return true;
+        } catch (storageErr) {
+            console.error('[Storage Failure]', storageErr);
+            throw new Error('STORAGE_WRITE_FAILED');
         }
-
-        const chunks = Math.ceil(json.length / chunkSize);
-        const storageObj: Record<string, any> = { data_chunks: chunks };
-
-        for (let i = 0; i < chunks; i++) {
-            storageObj[`data_${i}`] = json.slice(i * chunkSize, (i + 1) * chunkSize);
-        }
-
-        await this.state.storage.put(storageObj);
-        await this.state.storage.delete('data');
     }
 
     async loadRoomState() {
@@ -323,46 +399,115 @@ export class SigningRoom implements DurableObject {
         return typeof legacyData === 'string' ? JSON.parse(legacyData) : legacyData;
     }
 
-    async log(encryptedLogBlob: string, session?: SessionData) {
-		if (!this.roomState) return;
-		if (!this.roomState.auditLog) this.roomState.auditLog = [];
+    async appendEnvelopeWithChain(
+        encryptedLogBlob: string,
+        sessionId: string,
+        role: string,
+        serverTimestamp = Date.now(),
+        extraMeta: Record<string, any> = {},
+    ) {
+        if (!this.roomState.auditLog) this.roomState.auditLog = [];
+        const prevHash = this.roomState.auditChainHead || '0'.repeat(64);
+        const seq = this.roomState.auditLog.length;
 
-		if (this.roomState.auditLog.length >= getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH')) {
-			this.roomState.auditLog.shift();
-		}
+        const preimage = `${prevHash}|${seq}|${serverTimestamp}|${sessionId}|${role}|${encryptedLogBlob}`;
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(preimage));
+        const chainHash = Array.from(new Uint8Array(hashBuffer))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
 
-		const envelope = {
-			serverTimestamp: Date.now(),
-			sessionId: session ? session.id : 'system',
-			role: session ? session.role : 'system',
-			blob: encryptedLogBlob,
-		};
+        const envelope = {
+            seq,
+            serverTimestamp,
+            sessionId,
+            role,
+            ...extraMeta,
+            blob: encryptedLogBlob,
+            chainHash,
+        };
 
-		this.roomState.auditLog.push(envelope);
-		await this.saveRoomState();
-		this.broadcast({ type: 'LOG_UPDATE', auditLog: this.roomState.auditLog });
-	}
+        this.roomState.auditLog.push(envelope);
+        this.roomState.auditChainHead = chainHash;
+        return envelope;
+    }
+
+    async log(encryptedLogBlob: string, session?: SessionData): Promise<boolean> {
+        if (!this.roomState || !encryptedLogBlob) return false;
+        if (!this.roomState.auditLog) this.roomState.auditLog = [];
+
+        const maxLen = getConfig(this.env, 'MAX_AUDIT_LOG_LENGTH');
+        const isAdminOrSystem = !session || session.role === 'admin';
+
+        // Refuse new entries when full instead of evicting history (reserve last 50 slots for Coordinator/System)
+        const effectiveCap = isAdminOrSystem ? maxLen : Math.max(100, maxLen - 50);
+        if (this.roomState.auditLog.length >= effectiveCap) {
+            return false;
+        }
+
+        const envelope = await this.appendEnvelopeWithChain(
+            encryptedLogBlob,
+            session ? session.id : 'system',
+            session ? session.role : 'system',
+        );
+
+        await this.saveRoomState();
+
+        // Broadcast only the newly appended envelope and running chainHead
+        this.broadcast({
+            type: 'LOG_UPDATE',
+            entry: envelope,
+            chainHead: this.roomState.auditChainHead,
+        });
+        return true;
+    }
 
     async fetch(request: Request) {
         const url = new URL(request.url);
 
         // Initialize Room
         if (url.pathname === '/init') {
+            // Reject re-initialization of a previously closed or expired room ID
+            const tombstone = await this.state.storage.get<{ closedAt: number }>('tombstone');
+            if (tombstone) {
+                return new Response('Gone: Room ID has been permanently closed and cannot be reused.', { status: 410 });
+            }
+
             const body = await request.json<any>();
-            const { 
-                roomId, 
-                expectedPass, 
-                encryptedPsbt, 
-                adminToken, 
-                network, 
-                protocolVersion, 
-                encryptedLogBlob, 
-                encryptedRoomName, 
-                roleTokens, 
+            const {
+                roomId,
+                expectedPass,
+                encryptedPsbt,
+                adminToken,
+                network,
+                protocolVersion,
+                encryptedLogBlob,
+                encryptedRoomName,
+                roleTokens,
                 attestedLicense,
-                licenseToken
+                licenseToken,
+                protocol,
             } = body;
-            
+
+            // Validate presence, type, and minimum length of roomId, expectedPass, adminToken, and encryptedPsbt
+            if (
+                typeof roomId !== 'string' ||
+                roomId.trim().length < 8 ||
+                roomId.trim().length > 64 ||
+                typeof expectedPass !== 'string' ||
+                expectedPass.trim().length < 16 ||
+                expectedPass.trim().length > 128 ||
+                typeof adminToken !== 'string' ||
+                adminToken.trim().length < 24 ||
+                adminToken.trim().length > 512 ||
+                typeof encryptedPsbt !== 'string' ||
+                encryptedPsbt.trim().length < 16
+            ) {
+                return new Response(
+                    'Bad Request: Invalid or missing roomId, expectedPass, adminToken, or encryptedPsbt.',
+                    { status: 400 },
+                );
+            }
+
             const now = Date.now();
             const ttlSeconds = getConfig(this.env, 'DEFAULT_ROOM_TTL_SECONDS');
 
@@ -384,12 +529,19 @@ export class SigningRoom implements DurableObject {
             this.roomState = {
                 roomId,
                 expectedPass,
-                encryptedPsbt,
-                adminToken: secureStoredHash,
+                protocol: protocol || 'standard',
+                transientPsbt: protocol === 'musig2' ? encryptedPsbt : null,
+                encryptedPsbt: protocol === 'musig2' ? null : encryptedPsbt,
+                nonces: {},
+                nonceOwners: {},
                 signatures: {},
+                signatureOwners: {},
                 createdAt: now,
+                adminToken: secureStoredHash,
                 expiresAt: now + ttlSeconds * 1000,
                 auditLog: [],
+                auditChainHead: '0'.repeat(64),
+                logCounts: {},
                 signerLabels: {},
                 addressLabels: {},
                 whitelist: [],
@@ -406,13 +558,9 @@ export class SigningRoom implements DurableObject {
             };
 
             if (encryptedLogBlob) {
-                this.roomState.auditLog.push({
-                    serverTimestamp: now,
-                    sessionId: 'system',
-                    role: 'admin',
+                await this.appendEnvelopeWithChain(encryptedLogBlob, 'system', 'admin', now, {
                     tier: initialTier,
                     licensee: initialLicensee,
-                    blob: encryptedLogBlob,
                 });
             }
 
@@ -424,7 +572,17 @@ export class SigningRoom implements DurableObject {
         // Handle WebSocket Upgrade
         if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected Websocket', { status: 426 });
 
-        const providedPass = url.searchParams.get('pass');
+        // Extract room pass from Sec-WebSocket-Protocol header
+        // with fallback to query param for backward compatibility
+        const protocolHeader = request.headers.get('Sec-WebSocket-Protocol') || '';
+        const protocolParts = protocolHeader.split(',').map((p) => p.trim());
+        const passProtocol = protocolParts.find((p) => p.startsWith('pass.'));
+        const providedPass = passProtocol ? passProtocol.slice(5) : url.searchParams.get('pass');
+        const responseHeaders = new Headers();
+        if (protocolParts.includes('signingroom-v2')) {
+            responseHeaders.set('Sec-WebSocket-Protocol', 'signingroom-v2');
+        }
+
         if (this.roomState && this.roomState.expectedPass) {
             if (providedPass !== this.roomState.expectedPass) {
                 return new Response('Unauthorized: Invalid Room Pass', { status: 401 });
@@ -437,8 +595,10 @@ export class SigningRoom implements DurableObject {
         const clientMajor = clientVersion.split('.')[0];
         const roomMajor = roomVersion.split('.')[0];
 
+        const { 0: client, 1: server } = new WebSocketPair();
+
         if (clientMajor !== roomMajor) {
-            const { 0: client, 1: server } = new WebSocketPair();
+            
             server.accept();
 
             server.send(
@@ -449,25 +609,46 @@ export class SigningRoom implements DurableObject {
             );
 
             server.close(4026, 'Protocol Mismatch');
-
-            return new Response(null, { status: 101, webSocket: client });
+            return new Response(null, { status: 101, webSocket: client, headers: responseHeaders });
         }
 
-        const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+        const ip = resolveClientIp((name) => request.headers.get(name), this.env);
 
-        const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
-        if (currentIpCount >= getConfig(this.env, 'MAX_CONNECTIONS_PER_IP')) {
-            return new Response('Rate Limit Exceeded: Too many concurrent connections from this IP.', { status: 429 });
+        // Only enforce per-IP connection cap when a real client IP is resolved
+        if (ip !== 'unknown') {
+            const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
+            if (currentIpCount >= getConfig(this.env, 'MAX_CONNECTIONS_PER_IP')) {
+                return new Response('Rate Limit Exceeded: Too many concurrent connections from this IP.', { status: 429 });
+            }
         }
 
-        const requestedSessionId = url.searchParams.get('sessionId');
+        const resumeProtocol = protocolParts.find((p) => p.startsWith('resume.'));
+        let requestedSessionId: string | null = null;
+        let providedResumeToken: string | null = null;
 
-        const { 0: client, 1: server } = new WebSocketPair();
-        this.handleSession(server, ip, requestedSessionId);
-        return new Response(null, { status: 101, webSocket: client });
+        if (resumeProtocol) {
+            const parts = resumeProtocol.split('.');
+            if (parts.length >= 3) {
+                requestedSessionId = parts[1];
+                providedResumeToken = parts.slice(2).join('.');
+            }
+        } else {
+            requestedSessionId = url.searchParams.get('sessionId');
+            providedResumeToken = url.searchParams.get('resumeToken');
+        }
+
+        this.state.waitUntil(
+            this.handleSession(server, ip, requestedSessionId, providedResumeToken),
+        );
+        return new Response(null, { status: 101, webSocket: client, headers: responseHeaders });
     }
 
-    async handleSession(webSocket: WebSocket, ip: string, requestedSessionId: string | null) {
+    async handleSession(
+        webSocket: WebSocket,
+        ip: string,
+        requestedSessionId: string | null,
+        providedResumeToken: string | null,
+    ) {
         if (!this.roomState) {
             webSocket.accept();
             webSocket.send(JSON.stringify({ type: 'ERROR_NOT_FOUND' }));
@@ -475,35 +656,88 @@ export class SigningRoom implements DurableObject {
             return;
         }
 
-        if (this.sessions.size >= getConfig(this.env, 'MAX_CONNECTIONS')) {
-            webSocket.accept();
-            webSocket.close(4001, 'Room Full');
-            return;
+        // Cryptographically verify session resumption via SHA-256(resumeToken)
+        let isVerifiedResume = false;
+        let sessionId = '';
+        let resumeToken = '';
+        let resumeTokenHash = '';
+
+        if (
+            requestedSessionId &&
+            /^[A-Z0-9]{4}$/.test(requestedSessionId) &&
+            providedResumeToken &&
+            /^[a-f0-9]{32,128}$/i.test(providedResumeToken) &&
+            this.roomState.participants?.[requestedSessionId]?.resumeTokenHash
+        ) {
+            const tokenBytes = new TextEncoder().encode(providedResumeToken);
+            const digest = await crypto.subtle.digest('SHA-256', tokenBytes);
+            const presentedHash = Array.from(new Uint8Array(digest))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
+
+            if (presentedHash === this.roomState.participants[requestedSessionId].resumeTokenHash) {
+                isVerifiedResume = true;
+                sessionId = requestedSessionId;
+                resumeToken = providedResumeToken;
+                resumeTokenHash = presentedHash;
+            }
         }
 
-        if (this.roomState.isLocked) {
+        // Allow verified returning participants to reconnect when room is locked; reject all new entrants
+        if (this.roomState.isLocked && !isVerifiedResume) {
             webSocket.accept();
             webSocket.send(JSON.stringify({ type: 'ERROR_LOCKED' }));
             webSocket.close(1000, 'Room is Locked');
             return;
         }
 
-        webSocket.accept();
-        const sessionId = (requestedSessionId && /^[A-Z0-9]{4}$/.test(requestedSessionId)) 
-            ? requestedSessionId 
-            : crypto.randomUUID().substring(0, 4).toUpperCase();
-
-        if (requestedSessionId) {
-            for (const [existingSocket, sess] of this.sessions.entries()) {
-                if (sess.id === sessionId) {
-                    try { existingSocket.close(1000, 'Session Replaced'); } catch (e) {}
-                    this.sessions.delete(existingSocket);
-                }
-            }
+        // Only enforce MAX_CONNECTIONS against net-new sessions (resuming sessions replace their old slot)
+        if (!isVerifiedResume && this.sessions.size >= getConfig(this.env, 'MAX_CONNECTIONS')) {
+            webSocket.accept();
+            webSocket.close(4001, 'Room Full');
+            return;
         }
 
-        const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
-        this.ipConnectionCounts.set(ip, currentIpCount + 1);
+        webSocket.accept();
+
+        if (isVerifiedResume) {
+            // Displace only when resumeToken is cryptographically proven, and decrement old socket's IP count!
+            for (const [existingSocket, sess] of this.sessions.entries()) {
+                if (sess.id === sessionId) {
+                    if (sess.ip && sess.ip !== 'unknown') {
+                        const oldCount = this.ipConnectionCounts.get(sess.ip) || 1;
+                        const nextCount = Math.max(0, oldCount - 1);
+                        if (nextCount === 0) {
+                            this.ipConnectionCounts.delete(sess.ip);
+                        } else {
+                            this.ipConnectionCounts.set(sess.ip, nextCount);
+                        }
+                    }
+                    this.sessions.delete(existingSocket);
+                    try {
+                        existingSocket.close(1000, 'Session Replaced');
+                    } catch (e) {}
+                }
+            }
+        } else {
+            // Generate a fresh, non-colliding 4-char Session ID and a 256-bit (64-hex-char) resumeToken
+            do {
+                sessionId = crypto.randomUUID().substring(0, 4).toUpperCase();
+            } while (this.roomState.participants && this.roomState.participants[sessionId]);
+
+            resumeToken =
+                crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+            const tokenBytes = new TextEncoder().encode(resumeToken);
+            const digest = await crypto.subtle.digest('SHA-256', tokenBytes);
+            resumeTokenHash = Array.from(new Uint8Array(digest))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        if (ip !== 'unknown') {
+            const currentIpCount = this.ipConnectionCounts.get(ip) || 0;
+            this.ipConnectionCounts.set(ip, currentIpCount + 1);
+        }
 
         let safeDisplayName = undefined;
         if (this.roomState.participants && this.roomState.participants[sessionId]) {
@@ -511,7 +745,7 @@ export class SigningRoom implements DurableObject {
         }
 
         this.sessions.set(webSocket, {
-            role: 'guest', 
+            role: 'guest',
             id: sessionId,
             joinedAt: Date.now(),
             msgsInWindow: 0,
@@ -521,29 +755,48 @@ export class SigningRoom implements DurableObject {
         });
 
         if (!this.roomState.participants) this.roomState.participants = {};
-        const existingRole = this.roomState.participants[sessionId]?.role || 'guest';
-        
-        this.roomState.participants[sessionId] = { 
-            id: sessionId, 
-            role: existingRole, 
-            encryptedDisplayName: safeDisplayName,
-        };
-        
-        await this.saveRoomState();
-        this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+        const existingRole = isVerifiedResume
+            ? this.roomState.participants[sessionId]?.role || 'guest'
+            : 'guest';
 
-        webSocket.send(JSON.stringify({ type: 'SESSION_CONNECTED', sessionId: sessionId }));
+        this.roomState.participants[sessionId] = {
+            id: sessionId,
+            role: existingRole,
+            encryptedDisplayName: safeDisplayName,
+            resumeTokenHash: resumeTokenHash,
+        };
+
+        await this.saveRoomState();
+
+        // Strip internal resumeTokenHash before broadcasting participant metadata to peers
+        this.broadcast({
+            type: 'PARTICIPANTS_UPDATE',
+            participants: this.getSanitizedParticipants(),
+        });
+
+        // Send resumeToken privately to this socket only
+        webSocket.send(
+            JSON.stringify({
+                type: 'SESSION_CONNECTED',
+                sessionId: sessionId,
+                resumeToken: resumeToken,
+            }),
+        );
 
         this.broadcastConnections();
 
-        const { adminToken, roleTokens, signatures, ...safeRoomState } = this.roomState;
+        const { adminToken, roleTokens, signatures, signatureOwners, nonces, nonceOwners, logCounts, ...safeRoomState } = this.roomState;
 
-        webSocket.send(JSON.stringify({ 
-            type: 'STATE_SYNC', 
-            ...safeRoomState, 
-            signatures: Object.values(signatures || {}),
-            connectedCount: this.sessions.size,
-        }));
+        webSocket.send(
+            JSON.stringify({
+                type: 'STATE_SYNC',
+                ...safeRoomState,
+                participants: this.getSanitizedParticipants(),
+                signatures: Object.values(signatures || {}),
+                nonces: Object.values(nonces || {}),
+                connectedCount: this.sessions.size,
+            }),
+        );
 
         webSocket.addEventListener('message', (event) => {
             this.state.waitUntil(this.handleMessage(event, webSocket));
@@ -568,12 +821,24 @@ export class SigningRoom implements DurableObject {
             }
 
             const now = Date.now();
-            if (now - session.lastMsgTime > getConfig(this.env, 'RATE_LIMIT_WINDOW')) {
+            const windowMs = getConfig(this.env, 'RATE_LIMIT_WINDOW');
+            const maxMsgs = getConfig(this.env, 'MAX_MSGS_PER_WINDOW');
+
+            if (now - session.lastMsgTime > windowMs) {
                 session.msgsInWindow = 1;
                 session.lastMsgTime = now;
             } else {
                 session.msgsInWindow++;
-                if (session.msgsInWindow > getConfig(this.env, 'MAX_MSGS_PER_WINDOW')) {
+                if (session.msgsInWindow > maxMsgs) {
+                    if (session.msgsInWindow === maxMsgs + 1) {
+                        webSocket.send(
+                            JSON.stringify({
+                                type: 'ERROR',
+                                code: 'RATE_LIMITED',
+                                message: `Message rate limit exceeded (max ${maxMsgs} per ${windowMs / 1000}s). Slow down and retry.`,
+                            }),
+                        );
+                    }
                     return;
                 }
             }
@@ -596,7 +861,7 @@ export class SigningRoom implements DurableObject {
                         );
                     }
 
-                    if (msg.type === 'UPLOAD_PARTIAL' && session.constraints.canUploadSignature === false) {
+                    if ((msg.type === 'UPLOAD_PARTIAL' || msg.type === 'UPLOAD_NONCE') && session.constraints.canUploadSignature === false) {
                         return webSocket.send(
                             JSON.stringify({
                                 type: 'ERROR_POLICY_VIOLATION',
@@ -609,10 +874,13 @@ export class SigningRoom implements DurableObject {
 
             if (msg.type === 'AUTH') {
                 const ip = session.ip;
-                const penalty = this.ipAuthFailures.get(ip) || { count: 0, lockedUntil: 0 };
+
+                // Never share lockout state across 'unknown' IPs; fall back to per-session lockout
+                const authKey = ip !== 'unknown' ? ip : `session:${session.id}`;
+                const penalty = this.ipAuthFailures.get(authKey) || { count: 0, lockedUntil: 0 };
 
                 if (Date.now() < penalty.lockedUntil) {
-                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Too many failed attempts. IP temporarily locked.' }));
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Too many failed attempts. Temporarily locked.' }));
                 }
 
                 const incomingBuffer = new TextEncoder().encode(msg.token);
@@ -622,13 +890,13 @@ export class SigningRoom implements DurableObject {
                     .join('');
 
                 if (attemptedHash === this.roomState?.adminToken) {
-                    this.ipAuthFailures.delete(ip);
+                    this.ipAuthFailures.delete(authKey);
                     this.sessions.set(webSocket, { ...session!, role: 'admin' });
 
                     if (this.roomState.participants && this.roomState.participants[session.id]) {
                         this.roomState.participants[session.id].role = 'admin';
                         await this.saveRoomState();
-                        this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+                        this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.getSanitizedParticipants() });
                     }
 
                     webSocket.send(JSON.stringify({ type: 'ROLE_UPDATE', role: 'admin' }));
@@ -646,7 +914,7 @@ export class SigningRoom implements DurableObject {
                             }
                         }
                     }
-                    this.ipAuthFailures.set(ip, penalty);
+                    this.ipAuthFailures.set(authKey, penalty);
                     return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Admin Token' }));
                 }
                 this.broadcastConnections();
@@ -702,6 +970,9 @@ export class SigningRoom implements DurableObject {
 
             // Label Updates (Admin Only)
             if (msg.type === 'UPDATE_LABEL' && session?.role === 'admin') {
+                if (!isValidBlindedKey(msg.fingerprint)) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid fingerprint format.' }));
+                }
                 if (msg.label && msg.label.length > 200) {
                     return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Label payload too large.' }));
                 }
@@ -711,12 +982,15 @@ export class SigningRoom implements DurableObject {
 
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'LABELS_UPDATED', signerLabels: this.roomState.signerLabels });
             }
 
             // Address Label Updates (Admin Only)
             if (msg.type === 'UPDATE_ADDRESS_LABEL' && session?.role === 'admin') {
+                if (!isValidBlindedKey(msg.blindedAddress)) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid blinded address format.' }));
+                }
                 if (msg.label && msg.label.length > 200) {
                     return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Label payload too large.' }));
                 }
@@ -726,7 +1000,7 @@ export class SigningRoom implements DurableObject {
 
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'ADDRESS_LABELS_UPDATED', addressLabels: this.roomState.addressLabels });
             }
 
@@ -743,7 +1017,7 @@ export class SigningRoom implements DurableObject {
 
                 this.roomState.participants[session.id].encryptedDisplayName = safeName;
                 await this.saveRoomState();
-                this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.roomState.participants });
+                this.broadcast({ type: 'PARTICIPANTS_UPDATE', participants: this.getSanitizedParticipants() });
 
                 this.broadcastConnections();
             }
@@ -753,23 +1027,103 @@ export class SigningRoom implements DurableObject {
                 this.roomState.roomName = msg.encryptedName;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'ROOM_RENAMED', encryptedName: msg.encryptedName });
             }
 
-            // Action Logging
+            // Action Logging (Enforce per-session quota and refuse when full)
             if (msg.type === 'LOG_ACTION') {
-                if (typeof msg.encryptedLogBlob === 'string' && msg.encryptedLogBlob.length <= 10000) {
-                    await this.log(msg.encryptedLogBlob, session, msg.meta);
+                if (typeof msg.encryptedLogBlob !== 'string' || msg.encryptedLogBlob.length > 10000) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid or oversized log entry.' }));
                 }
+
+                if (!this.roomState.logCounts) this.roomState.logCounts = {};
+                const currentSessionLogs = this.roomState.logCounts[session.id] || 0;
+
+                if (session.role !== 'admin' && currentSessionLogs >= getConfig(this.env, 'MAX_LOGS_PER_SESSION')) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Session audit log quota exceeded.' }));
+                }
+
+                const appended = await this.log(msg.encryptedLogBlob, session);
+                if (!appended) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Audit log capacity reached.' }));
+                }
+
+                this.roomState.logCounts[session.id] = currentSessionLogs + 1;
+                await this.saveRoomState();
+            }
+
+            // MuSig2: PSBT Nonce Upload (Round 1)
+            if (msg.type === 'UPLOAD_NONCE') {
+                if (!isValidBlindedKey(msg.fingerprint)) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid fingerprint format.' }));
+                }
+                if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
+
+                if (!this.roomState.nonces) this.roomState.nonces = {};
+                if (!this.roomState.nonceOwners) this.roomState.nonceOwners = {};
+                const nonces = this.roomState.nonces;
+                const nonceOwners = this.roomState.nonceOwners;
+                const isNewNonce = !nonces[msg.fingerprint];
+
+                // First-writer-wins slot ownership (unless Coordinator overrides)
+                const existingOwner = nonceOwners[msg.fingerprint];
+                if (!isNewNonce && existingOwner && existingOwner !== session.id && session.role !== 'admin') {
+                    return webSocket.send(
+                        JSON.stringify({
+                            type: 'ERROR_POLICY_VIOLATION',
+                            message: 'Signer slot already claimed by another participant session.',
+                        }),
+                    );
+                }
+
+                if (isNewNonce && Object.keys(nonces).length >= getConfig(this.env, 'MAX_SIGNATURES')) {
+                    webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Nonce limit reached.' }));
+                    return;
+                }
+
+                nonces[msg.fingerprint] = msg.data.encryptedData;
+                nonceOwners[msg.fingerprint] = session.id;
+                await this.saveRoomState();
+
+                await this.log(msg.encryptedLogBlob, session);
+                this.broadcast({ type: 'NEW_NONCE_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
+            }
+
+            // MuSig2: Coordinator Publishes Aggregate Base PSBT (Transitions to Round 2)
+            if (msg.type === 'PUBLISH_AGGREGATE_PSBT' && session?.role === 'admin') {
+                if (msg.encryptedPsbt && msg.encryptedPsbt.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
+
+                this.roomState.encryptedPsbt = msg.encryptedPsbt;
+                await this.saveRoomState();
+
+                await this.log(msg.encryptedLogBlob, session);
+                this.broadcast({ type: 'AGGREGATE_PSBT_PUBLISHED', encryptedPsbt: msg.encryptedPsbt });
             }
 
             // PSBT Chunk Upload
             if (msg.type === 'UPLOAD_PARTIAL') {
+                if (!isValidBlindedKey(msg.fingerprint)) {
+                    return webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid fingerprint format.' }));
+                }
                 if (msg.data?.encryptedData && msg.data.encryptedData.length > getConfig(this.env, 'MAX_PAYLOAD_SIZE_BYTES')) return;
-                
-                const sigs = this.roomState.signatures || {};
+
+                if (!this.roomState.signatures) this.roomState.signatures = {};
+                if (!this.roomState.signatureOwners) this.roomState.signatureOwners = {};
+                const sigs = this.roomState.signatures;
+                const sigOwners = this.roomState.signatureOwners;
                 const isNewSigner = !sigs[msg.fingerprint];
+
+                // First-writer-wins slot ownership (unless Coordinator overrides)
+                const existingOwner = sigOwners[msg.fingerprint];
+                if (!isNewSigner && existingOwner && existingOwner !== session.id && session.role !== 'admin') {
+                    return webSocket.send(
+                        JSON.stringify({
+                            type: 'ERROR_POLICY_VIOLATION',
+                            message: 'Signer slot already claimed by another participant session.',
+                        }),
+                    );
+                }
 
                 if (isNewSigner && Object.keys(sigs).length >= getConfig(this.env, 'MAX_SIGNATURES')) {
                     webSocket.send(JSON.stringify({ type: 'ERROR', message: 'Signature limit reached.' }));
@@ -777,17 +1131,21 @@ export class SigningRoom implements DurableObject {
                 }
 
                 this.roomState.signatures[msg.fingerprint] = msg.data.encryptedData;
+                sigOwners[msg.fingerprint] = session.id;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'NEW_PARTIAL_DATA', data: msg.data, fingerprint: msg.fingerprint, sessionId: session?.id });
             }
 
             // Destroy Room (Admin Only)
             if (msg.type === 'CLOSE_ROOM' && session?.role === 'admin') {
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'ROOM_CLOSED', finalLog: this.roomState.auditLog });
                 await this.state.storage.deleteAll();
+                const tombstoneTtlMs = getConfig(this.env, 'TOMBSTONE_TTL_SECONDS') * 1000;
+                await this.state.storage.put('tombstone', { closedAt: Date.now() });
+                await this.state.storage.setAlarm(Date.now() + tombstoneTtlMs);
                 this.roomState = null;
                 for (const sock of this.sessions.keys()) {
                     try {
@@ -802,7 +1160,7 @@ export class SigningRoom implements DurableObject {
                 this.roomState.whitelist = msg.encryptedWhitelist;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'WHITELIST_UPDATED', encryptedWhitelist: msg.encryptedWhitelist });
             }
 
@@ -810,7 +1168,7 @@ export class SigningRoom implements DurableObject {
             if (msg.type === 'TOGGLE_LOCK' && session?.role === 'admin') {
                 this.roomState.isLocked = msg.isLocked;
                 await this.saveRoomState();
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
                 this.broadcast({ type: 'LOCK_UPDATED', isLocked: this.roomState.isLocked });
             }
 
@@ -820,7 +1178,7 @@ export class SigningRoom implements DurableObject {
                 this.roomState.encryptedFinalTxId = msg.encryptedFinalTxId;
                 await this.saveRoomState();
 
-                await this.log(msg.encryptedLogBlob, session, msg.meta);
+                await this.log(msg.encryptedLogBlob, session);
 
                 this.broadcast({
                     type: 'TX_FINALIZED_BROADCAST',
@@ -828,15 +1186,25 @@ export class SigningRoom implements DurableObject {
                     encryptedFinalTxId: msg.encryptedFinalTxId,
                 });
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            if (e?.message === 'ROOM_STATE_BUDGET_EXCEEDED' || e?.message === 'STORAGE_WRITE_FAILED') {
+                try {
+                    webSocket.send(
+                        JSON.stringify({
+                            type: 'ERROR',
+                            message: 'Room state storage limit exceeded or storage write failed.',
+                        }),
+                    );
+                } catch {}
+            }
         }
     }
 
     private handleClose(webSocket: WebSocket) {
         const session = this.sessions.get(webSocket);
 
-        if (session && session.ip) {
+        if (session && session.ip && session.ip !== 'unknown') {
             const currentIpCount = this.ipConnectionCounts.get(session.ip) || 1;
             const newCount = Math.max(0, currentIpCount - 1);
 
@@ -863,7 +1231,14 @@ export class SigningRoom implements DurableObject {
     }
 
     async alarm() {
+        const tombstone = await this.state.storage.get<{ closedAt: number }>('tombstone');
         await this.state.storage.deleteAll();
+        if (!tombstone) {
+            // Room just expired; leave a short-lived (1h) tombstone before final purge
+            const tombstoneTtlMs = getConfig(this.env, 'TOMBSTONE_TTL_SECONDS') * 1000;
+            await this.state.storage.put('tombstone', { closedAt: Date.now() });
+            await this.state.storage.setAlarm(Date.now() + tombstoneTtlMs);
+        }
         this.roomState = null;
         for (const socket of this.sessions.keys()) {
             try {
@@ -871,6 +1246,16 @@ export class SigningRoom implements DurableObject {
             } catch (e) {}
         }
         this.sessions.clear();
+    }
+
+    private getSanitizedParticipants() {
+        const clean: Record<string, any> = {};
+        if (!this.roomState?.participants) return clean;
+        for (const [id, p] of Object.entries(this.roomState.participants as Record<string, any>)) {
+            const { resumeTokenHash, ...publicFields } = p;
+            clean[id] = publicFields;
+        }
+        return clean;
     }
 
     broadcastConnections() {

@@ -70,7 +70,7 @@ import { UrService } from '../../services/ur/ur.service';
 import { base64, hex } from '@scure/base';
 import { WidgetDispatcherService } from '../../services/widget-dispatcher/widget-dispatcher.service';
 import { PrivacySection, PrivacyState } from '../../models/widget-events.model';
-import { EncryptionEngine, TxDerivationInfo } from '@signing-room/sdk';
+import { EncryptionEngine, TxDerivationInfo, PsbtUtils } from '@signing-room/sdk';
 import { ConfigService } from '../../services/config/config.service';
 
 @Component({
@@ -159,6 +159,7 @@ export class RoomComponent implements OnInit, OnDestroy {
   public qrDataUrl = signal<string | null>(null);
   public qrIncludesKey = signal(false);
 
+  public hasEverConnected = signal(false);
   public timeRemaining = signal('Loading...');
   public isExpired = signal(false);
   public isLowTime = signal(false);
@@ -224,6 +225,8 @@ export class RoomComponent implements OnInit, OnDestroy {
   public adminCopied = signal(false);
   public roomIdCopied = signal(false);
   public roomLinkCopied = signal(false);
+  private hasEmittedNoncesAggregated = false;
+  private previousCeremonyPhase: string | null = null;
 
   // --- Granular Role Generation Signals ---
   public roleFlags = signal({
@@ -247,7 +250,11 @@ export class RoomComponent implements OnInit, OnDestroy {
   public showAddressLabelModal = signal(false);
   public editingAddress = signal<string | null>(null);
   public editingAddressLabel = signal('');
-  public saveAddressToBook = signal(true);
+  public saveAddressToBook = signal(false);
+
+  public readonly ttlOptions: (0 | 1 | 7 | 30)[] = [0, 1, 7, 30];
+  public signerBookTtlDays = signal<0 | 1 | 7 | 30>(0);
+  public addressBookTtlDays = signal<0 | 1 | 7 | 30>(0);
 
   public claimPassword = '';
   public manualKey = '';
@@ -256,7 +263,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   public editingFingerprint = signal<string | null>(null);
   public editingLabel = signal('');
-  public saveToBook = signal(true);
+  public saveToBook = signal(false);
 
   private hasEmittedFinalized = false;
   public expectedHost = '';
@@ -306,6 +313,12 @@ export class RoomComponent implements OnInit, OnDestroy {
     private encryptionEngine: EncryptionEngine,
     public readonly configService: ConfigService,
   ) {
+    effect(() => {
+      if (this.socket.status() === 'connected') {
+        this.hasEverConnected.set(true);
+      }
+    });
+
     effect(() => {
       const status = this.socket.status();
       const currentFragment = this.route.snapshot.fragment;
@@ -436,6 +449,30 @@ export class RoomComponent implements OnInit, OnDestroy {
 
       this.dispatcher.emitPolicyViolation(message);
     });
+
+    effect(() => {
+      const state = this.socket.roomState();
+      const phase = this.socket.ceremonyPhase();
+
+      if (state?.protocol === 'musig2') {
+        const wasRound1 =
+          this.previousCeremonyPhase === 'GATHERING_NONCES' ||
+          this.previousCeremonyPhase === 'AGGREGATING_NONCES';
+        const isNowPostRound1 =
+          phase === 'GATHERING_SIGNATURES' || phase === 'READY_TO_BROADCAST';
+
+        if (wasRound1 && isNowPostRound1 && !this.hasEmittedNoncesAggregated) {
+          this.hasEmittedNoncesAggregated = true;
+          this.dispatcher.emitNoncesAggregated(
+            phase,
+            this.socket.nonceCount(),
+            this.socket.signerThreshold(),
+          );
+        }
+      }
+
+      this.previousCeremonyPhase = phase;
+    });
   }
 
   ngOnInit() {
@@ -446,9 +483,16 @@ export class RoomComponent implements OnInit, OnDestroy {
         const hostParam = this.route.snapshot.queryParamMap.get('host');
 
         if (hostParam) {
-          this.expectedHost = decodeURIComponent(hostParam);
-
-          this.dispatcher.setTargetOrigin(this.expectedHost);
+          const decodedHost = decodeURIComponent(hostParam);
+          if (this.configService.isEmbedOriginAllowed(decodedHost)) {
+            this.expectedHost = new URL(decodedHost).origin;
+            this.dispatcher.setTargetOrigin(this.expectedHost);
+          } else {
+            console.warn('[Security] Rejected untrusted embed host parameter:', decodedHost);
+            if (typeof window !== 'undefined') {
+              this.expectedHost = window.location.origin;
+            }
+          }
         } else if (typeof window !== 'undefined') {
           this.expectedHost = window.location.origin;
         }
@@ -479,14 +523,15 @@ export class RoomComponent implements OnInit, OnDestroy {
     if (isPlatformBrowser(this.platformId)) {
       this.socket.disconnect();
       this.socket.reset();
+      this.socket.roomState.set(null);
+      this.hasEverConnected.set(false);
 
       if (this.timerInterval) clearInterval(this.timerInterval);
     }
   }
 
   get requiredSignatures(): number {
-    const psbt = this.socket.roomState()?.psbt;
-    return psbt ? this.socket.getThreshold(psbt) : 0;
+    return this.socket.signerThreshold();
   }
 
   get canFinalize(): boolean {
@@ -519,7 +564,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     return !!this.socket.getLocalLabel(fingerprint);
   }
 
-  async onFileSelected(event: any) {
+  async onFileSelected(event: any, type: 'signature' | 'nonce' = 'signature') {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -527,7 +572,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     const fileName = file.name.toLowerCase();
     if (!validExtensions.some((ext) => fileName.endsWith(ext))) {
       this.openAlert('Invalid File Type', 'Please upload a .psbt, .txt, or .hex file.');
-      event.target.value = ''; // Reset input
+      event.target.value = '';
       return;
     }
 
@@ -541,8 +586,21 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     try {
       const psbtContent = await this.socket.sdk.parsePsbtFile(file);
-      await this.socket.uploadSignature(psbtContent);
-      this.dispatcher.emitPsbtImported('upload');
+
+      // Stop immediately if the PSBT fails phase/ceremony validation
+      if (!this.validateCeremonyPayload(psbtContent)) {
+        event.target.value = '';
+        return;
+      }
+      
+      if (type === 'nonce') {
+        await this.socket.uploadNonce(psbtContent);
+        this.dispatcher.emitPsbtImported('upload-nonce' as any);
+      } else {
+        await this.socket.uploadSignature(psbtContent);
+        this.dispatcher.emitPsbtImported('upload');
+      }
+      
       event.target.value = '';
     } catch (e) {
       console.error(e);
@@ -564,14 +622,18 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   downloadUnsignedPsbt() {
     this.socket.logAction('PSBT Downloaded', 'Unsigned file exported');
-    const psbt = this.socket.roomState()?.psbt;
+    const state = this.socket.roomState();
+    const psbt = state?.psbt || state?.transientPsbt;
     if (!psbt) return;
+
+    const isRound1 = state?.protocol === 'musig2' && !state?.psbt;
+    const prefix = isRound1 ? 'musig2_setup' : 'unsigned_tx';
 
     const blob = new Blob([psbt], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `unsigned_tx_${this.roomId()?.slice(0, 8)}.psbt`;
+    a.download = `${prefix}_${this.roomId()?.slice(0, 8)}.psbt`;
     a.click();
     window.URL.revokeObjectURL(url);
 
@@ -669,7 +731,8 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     this.editingFingerprint.set(fingerprint);
     this.editingLabel.set(current || saved || '');
-    this.saveToBook.set(true);
+    this.saveToBook.set(!!saved);
+    this.signerBookTtlDays.set(this.socket.getLocalLabelTtl(fingerprint));
     this.showLabelModal.set(true);
   }
 
@@ -681,7 +744,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.socket.updateSignerLabel(fp, label);
 
       if (this.saveToBook() && label) {
-        this.socket.saveToAddressBook(fp, label);
+        this.socket.saveToAddressBook(fp, label, this.signerBookTtlDays());
       } else {
         this.socket.removeFromAddressBook(fp);
       }
@@ -707,7 +770,8 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     this.editingAddress.set(address);
     this.editingAddressLabel.set(current || saved || '');
-    this.saveAddressToBook.set(true);
+    this.saveAddressToBook.set(!!saved);
+    this.addressBookTtlDays.set(this.socket.getLocalAddressLabelTtl(address));
     this.showAddressLabelModal.set(true);
     this.dispatcher.emitModalView('Label Address');
   }
@@ -720,7 +784,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.socket.updateAddressLabel(address, label);
 
       if (this.saveAddressToBook() && label) {
-        this.socket.saveAddressToBook(address, label);
+        this.socket.saveAddressToBook(address, label, this.addressBookTtlDays());
       } else {
         this.socket.removeAddressFromBook(address);
       }
@@ -1237,7 +1301,9 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   nudgeSigner(fingerprint: string) {
     const label = this.getSignerLabel(fingerprint);
-    const msg = `Signature needed from: ${label}\n${this.getFullShareLink(false)}`;
+    const isRound1 = this.socket.ceremonyPhase() === 'GATHERING_NONCES';
+    const actionNeeded = isRound1 ? 'Round 1 Public Nonce needed' : 'Signature needed';
+    const msg = `${actionNeeded} from: ${label}\n${this.getFullShareLink(false)}`;
 
     navigator.clipboard.writeText(msg).then(() => {
       this.openAlert(
@@ -1480,7 +1546,8 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   regenerateFrames() {
-    const psbtData = this.socket.roomState()?.psbt;
+    const state = this.socket.roomState();
+    const psbtData = state?.psbt || state?.transientPsbt;
     if (!psbtData) return;
     try {
       if (this.exportFormat() === 'ur') {
@@ -1616,7 +1683,7 @@ export class RoomComponent implements OnInit, OnDestroy {
 
     if (fullHex) {
       this.stopScanner();
-      this.processScannedSignature(fullHex);
+      this.processScannedData(fullHex);
     }
   }
 
@@ -1652,16 +1719,29 @@ export class RoomComponent implements OnInit, OnDestroy {
     }
   }
 
-  async processScannedSignature(data: string) {
+  async processScannedData(data: string) {
     try {
       const clean = data.replace(/\s+/g, '');
       const psbtBytes = /^[0-9a-fA-F]+$/.test(clean) ? hex.decode(clean) : base64.decode(clean);
       const normalizedBase64 = base64.encode(psbtBytes);
 
-      await this.socket.uploadSignature(normalizedBase64);
-      this.dispatcher.emitPsbtImported('scan');
+      // Stop immediately if the scanned PSBT fails phase/ceremony validation
+      if (!this.validateCeremonyPayload(normalizedBase64)) {
+        return;
+      }
+
+      const phase = this.socket.ceremonyPhase();
+      
+      if (phase === 'GATHERING_NONCES') {
+        await this.socket.uploadNonce(normalizedBase64);
+        this.dispatcher.emitPsbtImported('scan-nonce' as any);
+      } else {
+        await this.socket.uploadSignature(normalizedBase64);
+        this.dispatcher.emitPsbtImported('scan');
+      }
     } catch (e) {
-      console.error('Failed to parse signed PSBT from scanner', e);
+      console.error('Failed to parse scanned PSBT data', e);
+      this.openAlert('Scan Error', 'Failed to decode scanned QR payload.');
     }
   }
 
@@ -1671,6 +1751,136 @@ export class RoomComponent implements OnInit, OnDestroy {
     if (this.isFountainRevealed() && this.showFountainModal()) {
       this.startFountainAnimation();
     }
+  }
+
+  /**
+   * Validates an imported PSBT against the active ceremony phase, transaction ID,
+   * and existing signer contributions before broadcasting to the room.
+   */
+  private validateCeremonyPayload(psbtBase64: string): boolean {
+    const state = this.socket.roomState();
+    const phase = this.socket.ceremonyPhase();
+    const isMuSig2 = state?.protocol === 'musig2';
+    const currentSigners = this.socket.signers();
+
+    const inspection = PsbtUtils.inspectCeremonyPayload(psbtBase64);
+
+    // Corrupt / Unparseable PSBT
+    if (!inspection.isValidPsbt) {
+      this.openAlert(
+        'Invalid PSBT Data',
+        'The uploaded payload could not be parsed as a valid Bitcoin PSBT.',
+      );
+      return false;
+    }
+
+    // Transaction Mismatch Check
+    const expectedTxId = this.socket.txDetails()?.txId;
+    if (expectedTxId && inspection.txId && expectedTxId !== inspection.txId) {
+      this.openAlert(
+        'Transaction Mismatch',
+        `This PSBT belongs to a different transaction (${inspection.txId.slice(0, 8)}...) and does not match this room (${expectedTxId.slice(0, 8)}...).`,
+      );
+      return false;
+    }
+
+    // Guard against uploading while Coordinator is mid-aggregation
+    if (phase === 'AGGREGATING_NONCES') {
+      this.openAlert(
+        'Aggregation in Progress',
+        'Please wait a moment while the Coordinator finishes aggregating Round 1 nonces.',
+      );
+      return false;
+    }
+
+    // ROUND 1 VALIDATION (MuSig2 Nonce Collection)
+    if (isMuSig2 && phase === 'GATHERING_NONCES') {
+      // User uploaded a signature during Step 1!
+      if (inspection.hasMuSig2PartialSig || inspection.hasStandardSig) {
+        this.openAlert(
+          'Wrong Ceremony Step (Step 1 of 2)',
+          'The room is currently in Step 1 (Collect Nonces), but this file contains a signature.\n\nPlease upload your Round 1 Public Nonce first.',
+        );
+        return false;
+      }
+
+      // User re-uploaded the blank setup file with no nonces
+      if (!inspection.hasMuSig2Nonce || inspection.nonceFingerprints.length === 0) {
+        this.openAlert(
+          'No Public Nonce Found',
+          'This PSBT does not contain any MuSig2 public nonces (0x1b). Please generate a public nonce on your signing device before uploading.',
+        );
+        return false;
+      }
+
+      // Duplicate nonce upload (signer already hasNonce in Round 1)
+      const newNonceSigners = inspection.nonceFingerprints.filter((fp: string) => {
+        const existing = currentSigners.find((s) => s.fingerprint === fp);
+        return existing && !existing.hasNonce;
+      });
+
+      if (newNonceSigners.length === 0) {
+        const fpLabels = inspection.nonceFingerprints
+          .map((fp: string) => this.getSignerLabel(fp))
+          .join(', ');
+        this.openAlert(
+          'Duplicate Nonce',
+          `Public nonce for ${fpLabels} has already been uploaded in Step 1.`,
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    // ROUND 2 (MuSig2) OR STANDARD SIGNING VALIDATION
+    if (isMuSig2) {
+      // User uploaded a Round 1 Nonce file during Step 2 (no partial signature present)
+      if (!inspection.hasMuSig2PartialSig) {
+        if (inspection.hasMuSig2Nonce) {
+          this.openAlert(
+            'Wrong Ceremony Step (Step 2 of 2)',
+            'This file only contains Round 1 public nonces and no partial signatures.\n\nThe room is now in Step 2 (Collect Signatures). Please export the aggregated transaction, sign it, and upload your partial signature.',
+          );
+        } else {
+          this.openAlert(
+            'No Partial Signature Found',
+            'This PSBT does not contain a MuSig2 partial signature (0x1c). Please sign the transaction on your device first.',
+          );
+        }
+        return false;
+      }
+    } else {
+      // Standard (non-MuSig2) room: ensure at least one signature is present
+      if (!inspection.hasStandardSig && !inspection.hasMuSig2PartialSig) {
+        this.openAlert(
+          'No Signature Found',
+          'This PSBT is unsigned. Please sign the transaction on your hardware wallet before uploading.',
+        );
+        return false;
+      }
+    }
+
+    // Duplicate signature upload (signer already signed)
+    if (inspection.signedFingerprints.length > 0) {
+      const newSignedSigners = inspection.signedFingerprints.filter((fp: string) => {
+        const existing = currentSigners.find((s) => s.fingerprint === fp);
+        return existing && !existing.signed;
+      });
+
+      if (newSignedSigners.length === 0) {
+        const fpLabels = inspection.signedFingerprints
+          .map((fp: string) => this.getSignerLabel(fp))
+          .join(', ');
+        this.openAlert(
+          'Duplicate Signature',
+          `Signature for ${fpLabels} has already been uploaded.`,
+        );
+        return false;
+      }
+    }
+
+    return true;
   }
 
   getScriptTypeInfo(scriptType: string): { label: string; tooltip: string } {
