@@ -396,10 +396,31 @@ widget.<span class="code-attr">addEventListener</span>(<span class="code-string"
 }
                 </div>
 
-                <p class="mt-4 mb-2"><strong style="color: var(--accent);">psbtImported</strong>: Fired when a participant successfully injects a signed PSBT into the room.</p>
+                <p class="mt-4 mb-2"><strong style="color: var(--accent);">nonceReceived</strong>: Fired when a Round 1 MuSig2 public nonce is received over the network.</p>
+                <div class="code-block">
+<span class="code-tag">export interface</span> NonceReceivedPayload <span class="code-tag">extends</span> BaseEventContext {
+  fingerprint: <span class="code-tag">string</span>; <span class="code-comment">// The hardware fingerprint that provided the nonce</span>
+  signerLabel?: <span class="code-tag">string</span>; <span class="code-comment">// The label assigned to this hardware by the Coordinator</span>
+  signerSessionId?: <span class="code-tag">string</span>; <span class="code-comment">// The session ID of the user submitting (if known)</span>
+  signerName?: <span class="code-tag">string</span>; <span class="code-comment">// The display name of the user submitting (if known)</span>
+  noncesReceived: <span class="code-tag">number</span>;
+  threshold: <span class="code-tag">number</span>;
+}
+                </div>
+
+                <p class="mt-4 mb-2"><strong style="color: var(--accent);">noncesAggregated</strong>: Fired when Round 1 MuSig2 nonces are aggregated and the ceremony transitions out of nonce collection.</p>
+                <div class="code-block">
+<span class="code-tag">export interface</span> NoncesAggregatedPayload <span class="code-tag">extends</span> BaseEventContext {
+  phase: <span class="code-string">'GATHERING_SIGNATURES'</span> | <span class="code-string">'READY_TO_BROADCAST'</span>;
+  noncesReceived: <span class="code-tag">number</span>;
+  threshold: <span class="code-tag">number</span>;
+}
+                </div>
+
+                <p class="mt-4 mb-2"><strong style="color: var(--accent);">psbtImported</strong>: Fired when a participant successfully injects a PSBT, nonce, or partial signature into the room.</p>
                 <div class="code-block">
 <span class="code-tag">export interface</span> PsbtImportedPayload <span class="code-tag">extends</span> BaseEventContext {
-  method: <span class="code-string">'scan'</span> | <span class="code-string">'upload'</span>;
+  method: <span class="code-string">'scan'</span> | <span class="code-string">'upload'</span> | <span class="code-string">'scan-nonce'</span> | <span class="code-string">'upload-nonce'</span>;
 }
                 </div>
 

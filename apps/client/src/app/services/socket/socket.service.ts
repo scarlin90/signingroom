@@ -226,6 +226,14 @@ export class SocketService {
       }
     });
 
+    this.relay.events.on('NEW_PARTIAL_DECRYPTED').subscribe((event) => {
+      const { decryptedPsbt, fingerprint, sessionId } = event.payload;
+
+      if (fingerprint && sessionId) {
+        this.networkSignatureReceived$.next({ fingerprint, sessionId });
+      }
+    });
+
     this.relay.events.on('ROLE_UPDATE').subscribe((e) => {
       const newRole = e.payload;
       this.role.set(newRole);

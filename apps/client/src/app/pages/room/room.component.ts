@@ -225,6 +225,8 @@ export class RoomComponent implements OnInit, OnDestroy {
   public adminCopied = signal(false);
   public roomIdCopied = signal(false);
   public roomLinkCopied = signal(false);
+  private hasEmittedNoncesAggregated = false;
+  private previousCeremonyPhase: string | null = null;
 
   // --- Granular Role Generation Signals ---
   public roleFlags = signal({
@@ -446,6 +448,30 @@ export class RoomComponent implements OnInit, OnDestroy {
       this.openAlert('Access Denied', message);
 
       this.dispatcher.emitPolicyViolation(message);
+    });
+
+    effect(() => {
+      const state = this.socket.roomState();
+      const phase = this.socket.ceremonyPhase();
+
+      if (state?.protocol === 'musig2') {
+        const wasRound1 =
+          this.previousCeremonyPhase === 'GATHERING_NONCES' ||
+          this.previousCeremonyPhase === 'AGGREGATING_NONCES';
+        const isNowPostRound1 =
+          phase === 'GATHERING_SIGNATURES' || phase === 'READY_TO_BROADCAST';
+
+        if (wasRound1 && isNowPostRound1 && !this.hasEmittedNoncesAggregated) {
+          this.hasEmittedNoncesAggregated = true;
+          this.dispatcher.emitNoncesAggregated(
+            phase,
+            this.socket.nonceCount(),
+            this.socket.signerThreshold(),
+          );
+        }
+      }
+
+      this.previousCeremonyPhase = phase;
     });
   }
 

@@ -66,7 +66,7 @@ export interface FountainStateChangedPayload {
 }
 
 export interface PsbtImportedPayload {
-  method: 'scan' | 'upload';
+  method: 'scan' | 'upload' | 'scan-nonce' | 'upload-nonce';
 }
 
 export interface TransactionViewChangedPayload {
@@ -117,4 +117,19 @@ export interface RoleGeneratedPayload extends BaseEventContext {
 
 export interface PolicyViolationPayload extends BaseEventContext {
   message: string;
+}
+
+export interface NonceReceivedPayload {
+  fingerprint: string;
+  signerLabel?: string;
+  signerSessionId?: string;
+  signerName?: string;
+  noncesReceived: number;
+  threshold: number;
+}
+
+export interface NoncesAggregatedPayload {
+  phase: 'GATHERING_SIGNATURES' | 'READY_TO_BROADCAST';
+  noncesReceived: number;
+  threshold: number;
 }

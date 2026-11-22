@@ -213,6 +213,19 @@ function mountWidget(roomId = null, key = null, viewMode = null) {
         log(`${getContextPrefix(data)} Address Copied: ${data.address}`);
     });
 
+    newWidget.addEventListener('nonceReceived', (e) => {
+        const data = e.detail;
+        const name = data.signerName ? ` (${data.signerName})` : '';
+        const label = data.signerLabel ? `"${data.signerLabel}"` : `[${data.fingerprint}]`;
+        const sessionInfo = data.signerSessionId ? ` via Session [${data.signerSessionId.substring(0, 8)}]` : '';
+        log(`${getContextPrefix(data)} MuSig2: Nonce received for ${label}${name}${sessionInfo} (${data.noncesReceived}/${data.threshold})`);
+    });
+
+    newWidget.addEventListener('noncesAggregated', (e) => {
+        const data = e.detail;
+        log(`${getContextPrefix(data)} MuSig2: Nonces aggregated (${data.noncesReceived}/${data.threshold}) -> Phase: ${data.phase}`);
+    });
+
     newWidget.addEventListener('signingError', (e) => {
         const data = e.detail;
         log(`${getContextPrefix(data)} ERROR: ${e.detail.message}`);
