@@ -3,10 +3,11 @@
 The security of the **Stateless Pattern** depends on two things: the integrity of the code and the transparency of the administration. This document provides the tools to verify both.
 
 ## 🔑 Public PGP Key
-To verify the **Warrant Canary** or to send encrypted vulnerability reports, use the official Architect key.
+To verify the **Warrant Canary** or to send encrypted vulnerability reports, use the official Architect PGP key bundle.
 
-**Fingerprint:** `C642EB5E3EB8519498CF653597A4B80F7970DD56`  
-**Key Location:** [/pgp-key.asc](./apps/client/public/pgp-key.asc)
+* **Primary Key Fingerprint:** `C642 EB5E 3EB8 5194 98CF 6535 97A4 B80F 7970 DD56`
+* **Ed25519 Signing Subkey Fingerprint:** `AE65 1FE8 0BA6 AEFD 6785 C6AC 4C6F D551 7130 66AF`
+* **Key Location:** [/pgp-key.asc](./apps/client/public/pgp-key.asc)
 
 ---
 
@@ -39,14 +40,14 @@ Stateless Research Ltd operates a responsible disclosure policy. Please encrypt 
 
 Email: security@signingroom.io
 
-Why "Ephemerality" Matters for Security
-Because the architecture is an e2e ephemeral Relay, the impact of a potential breach is fundamentally limited:
+Why Ephemeral, Operator-Blind Architecture Matters for Security
+Because the architecture operates as an end-to-end encrypted, operator-blind relay, the impact of a potential infrastructure breach is fundamentally bounded:
 
-No Database: There are no user emails, passwords, or transaction histories to leak.
+No User Database or Long-Term Retention: There are no user accounts, email addresses, passwords, or historical transaction archives to leak.
 
-Ephemeral: Payloads exist only in volatile RAM for the duration of the relay.
+Ephemeral Session State: On hosted infrastructure (Cloudflare Durable Objects), encrypted room ciphertext is held in ephemeral object storage solely for the duration of an active signing ceremony (up to the 24-hour TTL) and is purged via storage.deleteAll() immediately upon room closure or TTL expiry. Self-hosted workerd deployments operate in volatile memory (inMemory = void).
 
-Encryption: All coordination is AES-256-GCM encrypted client-side before reaching the relay.
+End-to-End Client-Side Encryption: All transaction payloads (PSBTs), participant aliases, labels, and audit logs are AES-256-GCM encrypted client-side before reaching the relay; the decryption key (FBEK) remains strictly in the client's URL fragment and is never transmitted to the server.
 
 
 

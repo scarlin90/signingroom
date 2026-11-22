@@ -11,6 +11,7 @@ export interface BrandingConfig {
   hideFooter: boolean;
   hideNetworkBadges: boolean;
   licenseToken?: string;
+  allowedEmbedOrigins?: string[];
 }
 
 export const DEFAULT_BRANDING_CONFIG: BrandingConfig = {
@@ -25,4 +26,5 @@ export const DEFAULT_BRANDING_CONFIG: BrandingConfig = {
   defaultRoomName: 'Signing Room',
   hideFooter: false,
   hideNetworkBadges: false,
+  allowedEmbedOrigins: []
 };

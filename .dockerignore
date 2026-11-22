@@ -1,7 +1,8 @@
 .angular
 
 # Dependencies & Package Caches
-node_modules/
+node_modules
+**/node_modules
 .npm/
 
 # Build & Dist Outputs
@@ -9,6 +10,9 @@ dist/
 .nx/
 .cache/
 coverage/
+.nx/cache
+.angular/cache
+node_modules/.cache
 
 # Git & Docker
 .git/

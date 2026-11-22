@@ -38,5 +38,7 @@ const worker :Workerd.Worker = (
         (name = "ENVIRONMENT", fromEnvironment = "ENVIRONMENT"),
         (name = "ALLOWED_ORIGIN", fromEnvironment = "ALLOWED_ORIGIN"),
         (name = "API_PUBLIC_URL", fromEnvironment = "API_PUBLIC_URL"),
+        (name = "TRUSTED_IP_HEADER", fromEnvironment = "TRUSTED_IP_HEADER"),
+        (name = "ALLOW_HEADLESS_ACCESS", fromEnvironment = "ALLOW_HEADLESS_ACCESS"),
     ],
 );

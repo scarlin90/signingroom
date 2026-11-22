@@ -77,7 +77,10 @@ describe('CreateComponent', () => {
       decrypt: vi.fn(),
     };
 
-    mockSocketService = { createRoom: vi.fn() };
+    mockSocketService = { 
+      sdk: {
+      createRoom: vi.fn(),
+    }};
 
     mockUrService = {
       resetDecoder: vi.fn(),
@@ -250,7 +253,7 @@ describe('CreateComponent', () => {
         defaultRoleToken: 'role-token-abc'
       };
       
-      mockSocketService.createRoom.mockResolvedValue(mockPayload);
+      mockSocketService.sdk.createRoom.mockResolvedValue(mockPayload);
 
       component.rawHex = 'psbt-data';
       component.selectedNetwork.set('testnet');
@@ -280,7 +283,7 @@ describe('CreateComponent', () => {
 
     it('should catch errors during launchRoom and stop loading', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockSocketService.createRoom.mockRejectedValue(new Error('Creation failed'));
+      mockSocketService.sdk.createRoom.mockRejectedValue(new Error('Creation failed'));
       await component.launchRoom();
       expect(consoleSpy).toHaveBeenCalledWith(new Error('Creation failed'));
       expect(component.isLoading()).toBe(false);

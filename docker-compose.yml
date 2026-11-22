@@ -11,6 +11,7 @@ services:
       - ALLOWED_ORIGIN=http://localhost:8080
       - ENVIRONMENT=development
       - ALLOW_HEADLESS_ACCESS=true
+      - TRUSTED_IP_HEADER=X-Real-IP
 
   client:
     build:
