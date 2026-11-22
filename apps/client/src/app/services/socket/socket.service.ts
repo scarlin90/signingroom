@@ -458,6 +458,15 @@ export class SocketService {
    */
   public purgeExpiredAddressBook(): void {
     if (!this.isBrowser) return;
+
+    if (
+      typeof localStorage === 'undefined' ||
+      !localStorage ||
+      typeof localStorage.key !== 'function'
+    ) {
+      return;
+    }
+
     const now = Date.now();
     const keysToRemove: string[] = [];
 
