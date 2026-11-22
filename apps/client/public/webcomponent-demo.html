@@ -171,10 +171,10 @@ yarn add @signing-room/embed
 
             <div class="card doc-section">
                 <h3>2. HTML Attributes</h3>
-                <p>You can render the component directly in your DOM. It requires zero framework dependencies.</p>
+                <p>You can render the component directly in your DOM. It requires zero framework dependencies, and the standalone navigation header and footer are automatically hidden when embedded.</p>
                 <div class="code-block">
 <span class="code-comment">&lt;!-- Example Usage --&gt;</span>
-&lt;<span class="code-tag">signing-room</span> <span class="code-attr">network</span>=<span class="code-string">"signet"</span> <span class="code-attr">hide-header</span>=<span class="code-string">"true"</span>&gt;&lt;/<span class="code-tag">signing-room</span>&gt;
+&lt;<span class="code-tag">signing-room</span> <span class="code-attr">network</span>=<span class="code-string">"signet"</span>&gt;&lt;/<span class="code-tag">signing-room</span>&gt;
                 </div>
                 
                 <table class="doc-table">
@@ -188,10 +188,6 @@ yarn add @signing-room/embed
                         <tr>
                             <td><code>network</code></td>
                             <td>Sets the Bitcoin network. Options: <code>bitcoin</code>, <code>testnet</code>, <code>signet</code>. (Default: <code>bitcoin</code>)</td>
-                        </tr>
-                        <tr>
-                            <td><code>hide-header</code></td>
-                            <td>If <code>true</code>, hides the top "SigningRoom.io" header and network badges for a cleaner white-label embed.</td>
                         </tr>
                         <tr>
                             <td><code>relay-endpoint</code></td>
@@ -208,6 +204,10 @@ yarn add @signing-room/embed
                         <tr>
                             <td><code>decryption-key</code></td>
                             <td>(Optional) The private decryption key required to unlock the room.</td>
+                        </tr>
+                        <tr>
+                            <td><code>license-token</code></td>
+                            <td>(Optional) Signed Ed25519 commercial license token (<code>srl_...</code>) to enable white-label mode and remove Community Edition badges/watermarks.</td>
                         </tr>
                     </tbody>
                 </table>
