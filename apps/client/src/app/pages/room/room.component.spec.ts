@@ -2797,7 +2797,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('should fallback to an empty array if paths are undefined when opening modal', () => {
       component.openPathModal('Empty Path', undefined as any);
-
       expect(component.inspectingPathsTitle()).toBe('Empty Path');
       expect(component.inspectingPathsList()).toEqual([]);
       expect(component.showPathModal()).toBe(true);
@@ -2861,7 +2860,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('should remove the label from the address book if saveToBook is false', () => {
       const removeBookSpy = vi.spyOn(component.socket, 'removeFromAddressBook');
-
       component.editingFingerprint.set('aabbccdd');
       component.editingLabel.set('Temp Label');
       component.saveToBook.set(false);
@@ -3011,7 +3009,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
     it('should split a standard length address into prefix, body, and checksum', () => {
       const address = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
       const result = component.splitAddress(address);
-
       expect(result.prefix).toBe('bc1q');
       expect(result.checksum).toBe('hx0wlh');
       expect(result.body).toBe('xy2kgdygjrsqtzq2n0yrf2493p83kkfj');
@@ -3028,7 +3025,6 @@ describe('RoomComponent - Setup & Lifecycle', () => {
 
     it('should handle empty or null addresses safely', () => {
       const result = component.splitAddress('');
-
       expect(result.prefix).toBe('');
       expect(result.checksum).toBe('');
       expect(result.body).toBe('');
