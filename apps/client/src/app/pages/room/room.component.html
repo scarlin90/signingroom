@@ -2,7 +2,7 @@
     @if (!hasEverConnected() && socket.status() !== 'connected') {
         <div id="modal-starting-room" class="fixed inset-0 z-[200] flex items-center justify-center bg-brand-bg/70 backdrop-blur-md animate-fade-in p-4">
             <div class="bg-brand-card border border-brand-accent/30 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-accent via-emerald-400 to-brand-accent animate-pulse"></div>
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-accent via-brand-accent-hover to-brand-accent animate-pulse"></div>
                 <div class="w-16 h-16 bg-brand-accent/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-brand-accent/30">
                     <svg lucideLoader2 class="w-8 h-8 text-brand-accent animate-spin"></svg>
                 </div>
