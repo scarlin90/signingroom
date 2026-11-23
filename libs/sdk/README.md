@@ -1,6 +1,3 @@
-Here is the complete, updated `README.md` for `@signing-room/sdk`. It integrates the **MuSig2 Two-Round Ceremonies (BIP-327 / BIP-373)** section right after the standard finalization section, complete with an API & Event reference table and end-to-end code examples using `SigningRoomClient`.
-
-```markdown
 # @signing-room/sdk
 
 The official JavaScript/TypeScript SDK for **SigningRoom**.
