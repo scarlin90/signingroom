@@ -1017,12 +1017,16 @@ export class RoomComponent implements OnInit, OnDestroy {
       const allowed = ['bitcoin', 'testnet', 'signet'];
       const net = allowed.includes(rawNet || '') ? rawNet : 'bitcoin';
 
+      const explorerOrigin = (
+        this.configService.config().explorerBaseUrl || 'https://mempool.space'
+      ).replace(/\/$/, '');
+
       const baseUrl =
         net === 'bitcoin'
-          ? 'https://mempool.space'
+          ? explorerOrigin
           : net === 'testnet'
-            ? 'https://mempool.space/testnet'
-            : 'https://mempool.space/signet';
+            ? `${explorerOrigin}/testnet`
+            : `${explorerOrigin}/signet`;
 
       window.open(`${baseUrl}/tx/push`, '_blank');
     }
@@ -1235,23 +1239,23 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   async generateAuditLog() {
     if (this.socket.currentConstraints()?.canExportAudit === false) return;
-    const config = this.configService.config();
-    const reportHeading = config.brandName;
-
-    const rgbColor = this.hexToRgb(config.brandColorHex || '#10b981');
-    const base64Logo = await this.getBase64Logo(config.logoUrl);
-
-    const { doc, filename } = await this.socket.getAuditLogPdf({
-      brandName: reportHeading,
-      brandColor: rgbColor,
-      logoDataUrl: base64Logo || undefined,
-      isWhitelabel: config.whitelabel,
-    });
+    const { doc, filename } = await this.getPdfDocument();
     await doc.save(filename);
   }
 
-  getPdfDocument() {
-    return this.socket.getAuditLogPdf();
+  async getPdfDocument() {
+    const config = this.configService.config();
+    const rgbColor = this.hexToRgb(config.brandColorHex || '#10b981');
+    const base64Logo = await this.getBase64Logo(config.logoUrl);
+    const explorerBaseUrl = (config.explorerBaseUrl || 'https://mempool.space').replace(/\/$/, '');
+
+    return this.socket.getAuditLogPdf({
+      brandName: config.brandName,
+      brandColor: rgbColor,
+      logoDataUrl: base64Logo || undefined,
+      isWhitelabel: config.whitelabel,
+      explorerBaseUrl,
+    });
   }
 
   private startTimer(expiryTime: number) {
