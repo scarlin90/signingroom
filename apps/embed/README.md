@@ -45,7 +45,7 @@ Once imported, you can use the `<signing-room>` custom element anywhere in your 
 | Attribute        | Description |
 |------------------|-------------|
 | `network`        | Sets the Bitcoin network. Options: `bitcoin`, `testnet`, `signet`. (Default: `bitcoin`) |
-| `relay-endpoint` | (Optional) Overrides the default relay server URL (useful for local testing). |
+| `relay-endpoint` | (Required) Overrides the default relay server URL (useful for local testing). |
 | `view`           | (Optional) Set to `inject` to load into a specific flow context. |
 | `room-id`        | (Optional) The public ID of an existing room to join automatically. |
 | `decryption-key` | (Optional) The private decryption key required to unlock the room. |

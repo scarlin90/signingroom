@@ -464,8 +464,9 @@ describe('RoomAuditor', () => {
 
     it('should correctly format full explorer links across networks', async () => {
       const mockDoc = createMockDoc();
+      const options = { explorerBaseUrl: 'https://mempool.space' };
 
-      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null);
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null, options);
       expect(mockDoc.textWithLink).toHaveBeenCalledWith(
         expect.stringContaining('https://mempool.space/testnet/tx/txid-12345'),
         20,
@@ -479,6 +480,52 @@ describe('RoomAuditor', () => {
         mockTx,
         mockSigners,
         null,
+        options,
+      );
+      expect(mockDoc.textWithLink).toHaveBeenCalledWith(
+        expect.stringContaining('https://mempool.space/signet/tx/txid-12345'),
+        20,
+        expect.any(Number),
+        expect.any(Object),
+      );
+    });
+
+    it('should correctly format full explorer links across networks', async () => {
+      const mockDoc = createMockDoc();
+      const options = { explorerBaseUrl: 'https://mempool.space/' };
+
+      await RoomAuditor.generateAuditPdf(
+        mockDoc,
+        { ...mockState, network: 'bitcoin' },
+        mockTx,
+        mockSigners,
+        null,
+        options,
+      );
+      expect(mockDoc.textWithLink).toHaveBeenCalledWith(
+        expect.stringContaining('https://mempool.space/tx/txid-12345'),
+        20,
+        expect.any(Number),
+        expect.any(Object),
+      );
+
+      // Testnet
+      await RoomAuditor.generateAuditPdf(mockDoc, mockState, mockTx, mockSigners, null, options);
+      expect(mockDoc.textWithLink).toHaveBeenCalledWith(
+        expect.stringContaining('https://mempool.space/testnet/tx/txid-12345'),
+        20,
+        expect.any(Number),
+        expect.any(Object),
+      );
+
+      // Signet
+      await RoomAuditor.generateAuditPdf(
+        mockDoc,
+        { ...mockState, network: 'signet' },
+        mockTx,
+        mockSigners,
+        null,
+        options,
       );
       expect(mockDoc.textWithLink).toHaveBeenCalledWith(
         expect.stringContaining('https://mempool.space/signet/tx/txid-12345'),

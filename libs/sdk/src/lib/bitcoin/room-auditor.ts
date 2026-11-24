@@ -14,6 +14,7 @@ export interface AuditLogOptions {
   logoDataUrl?: string;
   isWhitelabel?: boolean;
   license?: VerifiedLicense | null;
+  explorerBaseUrl?: string;
 }
 
 /**
@@ -376,26 +377,29 @@ export class RoomAuditor {
       doc.text(String(txId), 20, y);
       y += 8;
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(50);
-      doc.text('Explorer Verification Link:', 20, y);
-      y += 5;
+      if (options?.explorerBaseUrl) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(50);
+        doc.text('Explorer Verification Link:', 20, y);
+        y += 5;
 
-      const networkSubpath = 
-        state.network === 'testnet'
-          ? 'testnet/'
-          : state.network === 'signet'
-            ? 'signet/'
-            : '';
-      const fullExplorerUrl = `https://mempool.space/${networkSubpath}tx/${txId}`;
+        const baseUrl = options.explorerBaseUrl.replace(/\/$/, '');
+        const networkSubpath =
+          state.network === 'testnet'
+            ? 'testnet/'
+            : state.network === 'signet'
+              ? 'signet/'
+              : '';
+        const fullExplorerUrl = `${baseUrl}/${networkSubpath}tx/${txId}`;
 
-      doc.setFontSize(8);
-      doc.setFont('courier', 'normal');
-      doc.setTextColor(brandColor[0], brandColor[1], brandColor[2]);
-      
-      doc.textWithLink(fullExplorerUrl, 20, y, { url: fullExplorerUrl });
-      y += 12;
+        doc.setFontSize(8);
+        doc.setFont('courier', 'normal');
+        doc.setTextColor(brandColor[0], brandColor[1], brandColor[2]);
+
+        doc.textWithLink(fullExplorerUrl, 20, y, { url: fullExplorerUrl });
+        y += 12;
+      }
     }
 
     doc.setFont('helvetica', 'bold');
