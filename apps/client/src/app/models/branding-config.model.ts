@@ -12,6 +12,7 @@ export interface BrandingConfig {
   hideNetworkBadges: boolean;
   licenseToken?: string;
   allowedEmbedOrigins?: string[];
+  explorerBaseUrl?: string;
 }
 
 export const DEFAULT_BRANDING_CONFIG: BrandingConfig = {
@@ -26,5 +27,6 @@ export const DEFAULT_BRANDING_CONFIG: BrandingConfig = {
   defaultRoomName: 'Signing Room',
   hideFooter: false,
   hideNetworkBadges: false,
-  allowedEmbedOrigins: []
+  allowedEmbedOrigins: [],
+  explorerBaseUrl: 'https://mempool.space',
 };
