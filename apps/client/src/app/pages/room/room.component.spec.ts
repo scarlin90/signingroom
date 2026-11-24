@@ -961,6 +961,7 @@ describe('RoomComponent - Setup & Lifecycle', () => {
   describe('Finalize Logic Branches', () => {
     it('should call getAuditLogPdf when finalized in embedded mode', async () => {
       vi.spyOn(component, 'openConfirm');
+      vi.spyOn(component as any, 'getBase64Logo').mockResolvedValue(null);
 
       vi.spyOn(component, 'isEmbedded', 'get').mockReturnValue(true);
       mockSocketService.isCoordinator.mockReturnValue(true);

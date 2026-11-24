@@ -34,29 +34,39 @@ export class SigningRoomElement extends HTMLElement {
     }
 
     connectedCallback() {
-        const rawOrigin = this.getAttribute('relay-endpoint') || 'https://signingroom.io';
+        const rawOrigin = this.getAttribute('relay-endpoint')?.trim();
+        if (!rawOrigin) {
+            const message = '[SigningRoomElement] Missing required "relay-endpoint" attribute.';
+            console.error(message);
+            this.dispatchEvent(new CustomEvent('signingError', {
+                detail: { code: 'MISSING_RELAY_ENDPOINT', message },
+                bubbles: true,
+                composed: true,
+            }));
+            return;
+        }
+
         this.targetOrigin = rawOrigin.replace(/\/$/, '');
-        
+
         const network = this.getAttribute('network') || 'bitcoin';
         const roomId = this.getAttribute('room-id');
         const key = this.getAttribute('decryption-key');
         const view = this.getAttribute('view');
-        const hideHeader = this.getAttribute('hide-header') === 'true';
         const licenseToken = this.getAttribute('license-token');
-        
+
         const hostOrigin = encodeURIComponent(window.location.origin);
-        
-        let src = `${this.targetOrigin}/create?embedded=true&network=${network}&host=${hostOrigin}&hideHeader=${hideHeader}`;
-        
+
+        let src = `${this.targetOrigin}/create?embedded=true&network=${network}&host=${hostOrigin}`;
+
         if (view) src += `&view=${view}`;
         if (licenseToken) src += `&licenseToken=${encodeURIComponent(licenseToken)}`;
 
         if (roomId) {
-            src = `${this.targetOrigin}/room/${roomId}?embedded=true&host=${hostOrigin}&hideHeader=${hideHeader}`;
+            src = `${this.targetOrigin}/room/${roomId}?embedded=true&host=${hostOrigin}`;
             if (licenseToken) src += `&licenseToken=${encodeURIComponent(licenseToken)}`;
             if (key) src += `#${key}`;
         }
-        
+
         this.iframe.src = src;
         this.shadowRoot?.appendChild(this.iframe);
 
